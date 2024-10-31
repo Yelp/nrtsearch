@@ -47,8 +47,8 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 
 /** Additional collector that collects top hits based on relevance score or sorting. */
 public class TopHitsCollectorManager
@@ -122,11 +122,11 @@ public class TopHitsCollectorManager
     if (grpcTopHitsCollector.hasQuerySort()) {
       sortContext = new SortContext(grpcTopHitsCollector.getQuerySort(), context.getQueryFields());
       collectorManager =
-          TopFieldCollector.createSharedManager(
+          new TopFieldCollectorManager(
               sortContext.getSort(), grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
     } else {
       collectorManager =
-          TopScoreDocCollector.createSharedManager(
+          new TopScoreDocCollectorManager(
               grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
       sortContext = null;
     }

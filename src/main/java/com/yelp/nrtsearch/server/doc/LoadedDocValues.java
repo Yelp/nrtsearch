@@ -920,10 +920,10 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     public void setDocId(int docID) throws IOException {
       values.clear();
       if (docValues.advanceExact(docID)) {
-        long ord = docValues.nextOrd();
-        while (ord != SortedSetDocValues.NO_MORE_ORDS) {
+        int count = docValues.docValueCount();
+        for (int i = 0; i < count; ++i) {
+          long ord = docValues.nextOrd();
           values.add(docValues.lookupOrd(ord).utf8ToString());
-          ord = docValues.nextOrd();
         }
       }
     }

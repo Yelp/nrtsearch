@@ -46,7 +46,7 @@ public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexR
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, deleteIndex failed",
-          Thread.currentThread().getName() + Thread.currentThread().getId());
+          Thread.currentThread().getName() + Thread.currentThread().threadId());
       throw new DeleteIndexHandlerException(e);
     }
     return DeleteIndexResponse.newBuilder().setOk("ok").build();

@@ -56,7 +56,6 @@ import org.apache.lucene.facet.range.LongRangeFacetCounts;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetCounts;
 import org.apache.lucene.facet.taxonomy.FastTaxonomyFacetCounts;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.facet.taxonomy.TaxonomyFacetCounts;
 import org.apache.lucene.facet.taxonomy.TaxonomyReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -454,7 +453,6 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
 
       FacetsCollector c = dsDimMap.get(fieldDef.getName());
-      boolean useCachedOrds = facet.getUseOrdsCache();
 
       Facets luceneFacets;
       if (c != null) {
@@ -463,21 +461,12 @@ public class DrillSidewaysImpl extends DrillSideways {
         // drill-sideways collector:
         String indexFieldName =
             indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
-        if (useCachedOrds) {
-          luceneFacets =
-              new TaxonomyFacetCounts(
-                  shardState.getOrdsCache(indexFieldName),
-                  searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.getFacetsConfig(),
-                  c);
-        } else {
-          luceneFacets =
-              new FastTaxonomyFacetCounts(
-                  indexFieldName,
-                  searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.getFacetsConfig(),
-                  c);
-        }
+        luceneFacets =
+            new FastTaxonomyFacetCounts(
+                indexFieldName,
+                searcherAndTaxonomyManager.taxonomyReader,
+                indexState.getFacetsConfig(),
+                c);
       } else {
 
         // nocommit test both normal & ssdv facets in same index
@@ -489,21 +478,12 @@ public class DrillSidewaysImpl extends DrillSideways {
         Map<String, Facets> facetsMap = indexFieldNameToFacets;
         luceneFacets = facetsMap.get(indexFieldName);
         if (luceneFacets == null) {
-          if (useCachedOrds) {
-            luceneFacets =
-                new TaxonomyFacetCounts(
-                    shardState.getOrdsCache(indexFieldName),
-                    searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.getFacetsConfig(),
-                    drillDowns);
-          } else {
-            luceneFacets =
-                new FastTaxonomyFacetCounts(
-                    indexFieldName,
-                    searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.getFacetsConfig(),
-                    drillDowns);
-          }
+          luceneFacets =
+              new FastTaxonomyFacetCounts(
+                  indexFieldName,
+                  searcherAndTaxonomyManager.taxonomyReader,
+                  indexState.getFacetsConfig(),
+                  drillDowns);
           facetsMap.put(indexFieldName, luceneFacets);
         }
       }

@@ -121,7 +121,9 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
     String docsResourceFile = INDEX_TO_DOCS.get(index);
     Path filePath = Paths.get(ServerTestCase.class.getResource(docsResourceFile).toURI());
     Reader reader = Files.newBufferedReader(filePath);
-    CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+    CSVParser csvParser =
+        new CSVParser(
+            reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
     return new NrtsearchClientBuilder.AddDocumentsClientBuilder(index, csvParser)
         .buildRequest(filePath);
   }

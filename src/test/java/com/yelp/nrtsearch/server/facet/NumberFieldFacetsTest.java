@@ -31,7 +31,6 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +48,7 @@ public class NumberFieldFacetsTest extends ServerTestCase {
             "long_number_facet_field",
             "double_number_facet_field"
           });
-  private static final List<String> numericValues =
-      Arrays.asList(new String[] {"1", "10", "20", "30"});
+  private static final List<String> numericValues = Arrays.asList("1", "10", "20", "30");
 
   private Map<String, AddDocumentRequest.MultiValuedField> getFieldsMapForOneDocument(
       String value) {
@@ -85,21 +83,10 @@ public class NumberFieldFacetsTest extends ServerTestCase {
     addDocuments(documents.stream());
   }
 
-  private SearchResponse getSearchResponse(String dimension, String... paths) {
-    return getSearchResponse(dimension, false, Collections.emptyList(), paths);
-  }
-
   private SearchResponse getSearchResponse(
-      String dimension,
-      boolean useOrdsCache,
-      List<NumericRangeType> numericRangeTypes,
-      String... paths) {
+      String dimension, List<NumericRangeType> numericRangeTypes, String... paths) {
     Facet.Builder facetBuilder =
-        Facet.newBuilder()
-            .setDim(dimension)
-            .setTopN(10)
-            .setUseOrdsCache(useOrdsCache)
-            .addAllNumericRange(numericRangeTypes);
+        Facet.newBuilder().setDim(dimension).setTopN(10).addAllNumericRange(numericRangeTypes);
     facetBuilder.addAllPaths(Arrays.asList(paths));
     return getGrpcServer()
         .getBlockingStub()
@@ -149,13 +136,13 @@ public class NumberFieldFacetsTest extends ServerTestCase {
             .setMax(20L)
             .setMaxInclusive(true)
             .build());
-    SearchResponse response = getSearchResponse(fieldName, false, numericRangeTypes);
+    SearchResponse response = getSearchResponse(fieldName, numericRangeTypes);
     assertEquals(1, response.getFacetResultCount());
     List<FacetResult> facetResults = response.getFacetResultList();
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("1-10").setValue(2.0).build());
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("11-20").setValue(1.0).build());
-    assertFacetResult(facetResults.get(0), fieldName, 3, 2L, expectedLabelAndValues);
+    assertFacetResult(facetResults.getFirst(), fieldName, 3, 2L, expectedLabelAndValues);
   }
 
   static void assertFacetResult(

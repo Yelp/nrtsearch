@@ -169,7 +169,9 @@ public class ServerTestCase {
   public static void addDocsFromResourceFile(String index, String resourceFile) throws Exception {
     Path filePath = Paths.get(ServerTestCase.class.getResource(resourceFile).toURI());
     Reader reader = Files.newBufferedReader(filePath);
-    CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+    CSVParser csvParser =
+        new CSVParser(
+            reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
     Stream<AddDocumentRequest> requestStream =
         new NrtsearchClientBuilder.AddDocumentsClientBuilder(index, csvParser)
             .buildRequest(filePath);

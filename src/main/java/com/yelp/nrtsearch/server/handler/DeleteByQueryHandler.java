@@ -59,7 +59,7 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, writer.deleteDocuments failed",
-          Thread.currentThread().getName() + Thread.currentThread().getId());
+          Thread.currentThread().getName() + Thread.currentThread().threadId());
       throw new DeleteByQueryHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();

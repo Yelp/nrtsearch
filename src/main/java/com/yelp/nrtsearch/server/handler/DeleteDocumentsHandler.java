@@ -68,7 +68,7 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, writer.deleteDocuments failed",
-          Thread.currentThread().getName() + Thread.currentThread().getId());
+          Thread.currentThread().getName() + Thread.currentThread().threadId());
       throw new DeleteDocumentsHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();
