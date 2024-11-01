@@ -28,8 +28,7 @@ import java.io.FileNotFoundException;
 import java.util.Optional;
 
 public class NrtsearchModule extends AbstractModule {
-  private static final String DEFAULT_CONFIG_FILE_RESOURCE =
-      "/lucene_server_default_configuration.yaml";
+  private static final String DEFAULT_CONFIG_FILE_RESOURCE = "/nrtsearch_default_config.yaml";
   private final NrtsearchServer.NrtsearchServerCommand args;
 
   public NrtsearchModule(NrtsearchServer.NrtsearchServerCommand args) {
@@ -53,14 +52,14 @@ public class NrtsearchModule extends AbstractModule {
   @Singleton
   @Provides
   protected NrtsearchConfig providesNrtsearchConfig() throws FileNotFoundException {
-    NrtsearchConfig luceneServerConfiguration;
+    NrtsearchConfig configuration;
     Optional<File> maybeConfigFile = args.maybeConfigFile();
     if (maybeConfigFile.isEmpty()) {
-      luceneServerConfiguration =
+      configuration =
           new NrtsearchConfig(getClass().getResourceAsStream(DEFAULT_CONFIG_FILE_RESOURCE));
     } else {
-      luceneServerConfiguration = new NrtsearchConfig(new FileInputStream(maybeConfigFile.get()));
+      configuration = new NrtsearchConfig(new FileInputStream(maybeConfigFile.get()));
     }
-    return luceneServerConfiguration;
+    return configuration;
   }
 }

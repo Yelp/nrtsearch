@@ -84,7 +84,7 @@ public class BackendGlobalStateTest {
 
   @BeforeClass
   public static void setup() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     NrtsearchConfig dummyConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
@@ -109,11 +109,11 @@ public class BackendGlobalStateTest {
     /**
      * Constructor.
      *
-     * @param luceneServerConfiguration server config
+     * @param configuration server config
      * @throws IOException on filesystem error
      */
-    public MockBackendGlobalState(NrtsearchConfig luceneServerConfiguration) throws IOException {
-      super(luceneServerConfiguration, null);
+    public MockBackendGlobalState(NrtsearchConfig configuration) throws IOException {
+      super(configuration, null);
     }
 
     @Override

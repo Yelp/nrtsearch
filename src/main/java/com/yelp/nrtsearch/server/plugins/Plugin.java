@@ -21,7 +21,7 @@ import java.io.IOException;
 /** Common base class for all nrtsearch plugins. */
 public abstract class Plugin implements Closeable {
   /**
-   * Cleanup function called during lucene server stop.
+   * Cleanup function called during nrtsearch server stop.
    *
    * @throws IOException
    */

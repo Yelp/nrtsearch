@@ -44,7 +44,7 @@ Note: The S3 bucket must exist before hand, and is named in the server configura
 
 .. code-block::
 
-  shell% cat docker-compose-config/lucene_server_configuration_primary.yaml # for the replica config as well
+  shell% cat docker-compose-config/nrtsearch_primary_config.yaml # for the replica config as well
   ...
   bucketName: "nrtsearch-bucket"
   ...
@@ -74,10 +74,10 @@ Create the index and settings, register the fields, and start the index:
 
   shell% PRIMARY_CONTAINER_ID=$(docker ps | grep nrtsearch_primary-node | awk '{print $1}')
   shell% docker exec -it $PRIMARY_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 createIndex --indexName  testIdx
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 settings -f docker-compose-config/settings_primary.json
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 registerFields -f docker-compose-config/registerFields.json
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 startIndex -f docker-compose-config/startIndex_primary.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 createIndex --indexName  testIdx
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 settings -f docker-compose-config/settings_primary.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 registerFields -f docker-compose-config/registerFields.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 startIndex -f docker-compose-config/startIndex_primary.json
 
 3. Replica: Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -88,10 +88,10 @@ Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and r
 
   shell% REPLICA_1_CONTAINER_ID=$(docker ps  | grep nrtsearch_replica-node-1_1 | awk '{print $1}')
   shell% docker exec -it $REPLICA_1_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 createIndex --indexName  testIdx
-  # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 settings -f docker-compose-config/settings_replica.json
-  # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 registerFields -f docker-compose-config/registerFields.json
-  # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 startIndex -f docker-compose-config/startIndex_replica.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h replica-node-1 -p 8002 createIndex --indexName  testIdx
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h replica-node-1 -p 8002 settings -f docker-compose-config/settings_replica.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h replica-node-1 -p 8002 registerFields -f docker-compose-config/registerFields.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h replica-node-1 -p 8002 startIndex -f docker-compose-config/startIndex_replica.json
 
 4. Replication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -101,7 +101,7 @@ Search will work on replicas soon after documents are added on the primary. Add 
 .. code-block::
 
   shell% docker exec -it $PRIMARY_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 addDocuments -i testIdx -f docker-compose-config/docs.csv -t csv
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 addDocuments -i testIdx -f docker-compose-config/docs.csv -t csv
 
 5. Replica: Search Should Work
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -111,7 +111,7 @@ The search should now work on any of the replicas where the the index was starte
 .. code-block::
 
   shell% docker exec -it $REPLICA_1_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 search -f docker-compose-config/search.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h replica-node-1 -p 8002 search -f docker-compose-config/search.json
   ...
   fields {
     key: "license_no"
@@ -134,7 +134,7 @@ In order to backup the index, one can use the 'backupIndex' command with these p
 .. code-block::
 
   shell% docker exec -it $PRIMARY_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 backupIndex  --indexName testIdx --serviceName nrtsearch-service-test --resourceName testIdx
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 backupIndex  --indexName testIdx --serviceName nrtsearch-service-test --resourceName testIdx
 
 Now the S3 bucket 'nrtsearch-bucket' should contain the service 'nrtsearch-service-test' data :
 
@@ -152,14 +152,14 @@ To demonstrate how one can start nrtSearch and restore the index data from S3, o
 
 .. code-block::
 
-  # update the 2 lucene service configs docker-compose-config/lucene_server_configuration_{primary,replica}.yaml to have this line:
-  shell% cat docker-compose-config/lucene_server_configuration_primary.yaml
+  # update the 2 lucene service configs docker-compose-config/nrtsearch_{primary,replica}_config.yaml to have this line:
+  shell% cat docker-compose-config/nrtsearch_primary_config.yaml
   ...
   # previous lines still there, change this line:
   restoreState: True
   ...
   ...
-  shell% cat docker-compose-config/lucene_server_configuration_replica.yaml
+  shell% cat docker-compose-config/nrtsearch_replica_config.yaml
   ...
   # previous lines still there, change this line:
   restoreState: True
@@ -195,8 +195,8 @@ If one then restarts the containers and restarts the index (do not need to regis
   shell% docker-compose -f docker-compose.yaml up
   shell% PRIMARY_CONTAINER_ID=$(docker ps | grep nrtsearch_primary-node | awk '{print $1}')
   shell% docker exec -it $PRIMARY_CONTAINER_ID sh
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 startIndex -f docker-compose-config/startIndex_primary.json
-  # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 search -f docker-compose-config/search.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 startIndex -f docker-compose-config/startIndex_primary.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client -h primary-node -p 8000 search -f docker-compose-config/search.json
   ...
   fields {
     key: "license_no"
@@ -218,9 +218,9 @@ To view the logs in the containers use docker-compose logs:
 .. code-block::
 
   shell% docker-compose logs
-  replica-node-1_1  | [INFO ] 2021-12-13 18:58:26.527 [main] LuceneServer - Server started, listening on 8003 for replication messages
+  replica-node-1_1  | [INFO ] 2021-12-13 18:58:26.527 [main] NrtsearchServer - Server started, listening on 8003 for replication messages
   replica-node-1_2  | hostname: 172.24.0.2
-  primary-node      | [INFO ] 2021-12-13 18:58:28.530 [main] LuceneServer - Server started, listening on 8001 for replication messages
+  primary-node      | [INFO ] 2021-12-13 18:58:28.530 [main] NrtsearchServer - Server started, listening on 8001 for replication messages
 
 Stop
 """""""""""""""""""""""""""

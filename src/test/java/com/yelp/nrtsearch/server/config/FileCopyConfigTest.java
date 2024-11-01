@@ -30,7 +30,7 @@ public class FileCopyConfigTest {
 
   @Test
   public void testDefault() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     FileCopyConfig config = getConfig(configFile);
     assertFalse(config.getAckedCopy());
     assertEquals(FileCopyConfig.DEFAULT_CHUNK_SIZE, config.getChunkSize());
@@ -43,7 +43,7 @@ public class FileCopyConfigTest {
     String configFile =
         String.join(
             "\n",
-            "nodeName: \"lucene_server_foo\"",
+            "nodeName: \"server_foo\"",
             "FileCopyConfig:",
             "  ackedCopy: true",
             "  chunkSize: 100",

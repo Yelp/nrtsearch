@@ -38,11 +38,11 @@ public class ThreadPoolConfigurationTest {
   public void testConfiguration() throws FileNotFoundException {
     String config =
         Paths.get("src", "test", "resources", "config.yaml").toAbsolutePath().toString();
-    NrtsearchConfig luceneServerConfiguration = new NrtsearchConfig(new FileInputStream(config));
-    assertEquals("lucene_server_foo", luceneServerConfiguration.getNodeName());
-    assertEquals("foohost", luceneServerConfiguration.getHostName());
+    NrtsearchConfig configuration = new NrtsearchConfig(new FileInputStream(config));
+    assertEquals("server_foo", configuration.getNodeName());
+    assertEquals("foohost", configuration.getHostName());
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        luceneServerConfiguration
+        configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(threadPoolSettings.maxThreads(), 16);
@@ -117,34 +117,34 @@ public class ThreadPoolConfigurationTest {
   }
 
   @Test
-  public void testLuceneServerThreadPool_default() {
+  public void testServerThreadPool_default() {
     String config = "nodeName: node1";
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.LUCENESERVER);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SERVER);
     assertEquals(
-        threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_THREADS);
+        threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_GRPC_SERVER_THREADS);
     assertEquals(
         threadPoolSettings.maxBufferedItems(),
-        ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS);
-    assertEquals("GrpcLuceneServerExecutor", threadPoolSettings.threadNamePrefix());
+        ThreadPoolConfiguration.DEFAULT_GRPC_SERVER_BUFFERED_ITEMS);
+    assertEquals("GrpcServerExecutor", threadPoolSettings.threadNamePrefix());
   }
 
   @Test
-  public void testLuceneServerThreadPool_set() {
+  public void testServerThreadPool_set() {
     String config =
         String.join(
             "\n",
             "threadPoolConfiguration:",
-            "  luceneserver:",
+            "  server:",
             "    maxThreads: 5",
             "    maxBufferedItems: 10",
             "    threadNamePrefix: customName");
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.LUCENESERVER);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SERVER);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());

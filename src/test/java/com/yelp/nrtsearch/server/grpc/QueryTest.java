@@ -21,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -76,16 +76,16 @@ public class QueryTest {
 
   private GrpcServer setUpGrpcServer() throws IOException {
     String testIndex = "test_index";
-    NrtsearchConfig luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         grpcCleanup,
-        luceneServerConfiguration,
+        configuration,
         folder,
         null,
-        luceneServerConfiguration.getIndexDir(),
+        configuration.getIndexDir(),
         testIndex,
-        luceneServerConfiguration.getPort());
+        configuration.getPort());
   }
 
   @Test

@@ -51,12 +51,12 @@ public class RemoteStateBackend implements StateBackend {
     /**
      * Read backend config from server config.
      *
-     * @param luceneServerConfiguration server configuration
+     * @param configuration server configuration
      * @return config for remote backend
      */
-    public static RemoteBackendConfig fromConfig(NrtsearchConfig luceneServerConfiguration) {
+    public static RemoteBackendConfig fromConfig(NrtsearchConfig configuration) {
       boolean readOnly =
-          luceneServerConfiguration.getConfigReader().getBoolean(CONFIG_PREFIX + "readOnly", true);
+          configuration.getConfigReader().getBoolean(CONFIG_PREFIX + "readOnly", true);
       return new RemoteBackendConfig(readOnly);
     }
 

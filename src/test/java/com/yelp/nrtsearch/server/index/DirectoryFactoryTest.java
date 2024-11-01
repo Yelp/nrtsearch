@@ -42,17 +42,15 @@ public class DirectoryFactoryTest {
   private static final DirectoryFactory mmFactory =
       DirectoryFactory.get(
           "MMapDirectory",
-          new NrtsearchConfig(
-              new ByteArrayInputStream("nodeName: \"lucene_server_foo\"".getBytes())));
+          new NrtsearchConfig(new ByteArrayInputStream("nodeName: \"server_foo\"".getBytes())));
   private static final DirectoryFactory fsFactory =
       DirectoryFactory.get(
           "FSDirectory",
-          new NrtsearchConfig(
-              new ByteArrayInputStream("nodeName: \"lucene_server_foo\"".getBytes())));
+          new NrtsearchConfig(new ByteArrayInputStream("nodeName: \"server_foo\"".getBytes())));
 
   @Test
   public void testMMapDefault() throws IOException {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     IndexPreloadConfig config =
         IndexPreloadConfig.fromConfig(
             new YamlConfigReader(new ByteArrayInputStream(configFile.getBytes())));
@@ -93,7 +91,7 @@ public class DirectoryFactoryTest {
 
   @Test
   public void testFSDefault() throws IOException {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     IndexPreloadConfig config =
         IndexPreloadConfig.fromConfig(
             new YamlConfigReader(new ByteArrayInputStream(configFile.getBytes())));

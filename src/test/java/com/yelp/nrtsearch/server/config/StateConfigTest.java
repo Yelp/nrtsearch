@@ -31,7 +31,7 @@ public class StateConfigTest {
 
   @Test
   public void testDefaultConfig() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     StateConfig stateConfig = getConfig(configFile);
     assertEquals(StateBackendType.LOCAL, stateConfig.getBackendType());
   }

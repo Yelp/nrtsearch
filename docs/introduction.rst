@@ -65,7 +65,7 @@ The server can be run locally like this:
 
 .. code-block::
 
-  ./build/install/nrtsearch/bin/lucene-server
+  ./build/install/nrtsearch/bin/nrtsearch_server
 
 Run REST Server
 ---------------------------

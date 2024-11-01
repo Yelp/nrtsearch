@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * the config provided plugin search path for a folder matching the plugin name. A classloader is
  * created with the jars provided in the plugin directory. The plugin provides a config file
  * containing the {@link Plugin} classname that should be loaded. Reflection is used to give the
- * loaded plugin access to the lucene server config.
+ * loaded plugin access to the server config.
  */
 public class PluginsService {
   private static final Logger logger = LoggerFactory.getLogger(PluginsService.class);

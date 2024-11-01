@@ -27,7 +27,7 @@ public class S3Module extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected AmazonS3 providesAmazonS3(NrtsearchConfig luceneServerConfiguration) {
-    return S3Util.buildS3Client(luceneServerConfiguration);
+  protected AmazonS3 providesAmazonS3(NrtsearchConfig configuration) {
+    return S3Util.buildS3Client(configuration);
   }
 }

@@ -54,7 +54,7 @@ public class ReplicationServerTest {
 
   @Test
   public void recvCopyState() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initDefaultServer();
 
     primaryServer.addSimpleDocs("test_index", 1, 2);
     primaryServer.refresh("test_index");
@@ -144,7 +144,7 @@ public class ReplicationServerTest {
 
   @Test
   public void basicReplication() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initDefaultServer();
 
     // index 2 documents to primary
     primaryServer.addSimpleDocs("test_index", 1, 2);
@@ -166,7 +166,7 @@ public class ReplicationServerTest {
 
   @Test
   public void getConnectedNodes() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initDefaultServer();
 
     // primary should have registered replica in its connected nodes list
     GetNodesResponse getNodesResponse =
@@ -255,7 +255,7 @@ public class ReplicationServerTest {
 
   @Test
   public void testInitialSyncTimeout() throws IOException {
-    initLuceneServers("initialSyncPrimaryWaitMs: 1000");
+    initServers("initialSyncPrimaryWaitMs: 1000");
 
     primaryServer.stopIndex("test_index");
 
@@ -311,7 +311,7 @@ public class ReplicationServerTest {
 
   @Test
   public void testAddDocumentsOnReplicaFailure() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initDefaultServer();
 
     try {
       replicaServer.addSimpleDocs("test_index", 1, 2);
@@ -323,15 +323,15 @@ public class ReplicationServerTest {
     }
   }
 
-  private void initDefaultLuceneServer() throws IOException {
-    initLuceneServers("");
+  private void initDefaultServer() throws IOException {
+    initServers("");
   }
 
   private void initServerSyncInitialNrtPointFalse() throws IOException {
-    initLuceneServers("syncInitialNrtPoint: false");
+    initServers("syncInitialNrtPoint: false");
   }
 
-  private void initLuceneServers(String extraConfig) throws IOException {
+  private void initServers(String extraConfig) throws IOException {
     primaryServer =
         TestServer.builder(folder)
             .withAutoStartConfig(

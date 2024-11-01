@@ -52,7 +52,7 @@ public class NrtsearchClient implements Closeable {
   private final LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
   private final LuceneServerGrpc.LuceneServerStub asyncStub;
 
-  /** Construct client connecting to LuceneServer server at {@code host:port}. */
+  /** Construct client connecting to NrtsearchServer server at {@code host:port}. */
   public NrtsearchClient(String host, int port) {
     this(
         ManagedChannelBuilder.forAddress(host, port)
@@ -63,7 +63,7 @@ public class NrtsearchClient implements Closeable {
             .build());
   }
 
-  /** Construct client for accessing LuceneServer server using the existing channel. */
+  /** Construct client for accessing NrtsearchServer server using the existing channel. */
   NrtsearchClient(ManagedChannel channel) {
     this.channel = channel;
     blockingStub =

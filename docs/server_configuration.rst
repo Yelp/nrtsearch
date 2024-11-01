@@ -6,13 +6,13 @@ Usage
 
 .. code-block::
 
-  ./build/install/nrtsearch/bin/lucene-server server_configuration.yaml
+  ./build/install/nrtsearch/bin/nrtsearch_server server_configuration.yaml
 
 Example server configuration
 
 .. code-block:: yaml
 
-  nodeName: "lucene_server_primary"
+  nodeName: "nrtsearch_primary"
   hostName: "primary-node"
   port: "8000"
   replicationPort: "8001"
@@ -28,7 +28,7 @@ Example server configuration
   serviceName: "nrtsearch-service-test"
 
 
-.. list-table:: `LuceneServerConfiguration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java>`_
+.. list-table:: `NrtsearchConfig <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/NrtsearchConfig.java>`_
    :widths: 25 10 50 25
    :header-rows: 1
 
@@ -39,17 +39,17 @@ Example server configuration
 
    * - nodeName
      - str
-     - Name of this NrtSearch instance. Currently used for emitting metrics labels.
+     - Name of this NrtSearch instance. Currently used for registering replicas with primary. This property supports `environment variable substitution <https://github.com/Yelp/nrtsearch/blob/6a9049a840fc2da4816e2a6cf1837bd31218ae97/src/main/java/com/yelp/nrtsearch/server/config/NrtsearchConfig.java#L386>`_.
      - main
 
    * - hostName
      - str
-     - Hostname of this NrtSearch instance. Replicas use this property when registering with the primary. This property supports `environment variable substitution <https://github.com/Yelp/nrtsearch/blob/2ae8bae079ae8a8a59bb896fee775919235710aa/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L298>`_.
+     - Hostname of this NrtSearch instance. Replicas use this property when registering with the primary. This property supports `environment variable substitution <https://github.com/Yelp/nrtsearch/blob/6a9049a840fc2da4816e2a6cf1837bd31218ae97/src/main/java/com/yelp/nrtsearch/server/config/NrtsearchConfig.java#L386>`_.
      - localhost
 
    * - port
      - str
-     - Port for LuceneServer gRPC requests
+     - Port for NrtsearchServer gRPC requests
      - 50051
 
    * - replicationPort
@@ -60,12 +60,12 @@ Example server configuration
    * - stateDir
      - str
      - Path of global state directory
-     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/default_state
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/6a9049a840fc2da4816e2a6cf1837bd31218ae97/src/main/java/com/yelp/nrtsearch/server/config/NrtsearchConfig.java#L45>`_/default_state
 
    * - indexDir
      - str
      - Path of directory containing index state and segments
-     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/default_index
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/6a9049a840fc2da4816e2a6cf1837bd31218ae97/src/main/java/com/yelp/nrtsearch/server/config/NrtsearchConfig.java#L45>`_/default_index
 
    * - bucketName
      - str
@@ -146,20 +146,20 @@ Example server configuration
      - Name prefix for threads created by indexing threadpool executor
      - LuceneIndexingExecutor
 
-   * - luceneserver.maxThreads
+   * - server.maxThreads
      - int
-     - Size of LuceneServer threadpool executor
+     - Size of NrtsearchServer threadpool executor
      - numCPUs + 1
 
-   * - luceneserver.maxBufferedItems
+   * - server.maxBufferedItems
      - int
-     - Max tasks that can be queued by LuceneServer threadpool executor
+     - Max tasks that can be queued by NrtsearchServer threadpool executor
      - max(200, 2 * (numCPUs + 1))
 
-   * - luceneserver.threadNamePrefix
+   * - server.threadNamePrefix
      - string
-     - Name prefix for threads created by LuceneServer threadpool executor
-     - GrpcLuceneServerExecutor
+     - Name prefix for threads created by NrtsearchServer threadpool executor
+     - GrpcServerExecutor
 
    * - replicationserver.maxThreads
      - int

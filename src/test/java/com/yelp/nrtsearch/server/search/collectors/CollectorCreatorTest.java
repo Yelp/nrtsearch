@@ -58,7 +58,7 @@ public class CollectorCreatorTest {
   }
 
   private NrtsearchConfig getEmptyConfig() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 

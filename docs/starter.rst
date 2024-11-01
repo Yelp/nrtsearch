@@ -17,7 +17,7 @@ Create Index
 
 .. code-block::
 
-  # ./build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx
+  # ./build/install/nrtsearch/bin/nrtsearch_client createIndex --indexName  testIdx
 
 
 Configure the index
@@ -26,7 +26,7 @@ Configure the index
 .. code-block::
 
 
-  # ./build/install/nrtsearch/bin/lucene-client settings -f settings.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client settings -f settings.json
   # cat settings.json
     {         "indexName": "testIdx",
               "directory": "MMapDirectory",
@@ -40,7 +40,7 @@ Register Fields
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block::
 
-  # ./build/install/nrtsearch/bin/lucene-client registerFields -f registerFields.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client registerFields -f registerFields.json
   # cat registerFields.json
     {         "indexName": "testIdx",
               "field":
@@ -56,7 +56,7 @@ Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block::
 
-  # ./build/install/nrtsearch/bin/lucene-client startIndex -f startIndex.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client startIndex -f startIndex.json
   # cat startIndex.json
     {
         "indexName" : "testIdx"
@@ -66,7 +66,7 @@ Add documents to your NRTSearch index
 ---------------------------
 .. code-block::
 
-  # ./build/install/nrtsearch/bin/lucene-client addDocuments -i testIdx -f docs.csv -t csv
+  # ./build/install/nrtsearch/bin/nrtsearch_client addDocuments -i testIdx -f docs.csv -t csv
   # cat docs.csv
     doc_id,vendor_name,license_no
     0,first vendor,100;200
@@ -76,7 +76,7 @@ Query your NRTSearch server
 ---------------------------
 .. code-block::
 
-  # ./build/install/nrtsearch/bin/lucene-client search -f search.json
+  # ./build/install/nrtsearch/bin/nrtsearch_client search -f search.json
   # cat search.json
     {
         "indexName": "testIdx",

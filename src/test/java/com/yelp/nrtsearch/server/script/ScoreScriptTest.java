@@ -41,7 +41,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
@@ -98,17 +98,17 @@ public class ScoreScriptTest {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    NrtsearchConfig luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         prometheusRegistry,
         grpcCleanup,
-        luceneServerConfiguration,
+        configuration,
         folder,
         null,
-        luceneServerConfiguration.getIndexDir(),
+        configuration.getIndexDir(),
         testIndex,
-        luceneServerConfiguration.getPort(),
+        configuration.getPort(),
         null,
         Collections.singletonList(new ScoreScriptTestPlugin()));
   }

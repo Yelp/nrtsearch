@@ -27,15 +27,15 @@ import org.slf4j.LoggerFactory;
 public class DocumentGeneratorAndIndexer implements Callable<Long> {
   private final Stream<String> lines;
   private final Gson gson = new Gson();
-  final NrtsearchClient luceneServerClient;
+  final NrtsearchClient nrtsearchClient;
   private static final Logger logger =
       LoggerFactory.getLogger(DocumentGeneratorAndIndexer.class.getName());
   private final OneDocBuilder oneDocBuilder;
 
   public DocumentGeneratorAndIndexer(
-      OneDocBuilder oneDocBuilder, Stream<String> lines, NrtsearchClient luceneServerClient) {
+      OneDocBuilder oneDocBuilder, Stream<String> lines, NrtsearchClient nrtsearchClient) {
     this.lines = lines;
-    this.luceneServerClient = luceneServerClient;
+    this.nrtsearchClient = nrtsearchClient;
     this.oneDocBuilder = oneDocBuilder;
   }
 
@@ -62,7 +62,7 @@ public class DocumentGeneratorAndIndexer implements Callable<Long> {
         String.format("threadId: %s took %s milliSecs to buildDocs ", threadId, timeMilliSecs));
 
     t1 = System.nanoTime();
-    Long genId = new IndexerTask().index(luceneServerClient, addDocumentRequestStream);
+    Long genId = new IndexerTask().index(nrtsearchClient, addDocumentRequestStream);
     t2 = System.nanoTime();
     timeMilliSecs = (t2 - t1) / (1000 * 100);
     logger.info(

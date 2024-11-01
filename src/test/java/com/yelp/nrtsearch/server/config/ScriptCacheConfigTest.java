@@ -31,7 +31,7 @@ public class ScriptCacheConfigTest {
 
   @Test
   public void testDefault() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     ScriptCacheConfig config = getConfig(configFile);
     assertEquals(ScriptCacheConfig.DEFAULT_CONCURRENCY_LEVEL, config.getConcurrencyLevel());
     assertEquals(ScriptCacheConfig.DEFAULT_SIZE, config.getMaximumSize());
@@ -44,7 +44,7 @@ public class ScriptCacheConfigTest {
     String configFile =
         String.join(
             "\n",
-            "nodeName: \"lucene_server_foo\"",
+            "nodeName: \"server_foo\"",
             "ScriptCacheConfig:",
             "  concurrencyLevel: 2",
             "  maximumSize: 2000",
@@ -60,8 +60,7 @@ public class ScriptCacheConfigTest {
   @Test
   public void testInvalidTimeUnitConfig() {
     String configFile =
-        String.join(
-            "\n", "nodeName: \"lucene_server_foo\"", "ScriptCacheConfig:", "  timeUnit: \"ABCD\"");
+        String.join("\n", "nodeName: \"server_foo\"", "ScriptCacheConfig:", "  timeUnit: \"ABCD\"");
     IllegalArgumentException exception =
         assertThrows(IllegalArgumentException.class, () -> getConfig(configFile));
     assertEquals(exception.getMessage(), "No enum constant java.util.concurrent.TimeUnit.ABCD");

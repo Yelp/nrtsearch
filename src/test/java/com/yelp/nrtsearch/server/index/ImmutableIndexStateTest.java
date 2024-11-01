@@ -87,7 +87,7 @@ public class ImmutableIndexStateTest {
 
   @BeforeClass
   public static void setup() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     NrtsearchConfig dummyConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
@@ -129,7 +129,7 @@ public class ImmutableIndexStateTest {
     IndexStateManager mockManager = mock(IndexStateManager.class);
     GlobalState mockGlobalState = mock(GlobalState.class);
 
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     NrtsearchConfig dummyConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
@@ -947,7 +947,7 @@ public class ImmutableIndexStateTest {
     IndexStateManager mockManager = mock(IndexStateManager.class);
     GlobalState mockGlobalState = mock(GlobalState.class);
 
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     NrtsearchConfig dummyConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 

@@ -33,7 +33,7 @@ public class IndexStartConfigTest {
 
   @Test
   public void testDefaultConfig() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     IndexStartConfig startConfig = getConfig(configFile);
     assertTrue(startConfig.getAutoStart());
     assertEquals(Mode.STANDALONE, startConfig.getMode());

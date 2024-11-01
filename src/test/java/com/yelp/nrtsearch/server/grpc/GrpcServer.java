@@ -65,7 +65,7 @@ public class GrpcServer {
 
   private GlobalState globalState;
   private NrtsearchConfig configuration;
-  private Server luceneServer;
+  private Server server;
   private ManagedChannel luceneServerManagedChannel;
   private Server replicationServer;
   private ManagedChannel replicationServerManagedChannel;
@@ -168,10 +168,10 @@ public class GrpcServer {
   }
 
   public void shutdown() {
-    if (luceneServer != null && luceneServerManagedChannel != null) {
-      luceneServer.shutdown();
+    if (server != null && luceneServerManagedChannel != null) {
+      server.shutdown();
       luceneServerManagedChannel.shutdown();
-      luceneServer = null;
+      server = null;
       luceneServerManagedChannel = null;
     }
     if (replicationServer != null && replicationServerManagedChannel != null) {
@@ -183,10 +183,10 @@ public class GrpcServer {
   }
 
   public void forceShutdown() {
-    if (luceneServer != null && luceneServerManagedChannel != null) {
-      luceneServer.shutdownNow();
+    if (server != null && luceneServerManagedChannel != null) {
+      server.shutdownNow();
       luceneServerManagedChannel.shutdownNow();
-      luceneServer = null;
+      server = null;
       luceneServerManagedChannel = null;
     }
     if (replicationServer != null && replicationServerManagedChannel != null) {
@@ -247,7 +247,7 @@ public class GrpcServer {
       // Create a client channel and register for automatic graceful shutdown.
       LuceneServerStubBuilder stubBuilder = new LuceneServerStubBuilder("localhost", port);
       grpcCleanup.register(stubBuilder.channel);
-      luceneServer = server;
+      this.server = server;
       luceneServerManagedChannel = stubBuilder.channel;
       blockingStub = stubBuilder.createBlockingStub();
       stub = stubBuilder.createAsyncStub();
@@ -279,7 +279,7 @@ public class GrpcServer {
 
       blockingStub = null;
       stub = null;
-      luceneServer = null;
+      this.server = null;
       luceneServerManagedChannel = null;
     }
   }

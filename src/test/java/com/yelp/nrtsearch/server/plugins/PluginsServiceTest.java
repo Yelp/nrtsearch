@@ -37,7 +37,7 @@ public class PluginsServiceTest {
   @Rule public TemporaryFolder folder = new TemporaryFolder();
 
   private NrtsearchConfig getEmptyConfig() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 

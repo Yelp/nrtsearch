@@ -34,15 +34,14 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testGetsHostName() {
-    String config = String.join("\n", "nodeName: \"lucene_server_foo\"", "hostName: my_host_name");
+    String config = String.join("\n", "nodeName: \"server_foo\"", "hostName: my_host_name");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_host_name", luceneConfig.getHostName());
   }
 
   @Test
   public void testGetEnvHostName() {
-    String config =
-        String.join("\n", "nodeName: \"lucene_server_foo\"", "hostName: ${CUSTOM_HOST}");
+    String config = String.join("\n", "nodeName: \"server_foo\"", "hostName: ${CUSTOM_HOST}");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_custom_host", luceneConfig.getHostName());
   }
@@ -50,8 +49,7 @@ public class NrtsearchConfigTest {
   @Test
   public void testGetMultiEnvHostName() {
     String config =
-        String.join(
-            "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR1}_${VAR2}_${VAR1}_host");
+        String.join("\n", "nodeName: \"server_foo\"", "hostName: my_${VAR1}_${VAR2}_${VAR1}_host");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_v1_v2_v1_host", luceneConfig.getHostName());
   }
@@ -59,15 +57,14 @@ public class NrtsearchConfigTest {
   @Test
   public void testMissingEnvHostName() {
     String config =
-        String.join(
-            "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR4}_${VAR3}_${VAR4}_host");
+        String.join("\n", "nodeName: \"server_foo\"", "hostName: my_${VAR4}_${VAR3}_${VAR4}_host");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my__v3__host", luceneConfig.getHostName());
   }
 
   @Test
   public void testDefaultDiscoveryFileUpdateInterval() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         ReplicationServerClient.FILE_UPDATE_INTERVAL_MS,
@@ -77,14 +74,14 @@ public class NrtsearchConfigTest {
   @Test
   public void testSetDiscoveryFileUpdateInterval() {
     String config =
-        String.join("\n", "nodeName: \"lucene_server_foo\"", "discoveryFileUpdateIntervalMs: 100");
+        String.join("\n", "nodeName: \"server_foo\"", "discoveryFileUpdateIntervalMs: 100");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
   }
 
   @Test
   public void testDefaultCompletionCodecLoadMode() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(FSTLoadMode.ON_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
@@ -98,7 +95,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testInitialSyncPrimaryWaitMs_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         NrtsearchConfig.DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS,
@@ -114,7 +111,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testInitialSyncMaxTimeMs_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         NrtsearchConfig.DEFAULT_INITIAL_SYNC_MAX_TIME_MS, luceneConfig.getInitialSyncMaxTimeMs());
@@ -129,7 +126,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testMaxS3ClientRetries_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         NrtsearchConfig.DEFAULT_MAX_S3_CLIENT_RETRIES, luceneConfig.getMaxS3ClientRetries());
@@ -144,7 +141,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testLiveSettingsOverride_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         IndexLiveSettings.newBuilder().build(), luceneConfig.getLiveSettingsOverride("test_index"));
@@ -182,7 +179,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testLowPriorityCopyPercentage_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(0, luceneConfig.getLowPriorityCopyPercentage());
   }
@@ -196,7 +193,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testVerifyReplicationIndexId_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertTrue(luceneConfig.getVerifyReplicationIndexId());
   }
@@ -210,7 +207,7 @@ public class NrtsearchConfigTest {
 
   @Test
   public void testMMapGrouping_default() {
-    String config = "nodeName: \"lucene_server_foo\"";
+    String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(DirectoryFactory.MMapGrouping.SEGMENT, luceneConfig.getMMapGrouping());
   }

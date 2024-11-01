@@ -10,7 +10,7 @@ Changes to these settings can be made any time after the index is created. There
 
 * Directly use the `liveSetting/liveSettingV2 <https://github.com/Yelp/nrtsearch/blob/master/clientlib/src/main/proto/yelp/nrtsearch/luceneserver.proto#L35>`_ gRPC server endpoints
 * Use the '/v1/live_settings' or '/v2/live_settings' endpoints with the gRPC gateway
-* Use the lucene-client `liveSettings/liveSettingsV2 <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/cli/LuceneClientCommand.java>`_ commands
+* Use the nrtsearch_client `liveSettings/liveSettingsV2 <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/tools/cli/NrtsearchClientCommand.java>`_ commands
 
 Properties
 -----------------------------

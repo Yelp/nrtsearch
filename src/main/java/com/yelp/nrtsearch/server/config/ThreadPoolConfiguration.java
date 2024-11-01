@@ -34,9 +34,8 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_INDEXING_BUFFERED_ITEMS =
       Math.max(200, 2 * DEFAULT_INDEXING_THREADS);
 
-  public static final int DEFAULT_GRPC_LUCENESERVER_THREADS = DEFAULT_INDEXING_THREADS;
-  public static final int DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS =
-      DEFAULT_INDEXING_BUFFERED_ITEMS;
+  public static final int DEFAULT_GRPC_SERVER_THREADS = DEFAULT_INDEXING_THREADS;
+  public static final int DEFAULT_GRPC_SERVER_BUFFERED_ITEMS = DEFAULT_INDEXING_BUFFERED_ITEMS;
 
   public static final int DEFAULT_GRPC_REPLICATIONSERVER_THREADS = DEFAULT_INDEXING_THREADS;
   public static final int DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS =
@@ -75,11 +74,11 @@ public class ThreadPoolConfiguration {
                   DEFAULT_INDEXING_THREADS,
                   DEFAULT_INDEXING_BUFFERED_ITEMS,
                   "LuceneIndexingExecutor"),
-              ExecutorFactory.ExecutorType.LUCENESERVER,
+              ExecutorFactory.ExecutorType.SERVER,
               new ThreadPoolSettings(
-                  DEFAULT_GRPC_LUCENESERVER_THREADS,
-                  DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS,
-                  "GrpcLuceneServerExecutor"),
+                  DEFAULT_GRPC_SERVER_THREADS,
+                  DEFAULT_GRPC_SERVER_BUFFERED_ITEMS,
+                  "GrpcServerExecutor"),
               ExecutorFactory.ExecutorType.REPLICATIONSERVER,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
