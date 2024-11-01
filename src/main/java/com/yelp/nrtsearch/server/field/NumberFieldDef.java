@@ -69,8 +69,9 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
       String name,
       Field requestField,
       Function<String, Number> fieldParser,
+      FieldDefCreator.FieldDefCreatorContext context,
       Class<T> docValuesClass) {
-    super(name, requestField, docValuesClass);
+    super(name, requestField, context, docValuesClass);
     this.fieldParser = fieldParser;
   }
 

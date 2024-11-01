@@ -65,15 +65,18 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef<String>
   private final int ignoreAbove;
 
   /**
-   * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field, Class)} to do
-   * common initialization, then sets up analyzers. Analyzers are parsed through calls to the
-   * protected methods {@link #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
+   * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field,
+   * FieldDefCreator.FieldDefCreatorContext, Class)} to do common initialization, then sets up
+   * analyzers. Analyzers are parsed through calls to the protected methods {@link
+   * #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
    *
    * @param name field name
    * @param requestField field definition from grpc request
+   * @param context creation context
    */
-  protected TextBaseFieldDef(String name, Field requestField) {
-    super(name, requestField, String.class);
+  protected TextBaseFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, String.class);
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();

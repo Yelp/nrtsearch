@@ -60,12 +60,14 @@ public class FieldUpdateUtils {
    * @param currentState built state from the current fields
    * @param currentFields current fields
    * @param updateFields field updates
+   * @param context creation context
    * @return state after applying field updates
    */
   public static UpdatedFieldInfo updateFields(
       FieldAndFacetState currentState,
       Map<String, Field> currentFields,
-      Iterable<Field> updateFields) {
+      Iterable<Field> updateFields,
+      FieldDefCreator.FieldDefCreatorContext context) {
 
     Map<String, Field> newFields = new HashMap<>(currentFields);
     FieldAndFacetState.Builder fieldStateBuilder = currentState.toBuilder();
@@ -85,7 +87,7 @@ public class FieldUpdateUtils {
       if (newFields.containsKey(field.getName())) {
         throw new IllegalArgumentException("Duplicate field registration: " + field.getName());
       }
-      parseField(field, fieldStateBuilder);
+      parseField(field, fieldStateBuilder, context);
       newFields.put(field.getName(), field);
     }
 
@@ -126,9 +128,14 @@ public class FieldUpdateUtils {
    *
    * @param field field to process
    * @param fieldStateBuilder builder for new field state
+   * @param context creation context
    */
-  public static void parseField(Field field, FieldAndFacetState.Builder fieldStateBuilder) {
-    FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(field.getName(), field);
+  public static void parseField(
+      Field field,
+      FieldAndFacetState.Builder fieldStateBuilder,
+      FieldDefCreator.FieldDefCreatorContext context) {
+    FieldDef fieldDef =
+        FieldDefCreator.getInstance().createFieldDef(field.getName(), field, context);
     fieldStateBuilder.addField(fieldDef, field);
     if (fieldDef instanceof IndexableFieldDef) {
       addChildFields((IndexableFieldDef<?>) fieldDef, fieldStateBuilder);

@@ -36,9 +36,11 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
   /**
    * @param name name of field
    * @param requestField field definition from grpc request
+   * @param context creation context
    */
-  protected ContextSuggestFieldDef(String name, Field requestField) {
-    super(name, requestField, Void.class);
+  protected ContextSuggestFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Void.class);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
   }

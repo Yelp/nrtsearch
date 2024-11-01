@@ -38,8 +38,9 @@ import org.apache.lucene.util.BytesRef;
 
 public class PolygonfieldDef extends IndexableFieldDef<Struct> implements PolygonQueryable {
 
-  protected PolygonfieldDef(String name, Field requestField) {
-    super(name, requestField, Struct.class);
+  protected PolygonfieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Struct.class);
   }
 
   @Override

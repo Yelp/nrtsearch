@@ -208,12 +208,14 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    *
    * @param name name of field
    * @param field field definition from grpc request
+   * @param context creation context
    * @return new VectorFieldDef
    */
-  static VectorFieldDef<?> createField(String name, Field field) {
+  static VectorFieldDef<?> createField(
+      String name, Field field, FieldDefCreator.FieldDefCreatorContext context) {
     return switch (field.getVectorElementType()) {
-      case VECTOR_ELEMENT_FLOAT -> new FloatVectorFieldDef(name, field);
-      case VECTOR_ELEMENT_BYTE -> new ByteVectorFieldDef(name, field);
+      case VECTOR_ELEMENT_FLOAT -> new FloatVectorFieldDef(name, field, context);
+      case VECTOR_ELEMENT_BYTE -> new ByteVectorFieldDef(name, field, context);
       default -> throw new IllegalArgumentException(
           "Invalid field type: " + field.getVectorElementType());
     };
@@ -222,10 +224,15 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   /**
    * @param name name of field
    * @param requestField field definition from grpc request
+   * @param context creation context
    * @param docValuesClass class of doc values object
    */
-  protected VectorFieldDef(String name, Field requestField, Class<T> docValuesClass) {
-    super(name, requestField, docValuesClass);
+  protected VectorFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      Class<T> docValuesClass) {
+    super(name, requestField, context, docValuesClass);
     this.vectorDimensions = requestField.getVectorDimensions();
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
@@ -322,8 +329,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   /** Field class for 'FLOAT' vector field type. */
   public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
-    public FloatVectorFieldDef(String name, Field requestField) {
-      super(name, requestField, FloatVectorType.class);
+    public FloatVectorFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      super(name, requestField, context, FloatVectorType.class);
     }
 
     @Override
@@ -462,8 +470,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   /** Field class for 'BYTE' vector field type. */
   public static class ByteVectorFieldDef extends VectorFieldDef<ByteVectorType> {
-    public ByteVectorFieldDef(String name, Field requestField) {
-      super(name, requestField, ByteVectorType.class);
+    public ByteVectorFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      super(name, requestField, context, ByteVectorType.class);
     }
 
     @Override

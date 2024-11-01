@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +34,13 @@ public class FieldDefCreator {
   private static FieldDefCreator instance;
 
   private final Map<String, FieldDefProvider<? extends FieldDef>> fieldDefMap = new HashMap<>();
+
+  /**
+   * Addition context for field definition creation.
+   *
+   * @param config service configuration
+   */
+  public record FieldDefCreatorContext(NrtsearchConfig config) {}
 
   public FieldDefCreator(NrtsearchConfig configuration) {
     register("ATOM", AtomFieldDef::new);
@@ -52,12 +60,12 @@ public class FieldDefCreator {
     // completely registered.
     register(
         "VIRTUAL",
-        (name, field) -> {
+        (name, field, context) -> {
           throw new UnsupportedOperationException("Virtual fields should be created directly");
         });
     register(
         "RUNTIME",
-        (name, field) -> {
+        (name, field, context) -> {
           throw new UnsupportedOperationException("Runtime fields should be created directly");
         });
     register("VECTOR", VectorFieldDef::createField);
@@ -72,7 +80,7 @@ public class FieldDefCreator {
    * @param field grpc request field definition
    * @return field definition
    */
-  public FieldDef createFieldDef(String name, Field field) {
+  public FieldDef createFieldDef(String name, Field field, FieldDefCreatorContext context) {
     String type;
     if (field.getType().equals(FieldType.CUSTOM)) {
       type =
@@ -86,7 +94,17 @@ public class FieldDefCreator {
     if (provider == null) {
       throw new IllegalArgumentException("Invalid field type: " + type);
     }
-    return provider.get(name, field);
+    return provider.get(name, field, context);
+  }
+
+  /**
+   * Create a new {@link FieldDefCreatorContext} instance.
+   *
+   * @param globalState global state
+   * @return new context instance
+   */
+  public static FieldDefCreatorContext createContext(GlobalState globalState) {
+    return new FieldDefCreatorContext(globalState.getConfiguration());
   }
 
   private void register(Map<String, FieldDefProvider<? extends FieldDef>> fieldDefs) {

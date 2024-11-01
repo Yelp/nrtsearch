@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollec
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.Analyzer;
@@ -69,7 +70,9 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .setIndexAnalyzer(standardAnalyzer) // should be ignored as analyzer takes precedence
             .setAnalyzer(analyzer)
             .build();
-    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    ContextSuggestFieldDef contextSuggestFieldDef =
+        new ContextSuggestFieldDef(
+            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     assertEquals(
         ClassicAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertEquals(ClassicAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
@@ -84,7 +87,9 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .setSearchAnalyzer(searchAnalyzer)
             .setIndexAnalyzer(indexAnalyzer)
             .build();
-    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    ContextSuggestFieldDef contextSuggestFieldDef =
+        new ContextSuggestFieldDef(
+            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     assertSame(
         BulgarianAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertSame(EnglishAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
@@ -93,7 +98,9 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   @Test
   public void validDefaultSearchAndIndexAnalyzerNoAnalyzersAreProvided() {
     Field field = Field.newBuilder().build();
-    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    ContextSuggestFieldDef contextSuggestFieldDef =
+        new ContextSuggestFieldDef(
+            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
   }
