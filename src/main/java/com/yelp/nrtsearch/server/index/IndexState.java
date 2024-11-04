@@ -221,7 +221,7 @@ public abstract class IndexState implements Closeable {
     this.rootDir = rootDir;
 
     // add meta data fields
-    metaFields = getPredefinedMetaFields();
+    metaFields = getPredefinedMetaFields(globalState);
 
     if (!Files.exists(rootDir)) {
       Files.createDirectories(rootDir);
@@ -500,7 +500,7 @@ public abstract class IndexState implements Closeable {
   public void close() throws IOException {}
 
   // Get all predifined meta fields
-  private static Map<String, FieldDef> getPredefinedMetaFields() {
+  private static Map<String, FieldDef> getPredefinedMetaFields(GlobalState globalState) {
     return ImmutableMap.of(
         NESTED_PATH,
         FieldDefCreator.getInstance()
@@ -510,7 +510,8 @@ public abstract class IndexState implements Closeable {
                     .setName(IndexState.NESTED_PATH)
                     .setType(FieldType.ATOM)
                     .setSearch(true)
-                    .build()),
+                    .build(),
+                FieldDefCreator.createContext(globalState)),
         FIELD_NAMES,
         FieldDefCreator.getInstance()
             .createFieldDef(
@@ -520,6 +521,7 @@ public abstract class IndexState implements Closeable {
                     .setType(FieldType.ATOM)
                     .setSearch(true)
                     .setMultiValued(true)
-                    .build()));
+                    .build(),
+                FieldDefCreator.createContext(globalState)));
   }
 }

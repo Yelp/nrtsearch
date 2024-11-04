@@ -73,10 +73,14 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
    *
    * @param name name of field
    * @param requestField field definition from grpc request
+   * @param context creation context
    * @param docValuesObjectClass class of doc values object
    */
   protected IndexableFieldDef(
-      String name, Field requestField, Class<? super T> docValuesObjectClass) {
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      Class<? super T> docValuesObjectClass) {
     super(name);
 
     validateRequest(requestField);
@@ -116,7 +120,7 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
       for (Field field : requestField.getChildFieldsList()) {
         checkChildName(field.getName());
         String childName = getName() + IndexState.CHILD_FIELD_SEPARATOR + field.getName();
-        FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(childName, field);
+        FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(childName, field, context);
         if (!(fieldDef instanceof IndexableFieldDef)) {
           throw new IllegalArgumentException("Child field is not indexable: " + childName);
         }

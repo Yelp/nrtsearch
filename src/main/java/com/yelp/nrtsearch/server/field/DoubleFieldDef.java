@@ -37,8 +37,9 @@ import org.apache.lucene.util.NumericUtils;
 /** Field class for 'DOUBLE' field type. */
 public class DoubleFieldDef extends NumberFieldDef<Double> {
 
-  public DoubleFieldDef(String name, Field requestField) {
-    super(name, requestField, DOUBLE_PARSER, Double.class);
+  public DoubleFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, DOUBLE_PARSER, context, Double.class);
   }
 
   @Override

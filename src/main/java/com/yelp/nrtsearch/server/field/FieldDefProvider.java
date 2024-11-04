@@ -30,7 +30,8 @@ public interface FieldDefProvider<T extends FieldDef> {
    *
    * @param name field name
    * @param requestField field request definition
+   * @param context creation context
    * @return concrete {@link FieldDef} instance for field
    */
-  T get(String name, Field requestField);
+  T get(String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context);
 }

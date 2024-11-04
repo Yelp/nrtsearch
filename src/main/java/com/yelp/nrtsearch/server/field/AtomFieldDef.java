@@ -32,8 +32,9 @@ import org.apache.lucene.util.BytesRef;
 public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
 
-  public AtomFieldDef(String name, Field requestField) {
-    super(name, requestField);
+  public AtomFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context);
   }
 
   @Override

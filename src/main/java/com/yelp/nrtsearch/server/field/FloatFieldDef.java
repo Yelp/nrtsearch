@@ -37,8 +37,9 @@ import org.apache.lucene.util.NumericUtils;
 /** Field class for 'FLOAT' field type. */
 public class FloatFieldDef extends NumberFieldDef<Float> {
 
-  public FloatFieldDef(String name, Field requestField) {
-    super(name, requestField, FLOAT_PARSER, Float.class);
+  public FloatFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, FLOAT_PARSER, context, Float.class);
   }
 
   @Override

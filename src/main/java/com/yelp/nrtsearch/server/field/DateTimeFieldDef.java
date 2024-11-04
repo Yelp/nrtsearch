@@ -77,8 +77,9 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     }
   }
 
-  public DateTimeFieldDef(String name, Field requestField) {
-    super(name, requestField, Instant.class);
+  public DateTimeFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Instant.class);
     dateTimeFormat = requestField.getDateTimeFormat();
     dateTimeFormatter = createDateTimeFormatter(dateTimeFormat);
   }

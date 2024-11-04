@@ -36,8 +36,9 @@ import org.apache.lucene.search.SortField;
 /** Field class for 'LONG' field type. */
 public class LongFieldDef extends NumberFieldDef<Long> {
 
-  public LongFieldDef(String name, Field requestField) {
-    super(name, requestField, LONG_PARSER, Long.class);
+  public LongFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, LONG_PARSER, context, Long.class);
   }
 
   @Override

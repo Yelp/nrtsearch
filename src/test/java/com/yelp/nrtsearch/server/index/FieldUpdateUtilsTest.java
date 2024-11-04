@@ -99,7 +99,11 @@ public class FieldUpdateUtilsTest {
     Map<String, Field> initialFields = Collections.emptyMap();
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateUtils.updateFields(initialState, initialFields, simpleUpdates);
+        FieldUpdateUtils.updateFields(
+            initialState,
+            initialFields,
+            simpleUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(2, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -146,7 +150,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -190,7 +197,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -236,7 +246,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
 
     try {
       FieldUpdateUtils.updateFields(
@@ -247,7 +260,8 @@ public class FieldUpdateUtilsTest {
                   .setName("second_id")
                   .setType(FieldType._ID)
                   .setStoreDocValues(true)
-                  .build()));
+                  .build()),
+          mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -278,7 +292,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -316,7 +333,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -359,7 +379,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -423,7 +446,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -493,7 +519,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -548,7 +577,10 @@ public class FieldUpdateUtilsTest {
 
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+            initialInfo.fieldAndFacetState,
+            initialInfo.fields,
+            fieldUpdates,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -586,7 +618,10 @@ public class FieldUpdateUtilsTest {
 
     updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            updatedFieldInfo.fieldAndFacetState, updatedFieldInfo.fields, fieldUpdates2);
+            updatedFieldInfo.fieldAndFacetState,
+            updatedFieldInfo.fields,
+            fieldUpdates2,
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     fields = updatedFieldInfo.fields;
     assertEquals(5, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -634,7 +669,10 @@ public class FieldUpdateUtilsTest {
 
     try {
       FieldUpdateUtils.updateFields(
-          initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
+          initialInfo.fieldAndFacetState,
+          initialInfo.fields,
+          fieldUpdates,
+          mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Duplicate field registration: field2", e.getMessage());

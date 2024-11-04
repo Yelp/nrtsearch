@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import com.google.common.primitives.Floats;
 import com.google.protobuf.ByteString;
@@ -858,7 +859,9 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorDimensions(3)
             .setVectorSimilarity("l2_norm")
             .build();
-    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
+    VectorFieldDef<?> vectorFieldDef =
+        VectorFieldDef.createField(
+            "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -878,7 +881,9 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorIndexingOptions(
                 VectorIndexingOptions.newBuilder().setType("hnsw").setHnswM(5).build())
             .build();
-    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
+    VectorFieldDef<?> vectorFieldDef =
+        VectorFieldDef.createField(
+            "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -901,7 +906,9 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .setHnswEfConstruction(50)
                     .build())
             .build();
-    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
+    VectorFieldDef<?> vectorFieldDef =
+        VectorFieldDef.createField(
+            "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -921,7 +928,8 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorIndexingOptions(VectorIndexingOptions.newBuilder().setType("invalid").build())
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertTrue(
@@ -941,7 +949,8 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("invalid")
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertTrue(
@@ -960,7 +969,8 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setStoreDocValues(true)
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Vector dimension must be <= 4096", e.getMessage());
@@ -978,7 +988,8 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("cosine")
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Vector dimension must be <= 4096", e.getMessage());
@@ -1334,7 +1345,8 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -1359,7 +1371,8 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("bits must be one of: 4, 7; bits=9", e.getMessage());
@@ -1380,7 +1393,8 @@ public class VectorFieldDefTest extends ServerTestCase {
                 VectorIndexingOptions.newBuilder().setType("hnsw_scalar_quantized").build())
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -1404,7 +1418,8 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      VectorFieldDef.createField("vector", field);
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(

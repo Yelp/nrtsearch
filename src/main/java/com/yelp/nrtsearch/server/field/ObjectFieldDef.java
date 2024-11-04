@@ -47,8 +47,9 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
   private final Gson gson;
   private final boolean isNestedDoc;
 
-  protected ObjectFieldDef(String name, Field requestField) {
-    super(name, requestField, Struct.class);
+  protected ObjectFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Struct.class);
     this.isNestedDoc = requestField.getNestedDoc();
     gson = new GsonBuilder().serializeNulls().create();
   }
