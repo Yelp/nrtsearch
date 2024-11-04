@@ -60,10 +60,7 @@ public class MultiFunctionScoreQuery extends Query {
       float currentScore, float minimalScore, boolean minimalExcluded) {
     if (currentScore > minimalScore) {
       return true;
-    } else if (!minimalExcluded && currentScore == minimalScore) {
-      return true;
-    }
-    return false;
+    } else return !minimalExcluded && currentScore == minimalScore;
   }
 
   /**
@@ -225,13 +222,13 @@ public class MultiFunctionScoreQuery extends Query {
           }
         }
         final Explanation factorExplanation;
-        if (functionsExplanations.size() == 0) {
+        if (functionsExplanations.isEmpty()) {
           // it is a little weird to add a match although no function matches but that is the way
           // function_score behaves right now
           factorExplanation =
               Explanation.match(1.0f, "No function matched", Collections.emptyList());
         } else if (singleFunction && functionsExplanations.size() == 1) {
-          factorExplanation = functionsExplanations.get(0);
+          factorExplanation = functionsExplanations.getFirst();
         } else {
           MultiFunctionScorer scorer = (MultiFunctionScorer) scorer(context);
           int actualDoc = scorer.iterator().advance(doc);
@@ -260,28 +257,27 @@ public class MultiFunctionScoreQuery extends Query {
     }
 
     private Explanation explainBoost(Explanation queryExpl, Explanation funcExpl) {
-      switch (boostMode) {
-        case BOOST_MODE_MULTIPLY:
-          return Explanation.match(
-              queryExpl.getValue().floatValue() * funcExpl.getValue().floatValue(),
-              "function score, product of:",
-              queryExpl,
-              funcExpl);
-        case BOOST_MODE_SUM:
-          return Explanation.match(
-              funcExpl.getValue().floatValue() + queryExpl.getValue().floatValue(),
-              "sum of",
-              queryExpl,
-              funcExpl);
-        case BOOST_MODE_REPLACE:
-          return Explanation.match(
-              funcExpl.getValue().floatValue(),
-              "Ignoring query score, function score of",
-              queryExpl,
-              funcExpl);
-        default:
-          throw new IllegalStateException("Unknown boost mode type: " + boostMode);
-      }
+      return switch (boostMode) {
+        case BOOST_MODE_MULTIPLY ->
+            Explanation.match(
+                queryExpl.getValue().floatValue() * funcExpl.getValue().floatValue(),
+                "function score, product of:",
+                queryExpl,
+                funcExpl);
+        case BOOST_MODE_SUM ->
+            Explanation.match(
+                funcExpl.getValue().floatValue() + queryExpl.getValue().floatValue(),
+                "sum of",
+                queryExpl,
+                funcExpl);
+        case BOOST_MODE_REPLACE ->
+            Explanation.match(
+                funcExpl.getValue().floatValue(),
+                "Ignoring query score, function score of",
+                queryExpl,
+                funcExpl);
+        default -> throw new IllegalStateException("Unknown boost mode type: " + boostMode);
+      };
     }
 
     @Override
@@ -364,7 +360,7 @@ public class MultiFunctionScoreQuery extends Query {
 
         @Override
         public boolean matches() throws IOException {
-          if (finalTwoPhase != null && finalTwoPhase.matches() == false) {
+          if (finalTwoPhase != null && !finalTwoPhase.matches()) {
             return false;
           }
           // we need to check the two-phase iterator first
@@ -480,16 +476,12 @@ public class MultiFunctionScoreQuery extends Query {
     }
 
     private float computeFinalScore(float innerQueryScore, double functionScore) {
-      switch (boostMode) {
-        case BOOST_MODE_MULTIPLY:
-          return (float) (innerQueryScore * functionScore);
-        case BOOST_MODE_SUM:
-          return (float) (innerQueryScore + functionScore);
-        case BOOST_MODE_REPLACE:
-          return (float) functionScore;
-        default:
-          throw new IllegalStateException("Unknown boost mode type: " + boostMode);
-      }
+      return switch (boostMode) {
+        case BOOST_MODE_MULTIPLY -> (float) (innerQueryScore * functionScore);
+        case BOOST_MODE_SUM -> (float) (innerQueryScore + functionScore);
+        case BOOST_MODE_REPLACE -> (float) functionScore;
+        default -> throw new IllegalStateException("Unknown boost mode type: " + boostMode);
+      };
     }
 
     @Override
@@ -503,18 +495,17 @@ public class MultiFunctionScoreQuery extends Query {
     StringBuilder sb = new StringBuilder();
     sb.append("multi function score (").append(innerQuery.toString(field)).append(", functions: [");
     for (FilterFunction function : functions) {
-      sb.append("{" + (function == null ? "" : function.toString()) + "}");
+      sb.append("{").append(function == null ? "" : function.toString()).append("}");
     }
     sb.append("])");
-    sb.append(", minScore: " + minScore).append(minExcluded ? " (excluded)" : " (included)");
+    sb.append(", minScore: ").append(minScore).append(minExcluded ? " (excluded)" : " (included)");
     return sb.toString();
   }
 
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (!(o instanceof MultiFunctionScoreQuery)) return false;
-    MultiFunctionScoreQuery that = (MultiFunctionScoreQuery) o;
+    if (!(o instanceof MultiFunctionScoreQuery that)) return false;
     return Float.compare(that.minScore, minScore) == 0
         && minExcluded == that.minExcluded
         && Objects.equals(innerQuery, that.innerQuery)

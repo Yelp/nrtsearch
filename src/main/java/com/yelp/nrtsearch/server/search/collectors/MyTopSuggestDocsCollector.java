@@ -206,7 +206,7 @@ public class MyTopSuggestDocsCollector extends DocCollector {
         priorityQueue.add(suggestScoreDoc);
         // this doc may have displaced a previous one for this id
         return previousForId;
-      } else if (priorityQueue.size() > 0 && isLessThan(priorityQueue.peek(), suggestScoreDoc)) {
+      } else if (!priorityQueue.isEmpty() && isLessThan(priorityQueue.peek(), suggestScoreDoc)) {
         // remove the current lowest doc and replace with higher scoring new doc
         SuggestScoreDoc previous = priorityQueue.poll();
         priorityQueue.add(suggestScoreDoc);

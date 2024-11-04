@@ -105,7 +105,7 @@ public class SimpleCopyJob extends CopyJob {
 
   @Override
   public void runBlocking() throws Exception {
-    while (visit() == false)
+    while (!visit())
       ;
     if (getFailed()) {
       throw new RuntimeException("copy failed: " + cancelReason, exc);
@@ -220,7 +220,7 @@ public class SimpleCopyJob extends CopyJob {
       return true;
     }
     if (current == null) {
-      if (iter.hasNext() == false) {
+      if (!iter.hasNext()) {
         return true;
       }
       Map.Entry<String, FileMetaData> next = iter.next();

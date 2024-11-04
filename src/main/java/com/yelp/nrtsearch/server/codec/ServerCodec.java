@@ -42,7 +42,7 @@ public class ServerCodec extends Lucene912Codec {
     IndexState state = stateManager.getCurrent();
     try {
       FieldDef fd = state.getFieldOrThrow(field);
-      if (fd instanceof IndexableFieldDef indexableFieldDef) {
+      if (fd instanceof IndexableFieldDef<?> indexableFieldDef) {
         PostingsFormat postingsFormat = indexableFieldDef.getPostingsFormat();
         if (postingsFormat != null) {
           return postingsFormat;
@@ -65,7 +65,7 @@ public class ServerCodec extends Lucene912Codec {
     IndexState state = stateManager.getCurrent();
     try {
       FieldDef fd = state.getFieldOrThrow(field);
-      if (fd instanceof IndexableFieldDef indexableFieldDef) {
+      if (fd instanceof IndexableFieldDef<?> indexableFieldDef) {
         DocValuesFormat docValuesFormat = indexableFieldDef.getDocValuesFormat();
         if (docValuesFormat != null) {
           return docValuesFormat;
@@ -86,7 +86,7 @@ public class ServerCodec extends Lucene912Codec {
     IndexState state = stateManager.getCurrent();
     try {
       FieldDef fd = state.getFieldOrThrow(field);
-      if (fd instanceof VectorFieldDef vectorFieldDef) {
+      if (fd instanceof VectorFieldDef<?> vectorFieldDef) {
         KnnVectorsFormat vectorsFormat = vectorFieldDef.getVectorsFormat();
         if (vectorsFormat != null) {
           return vectorsFormat;

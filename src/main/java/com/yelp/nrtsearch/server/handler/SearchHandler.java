@@ -22,7 +22,6 @@ import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
-import com.yelp.nrtsearch.server.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
@@ -751,11 +750,11 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   public static class FillFieldsTask implements Callable<List<Map<String, CompositeFieldValue>>> {
 
-    private IndexSearcher s;
-    private List<LeafReaderContext> hitIdToleaves;
-    private List<Hit.Builder> hitBuilders;
-    private List<String> fields;
-    private SearchContext searchContext;
+    private final IndexSearcher s;
+    private final List<LeafReaderContext> hitIdToleaves;
+    private final List<Hit.Builder> hitBuilders;
+    private final List<String> fields;
+    private final SearchContext searchContext;
 
     public FillFieldsTask(
         IndexSearcher indexSearcher,
@@ -810,60 +809,61 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       // We detect invalid field above:
       assert fd != null;
-      if (fd instanceof VirtualFieldDef) {
-        VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
+      switch (fd) {
+        case VirtualFieldDef virtualFieldDef -> {
+          int docID = hit.getLuceneDocId() - leaf.docBase;
 
-        int docID = hit.getLuceneDocId() - leaf.docBase;
+          assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
+          DoubleValues scoreValue =
+              new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                  return hit.getScore();
+                }
 
-        assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
-        DoubleValues scoreValue =
-            new DoubleValues() {
-              @Override
-              public double doubleValue() throws IOException {
-                return hit.getScore();
-              }
-
-              @Override
-              public boolean advanceExact(int doc) throws IOException {
-                return !Double.isNaN(hit.getScore());
-              }
-            };
-        DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
-        doubleValues.advanceExact(docID);
-        compositeFieldValue.addFieldValue(
-            FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-      } else if (fd instanceof RuntimeFieldDef) {
-        RuntimeFieldDef runtimeFieldDef = (RuntimeFieldDef) fd;
-        RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
-        RuntimeScript values = segmentFactory.newInstance(leaf);
-        int docID = hit.getLuceneDocId() - leaf.docBase;
-        // Check if the value is available for the current document
-        if (values != null) {
-          values.setDocId(docID);
-          Object obj = values.execute();
-          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
-        }
-
-      } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-        int docID = hit.getLuceneDocId() - leaf.docBase;
-        // it may be possible to cache this if there are multiple hits in the same segment
-        LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
-        docValues.setDocId(docID);
-        for (int i = 0; i < docValues.size(); ++i) {
-          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
-        }
-
-      }
-      // retrieve stored fields
-      else if (fd instanceof IndexableFieldDef indexableFieldDef && indexableFieldDef.isStored()) {
-        IndexableField[] values = s.doc(hit.getLuceneDocId()).getFields(field);
-        for (IndexableField fieldValue : values) {
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                  return !Double.isNaN(hit.getScore());
+                }
+              };
+          DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
+          doubleValues.advanceExact(docID);
           compositeFieldValue.addFieldValue(
-              indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+              FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
         }
-      } else {
-        // TODO: throw exception here after confirming that legitimate requests do not enter this
-        logger.error("Unable to fill hit for field: {}", field);
+        case RuntimeFieldDef runtimeFieldDef -> {
+          RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+          RuntimeScript values = segmentFactory.newInstance(leaf);
+          int docID = hit.getLuceneDocId() - leaf.docBase;
+          // Check if the value is available for the current document
+          if (values != null) {
+            values.setDocId(docID);
+            Object obj = values.execute();
+            ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
+          }
+        }
+        case IndexableFieldDef<?> fieldDef when fieldDef.hasDocValues() -> {
+          int docID = hit.getLuceneDocId() - leaf.docBase;
+          // it may be possible to cache this if there are multiple hits in the same segment
+          LoadedDocValues<?> docValues = fieldDef.getDocValues(leaf);
+          docValues.setDocId(docID);
+          for (int i = 0; i < docValues.size(); ++i) {
+            compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+          }
+        }
+
+          // retrieve stored fields
+        case IndexableFieldDef<?> indexableFieldDef when indexableFieldDef.isStored() -> {
+          IndexableField[] values = s.doc(hit.getLuceneDocId()).getFields(field);
+          for (IndexableField fieldValue : values) {
+            compositeFieldValue.addFieldValue(
+                indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+          }
+        }
+        default ->
+            // TODO: throw exception here after confirming that legitimate requests do not enter
+            // this
+            logger.error("Unable to fill hit for field: {}", field);
       }
 
       return compositeFieldValue.build();
@@ -952,31 +952,26 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         LeafReaderContext sliceSegment)
         throws IOException {
       for (Map.Entry<String, FieldDef> fieldDefEntry : context.getRetrieveFields().entrySet()) {
-        if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
-          fetchFromValueSource(
-              sliceHits,
-              sliceSegment,
-              fieldDefEntry.getKey(),
-              (VirtualFieldDef) fieldDefEntry.getValue());
-        } else if (fieldDefEntry.getValue() instanceof RuntimeFieldDef) {
-          fetchRuntimeFromSegmentFactory(
-              sliceHits,
-              sliceSegment,
-              fieldDefEntry.getKey(),
-              (RuntimeFieldDef) fieldDefEntry.getValue());
-        } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
-          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
-          if (indexableFieldDef.hasDocValues()) {
-            fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
-          } else if (indexableFieldDef.isStored()) {
-            fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
-          } else {
-            throw new IllegalStateException(
-                "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+        switch (fieldDefEntry.getValue()) {
+          case VirtualFieldDef virtualFieldDef ->
+              fetchFromValueSource(
+                  sliceHits, sliceSegment, fieldDefEntry.getKey(), virtualFieldDef);
+          case RuntimeFieldDef runtimeFieldDef ->
+              fetchRuntimeFromSegmentFactory(
+                  sliceHits, sliceSegment, fieldDefEntry.getKey(), runtimeFieldDef);
+          case IndexableFieldDef<?> indexableFieldDef -> {
+            if (indexableFieldDef.hasDocValues()) {
+              fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+            } else if (indexableFieldDef.isStored()) {
+              fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
+            } else {
+              throw new IllegalStateException(
+                  "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+            }
           }
-        } else {
-          throw new IllegalStateException(
-              "No valid method to retrieve field: " + fieldDefEntry.getKey());
+          case null, default ->
+              throw new IllegalStateException(
+                  "No valid method to retrieve field: " + fieldDefEntry.getKey());
         }
       }
 
@@ -1053,7 +1048,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         List<SearchResponse.Hit.Builder> sliceHits,
         LeafReaderContext sliceSegment,
         String name,
-        IndexableFieldDef indexableFieldDef)
+        IndexableFieldDef<?> indexableFieldDef)
         throws IOException {
       LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(sliceSegment);
       for (SearchResponse.Hit.Builder hit : sliceHits) {
@@ -1074,7 +1069,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         FieldFetchContext context,
         List<SearchResponse.Hit.Builder> sliceHits,
         String name,
-        IndexableFieldDef indexableFieldDef)
+        IndexableFieldDef<?> indexableFieldDef)
         throws IOException {
       for (SearchResponse.Hit.Builder hit : sliceHits) {
         SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
@@ -1110,24 +1105,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         this.score = score;
       }
     }
-  }
-
-  private static FieldValue convertType(FieldDef fd, Object o) {
-    var fieldValue = FieldValue.newBuilder();
-    if (fd instanceof BooleanFieldDef) {
-      if ((Integer) o == 1) {
-        fieldValue.setBooleanValue(Boolean.TRUE);
-      } else {
-        assert (Integer) o == 0;
-        fieldValue.setBooleanValue(Boolean.FALSE);
-      }
-    } else if (fd instanceof DateTimeFieldDef) {
-      fieldValue.setTextValue(msecToDateString(((DateTimeFieldDef) fd), ((Number) o).longValue()));
-    } else {
-      throw new IllegalArgumentException("Unable to convert object: " + o);
-    }
-
-    return fieldValue.build();
   }
 
   private static String msecToDateString(DateTimeFieldDef fd, long value) {

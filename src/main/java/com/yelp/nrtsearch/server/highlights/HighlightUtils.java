@@ -36,7 +36,7 @@ public class HighlightUtils {
   private static final int DEFAULT_FRAGMENT_SIZE = 100; // In number of characters
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
 
-  private static String DEFAULT_HIGHLIGHTER_NAME = NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
+  private static final String DEFAULT_HIGHLIGHTER_NAME = NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
   private static final String DEFAULT_FRAGMENTER = "span";
   private static final boolean DEFAULT_SCORE_ORDERED = true;
   private static final boolean DEFAULT_FIELD_MATCH = false;
@@ -203,7 +203,7 @@ public class HighlightUtils {
         .withCustomHighlighterParams(
             settings.hasCustomHighlighterParams()
                 ? StructValueTransformer.transformStruct(settings.getCustomHighlighterParams())
-                : Collections.EMPTY_MAP);
+                : Map.of());
 
     Query query =
         settings.hasHighlightQuery()
@@ -215,21 +215,19 @@ public class HighlightUtils {
   }
 
   private static String resolveHighlighterName(Settings settings) {
-    switch (settings.getHighlighterType()) {
-      case DEFAULT:
-        /* default -> default-highlighter is only applicable in global settings.
-         * In field override, we should return the one in global settings instead.
-         */
-        return DEFAULT_HIGHLIGHTER_NAME;
-      case PLAIN:
-        throw new UnsupportedOperationException("plain-highlighter is not supported yet.");
-      case FAST_VECTOR:
-        return NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
-      case CUSTOM:
-        return settings.getCustomHighlighterName();
-      default:
-        throw new IllegalArgumentException(
-            String.format("Unknown highlighter_type: %s", settings.getHighlighterType()));
-    }
+    return switch (settings.getHighlighterType()) {
+      case DEFAULT ->
+          /* default -> default-highlighter is only applicable in global settings.
+           * In field override, we should return the one in global settings instead.
+           */
+          DEFAULT_HIGHLIGHTER_NAME;
+      case PLAIN ->
+          throw new UnsupportedOperationException("plain-highlighter is not supported yet.");
+      case FAST_VECTOR -> NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
+      case CUSTOM -> settings.getCustomHighlighterName();
+      default ->
+          throw new IllegalArgumentException(
+              String.format("Unknown highlighter_type: %s", settings.getHighlighterType()));
+    };
   }
 }

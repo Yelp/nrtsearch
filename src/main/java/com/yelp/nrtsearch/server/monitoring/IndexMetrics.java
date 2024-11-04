@@ -92,17 +92,15 @@ public class IndexMetrics {
     numDeletedDocs.labelValues(index).set(reader.numDeletedDocs());
     numSegments.labelValues(index).set(reader.leaves().size());
 
-    if (reader.leaves().size() > 0) {
+    if (!reader.leaves().isEmpty()) {
       ArrayList<LeafReaderContext> sortedLeaves = new ArrayList<>(reader.leaves());
       // sort by segment size
       sortedLeaves.sort(Comparator.comparingInt(l -> l.reader().maxDoc()));
-      segmentDocs.labelValues(index, "min").set(sortedLeaves.get(0).reader().maxDoc());
+      segmentDocs.labelValues(index, "min").set(sortedLeaves.getFirst().reader().maxDoc());
       segmentDocs.labelValues(index, "0.5").set(getSegmentDocsQuantile(0.5, sortedLeaves));
       segmentDocs.labelValues(index, "0.95").set(getSegmentDocsQuantile(0.95, sortedLeaves));
       segmentDocs.labelValues(index, "0.99").set(getSegmentDocsQuantile(0.99, sortedLeaves));
-      segmentDocs
-          .labelValues(index, "max")
-          .set(sortedLeaves.get(sortedLeaves.size() - 1).reader().maxDoc());
+      segmentDocs.labelValues(index, "max").set(sortedLeaves.getLast().reader().maxDoc());
 
       try {
         // This type assumption is the same made by the nrt PrimaryNode class

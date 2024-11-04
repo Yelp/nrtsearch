@@ -119,17 +119,12 @@ public class BackupCommandUtils {
       throw new IllegalArgumentException("Time interval must be > 0");
     }
 
-    switch (endChar) {
-      case 's':
-        return TimeUnit.SECONDS.toMillis(numberVal);
-      case 'm':
-        return TimeUnit.MINUTES.toMillis(numberVal);
-      case 'h':
-        return TimeUnit.HOURS.toMillis(numberVal);
-      case 'd':
-        return TimeUnit.DAYS.toMillis(numberVal);
-      default:
-        throw new IllegalArgumentException("Unknown time unit: " + endChar);
-    }
+    return switch (endChar) {
+      case 's' -> TimeUnit.SECONDS.toMillis(numberVal);
+      case 'm' -> TimeUnit.MINUTES.toMillis(numberVal);
+      case 'h' -> TimeUnit.HOURS.toMillis(numberVal);
+      case 'd' -> TimeUnit.DAYS.toMillis(numberVal);
+      default -> throw new IllegalArgumentException("Unknown time unit: " + endChar);
+    };
   }
 }

@@ -80,10 +80,9 @@ public class MatchPhrasePrefixQuery extends Query {
       com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery matchPhrasePrefixQueryGrpc,
       IndexState indexState) {
     FieldDef fieldDef = indexState.getFieldOrThrow(matchPhrasePrefixQueryGrpc.getField());
-    if (!(fieldDef instanceof IndexableFieldDef)) {
+    if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
       throw new IllegalArgumentException("MatchPhrasePrefixQuery requires an indexable field");
     }
-    IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
     if (!indexableFieldDef.isSearchable()) {
       throw new IllegalArgumentException(
           "Field " + matchPhrasePrefixQueryGrpc.getField() + " is not searchable");
@@ -117,7 +116,7 @@ public class MatchPhrasePrefixQuery extends Query {
    * @throws IOException
    */
   public static Query createQueryFromTokenStream(
-      TokenStream stream, IndexableFieldDef fieldDef, int slop, int maxExpansions)
+      TokenStream stream, IndexableFieldDef<?> fieldDef, int slop, int maxExpansions)
       throws IOException {
     int resolvedMaxExpansions = maxExpansions > 0 ? maxExpansions : DEFAULT_MAX_EXPANSION;
     String field = fieldDef.getName();
@@ -273,7 +272,7 @@ public class MatchPhrasePrefixQuery extends Query {
   @Override
   public final String toString(String f) {
     StringBuilder buffer = new StringBuilder();
-    if (field.equals(f) == false) {
+    if (!field.equals(f)) {
       buffer.append(field);
       buffer.append(":");
     }
@@ -321,7 +320,7 @@ public class MatchPhrasePrefixQuery extends Query {
   /** Returns true if <code>o</code> is equal to this. */
   @Override
   public boolean equals(Object o) {
-    if (sameClassAs(o) == false) {
+    if (!sameClassAs(o)) {
       return false;
     }
     MatchPhrasePrefixQuery other = (MatchPhrasePrefixQuery) o;

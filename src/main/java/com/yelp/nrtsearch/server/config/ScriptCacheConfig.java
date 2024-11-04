@@ -55,11 +55,8 @@ public class ScriptCacheConfig {
    *     null
    */
   public static TimeUnit getTimeUnitFromString(String timeUnitStr) {
-    TimeUnit timeUnit =
-        TimeUnit.valueOf(
-            Objects.requireNonNull(
-                timeUnitStr, "script cache expiration time unit cannot be null"));
-    return timeUnit;
+    return TimeUnit.valueOf(
+        Objects.requireNonNull(timeUnitStr, "script cache expiration time unit cannot be null"));
   }
 
   /**

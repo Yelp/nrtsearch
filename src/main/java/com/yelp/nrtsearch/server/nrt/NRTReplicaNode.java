@@ -194,13 +194,7 @@ public class NRTReplicaNode extends ReplicaNode {
     long version = copyState.getVersion();
     Map<String, FileMetaData> files = readFilesMetaData(copyState.getFilesMetadata());
 
-    int count = copyState.getCompletedMergeFilesCount();
-    assert count == copyState.getCompletedMergeFilesCount();
-
-    Set<String> completedMergeFiles = new HashSet<>();
-    for (String completedMergeFile : copyState.getCompletedMergeFilesList()) {
-      completedMergeFiles.add(completedMergeFile);
-    }
+    Set<String> completedMergeFiles = new HashSet<>(copyState.getCompletedMergeFilesList());
     long primaryGen = copyState.getPrimaryGen();
 
     return new CopyState(files, version, gen, infosBytes, completedMergeFiles, primaryGen, null);

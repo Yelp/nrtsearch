@@ -177,7 +177,7 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
   /**
    * Convert the string to number
    *
-   * @param numberString
+   * @param numberString number string
    * @return number value of the string
    */
   protected Number parseNumberString(String numberString) {

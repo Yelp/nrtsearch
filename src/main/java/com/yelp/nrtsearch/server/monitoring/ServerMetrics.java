@@ -110,7 +110,7 @@ class ServerMetrics {
    * does nothing.
    */
   public void recordLatency(double latencySec) {
-    if (!this.serverHandledLatencySeconds.isPresent()) {
+    if (this.serverHandledLatencySeconds.isEmpty()) {
       return;
     }
     addLabels(this.serverHandledLatencySeconds.get()).observe(latencySec);
