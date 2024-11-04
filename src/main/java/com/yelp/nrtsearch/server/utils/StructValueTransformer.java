@@ -72,21 +72,15 @@ public class StructValueTransformer
     if (input == null) {
       return null;
     }
-    switch (input.getKindCase()) {
-      case NULL_VALUE:
-        return null;
-      case STRING_VALUE:
-        return input.getStringValue();
-      case NUMBER_VALUE:
-        return input.getNumberValue();
-      case BOOL_VALUE:
-        return input.getBoolValue();
-      case LIST_VALUE:
-        return transformList(input.getListValue());
-      case STRUCT_VALUE:
-        return transformStruct(input.getStructValue());
-      default:
-        throw new IllegalArgumentException("Unknown Struct value type: " + input.getKindCase());
-    }
+    return switch (input.getKindCase()) {
+      case NULL_VALUE -> null;
+      case STRING_VALUE -> input.getStringValue();
+      case NUMBER_VALUE -> input.getNumberValue();
+      case BOOL_VALUE -> input.getBoolValue();
+      case LIST_VALUE -> transformList(input.getListValue());
+      case STRUCT_VALUE -> transformStruct(input.getStructValue());
+      default ->
+          throw new IllegalArgumentException("Unknown Struct value type: " + input.getKindCase());
+    };
   }
 }

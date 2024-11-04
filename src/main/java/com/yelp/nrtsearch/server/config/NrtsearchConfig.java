@@ -418,7 +418,7 @@ public class NrtsearchConfig {
 
   private static List<String> getPluginSearchPath(Object o) {
     List<String> paths = new ArrayList<>();
-    if (o instanceof List list) {
+    if (o instanceof List<?> list) {
       for (Object item : list) {
         paths.add(item.toString());
       }

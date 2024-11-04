@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -39,7 +40,8 @@ public class TextFieldDefTest {
   }
 
   private TextFieldDef createFieldDef(Field field) {
-    return new TextFieldDef("test_field", field);
+    return new TextFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
   }
 
   @Test

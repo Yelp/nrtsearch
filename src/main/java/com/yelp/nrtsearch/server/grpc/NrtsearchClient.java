@@ -130,7 +130,7 @@ public class NrtsearchClient implements Closeable {
     try {
       logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
     } catch (Exception e) {
-      logger.info("Error printing response message: " + response, e);
+      logger.info("Error printing response message: {}", response, e);
     }
   }
 
@@ -257,7 +257,7 @@ public class NrtsearchClient implements Closeable {
     }
 
     if (!exception.isEmpty()) {
-      throw new RuntimeException(exception.get(0));
+      throw new RuntimeException(exception.getFirst());
     }
   }
 
@@ -359,6 +359,14 @@ public class NrtsearchClient implements Closeable {
         blockingStub.deleteAll(
             DeleteAllDocumentsRequest.newBuilder().setIndexName(indexName).build());
     logger.info("Server returned genId : " + response.getGenId());
+  }
+
+  public void deleteByQuery(String indexName, Query query) {
+    AddDocumentResponse response =
+        blockingStub.deleteByQuery(
+            DeleteByQueryRequest.newBuilder().setIndexName(indexName).addQuery(query).build());
+    logger.info(
+        "Server returned primaryId: {}, genId : {}", response.getPrimaryId(), response.getGenId());
   }
 
   public void stopIndex(String indexName) {

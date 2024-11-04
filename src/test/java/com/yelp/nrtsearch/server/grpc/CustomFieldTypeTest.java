@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.field.FieldDefProvider;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
@@ -98,8 +99,9 @@ public class CustomFieldTypeTest {
 
   static class TestFieldDef extends IndexableFieldDef<Integer> {
 
-    public TestFieldDef(String name, Field requestField) {
-      super(name, requestField, Integer.class);
+    public TestFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      super(name, requestField, context, Integer.class);
     }
 
     @Override

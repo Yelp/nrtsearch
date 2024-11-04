@@ -87,7 +87,7 @@ public abstract class GlobalState implements Closeable {
     this.replicaReplicationPortPingInterval =
         luceneServerConfiguration.getReplicaReplicationPortPingInterval();
     this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
-    if (Files.exists(stateDir) == false) {
+    if (!Files.exists(stateDir)) {
       Files.createDirectories(stateDir);
     }
     this.indexExecutor =

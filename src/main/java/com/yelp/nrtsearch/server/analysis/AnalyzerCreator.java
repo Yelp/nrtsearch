@@ -147,8 +147,7 @@ public class AnalyzerCreator {
         SynonymV2GraphFilterFactory.NAME, SynonymV2GraphFilterFactory.class, builtInTokenFilters);
 
     for (Plugin plugin : plugins) {
-      if (plugin instanceof AnalysisPlugin) {
-        AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
+      if (plugin instanceof AnalysisPlugin analysisPlugin) {
         instance.registerAnalyzers(analysisPlugin.getAnalyzers());
         instance.registerTokenFilters(analysisPlugin.getTokenFilters(), builtInTokenFilters);
         instance.registerCharFilters(analysisPlugin.getCharFilters(), builtInCharFilters);

@@ -38,8 +38,9 @@ import org.apache.lucene.util.BytesRef;
 /** Field class for defining '_ID' fields which are used to update documents */
 public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryable {
 
-  protected IdFieldDef(String name, Field requestField) {
-    super(name, requestField, String.class);
+  protected IdFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, String.class);
   }
 
   /**

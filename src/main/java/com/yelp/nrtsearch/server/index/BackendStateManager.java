@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.index;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
@@ -87,7 +88,10 @@ public class BackendStateManager implements IndexStateManager {
     stateInfo = fixIndexName(stateInfo, indexName);
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), stateInfo.getFieldsMap().values());
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            stateInfo.getFieldsMap().values(),
+            FieldDefCreator.createContext(globalState));
     currentState =
         createIndexState(stateInfo, updatedFieldInfo.fieldAndFacetState, liveSettingsOverrides);
   }
@@ -203,7 +207,8 @@ public class BackendStateManager implements IndexStateManager {
         FieldUpdateUtils.updateFields(
             currentState.getFieldAndFacetState(),
             currentState.getIndexStateInfo().getFieldsMap(),
-            fields);
+            fields,
+            FieldDefCreator.createContext(globalState));
     IndexStateInfo updatedStateInfo =
         replaceFields(currentState.getIndexStateInfo(), updatedFieldInfo.fields);
     ImmutableIndexState updatedIndexState =

@@ -89,7 +89,7 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
     String indexName = copyFilesRequest.getIndexName();
     ShardState shardState = indexState.getShard(0);
 
-    if (shardState.isReplica() == false) {
+    if (!shardState.isReplica()) {
       throw new IllegalArgumentException(
           "index \"" + indexName + "\" is not a replica or was not started yet");
     }

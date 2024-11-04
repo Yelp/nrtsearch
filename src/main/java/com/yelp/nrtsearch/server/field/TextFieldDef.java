@@ -21,8 +21,9 @@ import org.apache.lucene.index.IndexOptions;
 
 /** Field class for 'TEXT' field type. */
 public class TextFieldDef extends TextBaseFieldDef {
-  public TextFieldDef(String name, Field requestField) {
-    super(name, requestField);
+  public TextFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context);
   }
 
   @Override

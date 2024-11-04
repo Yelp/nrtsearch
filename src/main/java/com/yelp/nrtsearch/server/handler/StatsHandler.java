@@ -73,9 +73,9 @@ public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
       }
       String[] fNames = shardState.indexDir.listAll();
       long dirSize = 0;
-      for (int i = 0; i < fNames.length; i++) {
+      for (String fName : fNames) {
         try {
-          dirSize += shardState.indexDir.fileLength(fNames[i]);
+          dirSize += shardState.indexDir.fileLength(fName);
         } catch (IOException ignored) {
           // files may be deleted from merging, don't fail the request
         }
@@ -118,8 +118,7 @@ public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
           searcher.setSegments(s.searcher.toString());
           IndexReader indexReader = s.searcher.getIndexReader();
           searcher.setNumDocs(indexReader.numDocs());
-          if (indexReader instanceof StandardDirectoryReader) {
-            StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
+          if (indexReader instanceof StandardDirectoryReader standardDirectoryReader) {
             searcher.setNumSegments(standardDirectoryReader.getSegmentInfos().asList().size());
           }
         }

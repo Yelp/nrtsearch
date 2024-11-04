@@ -216,9 +216,8 @@ public class FieldAndFacetState {
 
     private void setFacetsConfigForField(FieldDef fieldDef, Field field) {
       // facets not supported for child fields
-      if (field != null && fieldDef instanceof IndexableFieldDef) {
+      if (field != null && fieldDef instanceof IndexableFieldDef<?> indexableFieldDef) {
         String fieldName = fieldDef.getName();
-        IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
         IndexableFieldDef.FacetValueType facetType = indexableFieldDef.getFacetValueType();
         if (facetType != IndexableFieldDef.FacetValueType.NO_FACETS
             && facetType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {

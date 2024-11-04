@@ -382,7 +382,10 @@ public class ImmutableIndexStateTest {
             .build();
     UpdatedFieldInfo fieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(sortField));
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            Collections.singleton(sortField),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     ImmutableIndexState indexState =
         getIndexState(
             getStateWithSettings(
@@ -1021,7 +1024,10 @@ public class ImmutableIndexStateTest {
             .build();
     UpdatedFieldInfo fieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            Collections.singleton(field),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
     ImmutableIndexState indexState = getIndexState(indexStateInfo, fieldInfo.fieldAndFacetState);
@@ -1053,7 +1059,10 @@ public class ImmutableIndexStateTest {
             .build();
     UpdatedFieldInfo fieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            Collections.singleton(field),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
     ImmutableIndexState indexState = getIndexState(indexStateInfo, fieldInfo.fieldAndFacetState);
@@ -1090,7 +1099,10 @@ public class ImmutableIndexStateTest {
             .build();
     UpdatedFieldInfo fieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            Collections.singleton(field),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
     ImmutableIndexState indexState = getIndexState(indexStateInfo, fieldInfo.fieldAndFacetState);
@@ -1108,7 +1120,10 @@ public class ImmutableIndexStateTest {
             .build();
     UpdatedFieldInfo fieldInfo =
         FieldUpdateUtils.updateFields(
-            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
+            new FieldAndFacetState(),
+            Collections.emptyMap(),
+            Collections.singleton(field),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
     ImmutableIndexState indexState = getIndexState(indexStateInfo, fieldInfo.fieldAndFacetState);

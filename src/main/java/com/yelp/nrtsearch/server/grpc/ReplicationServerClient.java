@@ -308,7 +308,6 @@ public class ReplicationServerClient implements Closeable {
     if (o == null || getClass() != o.getClass()) return false;
     ReplicationServerClient that = (ReplicationServerClient) o;
     return port == that.port
-        && Objects.equals(logger, that.logger)
         && Objects.equals(host, that.host)
         && Objects.equals(discoveryFile, that.discoveryFile)
         && Objects.equals(channel, that.channel)

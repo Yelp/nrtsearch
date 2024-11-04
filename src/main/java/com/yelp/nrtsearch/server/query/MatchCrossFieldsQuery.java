@@ -68,12 +68,13 @@ public class MatchCrossFieldsQuery {
     try {
       // use first field for name in extracted terms
       QueryUtils.TermsAndPositions termsAndPositions =
-          QueryUtils.getTermsAndPositions(fields.get(0), queryText, analyzer);
+          QueryUtils.getTermsAndPositions(fields.getFirst(), queryText, analyzer);
       Query query;
       if (fields.size() == 1) {
-        query = buildSingleFieldQuery(termsAndPositions, fields.get(0), occur, minimumShouldMatch);
+        query =
+            buildSingleFieldQuery(termsAndPositions, fields.getFirst(), occur, minimumShouldMatch);
         // Add field boost if specified
-        Float boost = fieldBoostMap.get(fields.get(0));
+        Float boost = fieldBoostMap.get(fields.getFirst());
         if (query != null && boost != null) {
           query = new BoostQuery(query, boost);
         }
@@ -116,13 +117,13 @@ public class MatchCrossFieldsQuery {
     }
 
     if (termsAndPositions.getTermArrays().size() == 1
-        && termsAndPositions.getTermArrays().get(0).length == 1) {
+        && termsAndPositions.getTermArrays().getFirst().length == 1) {
       // single token
-      return new TermQuery(termsAndPositions.getTermArrays().get(0)[0]);
+      return new TermQuery(termsAndPositions.getTermArrays().getFirst()[0]);
     } else if (termsAndPositions.getPositions().size() == 1) {
       // synonyms for single position
       SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
-      for (Term term : termsAndPositions.getTermArrays().get(0)) {
+      for (Term term : termsAndPositions.getTermArrays().getFirst()) {
         builder.addTerm(term);
       }
       return builder.build();
@@ -174,7 +175,10 @@ public class MatchCrossFieldsQuery {
     if (termsAndPositions.getTermArrays().size() == 1) {
       // single position
       return blendTerms(
-          termsAndPositions.getTermArrays().get(0), fields, fieldBoostMap, tieBreakerMultiplier);
+          termsAndPositions.getTermArrays().getFirst(),
+          fields,
+          fieldBoostMap,
+          tieBreakerMultiplier);
     } else {
       // multiple positions
       BooleanQuery.Builder builder = new Builder();

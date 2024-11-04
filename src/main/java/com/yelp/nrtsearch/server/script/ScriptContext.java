@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Context that holds type information needed to compile a script. Provides classes conforming with
@@ -146,7 +145,7 @@ public class ScriptContext<T> {
     List<Method> methods =
         Arrays.stream(clazz.getMethods())
             .filter(method -> method.getName().equals(methodName))
-            .collect(Collectors.toList());
+            .toList();
     if (methods.isEmpty()) {
       return null;
     }
@@ -154,6 +153,6 @@ public class ScriptContext<T> {
       throw new IllegalArgumentException(
           "Expected at most 1 method named " + methodName + ", found " + methods.size());
     }
-    return methods.get(0);
+    return methods.getFirst();
   }
 }
