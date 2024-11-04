@@ -49,7 +49,7 @@ public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
 
   private TransferStatus handle(IndexState indexState, NewNRTPoint newNRTPointRequest) {
     ShardState shardState = indexState.getShard(0);
-    if (shardState.isReplica() == false) {
+    if (!shardState.isReplica()) {
       throw new IllegalArgumentException(
           "index \""
               + newNRTPointRequest.getIndexName()

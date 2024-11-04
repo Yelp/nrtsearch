@@ -20,7 +20,7 @@ import java.util.AbstractList;
 
 public final class FloatVectorType extends AbstractList<Float> {
 
-  private float[] vectorData;
+  private final float[] vectorData;
 
   /**
    * Construct VectorType with given vector data

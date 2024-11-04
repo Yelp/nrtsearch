@@ -84,8 +84,7 @@ public class SimilarityCreator {
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new SimilarityCreator(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof SimilarityPlugin) {
-        SimilarityPlugin similarityPlugin = (SimilarityPlugin) plugin;
+      if (plugin instanceof SimilarityPlugin similarityPlugin) {
         instance.register(similarityPlugin.getSimilarities());
       }
     }

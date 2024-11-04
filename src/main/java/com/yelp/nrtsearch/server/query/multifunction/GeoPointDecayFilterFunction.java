@@ -73,13 +73,12 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
   }
 
   public void validateLatLonField(FieldDef fieldDef) {
-    if (!(fieldDef instanceof LatLonFieldDef)) {
+    if (!(fieldDef instanceof LatLonFieldDef latLonFieldDef)) {
       throw new IllegalArgumentException(
           fieldName
               + " should be a LAT_LON to apply geoPoint decay function but it is: "
               + fieldDef.getType());
     }
-    LatLonFieldDef latLonFieldDef = (LatLonFieldDef) fieldDef;
     // TODO: Add support for multi-value fields
     if (latLonFieldDef.isMultiValue()) {
       throw new IllegalArgumentException(
@@ -155,15 +154,20 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append(super.toString()).append(", decayFunction:");
-    sb.append("fieldName: ").append(fieldName);
-    sb.append("decayType: ").append(decayType);
-    sb.append("origin: ").append(origin);
-    sb.append("scale: ").append(scale);
-    sb.append("offset: ").append(offset);
-    sb.append("decay: ").append(decay);
-    return sb.toString();
+    return super.toString()
+        + ", decayFunction:"
+        + "fieldName: "
+        + fieldName
+        + "decayType: "
+        + decayType
+        + "origin: "
+        + origin
+        + "scale: "
+        + scale
+        + "offset: "
+        + offset
+        + "decay: "
+        + decay;
   }
 
   @Override

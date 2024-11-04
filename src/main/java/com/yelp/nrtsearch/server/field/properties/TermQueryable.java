@@ -36,30 +36,16 @@ public interface TermQueryable {
    * @throws UnsupportedOperationException if field does not support term type
    */
   default Query getTermQuery(TermQuery termQuery) {
-    Query query;
-    switch (termQuery.getTermTypesCase()) {
-      case BOOLEANVALUE:
-        query = getTermQueryFromBooleanValue(termQuery.getBooleanValue());
-        break;
-      case DOUBLEVALUE:
-        query = getTermQueryFromDoubleValue(termQuery.getDoubleValue());
-        break;
-      case FLOATVALUE:
-        query = getTermQueryFromFloatValue(termQuery.getFloatValue());
-        break;
-      case INTVALUE:
-        query = getTermQueryFromIntValue(termQuery.getIntValue());
-        break;
-      case LONGVALUE:
-        query = getTermQueryFromLongValue(termQuery.getLongValue());
-        break;
-      case TEXTVALUE:
-        query = getTermQueryFromTextValue(termQuery.getTextValue());
-        break;
-      default:
-        query = null;
-        break;
-    }
+    Query query =
+        switch (termQuery.getTermTypesCase()) {
+          case BOOLEANVALUE -> getTermQueryFromBooleanValue(termQuery.getBooleanValue());
+          case DOUBLEVALUE -> getTermQueryFromDoubleValue(termQuery.getDoubleValue());
+          case FLOATVALUE -> getTermQueryFromFloatValue(termQuery.getFloatValue());
+          case INTVALUE -> getTermQueryFromIntValue(termQuery.getIntValue());
+          case LONGVALUE -> getTermQueryFromLongValue(termQuery.getLongValue());
+          case TEXTVALUE -> getTermQueryFromTextValue(termQuery.getTextValue());
+          default -> null;
+        };
 
     if (query == null) {
       throw new UnsupportedOperationException(
@@ -171,27 +157,20 @@ public interface TermQueryable {
    * @throws UnsupportedOperationException if field does not support term type
    */
   default Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    Query query;
-    switch (termInSetQuery.getTermTypesCase()) {
-      case DOUBLETERMS:
-        query = getTermInSetQueryFromDoubleValues(termInSetQuery.getDoubleTerms().getTermsList());
-        break;
-      case FLOATTERMS:
-        query = getTermInSetQueryFromFloatValues(termInSetQuery.getFloatTerms().getTermsList());
-        break;
-      case INTTERMS:
-        query = getTermInSetQueryFromIntValues(termInSetQuery.getIntTerms().getTermsList());
-        break;
-      case LONGTERMS:
-        query = getTermInSetQueryFromLongValues(termInSetQuery.getLongTerms().getTermsList());
-        break;
-      case TEXTTERMS:
-        query = getTermInSetQueryFromTextValues(termInSetQuery.getTextTerms().getTermsList());
-        break;
-      default:
-        query = null;
-        break;
-    }
+    Query query =
+        switch (termInSetQuery.getTermTypesCase()) {
+          case DOUBLETERMS ->
+              getTermInSetQueryFromDoubleValues(termInSetQuery.getDoubleTerms().getTermsList());
+          case FLOATTERMS ->
+              getTermInSetQueryFromFloatValues(termInSetQuery.getFloatTerms().getTermsList());
+          case INTTERMS ->
+              getTermInSetQueryFromIntValues(termInSetQuery.getIntTerms().getTermsList());
+          case LONGTERMS ->
+              getTermInSetQueryFromLongValues(termInSetQuery.getLongTerms().getTermsList());
+          case TEXTTERMS ->
+              getTermInSetQueryFromTextValues(termInSetQuery.getTextTerms().getTermsList());
+          default -> null;
+        };
     if (query == null) {
       throw new UnsupportedOperationException(
           String.format(

@@ -121,8 +121,7 @@ public class ScriptService {
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new ScriptService(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof ScriptPlugin) {
-        ScriptPlugin scriptPlugin = (ScriptPlugin) plugin;
+      if (plugin instanceof ScriptPlugin scriptPlugin) {
         instance.register(scriptPlugin.getScriptEngines(builtInContexts));
       }
     }
@@ -150,8 +149,7 @@ public class ScriptService {
 
     @Override
     public boolean equals(Object o) {
-      if (o instanceof ScriptCacheKey) {
-        ScriptCacheKey cacheKey = (ScriptCacheKey) o;
+      if (o instanceof ScriptCacheKey cacheKey) {
         return context == cacheKey.context
             && Objects.equals(lang, cacheKey.lang)
             && Objects.equals(source, cacheKey.source);

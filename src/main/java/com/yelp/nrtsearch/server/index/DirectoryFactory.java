@@ -55,80 +55,87 @@ public abstract class DirectoryFactory {
    * NIOFSDirectory}.
    */
   public static DirectoryFactory get(final String dirImpl, NrtsearchConfig config) {
-    if (dirImpl.equals("FSDirectory")) {
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          Directory directory = FSDirectory.open(path);
-          if (directory instanceof MMapDirectory mMapDirectory) {
+    switch (dirImpl) {
+      case "FSDirectory" -> {
+        return new DirectoryFactory() {
+          @Override
+          public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
+            Directory directory = FSDirectory.open(path);
+            if (directory instanceof MMapDirectory mMapDirectory) {
+              mMapDirectory.setPreload(preloadConfig.preloadPredicate());
+              setMMapGrouping(mMapDirectory, config.getMMapGrouping());
+            }
+            return directory;
+          }
+        };
+      }
+      case "MMapDirectory" -> {
+        return new DirectoryFactory() {
+          @Override
+          public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
+            MMapDirectory mMapDirectory = new MMapDirectory(path);
             mMapDirectory.setPreload(preloadConfig.preloadPredicate());
             setMMapGrouping(mMapDirectory, config.getMMapGrouping());
+            return mMapDirectory;
           }
-          return directory;
+        };
+      }
+      case "NIOFSDirectory" -> {
+        return new DirectoryFactory() {
+          @Override
+          public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
+            return new NIOFSDirectory(path);
+          }
+        };
+      }
+      default -> {
+        final Class<? extends Directory> dirClass;
+        try {
+          dirClass = Class.forName(dirImpl).asSubclass(Directory.class);
+        } catch (ClassNotFoundException cnfe) {
+          throw new IllegalArgumentException(
+              "could not locate Directory sub-class \"" + dirImpl + "\"; verify CLASSPATH");
         }
-      };
-    } else if (dirImpl.equals("MMapDirectory")) {
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          MMapDirectory mMapDirectory = new MMapDirectory(path);
-          mMapDirectory.setPreload(preloadConfig.preloadPredicate());
-          setMMapGrouping(mMapDirectory, config.getMMapGrouping());
-          return mMapDirectory;
+        Constructor<? extends Directory> ctor = null;
+        try {
+          ctor = dirClass.getConstructor(Path.class);
+        } catch (NoSuchMethodException ignored) {
         }
-      };
-    } else if (dirImpl.equals("NIOFSDirectory")) {
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          return new NIOFSDirectory(path);
+        try {
+          ctor = dirClass.getConstructor(Path.class, IndexPreloadConfig.class);
+        } catch (NoSuchMethodException ignored) {
         }
-      };
-    } else {
-      final Class<? extends Directory> dirClass;
-      try {
-        dirClass = Class.forName(dirImpl).asSubclass(Directory.class);
-      } catch (ClassNotFoundException cnfe) {
-        throw new IllegalArgumentException(
-            "could not locate Directory sub-class \"" + dirImpl + "\"; verify CLASSPATH");
-      }
-      Constructor<? extends Directory> ctor = null;
-      try {
-        ctor = dirClass.getConstructor(Path.class);
-      } catch (NoSuchMethodException ignored) {
-      }
-      try {
-        ctor = dirClass.getConstructor(Path.class, IndexPreloadConfig.class);
-      } catch (NoSuchMethodException ignored) {
-      }
-      if (ctor == null) {
-        throw new IllegalArgumentException(
-            "class \""
-                + dirImpl
-                + "\" does not have a constructor taking a single Path argument, or a Path and a boolean");
-      }
+        if (ctor == null) {
+          throw new IllegalArgumentException(
+              "class \""
+                  + dirImpl
+                  + "\" does not have a constructor taking a single Path argument, or a Path and a boolean");
+        }
 
-      final Constructor<? extends Directory> finalCtor = ctor;
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          try {
-            if (finalCtor.getParameterCount() == 1) {
-              return finalCtor.newInstance(path);
-            } else {
-              return finalCtor.newInstance(path, preloadConfig);
+        final Constructor<? extends Directory> finalCtor = ctor;
+        return new DirectoryFactory() {
+          @Override
+          public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
+            try {
+              if (finalCtor.getParameterCount() == 1) {
+                return finalCtor.newInstance(path);
+              } else {
+                return finalCtor.newInstance(path, preloadConfig);
+              }
+            } catch (InstantiationException
+                | InvocationTargetException
+                | IllegalAccessException ie) {
+              throw new RuntimeException(
+                  "failed to instantiate directory class \""
+                      + dirImpl
+                      + "\" on path=\""
+                      + path
+                      + "\"",
+                  ie);
             }
-          } catch (InstantiationException | InvocationTargetException | IllegalAccessException ie) {
-            throw new RuntimeException(
-                "failed to instantiate directory class \""
-                    + dirImpl
-                    + "\" on path=\""
-                    + path
-                    + "\"",
-                ie);
           }
-        }
-      };
+        };
+      }
     }
   }
 

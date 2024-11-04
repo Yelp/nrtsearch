@@ -81,8 +81,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
    */
   private void parseFieldValueToDocumentField(Document document, String fieldValue) {
     ContextSuggestFieldData csfData = GSON.fromJson(fieldValue, ContextSuggestFieldData.class);
-    CharSequence[] contexts =
-        csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
+    CharSequence[] contexts = csfData.getContexts().toArray(new CharSequence[0]);
     ContextSuggestField csf =
         new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
     document.add(csf);

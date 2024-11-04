@@ -372,7 +372,7 @@ public class NRTPrimaryNode extends PrimaryNode {
 
       // TODO: maybe ... place some sort of time limit on how long we are willing to wait for slow
       // replica(s) to finish copying?
-      while (preCopy.finished() == false) {
+      while (!preCopy.finished()) {
         try {
           Thread.sleep(10);
         } catch (InterruptedException ie) {

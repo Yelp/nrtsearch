@@ -107,7 +107,8 @@ public class InnerHitFetchTask implements FetchTask {
         parentChildrenBlockJoinQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
     // All child documents are guaranteed to be stored in the same leaf as the parent document.
     // Therefore, a single collector without reduce is sufficient to collect all.
-    TopDocsCollector topDocsCollector = innerHitContext.getTopDocsCollectorManager().newCollector();
+    TopDocsCollector<?> topDocsCollector =
+        innerHitContext.getTopDocsCollectorManager().newCollector();
 
     intersectWeights(filterWeight, innerHitWeight, topDocsCollector, hitLeaf);
     TopDocs topDocs = topDocsCollector.topDocs();
@@ -156,7 +157,7 @@ public class InnerHitFetchTask implements FetchTask {
   private void intersectWeights(
       Weight filterWeight,
       Weight innerHitWeight,
-      TopDocsCollector topDocsCollector,
+      TopDocsCollector<?> topDocsCollector,
       LeafReaderContext hitLeaf)
       throws IOException {
     ScorerSupplier filterScorerSupplier = filterWeight.scorerSupplier(hitLeaf);

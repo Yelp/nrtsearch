@@ -56,7 +56,7 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
 
   private CopyState handle(IndexState indexState, CopyStateRequest copyStateRequest) {
     ShardState shardState = indexState.getShard(0);
-    if (shardState.isPrimary() == false) {
+    if (!shardState.isPrimary()) {
       throw new IllegalArgumentException(
           "index \"" + indexState.getName() + "\" was not started or is not a primary");
     }

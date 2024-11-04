@@ -76,8 +76,7 @@ public class RescorerCreator {
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new RescorerCreator(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof RescorerPlugin) {
-        RescorerPlugin rescorePlugin = (RescorerPlugin) plugin;
+      if (plugin instanceof RescorerPlugin rescorePlugin) {
         instance.register(rescorePlugin.getRescorers());
       }
     }

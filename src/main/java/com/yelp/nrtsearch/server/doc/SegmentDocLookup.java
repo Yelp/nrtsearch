@@ -81,7 +81,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
     try {
       FieldDef field = fieldDefLookup.apply(fieldName);
-      return field instanceof IndexableFieldDef && ((IndexableFieldDef) field).hasDocValues();
+      return field instanceof IndexableFieldDef && ((IndexableFieldDef<?>) field).hasDocValues();
     } catch (Exception ignored) {
       return false;
     }
@@ -112,10 +112,9 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       if (fieldDef == null) {
         throw new IllegalArgumentException("Field does not exist: " + fieldName);
       }
-      if (!(fieldDef instanceof IndexableFieldDef)) {
+      if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
         throw new IllegalArgumentException("Field cannot have doc values: " + fieldName);
       }
-      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
       try {
         docValues = indexableFieldDef.getDocValues(context);
       } catch (IOException e) {

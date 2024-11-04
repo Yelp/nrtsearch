@@ -40,8 +40,7 @@ public class NumberReaderFunc<T> implements Function<Object, T> {
     if (o instanceof String) {
       return stringConverter.apply((String) o);
     }
-    if (o instanceof Number) {
-      Number num = (Number) o;
+    if (o instanceof Number num) {
       if (clazz.isInstance(num)) {
         return clazz.cast(num);
       }

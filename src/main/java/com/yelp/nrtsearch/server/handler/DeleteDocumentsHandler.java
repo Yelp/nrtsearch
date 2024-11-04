@@ -64,7 +64,7 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
       }
     }
     try {
-      shardState.writer.deleteDocuments(terms.stream().toArray(Term[]::new));
+      shardState.writer.deleteDocuments(terms.toArray(Term[]::new));
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, writer.deleteDocuments failed",

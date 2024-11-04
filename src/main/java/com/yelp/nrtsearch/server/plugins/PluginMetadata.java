@@ -71,10 +71,9 @@ public class PluginMetadata {
   static PluginMetadata fromInputStream(InputStream fileStream) {
     Yaml yaml = new Yaml();
     Object configObject = yaml.load(fileStream);
-    if (!(configObject instanceof Map)) {
+    if (!(configObject instanceof Map<?, ?> configMap)) {
       throw new IllegalArgumentException("Plugin metadata must be a yaml hash");
     }
-    Map<Object, Object> configMap = (Map<Object, Object>) configObject;
     String name = getConfigString(configMap, NAME);
     String version = getConfigString(configMap, VERSION);
     String description = getConfigString(configMap, DESCRIPTION);
@@ -98,7 +97,7 @@ public class PluginMetadata {
     throw new FileNotFoundException("No metadata file for plugin");
   }
 
-  private static String getConfigString(Map<Object, Object> configMap, String key) {
+  private static String getConfigString(Map<?, ?> configMap, String key) {
     if (!configMap.containsKey(key) || configMap.get(key) == null) {
       throw new IllegalArgumentException("Plugin config missing key: " + key);
     }
@@ -134,12 +133,19 @@ public class PluginMetadata {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("PluginMetadata{");
-    sb.append("name='").append(name).append("'");
-    sb.append(", classname='").append(classname).append("'");
-    sb.append(", version='").append(version).append("'");
-    sb.append(", description='").append(description).append("'");
-    sb.append('}');
-    return sb.toString();
+    return "PluginMetadata{"
+        + "name='"
+        + name
+        + "'"
+        + ", classname='"
+        + classname
+        + "'"
+        + ", version='"
+        + version
+        + "'"
+        + ", description='"
+        + description
+        + "'"
+        + '}';
   }
 }
