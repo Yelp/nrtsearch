@@ -55,6 +55,13 @@ public class MappingV2CharFilterFactoryTest {
   }
 
   @Test
+  public void testWhitespaceInRule() throws IOException {
+    MappingV2CharFilterFactory factory = getFactory(". =>|,=> ");
+    String output = getFiltered(factory, "this. is, a test, string");
+    assertEquals("thisis  a test  string", output);
+  }
+
+  @Test
   public void testNoMappings() {
     try {
       newFactoryClassInstance(MappingV2CharFilterFactory.class, new HashMap<>());

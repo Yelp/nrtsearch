@@ -91,7 +91,7 @@ public class MappingV2CharFilterFactory extends CharFilterFactory {
     return Arrays.asList(mappings.split(separator));
   }
 
-  static Pattern p = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+  static Pattern p = Pattern.compile("(.*)=>(.*)$");
 
   protected void parseRules(List<String> rules, NormalizeCharMap.Builder builder) {
     for (String rule : rules) {
