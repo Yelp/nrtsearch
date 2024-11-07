@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -151,7 +152,8 @@ public class IncrementalDataCleanupCommandTest {
             SERVICE_NAME, IncrementalCommandUtils.getIndexDataResource(indexResource));
     String currentId =
         IOUtils.toString(
-            s3Client.getObject(TEST_BUCKET, versionPrefix + currentVersion).getObjectContent());
+            s3Client.getObject(TEST_BUCKET, versionPrefix + currentVersion).getObjectContent(),
+            StandardCharsets.UTF_8);
     s3Client.deleteObject(TEST_BUCKET, versionPrefix + currentVersion);
     return currentId;
   }

@@ -175,13 +175,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
   }
 
   private SearchResponse getSearchResponse(String dimension, String... paths) {
-    return getSearchResponse(dimension, false, paths);
-  }
-
-  private SearchResponse getSearchResponse(
-      String dimension, boolean useOrdsCache, String... paths) {
-    Facet.Builder facetBuilder =
-        Facet.newBuilder().setDim(dimension).setTopN(10).setUseOrdsCache(useOrdsCache);
+    Facet.Builder facetBuilder = Facet.newBuilder().setDim(dimension).setTopN(10);
     facetBuilder.addAllPaths(Arrays.asList(paths));
     return getGrpcServer()
         .getBlockingStub()
@@ -203,7 +197,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("Doe").setValue(1.0).build());
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("Smith").setValue(1.0).build());
     assertFacetResult(
-        facetResults.get(0), "sorted_doc_values_facet_field", 4, 3L, expectedLabelAndValues);
+        facetResults.getFirst(), "sorted_doc_values_facet_field", -1, 3L, expectedLabelAndValues);
   }
 
   @Test
@@ -214,7 +208,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("John").setValue(3.0).build());
     assertFacetResult(
-        facetResults.get(0),
+        facetResults.getFirst(),
         "sorted_doc_values_facet_field_single_valued",
         3,
         1L,
@@ -264,13 +258,8 @@ public class TextFieldFacetsTest extends ServerTestCase {
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("home").setValue(1.0).build());
     // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
     // fields.
-    assertFacetResult(facetResults.get(0), "hierarchy_facet_field", -1, 4L, expectedLabelAndValues);
-  }
-
-  @Test
-  public void testHierarchyMultivaluedNoPathUseOrdinalsCache() {
-    SearchResponse response = getSearchResponse("hierarchy_facet_field", true);
-    assertFacetResultMatch(response);
+    assertFacetResult(
+        facetResults.getFirst(), "hierarchy_facet_field", -1, 4L, expectedLabelAndValues);
   }
 
   @Test
@@ -283,7 +272,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
     // fields.
     assertFacetResult(
-        facetResults.get(0), "hierarchy_facet_field", -1, 2L, expectedLabelAndValues, "home");
+        facetResults.getFirst(), "hierarchy_facet_field", -1, 2L, expectedLabelAndValues, "home");
 
     response = getSearchResponse("hierarchy_facet_field", "home", "john");
     facetResults = response.getFacetResultList();
@@ -294,7 +283,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
     // fields.
     assertFacetResult(
-        facetResults.get(0),
+        facetResults.getFirst(),
         "hierarchy_facet_field",
         -1,
         2L,
@@ -311,7 +300,11 @@ public class TextFieldFacetsTest extends ServerTestCase {
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("John").setValue(3.0).build());
     assertFacetResult(
-        facetResults.get(0), "hierarchy_facet_field_single_valued", 3, 1L, expectedLabelAndValues);
+        facetResults.getFirst(),
+        "hierarchy_facet_field_single_valued",
+        3,
+        1L,
+        expectedLabelAndValues);
   }
 
   @Test
@@ -325,7 +318,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("Smith").setValue(1.0).build());
     // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
     // fields.
-    assertFacetResult(facetResults.get(0), "flat_facet_field", -1, 3L, expectedLabelAndValues);
+    assertFacetResult(facetResults.getFirst(), "flat_facet_field", -1, 3L, expectedLabelAndValues);
   }
 
   @Test
@@ -336,7 +329,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("John").setValue(3.0).build());
     assertFacetResult(
-        facetResults.get(0), "flat_facet_field_single_valued", 3, 1L, expectedLabelAndValues);
+        facetResults.getFirst(), "flat_facet_field_single_valued", 3, 1L, expectedLabelAndValues);
   }
 
   private void assertFacetResult(

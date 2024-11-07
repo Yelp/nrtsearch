@@ -591,12 +591,10 @@ public class QueryNodeMapper {
           "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
     }
 
-    org.apache.lucene.search.PrefixQuery query =
-        new org.apache.lucene.search.PrefixQuery(
-            new Term(prefixQuery.getField(), prefixQuery.getPrefix()));
-    query.setRewriteMethod(
-        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize()));
-    return query;
+    MultiTermQuery.RewriteMethod rewriteMethod =
+        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
+    return new org.apache.lucene.search.PrefixQuery(
+        new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
   }
 
   private static MultiTermQuery.RewriteMethod getRewriteMethod(
@@ -667,15 +665,17 @@ public class QueryNodeMapper {
 
     switch (wrappedQueryCase) {
       case WILDCARDQUERY:
+        MultiTermQuery.RewriteMethod rewriteMethod =
+            getRewriteMethod(
+                protoSpanMultiTermQuery.getWildcardQuery().getRewrite(),
+                protoSpanMultiTermQuery.getWildcardQuery().getRewriteTopTermsSize());
         WildcardQuery wildcardQuery =
             new WildcardQuery(
                 new Term(
                     protoSpanMultiTermQuery.getWildcardQuery().getField(),
-                    protoSpanMultiTermQuery.getWildcardQuery().getText()));
-        wildcardQuery.setRewriteMethod(
-            getRewriteMethod(
-                protoSpanMultiTermQuery.getWildcardQuery().getRewrite(),
-                protoSpanMultiTermQuery.getWildcardQuery().getRewriteTopTermsSize()));
+                    protoSpanMultiTermQuery.getWildcardQuery().getText()),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                rewriteMethod);
         return new SpanMultiTermQueryWrapper<>(wildcardQuery);
       case FUZZYQUERY:
         FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
@@ -727,11 +727,10 @@ public class QueryNodeMapper {
             ? protoFuzzyQuery.getTranspositions()
             : FuzzyQuery.defaultTranspositions;
 
-    FuzzyQuery fuzzyQuery =
-        new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-    fuzzyQuery.setRewriteMethod(
-        getRewriteMethod(protoFuzzyQuery.getRewrite(), protoFuzzyQuery.getRewriteTopTermsSize()));
-    return fuzzyQuery;
+    MultiTermQuery.RewriteMethod rewriteMethod =
+        getRewriteMethod(protoFuzzyQuery.getRewrite(), protoFuzzyQuery.getRewriteTopTermsSize());
+    return new FuzzyQuery(
+        term, maxEdits, prefixLength, maxExpansions, transpositions, rewriteMethod);
   }
 
   private static RegexpQuery getRegexpQuery(
@@ -760,25 +759,24 @@ public class QueryNodeMapper {
             ? protoRegexpQuery.getMaxDeterminizedStates()
             : Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
-    RegexpQuery regexpQuery = new RegexpQuery(term, flags, maxDeterminizedStates);
-    regexpQuery.setRewriteMethod(
-        getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize()));
-    return regexpQuery;
+    MultiTermQuery.RewriteMethod rewriteMethod =
+        getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize());
+    return new RegexpQuery(
+        term, flags, 0, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, rewriteMethod);
   }
 
   private static TermRangeQuery getTermRangeQuery(
       com.yelp.nrtsearch.server.grpc.TermRangeQuery protoTermRangeQuery) {
 
-    TermRangeQuery termRangeQuery =
-        new TermRangeQuery(
-            protoTermRangeQuery.getField(),
-            new BytesRef(protoTermRangeQuery.getLowerTerm()),
-            new BytesRef(protoTermRangeQuery.getUpperTerm()),
-            protoTermRangeQuery.getIncludeLower(),
-            protoTermRangeQuery.getIncludeUpper());
-    termRangeQuery.setRewriteMethod(
+    MultiTermQuery.RewriteMethod rewriteMethod =
         getRewriteMethod(
-            protoTermRangeQuery.getRewrite(), protoTermRangeQuery.getRewriteTopTermsSize()));
-    return termRangeQuery;
+            protoTermRangeQuery.getRewrite(), protoTermRangeQuery.getRewriteTopTermsSize());
+    return new TermRangeQuery(
+        protoTermRangeQuery.getField(),
+        new BytesRef(protoTermRangeQuery.getLowerTerm()),
+        new BytesRef(protoTermRangeQuery.getUpperTerm()),
+        protoTermRangeQuery.getIncludeLower(),
+        protoTermRangeQuery.getIncludeUpper(),
+        rewriteMethod);
   }
 }

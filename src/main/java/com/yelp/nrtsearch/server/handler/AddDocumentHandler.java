@@ -395,7 +395,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       logger.debug(
           String.format(
               "running indexing job on threadId: %s",
-              Thread.currentThread().getName() + Thread.currentThread().getId()));
+              Thread.currentThread().getName() + Thread.currentThread().threadId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
       IndexState indexState;
       ShardState shardState;
@@ -426,7 +426,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
               logger.warn(
                   String.format(
                       "ThreadId: %s, IndexWriter.addDocuments failed",
-                      Thread.currentThread().getName() + Thread.currentThread().getId()));
+                      Thread.currentThread().getName() + Thread.currentThread().threadId()));
               throw new IOException(e);
             }
           } else {
@@ -449,13 +449,13 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         logger.warn(
             String.format(
                 "ThreadId: %s, IndexWriter.addDocuments failed",
-                Thread.currentThread().getName() + Thread.currentThread().getId()));
+                Thread.currentThread().getName() + Thread.currentThread().threadId()));
         throw new IOException(e);
       }
       logger.debug(
           String.format(
               "indexing job on threadId: %s done with SequenceId: %s",
-              Thread.currentThread().getName() + Thread.currentThread().getId(),
+              Thread.currentThread().getName() + Thread.currentThread().threadId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
     }

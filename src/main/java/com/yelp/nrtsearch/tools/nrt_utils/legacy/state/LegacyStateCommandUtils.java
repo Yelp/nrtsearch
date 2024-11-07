@@ -42,7 +42,7 @@ import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 
 public class LegacyStateCommandUtils {
   private static final String INDEX_STATE_SUFFIX = "-state";
@@ -170,9 +170,9 @@ public class LegacyStateCommandUtils {
     String stateStr = null;
     try (TarArchiveInputStream tarArchiveInputStream =
         new TarArchiveInputStream(new LZ4FrameInputStream(contents))) {
-      for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextTarEntry();
+      for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextEntry();
           tarArchiveEntry != null;
-          tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
+          tarArchiveEntry = tarArchiveInputStream.getNextEntry()) {
         if (tarArchiveEntry.getName().endsWith(stateFileName)) {
           byte[] fileData = tarArchiveInputStream.readNBytes((int) tarArchiveEntry.getSize());
           stateStr = fromUTF8(fileData);

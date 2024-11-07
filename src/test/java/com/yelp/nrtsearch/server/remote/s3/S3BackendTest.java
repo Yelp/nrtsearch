@@ -888,7 +888,7 @@ public class S3BackendTest {
 
   private String convertToString(InputStream inputStream) throws IOException {
     StringWriter writer = new StringWriter();
-    IOUtils.copy(inputStream, writer);
+    IOUtils.copy(inputStream, writer, StandardCharsets.UTF_8);
     return writer.toString();
   }
 }

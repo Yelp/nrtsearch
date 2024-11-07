@@ -33,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -51,8 +50,6 @@ public class NrtsearchServerIdFieldTest {
    * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
    */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @Rule public ExpectedException thrown = ExpectedException.none();
 
   private GrpcServer grpcServer;
 

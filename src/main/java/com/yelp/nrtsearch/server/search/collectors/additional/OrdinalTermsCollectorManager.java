@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.server.search.collectors.additional;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-
 import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
@@ -212,14 +210,14 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       @Override
       public void collect(int doc) throws IOException {
         if (docValues.advanceExact(doc)) {
-          long ord = docValues.nextOrd();
-          while (ord != NO_MORE_ORDS) {
+          int count = docValues.docValueCount();
+          for (int i = 0; i < count; i++) {
+            long ord = docValues.nextOrd();
             long globalOrd = segmentOrdsMapping.get(ord);
             countsMap.addTo(globalOrd, 1);
             if (nestedLeafCollectors != null) {
               nestedLeafCollectors.collect(globalOrd, doc);
             }
-            ord = docValues.nextOrd();
           }
         }
       }

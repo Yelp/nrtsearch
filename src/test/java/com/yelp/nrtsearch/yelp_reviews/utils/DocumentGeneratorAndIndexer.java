@@ -57,7 +57,7 @@ public class DocumentGeneratorAndIndexer implements Callable<Long> {
     Stream<AddDocumentRequest> addDocumentRequestStream = buildDocs();
     long t2 = System.nanoTime();
     long timeMilliSecs = (t2 - t1) / (1000 * 100);
-    String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
+    String threadId = Thread.currentThread().getName() + Thread.currentThread().threadId();
     logger.info(
         String.format("threadId: %s took %s milliSecs to buildDocs ", threadId, timeMilliSecs));
 

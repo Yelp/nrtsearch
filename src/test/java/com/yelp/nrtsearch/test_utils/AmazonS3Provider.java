@@ -53,6 +53,13 @@ public class AmazonS3Provider extends ExternalResource {
   private AmazonS3 s3;
   private String s3Path;
 
+  public static AmazonS3 createTestS3Client(String endpoint) {
+    return AmazonS3ClientBuilder.standard()
+        .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
+        .withEndpointConfiguration(new EndpointConfiguration(endpoint, ""))
+        .build();
+  }
+
   public AmazonS3Provider(String bucketName) {
     this.bucketName = bucketName;
     this.temporaryFolder = new TemporaryFolder();
@@ -65,11 +72,7 @@ public class AmazonS3Provider extends ExternalResource {
     s3Path = temporaryFolder.newFolder("s3").toString();
     api = S3Mock.create(8011, s3Path);
     api.start();
-    s3 =
-        AmazonS3ClientBuilder.standard()
-            .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-            .withEndpointConfiguration(new EndpointConfiguration("http://127.0.0.1:8011", ""))
-            .build();
+    s3 = createTestS3Client("http://127.0.0.1:8011");
     s3.createBucket(bucketName);
   }
 

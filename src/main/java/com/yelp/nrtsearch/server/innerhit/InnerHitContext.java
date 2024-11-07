@@ -36,8 +36,8 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 
 /**
  * Object to store all necessary context information for {@link InnerHitFetchTask} to search and
@@ -92,13 +92,12 @@ public class InnerHitContext implements FieldFetchContext {
       // relevance collector
       this.sortContext = null;
       this.topDocsCollectorManager =
-          TopScoreDocCollector.createSharedManager(topHits, null, Integer.MAX_VALUE);
+          new TopScoreDocCollectorManager(topHits, null, Integer.MAX_VALUE);
     } else {
       // sortedField collector
       this.sortContext = new SortContext(builder.querySort, queryFields);
       this.topDocsCollectorManager =
-          TopFieldCollector.createSharedManager(
-              sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
+          new TopFieldCollectorManager(sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
     }
 
     if (needValidation) {
