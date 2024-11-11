@@ -1,4 +1,4 @@
-Spean Near Query
+Span Near Query
 ==========================
 
 A query that matches spans which are near one another. One can specify slop, the maximum number of intervening unmatched positions, as well as whether matches are required to be in-order.
