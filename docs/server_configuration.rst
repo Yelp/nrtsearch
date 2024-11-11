@@ -265,7 +265,7 @@ Example server configuration
      - Offset in threads formula: (numCPUs * multiplier) + offset
      - 0
 
-.. list-table:: `Warmer Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/luceneserver/warming/WarmerConfig.java>`_ (``warmer.*``)
+.. list-table:: `Warmer Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/warming/WarmerConfig.java>`_ (``warmer.*``)
    :widths: 25 10 50 25
    :header-rows: 1
 
