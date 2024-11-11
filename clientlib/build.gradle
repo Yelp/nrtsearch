@@ -1,14 +1,13 @@
 plugins {
     // Provide convenience executables for trying out the examples.
     id 'application'
-    // ASSUMES GRADLE 2.12 OR HIGHER. Use plugin version 0.7.5 with earlier gradle versions
-    id 'com.google.protobuf' version '0.9.4'
+    alias(libs.plugins.protobuf)
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
     // Publish clientlib to maven central
     id 'maven-publish'
     id 'signing'
-    id "com.diffplug.spotless"
+    alias(libs.plugins.spotless)
     id 'java-library'
 }
 
@@ -29,32 +28,25 @@ startScripts.enabled = false
 // groupId, artifactId and version for the generated pom
 def _artifactId = 'clientlib'
 
-// Dependency versions
-def protobufVersion = '3.25.3'
-def protocVersion = protobufVersion
-
 dependencies {
-    //grpc deps
-    api "com.google.api.grpc:proto-google-common-protos:2.41.0"
-    implementation "io.grpc:grpc-protobuf:${rootProject.grpcVersion}"
-    implementation "io.grpc:grpc-stub:${rootProject.grpcVersion}"
-    implementation "io.grpc:grpc-okhttp:${rootProject.grpcVersion}"
-    implementation "javax.annotation:javax.annotation-api:1.2"
-    implementation "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.jacksonYamlVersion}"
-    implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
-
-    // for lz4 message compression
-    implementation "org.lz4:lz4-java:${rootProject.lz4Version}"
-
+    api libs.proto.google.common.protos
     // examples/advanced need this for JsonFormat
-    api "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    api libs.protobuf.java.util
 
-    runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
+    runtimeOnly libs.grpc.netty.shaded
+    implementation libs.grpc.okhttp
+    implementation libs.grpc.protobuf
+    implementation libs.grpc.stub
+    implementation libs.jackson.databind
+    implementation libs.javax.annotation.api
+    // for lz4 message compression
+    implementation libs.lz4.java
+    implementation libs.protobuf.java
+    implementation libs.slf4j.api
 
     //test deps
-    testImplementation "junit:junit:${rootProject.junitVersion}"
-    testImplementation "org.mockito:mockito-core:${rootProject.mockitoVersion}"
+    testImplementation libs.junit
+    testImplementation libs.mockito.core
 }
 
 // Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
@@ -67,10 +59,11 @@ sourceSets {
     }
 }
 
+def protocGrpcVersion = libs.versions.grpc.get()
 protobuf {
-    protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
+    protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
     plugins {
-        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${rootProject.grpcVersion}" }
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${protocGrpcVersion}" }
     }
     generateProtoTasks {
         all()*.plugins { grpc {} }
