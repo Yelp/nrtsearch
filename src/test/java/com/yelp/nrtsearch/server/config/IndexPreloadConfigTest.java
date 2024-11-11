@@ -34,7 +34,7 @@ public class IndexPreloadConfigTest {
 
   @Test
   public void testDefault() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     IndexPreloadConfig config = getConfig(configFile);
     assertFalse(config.getPreload());
     assertEquals(config.getExtensions(), Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));

@@ -99,13 +99,13 @@ public class BackendGlobalState extends GlobalState {
   /**
    * Constructor.
    *
-   * @param luceneServerConfiguration server config
+   * @param configuration server config
    * @param remoteBackend backend for persistent remote storage
    * @throws IOException on filesystem error
    */
-  public BackendGlobalState(NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend)
+  public BackendGlobalState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
       throws IOException {
-    super(luceneServerConfiguration, remoteBackend);
+    super(configuration, remoteBackend);
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers
@@ -115,7 +115,7 @@ public class BackendGlobalState extends GlobalState {
           createIndexStateManager(
               entry.getKey(),
               entry.getValue().getId(),
-              luceneServerConfiguration.getLiveSettingsOverride(entry.getKey()),
+              configuration.getLiveSettingsOverride(entry.getKey()),
               stateBackend);
       stateManager.load();
       managerMap.put(entry.getKey(), stateManager);

@@ -66,27 +66,26 @@ public abstract class GlobalState implements Closeable {
   private final ExecutorService fetchExecutor;
   private final ExecutorService searchExecutor;
 
-  public static GlobalState createState(
-      NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend) throws IOException {
-    return new BackendGlobalState(luceneServerConfiguration, remoteBackend);
+  public static GlobalState createState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
+      throws IOException {
+    return new BackendGlobalState(configuration, remoteBackend);
   }
 
   public RemoteBackend getRemoteBackend() {
     return remoteBackend;
   }
 
-  protected GlobalState(NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend)
+  protected GlobalState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
       throws IOException {
     this.remoteBackend = remoteBackend;
-    this.nodeName = luceneServerConfiguration.getNodeName();
-    this.serviceName = luceneServerConfiguration.getServiceName();
-    this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
-    this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
-    this.hostName = luceneServerConfiguration.getHostName();
-    this.port = luceneServerConfiguration.getPort();
-    this.replicaReplicationPortPingInterval =
-        luceneServerConfiguration.getReplicaReplicationPortPingInterval();
-    this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
+    this.nodeName = configuration.getNodeName();
+    this.serviceName = configuration.getServiceName();
+    this.stateDir = Paths.get(configuration.getStateDir());
+    this.indexDirBase = Paths.get(configuration.getIndexDir());
+    this.hostName = configuration.getHostName();
+    this.port = configuration.getPort();
+    this.replicaReplicationPortPingInterval = configuration.getReplicaReplicationPortPingInterval();
+    this.threadPoolConfiguration = configuration.getThreadPoolConfiguration();
     if (!Files.exists(stateDir)) {
       Files.createDirectories(stateDir);
     }
@@ -96,7 +95,7 @@ public abstract class GlobalState implements Closeable {
         ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SEARCH);
     this.fetchExecutor =
         ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.FETCH);
-    this.configuration = luceneServerConfiguration;
+    this.configuration = configuration;
   }
 
   public NrtsearchConfig getConfiguration() {

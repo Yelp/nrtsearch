@@ -33,7 +33,7 @@ import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.state.StateUtils;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
@@ -97,7 +97,7 @@ public class NrtsearchServerTest {
       Arrays.asList(
           "doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon", "lat_lon_multi");
 
-  private final String bucketName = "lucene-server-unittest";
+  private final String bucketName = "server-unittest";
 
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
@@ -139,13 +139,13 @@ public class NrtsearchServerTest {
 
   @Before
   public void setUp() throws IOException {
-    NrtsearchConfig luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
 
     prometheusRegistry = new PrometheusRegistry();
-    remoteBackend = setUpRemoteBackend(luceneServerConfiguration);
-    grpcServer = setUpGrpcServer(luceneServerConfiguration, prometheusRegistry);
+    remoteBackend = setUpRemoteBackend(configuration);
+    grpcServer = setUpGrpcServer(configuration, prometheusRegistry);
     replicaGrpcServer = setUpReplicaGrpcServer(prometheusRegistry);
     setUpWarmer();
   }
@@ -176,19 +176,18 @@ public class NrtsearchServerTest {
   }
 
   private GrpcServer setUpGrpcServer(
-      NrtsearchConfig luceneServerConfiguration, PrometheusRegistry prometheusRegistry)
-      throws IOException {
+      NrtsearchConfig configuration, PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
 
     return new GrpcServer(
         prometheusRegistry,
         grpcCleanup,
-        luceneServerConfiguration,
+        configuration,
         folder,
         null,
-        luceneServerConfiguration.getIndexDir(),
+        configuration.getIndexDir(),
         testIndex,
-        luceneServerConfiguration.getPort(),
+        configuration.getPort(),
         remoteBackend,
         Collections.emptyList());
   }
@@ -196,18 +195,18 @@ public class NrtsearchServerTest {
   private GrpcServer setUpReplicaGrpcServer(PrometheusRegistry prometheusRegistry)
       throws IOException {
     String testIndex = "test_index";
-    NrtsearchConfig luceneServerReplicaConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+    NrtsearchConfig replicaConfiguration =
+        NrtsearchTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
 
     return new GrpcServer(
         grpcCleanup,
-        luceneServerReplicaConfiguration,
+        replicaConfiguration,
         folder,
         null,
-        luceneServerReplicaConfiguration.getIndexDir(),
+        replicaConfiguration.getIndexDir(),
         testIndex,
-        luceneServerReplicaConfiguration.getPort(),
+        replicaConfiguration.getPort(),
         remoteBackend);
   }
 

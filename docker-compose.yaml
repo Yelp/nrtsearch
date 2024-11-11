@@ -6,7 +6,7 @@ services:
     build: ./
     container_name: primary-node
     command: >
-      bash -c "/user/app/build/install/nrtsearch/bin/lucene-server /user/app/docker-compose-config/lucene_server_configuration_primary.yaml"
+      bash -c "/user/app/build/install/nrtsearch/bin/nrtsearch_server /user/app/docker-compose-config/nrtsearch_primary_config.yaml"
     hostname: primary-node
 
   replica-node-1:

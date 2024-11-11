@@ -35,7 +35,7 @@ public class QueryCacheConfigTest {
 
   @Test
   public void testDefault() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     QueryCacheConfig config = getConfig(configFile);
     assertTrue(config.getEnabled());
     assertEquals(config.getMaxQueries(), QueryCacheConfig.DEFAULT_MAX_QUERIES);
@@ -54,7 +54,7 @@ public class QueryCacheConfigTest {
     String configFile =
         String.join(
             "\n",
-            "nodeName: \"lucene_server_foo\"",
+            "nodeName: \"server_foo\"",
             "queryCache:",
             "  enabled: false",
             "  maxQueries: 5000",

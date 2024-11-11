@@ -1,4 +1,4 @@
-nodeName: "lucene_server_primary"
+nodeName: "nrtsearch_primary"
 hostName: "primary-node"
 port: "8000"
 replicationPort: "8001"

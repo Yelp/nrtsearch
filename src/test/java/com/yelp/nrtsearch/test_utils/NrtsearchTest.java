@@ -54,8 +54,8 @@ public class NrtsearchTest {
   private final Path pluginSearchPath = TEMPORARY_FOLDER.newFolder("plugin_search_path").toPath();
 
   @Rule
-  public final TestLuceneServer testLuceneServer =
-      new TestLuceneServer(getConfig(), S3_PROVIDER.getAmazonS3());
+  public final TestNrtsearchServer testServer =
+      new TestNrtsearchServer(getConfig(), S3_PROVIDER.getAmazonS3());
 
   public NrtsearchTest() throws IOException {}
 
@@ -121,7 +121,7 @@ public class NrtsearchTest {
    * @return {@link NrtsearchClient}
    */
   protected NrtsearchClient getClient() {
-    return testLuceneServer.getClient();
+    return testServer.getClient();
   }
 
   /**

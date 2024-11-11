@@ -72,7 +72,7 @@ import picocli.CommandLine;
 
 public class YelpReviewsTest {
   private static final Logger logger = LoggerFactory.getLogger(YelpReviewsTest.class.getName());
-  public static final String LUCENE_SERVER_CONFIGURATION_YAML = "lucene_server_configuration.yaml";
+  public static final String NRTSEARCH_CONFIG_YAML = "nrtsearch_config.yaml";
   public static final String INDEX_NAME = "yelp_reviews_test_0";
   public static final String CLIENT_LOG = "client.log";
   public static final String SERVER_LOG = "server.log";
@@ -249,14 +249,12 @@ public class YelpReviewsTest {
 
     logger.info("Temporary directory: {}", yelp_reviews_test_base_path);
     Process primaryServerProcess =
-        startServer(
-            primaryDir.resolve(SERVER_LOG).toString(), getLuceneServerPrimaryConfigurationYaml());
+        startServer(primaryDir.resolve(SERVER_LOG).toString(), getServerPrimaryConfigurationYaml());
     Process replicaServerProcess =
-        startServer(
-            replicaDir.resolve(SERVER_LOG).toString(), getLuceneServerReplicaConfigurationYaml());
+        startServer(replicaDir.resolve(SERVER_LOG).toString(), getServerReplicaConfigurationYaml());
 
-    HostPort primaryHostPort = new HostPort(getLuceneServerPrimaryConfigurationYaml());
-    HostPort secondaryHostPort = new HostPort(getLuceneServerReplicaConfigurationYaml());
+    HostPort primaryHostPort = new HostPort(getServerPrimaryConfigurationYaml());
+    HostPort secondaryHostPort = new HostPort(getServerReplicaConfigurationYaml());
     NrtsearchClient primaryServerClient =
         new NrtsearchClient(primaryHostPort.hostName, primaryHostPort.port);
     NrtsearchClient secondaryServerClient =
@@ -417,7 +415,7 @@ public class YelpReviewsTest {
   private static Process startServer(String logFilename, String configFileName) throws IOException {
     String command =
         String.format(
-            "%s/build/install/nrtsearch/bin/lucene-server %s",
+            "%s/build/install/nrtsearch/bin/nrtsearch_server %s",
             System.getProperty("user.dir"), configFileName);
     return issueCommand(logFilename, command);
   }
@@ -459,12 +457,12 @@ public class YelpReviewsTest {
     }
   }
 
-  private static String getLuceneServerPrimaryConfigurationYaml() {
-    return getPathAsStr(LUCENE_SERVER_CONFIGURATION_YAML, ServerType.primary);
+  private static String getServerPrimaryConfigurationYaml() {
+    return getPathAsStr(NRTSEARCH_CONFIG_YAML, ServerType.primary);
   }
 
-  private static String getLuceneServerReplicaConfigurationYaml() {
-    return getPathAsStr(LUCENE_SERVER_CONFIGURATION_YAML, ServerType.replica);
+  private static String getServerReplicaConfigurationYaml() {
+    return getPathAsStr(NRTSEARCH_CONFIG_YAML, ServerType.replica);
   }
 
   private static String readResourceAsString(String resourceName, ServerType serverType)
@@ -488,12 +486,11 @@ public class YelpReviewsTest {
       return sb.toString();
     }
 
-    HostPort(String confiFileName) throws FileNotFoundException {
-      NrtsearchConfig luceneServerConfiguration =
-          new NrtsearchConfig(new FileInputStream(confiFileName));
-      this.hostName = luceneServerConfiguration.getHostName();
-      this.port = luceneServerConfiguration.getPort();
-      this.replicationPort = luceneServerConfiguration.getReplicationPort();
+    HostPort(String configFileName) throws FileNotFoundException {
+      NrtsearchConfig configuration = new NrtsearchConfig(new FileInputStream(configFileName));
+      this.hostName = configuration.getHostName();
+      this.port = configuration.getPort();
+      this.replicationPort = configuration.getReplicationPort();
     }
   }
 
@@ -569,11 +566,11 @@ public class YelpReviewsTest {
 
   private static class SearchTask implements Callable<Double> {
 
-    private final NrtsearchClient luceneServerClient;
+    private final NrtsearchClient nrtsearchClient;
     private final AtomicBoolean indexingDone;
 
-    SearchTask(NrtsearchClient luceneServerClient, AtomicBoolean indexingDone) {
-      this.luceneServerClient = luceneServerClient;
+    SearchTask(NrtsearchClient nrtsearchClient, AtomicBoolean indexingDone) {
+      this.nrtsearchClient = nrtsearchClient;
       this.indexingDone = indexingDone;
     }
 
@@ -621,8 +618,7 @@ public class YelpReviewsTest {
       }
       SearchRequest searchRequest = searchRequestBuilder.build();
       long t1 = System.nanoTime();
-      SearchResponse searchResponse =
-          this.luceneServerClient.getBlockingStub().search(searchRequest);
+      SearchResponse searchResponse = this.nrtsearchClient.getBlockingStub().search(searchRequest);
       long timeMs = (System.nanoTime() - t1) / (1000 * 1000);
       long totalHits = searchResponse.getTotalHits().getValue();
       String threadId = Thread.currentThread().getName() + Thread.currentThread().threadId();

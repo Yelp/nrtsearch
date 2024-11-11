@@ -32,9 +32,9 @@ public class ExecutorFactoryTest {
   }
 
   private void init(String config) {
-    NrtsearchConfig luceneServerConfiguration =
+    NrtsearchConfig serverConfiguration =
         new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
-    ExecutorFactory.init(luceneServerConfiguration.getThreadPoolConfiguration());
+    ExecutorFactory.init(serverConfiguration.getThreadPoolConfiguration());
   }
 
   @Test
@@ -104,30 +104,29 @@ public class ExecutorFactoryTest {
   }
 
   @Test
-  public void testLuceneServerThreadPool_default() {
+  public void testServerThreadPool_default() {
     init();
     ThreadPoolExecutor executor =
         (ThreadPoolExecutor)
-            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.LUCENESERVER);
-    assertEquals(
-        executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_THREADS);
+            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SERVER);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_GRPC_SERVER_THREADS);
     assertEquals(
         executor.getQueue().remainingCapacity(),
-        ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS);
+        ThreadPoolConfiguration.DEFAULT_GRPC_SERVER_BUFFERED_ITEMS);
   }
 
   @Test
-  public void testLuceneServerThreadPool_set() {
+  public void testServerThreadPool_set() {
     init(
         String.join(
             "\n",
             "threadPoolConfiguration:",
-            "  luceneserver:",
+            "  server:",
             "    maxThreads: 5",
             "    maxBufferedItems: 10"));
     ThreadPoolExecutor executor =
         (ThreadPoolExecutor)
-            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.LUCENESERVER);
+            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SERVER);
     assertEquals(executor.getCorePoolSize(), 5);
     assertEquals(executor.getQueue().remainingCapacity(), 10);
   }

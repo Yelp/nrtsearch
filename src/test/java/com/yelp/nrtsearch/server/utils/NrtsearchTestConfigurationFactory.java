@@ -22,7 +22,7 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class LuceneServerTestConfigurationFactory {
+public class NrtsearchTestConfigurationFactory {
   static AtomicLong atomicLong = new AtomicLong();
 
   public static NrtsearchConfig getConfig(Mode mode, File dataRootDir) {

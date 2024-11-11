@@ -46,19 +46,19 @@ public class S3Util {
   /**
    * Create a new s3 client from the given configuration.
    *
-   * @param luceneServerConfiguration configuration
+   * @param configuration server configuration
    * @return s3 client
    */
-  public static AmazonS3 buildS3Client(NrtsearchConfig luceneServerConfiguration) {
+  public static AmazonS3 buildS3Client(NrtsearchConfig configuration) {
     AWSCredentialsProvider awsCredentialsProvider;
-    if (luceneServerConfiguration.getBotoCfgPath() == null) {
+    if (configuration.getBotoCfgPath() == null) {
       awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
     } else {
-      Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
+      Path botoCfgPath = Paths.get(configuration.getBotoCfgPath());
       final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
       awsCredentialsProvider = new ProfileCredentialsProvider(profilesConfigFile, "default");
     }
-    final boolean globalBucketAccess = luceneServerConfiguration.getEnableGlobalBucketAccess();
+    final boolean globalBucketAccess = configuration.getEnableGlobalBucketAccess();
 
     AmazonS3ClientBuilder clientBuilder =
         AmazonS3ClientBuilder.standard()
@@ -70,7 +70,7 @@ public class S3Util {
               .withCredentials(awsCredentialsProvider)
               .withForceGlobalBucketAccessEnabled(globalBucketAccess)
               .build();
-      String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
+      String region = s3ClientInterim.getBucketLocation(configuration.getBucketName());
       // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
       // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
       // However, this causes an UnknownHostException so we override it to the full region name
@@ -83,7 +83,7 @@ public class S3Util {
     } catch (SdkClientException sdkClientException) {
       logger.warn(
           "failed to get the location of S3 bucket: "
-              + luceneServerConfiguration.getBucketName()
+              + configuration.getBucketName()
               + ". This could be caused by missing credentials and/or regions, or wrong bucket name.",
           sdkClientException);
       logger.info("return a dummy AmazonS3.");
@@ -94,7 +94,7 @@ public class S3Util {
           .build();
     }
 
-    int maxRetries = luceneServerConfiguration.getMaxS3ClientRetries();
+    int maxRetries = configuration.getMaxS3ClientRetries();
     if (maxRetries > 0) {
       RetryPolicy retryPolicy =
           new RetryPolicy(

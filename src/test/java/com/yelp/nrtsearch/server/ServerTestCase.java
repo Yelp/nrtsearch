@@ -35,7 +35,7 @@ import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
@@ -63,8 +63,8 @@ import org.junit.ClassRule;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Base class for tests that want a lucene server that is setup once and used for all class tests.
- * Protected methods may be overridden to specify arbitrary indices and add documents.
+ * Base class for tests that want an nrtsearch server that is setup once and used for all class
+ * tests. Protected methods may be overridden to specify arbitrary indices and add documents.
  */
 public class ServerTestCase {
   public static final String DEFAULT_TEST_INDEX = "test_index";
@@ -219,21 +219,21 @@ public class ServerTestCase {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    NrtsearchConfig luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     GrpcServer server =
         new GrpcServer(
             prometheusRegistry,
             grpcCleanup,
-            luceneServerConfiguration,
+            configuration,
             folder,
             null,
-            luceneServerConfiguration.getIndexDir(),
+            configuration.getIndexDir(),
             testIndex,
-            luceneServerConfiguration.getPort(),
+            configuration.getPort(),
             null,
-            getPlugins(luceneServerConfiguration));
+            getPlugins(configuration));
     globalState = server.getGlobalState();
     return server;
   }

@@ -23,7 +23,7 @@ import picocli.CommandLine;
 
 /*Each new command needs to be added here*/
 @CommandLine.Command(
-    name = "lucene-client",
+    name = "nrtsearch_client",
     synopsisSubcommandLabel = "COMMAND",
     subcommands = {
       AddDocumentsCommand.class,

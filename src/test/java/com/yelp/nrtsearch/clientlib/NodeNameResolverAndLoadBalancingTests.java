@@ -37,7 +37,7 @@ import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -111,16 +111,16 @@ public class NodeNameResolverAndLoadBalancingTests {
   }
 
   private GrpcServer createGrpcServer() throws IOException {
-    NrtsearchConfig luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         grpcCleanup,
-        luceneServerConfiguration,
+        configuration,
         folder,
         null,
-        luceneServerConfiguration.getIndexDir(),
+        configuration.getIndexDir(),
         TEST_INDEX,
-        luceneServerConfiguration.getPort());
+        configuration.getPort());
   }
 
   private void startIndexAndAddDocuments(GrpcServer server, int id)

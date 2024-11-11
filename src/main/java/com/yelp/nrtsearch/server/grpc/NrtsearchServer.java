@@ -125,7 +125,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
-/** Server that manages startup/shutdown of a {@code LuceneServer} server. */
+/** Server that manages startup/shutdown of a {@code NrtsearchServer} server. */
 public class NrtsearchServer {
   private static final Logger logger = LoggerFactory.getLogger(NrtsearchServer.class.getName());
   private final RemoteBackend remoteBackend;
@@ -134,18 +134,17 @@ public class NrtsearchServer {
 
   private Server server;
   private Server replicationServer;
-  private final NrtsearchConfig luceneServerConfiguration;
+  private final NrtsearchConfig configuration;
 
   @Inject
   public NrtsearchServer(
-      NrtsearchConfig luceneServerConfiguration,
+      NrtsearchConfig configuration,
       RemoteBackend remoteBackend,
       PrometheusRegistry prometheusRegistry) {
-    this.luceneServerConfiguration = luceneServerConfiguration;
+    this.configuration = configuration;
     this.remoteBackend = remoteBackend;
     this.prometheusRegistry = prometheusRegistry;
-    this.pluginsService =
-        new PluginsService(luceneServerConfiguration, remoteBackend, prometheusRegistry);
+    this.pluginsService = new PluginsService(configuration, remoteBackend, prometheusRegistry);
   }
 
   @VisibleForTesting
@@ -153,36 +152,34 @@ public class NrtsearchServer {
     List<Plugin> plugins = pluginsService.loadPlugins();
 
     LuceneServerImpl serverImpl =
-        new LuceneServerImpl(luceneServerConfiguration, remoteBackend, prometheusRegistry, plugins);
+        new LuceneServerImpl(configuration, remoteBackend, prometheusRegistry, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
 
-    if (luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
+    if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
-          NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+          NettyServerBuilder.forPort(configuration.getReplicationPort())
               .addService(
                   new ReplicationServerImpl(
-                      globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
+                      globalState, configuration.getVerifyReplicationIndexId()))
               .executor(
                   ExecutorFactory.getInstance()
                       .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .maxConcurrentCallsPerConnection(
-                  luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication())
-              .maxConnectionAge(
-                  luceneServerConfiguration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
+                  configuration.getMaxConcurrentCallsPerConnectionForReplication())
+              .maxConnectionAge(configuration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
               .maxConnectionAgeGrace(
-                  luceneServerConfiguration.getMaxConnectionAgeGraceForReplication(),
-                  TimeUnit.SECONDS)
+                  configuration.getMaxConnectionAgeGraceForReplication(), TimeUnit.SECONDS)
               .build()
               .start();
     } else {
       replicationServer =
-          ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+          ServerBuilder.forPort(configuration.getReplicationPort())
               .addService(
                   new ReplicationServerImpl(
-                      globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
+                      globalState, configuration.getVerifyReplicationIndexId()))
               .executor(
                   ExecutorFactory.getInstance()
                       .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
@@ -192,7 +189,7 @@ public class NrtsearchServer {
     }
     logger.info(
         "Server started, listening on "
-            + luceneServerConfiguration.getReplicationPort()
+            + configuration.getReplicationPort()
             + " for replication messages");
 
     // Inform global state that the replication server is started, and it is safe to start indices
@@ -201,12 +198,12 @@ public class NrtsearchServer {
     NrtsearchMonitoringServerInterceptor monitoringInterceptor =
         NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics()
-                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+                .withLatencyBuckets(configuration.getMetricsBuckets())
                 .withPrometheusRegistry(prometheusRegistry));
     /* The port on which the server should run */
     GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
     server =
-        ServerBuilder.forPort(luceneServerConfiguration.getPort())
+        ServerBuilder.forPort(configuration.getPort())
             .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
             .addService(ProtoReflectionService.newInstance())
             // Set executor supplier to use different thread pool for metrics method
@@ -219,8 +216,7 @@ public class NrtsearchServer {
             .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
             .build()
             .start();
-    logger.info(
-        "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
+    logger.info("Server started, listening on " + configuration.getPort() + " for messages");
   }
 
   @VisibleForTesting
@@ -272,7 +268,7 @@ public class NrtsearchServer {
   }
 
   @CommandLine.Command(
-      name = "lucene-server",
+      name = "nrtsearch_server",
       mixinStandardHelpOptions = true,
       versionProvider = VersionProvider.class,
       description = "Start NRT search server")
@@ -281,7 +277,7 @@ public class NrtsearchServer {
         arity = "0..1",
         paramLabel = "server_yaml_config_file",
         description =
-            "Optional yaml config file. Defaults to <resources>/lucene_server_default_configuration.yaml")
+            "Optional yaml config file. Defaults to <resources>/nrtsearch_default_config.yaml")
     private File optionalConfigFile;
 
     public Optional<File> maybeConfigFile() {
@@ -290,11 +286,11 @@ public class NrtsearchServer {
 
     @Override
     public Integer call() throws Exception {
-      NrtsearchServer luceneServer;
+      NrtsearchServer server;
       try {
         Injector injector = Guice.createInjector(new NrtsearchModule(this));
-        luceneServer = injector.getInstance(NrtsearchServer.class);
-        luceneServer.start();
+        server = injector.getInstance(NrtsearchServer.class);
+        server.start();
 
         Runtime.getRuntime()
             .addShutdownHook(
@@ -303,14 +299,14 @@ public class NrtsearchServer {
                       // Use stderr here since the logger may have been reset by its JVM shutdown
                       // hook.
                       logger.error("*** shutting down gRPC server since JVM is shutting down");
-                      luceneServer.stop();
+                      server.stop();
                       logger.error("*** server shut down");
                     }));
       } catch (Throwable t) {
         logger.error("Uncaught exception", t);
         throw t;
       }
-      luceneServer.blockUntilShutdown();
+      server.blockUntilShutdown();
       return 0;
     }
   }

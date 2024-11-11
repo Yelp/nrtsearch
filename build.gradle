@@ -116,6 +116,22 @@ task luceneServerClient(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
+task nrtsearchServer(type: CreateStartScripts) {
+    mainClass = 'com.yelp.nrtsearch.server.grpc.NrtsearchServer'
+    applicationName = 'nrtsearch_server'
+    outputDir = new File(project.buildDir, 'tmp-app')
+    classpath = startScripts.classpath
+    // Add additional dependencies, e.g. custom loggers
+    classpath += files('$APP_HOME/additional_libs')
+}
+
+task nrtsearchServerClient(type: CreateStartScripts) {
+    mainClass = 'com.yelp.nrtsearch.tools.cli.NrtsearchClientCommand'
+    applicationName = 'nrtsearch_client'
+    outputDir = new File(project.buildDir, 'tmp-app')
+    classpath = startScripts.classpath
+}
+
 task nrtUtils(type: CreateStartScripts) {
     mainClass = 'com.yelp.nrtsearch.tools.nrt_utils.NrtUtilsCommand'
     applicationName = 'nrt_utils'
@@ -126,6 +142,8 @@ task nrtUtils(type: CreateStartScripts) {
 applicationDistribution.into('bin') {
     from(luceneServer)
     from(luceneServerClient)
+    from(nrtsearchServer)
+    from(nrtsearchServerClient)
     from(nrtUtils)
     fileMode = 0755
 }
@@ -141,7 +159,7 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
-    // Used by LuceneServerConfigurationTest
+    // Used by NrtsearchConfigTest
     environment(Map.of('CUSTOM_HOST', 'my_custom_host', 'VAR1', 'v1', 'VAR2', 'v2', 'VAR3', 'v3'))
     if (project.hasProperty('longRunningTestsOnly')) {
         include '**/IncrementalDataCleanupCommandTest.class'
@@ -209,7 +227,7 @@ publishing {
             artifact tasks.testsJar
             pom {
                 name = 'nrtSearch Server'
-                description = 'GRPC lucene server using near-real-time replication'
+                description = 'GRPC server using near-real-time replication'
                 url = 'https://github.com/Yelp/nrtsearch'
                 licenses {
                     license {

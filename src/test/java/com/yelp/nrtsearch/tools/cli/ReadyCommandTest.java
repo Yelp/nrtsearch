@@ -22,7 +22,7 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import org.junit.After;
@@ -48,17 +48,17 @@ public class ReadyCommandTest {
   private GrpcServer server;
 
   private void startServer() throws IOException {
-    NrtsearchConfig luceneServerPrimaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
+    NrtsearchConfig configuration =
+        NrtsearchTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
     server =
         new GrpcServer(
             grpcCleanup,
-            luceneServerPrimaryConfiguration,
+            configuration,
             folder,
             null,
-            luceneServerPrimaryConfiguration.getIndexDir(),
+            configuration.getIndexDir(),
             "test_index",
-            luceneServerPrimaryConfiguration.getPort(),
+            configuration.getPort(),
             null);
   }
 

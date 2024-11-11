@@ -43,8 +43,7 @@ public class GrpcServerExecutorSupplier implements ServerCallExecutorSupplier {
   private final ExecutorService grpcExecutor;
 
   public GrpcServerExecutorSupplier() {
-    serverExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.LUCENESERVER);
+    serverExecutor = ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SERVER);
     metricsExecutor =
         ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.METRICS);
     grpcExecutor = ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.GRPC);

@@ -84,7 +84,7 @@ public class FieldUpdateUtilsTest {
 
   @BeforeClass
   public static void setup() {
-    String configFile = "nodeName: \"lucene_server_foo\"";
+    String configFile = "nodeName: \"server_foo\"";
     NrtsearchConfig dummyConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();

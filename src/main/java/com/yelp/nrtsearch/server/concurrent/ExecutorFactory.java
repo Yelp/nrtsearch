@@ -36,7 +36,7 @@ public class ExecutorFactory {
   public enum ExecutorType {
     SEARCH,
     INDEX,
-    LUCENESERVER,
+    SERVER,
     REPLICATIONSERVER,
     FETCH,
     GRPC,

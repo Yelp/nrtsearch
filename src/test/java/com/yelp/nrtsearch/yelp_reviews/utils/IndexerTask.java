@@ -30,7 +30,7 @@ public class IndexerTask {
   private String genId;
 
   public Long index(
-      NrtsearchClient luceneServerClient, Stream<AddDocumentRequest> addDocumentRequestStream)
+      NrtsearchClient nrtsearchClient, Stream<AddDocumentRequest> addDocumentRequestStream)
       throws Exception {
     String threadId = Thread.currentThread().getName() + Thread.currentThread().threadId();
 
@@ -68,7 +68,7 @@ public class IndexerTask {
     // The requestObserver handles the sending of stream of client requests to server (i.e. multiple
     // onNext and 1 completed)
     StreamObserver<AddDocumentRequest> requestObserver =
-        luceneServerClient.getAsyncStub().addDocuments(responseObserver);
+        nrtsearchClient.getAsyncStub().addDocuments(responseObserver);
     try {
       addDocumentRequestStream.forEach(
           addDocumentRequest -> requestObserver.onNext(addDocumentRequest));

@@ -37,7 +37,7 @@ public class ParallelDocumentIndexer {
       OneDocBuilder oneDocBuilder,
       Path path,
       ExecutorService executorService,
-      NrtsearchClient luceneServerClient)
+      NrtsearchClient nrtsearchClient)
       throws IOException, InterruptedException {
     try (BufferedReader br = new BufferedReader(new FileReader(path.toFile()))) {
       String line;
@@ -52,7 +52,7 @@ public class ParallelDocumentIndexer {
               "Launching DocumentGeneratorAndIndexer task for {} docs", DOCS_PER_INDEX_REQUEST);
           List<String> copiedRawLines = new ArrayList<>(rawLines);
           Future<Long> genIdFuture =
-              submitTask(oneDocBuilder, executorService, luceneServerClient, copiedRawLines);
+              submitTask(oneDocBuilder, executorService, nrtsearchClient, copiedRawLines);
           futures.add(genIdFuture);
           rawLines.clear();
         }
@@ -61,7 +61,7 @@ public class ParallelDocumentIndexer {
         // convert left over docs
         logger.info("Launching DocumentGeneratorAndIndexer task for {} docs", rawLines.size());
         Future<Long> genIdFuture =
-            submitTask(oneDocBuilder, executorService, luceneServerClient, rawLines);
+            submitTask(oneDocBuilder, executorService, nrtsearchClient, rawLines);
         futures.add(genIdFuture);
       }
       return futures;
@@ -71,7 +71,7 @@ public class ParallelDocumentIndexer {
   private static Future<Long> submitTask(
       OneDocBuilder oneDocBuilder,
       ExecutorService executorService,
-      NrtsearchClient luceneServerClient,
+      NrtsearchClient nrtsearchClient,
       List<String> rawLines)
       throws InterruptedException {
     Future<Long> genIdFuture;
@@ -79,8 +79,7 @@ public class ParallelDocumentIndexer {
       try {
         genIdFuture =
             executorService.submit(
-                new DocumentGeneratorAndIndexer(
-                    oneDocBuilder, rawLines.stream(), luceneServerClient));
+                new DocumentGeneratorAndIndexer(oneDocBuilder, rawLines.stream(), nrtsearchClient));
         return genIdFuture;
       } catch (RejectedExecutionException e) {
         logger.warn("Waiting for 1s for LinkedBlockingQueue to have more capacity", e);

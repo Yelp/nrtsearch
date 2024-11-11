@@ -29,29 +29,29 @@ import org.junit.rules.ExternalResource;
  * A JUnit {@link org.junit.Rule} that creates a {@link NrtsearchServer} instance and starts the
  * grpc server from it. After the test it will delete the index data and stop the server.
  */
-public class TestLuceneServer extends ExternalResource {
+public class TestNrtsearchServer extends ExternalResource {
 
-  private final NrtsearchConfig luceneServerConfiguration;
+  private final NrtsearchConfig configuration;
   private final AmazonS3 amazonS3;
-  private NrtsearchServer luceneServer;
+  private NrtsearchServer server;
   private NrtsearchClient client;
 
-  public TestLuceneServer(NrtsearchConfig luceneServerConfiguration, AmazonS3 amazonS3) {
-    this.luceneServerConfiguration = luceneServerConfiguration;
+  public TestNrtsearchServer(NrtsearchConfig configuration, AmazonS3 amazonS3) {
+    this.configuration = configuration;
     this.amazonS3 = amazonS3;
   }
 
   @Override
   protected void before() throws Throwable {
-    this.luceneServer = createTestServer();
-    this.client = new NrtsearchClient("localhost", luceneServerConfiguration.getPort());
+    this.server = createTestServer();
+    this.client = new NrtsearchClient("localhost", configuration.getPort());
   }
 
   @Override
   protected void after() {
     deleteIndexData();
     client.close();
-    luceneServer.stop();
+    server.stop();
   }
 
   protected NrtsearchClient getClient() {
@@ -59,11 +59,10 @@ public class TestLuceneServer extends ExternalResource {
   }
 
   private NrtsearchServer createTestServer() throws IOException {
-    Injector injector =
-        Guice.createInjector(new TestNrtsearchModule(luceneServerConfiguration, amazonS3));
-    NrtsearchServer luceneServer = injector.getInstance(NrtsearchServer.class);
-    luceneServer.start();
-    return luceneServer;
+    Injector injector = Guice.createInjector(new TestNrtsearchModule(configuration, amazonS3));
+    NrtsearchServer server = injector.getInstance(NrtsearchServer.class);
+    server.start();
+    return server;
   }
 
   private void deleteIndexData() {
