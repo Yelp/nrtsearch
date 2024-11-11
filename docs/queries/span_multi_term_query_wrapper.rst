@@ -1,4 +1,4 @@
-Spean Multi Term Query 
+Span Multi Term Query
 ==========================
 
 public class SpanMultiTermQuery<Q extends MultiTermQuery>
