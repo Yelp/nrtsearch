@@ -116,7 +116,7 @@ public class PluginsService {
    */
   PluginDescriptor loadPlugin(
       String pluginName, List<File> searchPath, PluginDownloader pluginDownloader) {
-    Path defaultSearchPath = searchPath.get(0).toPath();
+    Path defaultSearchPath = searchPath.getFirst().toPath();
     pluginName = pluginDownloader.downloadPluginIfNeeded(pluginName, defaultSearchPath);
 
     File pluginInstallDir = findPluginInstallDir(pluginName, searchPath);

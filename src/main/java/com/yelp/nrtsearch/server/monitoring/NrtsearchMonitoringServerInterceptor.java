@@ -49,7 +49,7 @@ public class NrtsearchMonitoringServerInterceptor implements ServerInterceptor {
     com.yelp.nrtsearch.server.monitoring.GrpcMethod grpcMethod =
         com.yelp.nrtsearch.server.monitoring.GrpcMethod.of(method);
     ServerCall<R, S> monitoringCall =
-        new MonitoringServerCall(call, clock, grpcMethod, metrics, configuration);
+        new MonitoringServerCall<>(call, clock, grpcMethod, metrics, configuration);
     return new MonitoringServerCallListener<>(
         next.startCall(monitoringCall, requestHeaders),
         metrics,

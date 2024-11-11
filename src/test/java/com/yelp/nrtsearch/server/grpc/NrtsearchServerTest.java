@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -62,7 +61,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
-import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -1159,8 +1157,8 @@ public class NrtsearchServerTest {
     GetAllSnapshotGenResponse getAllSnapshotGenResponse =
         grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
 
-    assertThat(
-        getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(2L, 3L));
+    assertTrue(getAllSnapshotGenResponse.getIndexGensList().contains(2L));
+    assertTrue(getAllSnapshotGenResponse.getIndexGensList().contains(3L));
   }
 
   @Test

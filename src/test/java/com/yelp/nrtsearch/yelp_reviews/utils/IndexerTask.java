@@ -32,7 +32,7 @@ public class IndexerTask {
   public Long index(
       NrtsearchClient nrtsearchClient, Stream<AddDocumentRequest> addDocumentRequestStream)
       throws Exception {
-    String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
+    String threadId = Thread.currentThread().getName() + Thread.currentThread().threadId();
 
     final CountDownLatch finishLatch = new CountDownLatch(1);
 

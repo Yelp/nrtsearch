@@ -621,7 +621,7 @@ public class YelpReviewsTest {
       SearchResponse searchResponse = this.nrtsearchClient.getBlockingStub().search(searchRequest);
       long timeMs = (System.nanoTime() - t1) / (1000 * 1000);
       long totalHits = searchResponse.getTotalHits().getValue();
-      String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
+      String threadId = Thread.currentThread().getName() + Thread.currentThread().threadId();
       logger.info(
           "Search returned totalHits: {} on threadId: {} in {} milliSecs",
           totalHits,

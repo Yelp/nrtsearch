@@ -61,7 +61,7 @@ public class MappingV2CharFilterFactory extends CharFilterFactory {
   /**
    * Initialize this factory via a set of key-value pairs.
    *
-   * @param args
+   * @param args filter arguments
    */
   public MappingV2CharFilterFactory(Map<String, String> args) {
     super(args);
@@ -91,7 +91,7 @@ public class MappingV2CharFilterFactory extends CharFilterFactory {
     return Arrays.asList(mappings.split(separator));
   }
 
-  static Pattern p = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+  static Pattern p = Pattern.compile("(.*)=>(.*)$");
 
   protected void parseRules(List<String> rules, NormalizeCharMap.Builder builder) {
     for (String rule : rules) {

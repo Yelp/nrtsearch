@@ -57,9 +57,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     if (dateTimeFormat.equals(EPOCH_MILLIS)) {
       return null;
     } else if (dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
-      /**
-       * This is a replication of {@link DateTimeFormatter#ISO_LOCAL_DATE_TIME} with time optional.
-       */
+      // This is a replication of {@link DateTimeFormatter#ISO_LOCAL_DATE_TIME} with time optional.
       return new DateTimeFormatterBuilder()
           .parseCaseInsensitive()
           .append(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -79,8 +77,9 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     }
   }
 
-  public DateTimeFieldDef(String name, Field requestField) {
-    super(name, requestField, Instant.class);
+  public DateTimeFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Instant.class);
     dateTimeFormat = requestField.getDateTimeFormat();
     dateTimeFormatter = createDateTimeFormatter(dateTimeFormat);
   }
@@ -271,8 +270,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
             "%s could not parse %s as date_time with format %s",
             getName(), epochMillisString, dateTimeFormat);
     try {
-      long epochMillis = Long.parseLong(epochMillisString);
-      return epochMillis;
+      return Long.parseLong(epochMillisString);
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException(format, e);
     }

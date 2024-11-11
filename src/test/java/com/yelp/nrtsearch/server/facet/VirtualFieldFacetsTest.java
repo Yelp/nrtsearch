@@ -69,17 +69,12 @@ public class VirtualFieldFacetsTest extends ServerTestCase {
 
   private SearchResponse getSearchResponse(
       String dimension,
-      boolean useOrdsCache,
       List<NumericRangeType> numericRangeTypes,
       String scriptSource,
       Map<String, Script.ParamValue> params,
       String... paths) {
     Facet.Builder facetBuilder =
-        Facet.newBuilder()
-            .setDim(dimension)
-            .setTopN(10)
-            .setUseOrdsCache(useOrdsCache)
-            .addAllNumericRange(numericRangeTypes);
+        Facet.newBuilder().setDim(dimension).setTopN(10).addAllNumericRange(numericRangeTypes);
     facetBuilder.addAllPaths(Arrays.asList(paths));
 
     return getGrpcServer()
@@ -136,7 +131,7 @@ public class VirtualFieldFacetsTest extends ServerTestCase {
     String dim = "virtual_field_js_script";
     SearchResponse response =
         getSearchResponse(
-            dim, false, numericRangeTypes, "int_number_facet_field*5.0", Collections.emptyMap());
+            dim, numericRangeTypes, "int_number_facet_field*5.0", Collections.emptyMap());
     assertEquals(1, response.getFacetResultCount());
     List<FacetResult> facetResults = response.getFacetResultList();
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();

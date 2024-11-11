@@ -129,16 +129,14 @@ public class BackendGlobalState extends GlobalState {
    * for testing.
    */
   protected StateBackend createStateBackend() {
-    switch (getConfiguration().getStateConfig().getBackendType()) {
-      case LOCAL:
-        return new LocalStateBackend(this);
-      case REMOTE:
-        return new RemoteStateBackend(this);
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported state backend type: "
-                + getConfiguration().getStateConfig().getBackendType());
-    }
+    return switch (getConfiguration().getStateConfig().getBackendType()) {
+      case LOCAL -> new LocalStateBackend(this);
+      case REMOTE -> new RemoteStateBackend(this);
+      default ->
+          throw new IllegalArgumentException(
+              "Unsupported state backend type: "
+                  + getConfiguration().getStateConfig().getBackendType());
+    };
   }
 
   /**

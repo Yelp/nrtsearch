@@ -22,7 +22,6 @@ import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
-import com.yelp.nrtsearch.server.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
@@ -61,13 +60,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -751,11 +753,11 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   public static class FillFieldsTask implements Callable<List<Map<String, CompositeFieldValue>>> {
 
-    private IndexSearcher s;
-    private List<LeafReaderContext> hitIdToleaves;
-    private List<Hit.Builder> hitBuilders;
-    private List<String> fields;
-    private SearchContext searchContext;
+    private final IndexSearcher s;
+    private final List<LeafReaderContext> hitIdToleaves;
+    private final List<Hit.Builder> hitBuilders;
+    private final List<String> fields;
+    private final SearchContext searchContext;
 
     public FillFieldsTask(
         IndexSearcher indexSearcher,
@@ -780,12 +782,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         values.add(new HashMap<>());
       }
+
+      StoredFields storedFields = s.storedFields();
       for (String field : fields) {
         for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
           var hitResponse = hitBuilders.get(hitIndex);
           LeafReaderContext leaf = hitIdToleaves.get(hitIndex);
           CompositeFieldValue v =
-              getFieldForHit(s, hitResponse, leaf, field, searchContext.getRetrieveFields());
+              getFieldForHit(
+                  s, hitResponse, leaf, field, searchContext.getRetrieveFields(), storedFields);
           values.get(hitIndex).put(field, v);
         }
       }
@@ -802,7 +807,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         Hit.Builder hit,
         LeafReaderContext leaf,
         String field,
-        Map<String, FieldDef> dynamicFields)
+        Map<String, FieldDef> dynamicFields,
+        StoredFields storedFields)
         throws IOException {
       assert field != null;
       CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
@@ -810,60 +816,62 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       // We detect invalid field above:
       assert fd != null;
-      if (fd instanceof VirtualFieldDef) {
-        VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
+      switch (fd) {
+        case VirtualFieldDef virtualFieldDef -> {
+          int docID = hit.getLuceneDocId() - leaf.docBase;
 
-        int docID = hit.getLuceneDocId() - leaf.docBase;
+          assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
+          DoubleValues scoreValue =
+              new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                  return hit.getScore();
+                }
 
-        assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
-        DoubleValues scoreValue =
-            new DoubleValues() {
-              @Override
-              public double doubleValue() throws IOException {
-                return hit.getScore();
-              }
-
-              @Override
-              public boolean advanceExact(int doc) throws IOException {
-                return !Double.isNaN(hit.getScore());
-              }
-            };
-        DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
-        doubleValues.advanceExact(docID);
-        compositeFieldValue.addFieldValue(
-            FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-      } else if (fd instanceof RuntimeFieldDef) {
-        RuntimeFieldDef runtimeFieldDef = (RuntimeFieldDef) fd;
-        RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
-        RuntimeScript values = segmentFactory.newInstance(leaf);
-        int docID = hit.getLuceneDocId() - leaf.docBase;
-        // Check if the value is available for the current document
-        if (values != null) {
-          values.setDocId(docID);
-          Object obj = values.execute();
-          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
-        }
-
-      } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-        int docID = hit.getLuceneDocId() - leaf.docBase;
-        // it may be possible to cache this if there are multiple hits in the same segment
-        LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
-        docValues.setDocId(docID);
-        for (int i = 0; i < docValues.size(); ++i) {
-          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
-        }
-
-      }
-      // retrieve stored fields
-      else if (fd instanceof IndexableFieldDef indexableFieldDef && indexableFieldDef.isStored()) {
-        IndexableField[] values = s.doc(hit.getLuceneDocId()).getFields(field);
-        for (IndexableField fieldValue : values) {
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                  return !Double.isNaN(hit.getScore());
+                }
+              };
+          DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
+          doubleValues.advanceExact(docID);
           compositeFieldValue.addFieldValue(
-              indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+              FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
         }
-      } else {
-        // TODO: throw exception here after confirming that legitimate requests do not enter this
-        logger.error("Unable to fill hit for field: {}", field);
+        case RuntimeFieldDef runtimeFieldDef -> {
+          RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+          RuntimeScript values = segmentFactory.newInstance(leaf);
+          int docID = hit.getLuceneDocId() - leaf.docBase;
+          // Check if the value is available for the current document
+          if (values != null) {
+            values.setDocId(docID);
+            Object obj = values.execute();
+            ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
+          }
+        }
+        case IndexableFieldDef<?> fieldDef when fieldDef.hasDocValues() -> {
+          int docID = hit.getLuceneDocId() - leaf.docBase;
+          // it may be possible to cache this if there are multiple hits in the same segment
+          LoadedDocValues<?> docValues = fieldDef.getDocValues(leaf);
+          docValues.setDocId(docID);
+          for (int i = 0; i < docValues.size(); ++i) {
+            compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+          }
+        }
+
+          // retrieve stored fields
+        case IndexableFieldDef<?> indexableFieldDef when indexableFieldDef.isStored() -> {
+          IndexableField[] values =
+              storedFields.document(hit.getLuceneDocId(), Set.of(field)).getFields(field);
+          for (IndexableField fieldValue : values) {
+            compositeFieldValue.addFieldValue(
+                indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+          }
+        }
+        default ->
+            // TODO: throw exception here after confirming that legitimate requests do not enter
+            // this
+            logger.error("Unable to fill hit for field: {}", field);
       }
 
       return compositeFieldValue.build();
@@ -880,6 +888,31 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     private final FieldFetchContext fieldFetchContext;
     private final List<Hit.Builder> docChunk;
     private final Query explainQuery;
+
+    record NameAndFieldDef(String name, IndexableFieldDef<?> fieldDef) {}
+
+    record StoredFieldFetchContext(
+        StoredFields storedFields,
+        Set<String> fieldNames,
+        List<NameAndFieldDef> nameAndFieldDefs) {}
+
+    static StoredFieldFetchContext getStoredFieldFetchContext(FieldFetchContext fieldFetchContext)
+        throws IOException {
+      List<NameAndFieldDef> storedFieldEntries = new ArrayList<>();
+      Set<String> storedFieldNames = new HashSet<>();
+      for (Map.Entry<String, FieldDef> fieldDefEntry :
+          fieldFetchContext.getRetrieveFields().entrySet()) {
+        if (fieldDefEntry.getValue() instanceof IndexableFieldDef<?> indexableFieldDef
+            && indexableFieldDef.isStored()) {
+          storedFieldEntries.add(new NameAndFieldDef(fieldDefEntry.getKey(), indexableFieldDef));
+          storedFieldNames.add(fieldDefEntry.getKey());
+        }
+      }
+      return new StoredFieldFetchContext(
+          fieldFetchContext.getSearcherAndTaxonomy().searcher.storedFields(),
+          storedFieldNames,
+          storedFieldEntries);
+    }
 
     /**
      * Constructor.
@@ -902,6 +935,13 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     public void run() {
       List<LeafReaderContext> leaves =
           fieldFetchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+      StoredFieldFetchContext storedFieldFetchContext;
+      try {
+        storedFieldFetchContext = getStoredFieldFetchContext(fieldFetchContext);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+
       int hitIndex = 0;
       // process documents, grouped by lucene segment
       while (hitIndex < docChunk.size()) {
@@ -911,7 +951,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         // get all hits in the same segment and process them together for better resource reuse
         List<Hit.Builder> sliceHits = getSliceHits(docChunk, hitIndex, sliceSegment);
         try {
-          fetchSlice(fieldFetchContext, explainQuery, sliceHits, sliceSegment);
+          fetchSlice(
+              fieldFetchContext, explainQuery, sliceHits, sliceSegment, storedFieldFetchContext);
         } catch (IOException e) {
           throw new RuntimeException("Error fetching field data", e);
         }
@@ -949,34 +990,38 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         FieldFetchContext context,
         Query explainQuery,
         List<SearchResponse.Hit.Builder> sliceHits,
-        LeafReaderContext sliceSegment)
+        LeafReaderContext sliceSegment,
+        StoredFieldFetchContext storedFieldFetchContext)
         throws IOException {
       for (Map.Entry<String, FieldDef> fieldDefEntry : context.getRetrieveFields().entrySet()) {
-        if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
-          fetchFromValueSource(
-              sliceHits,
-              sliceSegment,
-              fieldDefEntry.getKey(),
-              (VirtualFieldDef) fieldDefEntry.getValue());
-        } else if (fieldDefEntry.getValue() instanceof RuntimeFieldDef) {
-          fetchRuntimeFromSegmentFactory(
-              sliceHits,
-              sliceSegment,
-              fieldDefEntry.getKey(),
-              (RuntimeFieldDef) fieldDefEntry.getValue());
-        } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
-          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
-          if (indexableFieldDef.hasDocValues()) {
-            fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
-          } else if (indexableFieldDef.isStored()) {
-            fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
-          } else {
-            throw new IllegalStateException(
-                "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+        switch (fieldDefEntry.getValue()) {
+          case VirtualFieldDef virtualFieldDef ->
+              fetchFromValueSource(
+                  sliceHits, sliceSegment, fieldDefEntry.getKey(), virtualFieldDef);
+          case RuntimeFieldDef runtimeFieldDef ->
+              fetchRuntimeFromSegmentFactory(
+                  sliceHits, sliceSegment, fieldDefEntry.getKey(), runtimeFieldDef);
+          case IndexableFieldDef<?> indexableFieldDef -> {
+            if (indexableFieldDef.hasDocValues()) {
+              fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+            } else if (!indexableFieldDef.isStored()) {
+              throw new IllegalStateException(
+                  "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+            }
           }
-        } else {
-          throw new IllegalStateException(
-              "No valid method to retrieve field: " + fieldDefEntry.getKey());
+          case null, default ->
+              throw new IllegalStateException(
+                  "No valid method to retrieve field: " + fieldDefEntry.getKey());
+        }
+      }
+
+      // fetch stored fields by document
+      if (!storedFieldFetchContext.fieldNames.isEmpty()) {
+        for (Hit.Builder hit : sliceHits) {
+          Document document =
+              storedFieldFetchContext.storedFields.document(
+                  hit.getLuceneDocId(), storedFieldFetchContext.fieldNames);
+          fetchFromStored(hit, storedFieldFetchContext.nameAndFieldDefs, document);
         }
       }
 
@@ -1053,7 +1098,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         List<SearchResponse.Hit.Builder> sliceHits,
         LeafReaderContext sliceSegment,
         String name,
-        IndexableFieldDef indexableFieldDef)
+        IndexableFieldDef<?> indexableFieldDef)
         throws IOException {
       LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(sliceSegment);
       for (SearchResponse.Hit.Builder hit : sliceHits) {
@@ -1071,19 +1116,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
     /** Fetch field value stored in the index */
     private static void fetchFromStored(
-        FieldFetchContext context,
-        List<SearchResponse.Hit.Builder> sliceHits,
-        String name,
-        IndexableFieldDef indexableFieldDef)
-        throws IOException {
-      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        Hit.Builder hit, List<NameAndFieldDef> nameAndFieldDefs, Document document) {
+      for (NameAndFieldDef nameAndFieldDef : nameAndFieldDefs) {
+        String name = nameAndFieldDef.name();
+        IndexableField[] values = document.getFields(name);
         SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
             SearchResponse.Hit.CompositeFieldValue.newBuilder();
-        IndexableField[] values =
-            context.getSearcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()).getFields(name);
         for (IndexableField fieldValue : values) {
           compositeFieldValue.addFieldValue(
-              indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+              nameAndFieldDef.fieldDef().getStoredFieldValue(fieldValue.storedValue()));
         }
         hit.putFields(name, compositeFieldValue.build());
       }
@@ -1110,24 +1151,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         this.score = score;
       }
     }
-  }
-
-  private static FieldValue convertType(FieldDef fd, Object o) {
-    var fieldValue = FieldValue.newBuilder();
-    if (fd instanceof BooleanFieldDef) {
-      if ((Integer) o == 1) {
-        fieldValue.setBooleanValue(Boolean.TRUE);
-      } else {
-        assert (Integer) o == 0;
-        fieldValue.setBooleanValue(Boolean.FALSE);
-      }
-    } else if (fd instanceof DateTimeFieldDef) {
-      fieldValue.setTextValue(msecToDateString(((DateTimeFieldDef) fd), ((Number) o).longValue()));
-    } else {
-      throw new IllegalArgumentException("Unable to convert object: " + o);
-    }
-
-    return fieldValue.build();
   }
 
   private static String msecToDateString(DateTimeFieldDef fd, long value) {

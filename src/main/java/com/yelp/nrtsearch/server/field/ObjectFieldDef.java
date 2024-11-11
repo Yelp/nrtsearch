@@ -47,8 +47,9 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
   private final Gson gson;
   private final boolean isNestedDoc;
 
-  protected ObjectFieldDef(String name, Field requestField) {
-    super(name, requestField, Struct.class);
+  protected ObjectFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Struct.class);
     this.isNestedDoc = requestField.getNestedDoc();
     gson = new GsonBuilder().serializeNulls().create();
   }
@@ -71,9 +72,7 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
       parseFieldWithChildren(documentsContext.getRootDocument(), fieldValues, facetHierarchyPaths);
     } else {
       List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
-      fieldValues.stream()
-          .map(e -> gson.fromJson(e, Map.class))
-          .forEach(e -> fieldValueMaps.add(e));
+      fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(fieldValueMaps::add);
 
       List<Document> childDocuments =
           fieldValueMaps.stream()
@@ -94,17 +93,16 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
       Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
-    ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
+    ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_PATH)))
         .parseDocumentField(document, List.of(this.getName()), List.of());
     return document;
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void parseFieldWithChildren(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
-    fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(e -> fieldValueMaps.add(e));
+    fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(fieldValueMaps::add);
     if (isStored()) {
       for (String fieldValue : fieldValues) {
         document.add(new StoredField(this.getName(), jsonToStruct(fieldValue).toByteArray()));

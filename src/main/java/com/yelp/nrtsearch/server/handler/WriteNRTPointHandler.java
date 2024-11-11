@@ -53,7 +53,7 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
   private SearcherVersion handle(IndexState indexState, String indexId) {
     final ShardState shardState = indexState.getShard(0);
 
-    if (shardState.isPrimary() == false) {
+    if (!shardState.isPrimary()) {
       throw new IllegalArgumentException(
           "index \"" + indexState.getName() + "\" is either not started or is not a primary index");
     }

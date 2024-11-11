@@ -52,7 +52,7 @@ public class IndexSimilarity extends PerFieldSimilarityWrapper {
     try {
       FieldDef fd = indexState.getFieldOrThrow(name);
       if (fd instanceof IndexableFieldDef) {
-        return ((IndexableFieldDef) fd).getSimilarity();
+        return ((IndexableFieldDef<?>) fd).getSimilarity();
       }
     } catch (IllegalArgumentException ignored) {
       // ReplicaNode tries to do a Term query for a field called 'marker'

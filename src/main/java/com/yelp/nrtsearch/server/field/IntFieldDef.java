@@ -36,8 +36,9 @@ import org.apache.lucene.search.SortField;
 /** Field class for 'INT' field type. */
 public class IntFieldDef extends NumberFieldDef<Integer> {
 
-  public IntFieldDef(String name, Field requestField) {
-    super(name, requestField, INT_PARSER, Integer.class);
+  public IntFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, INT_PARSER, context, Integer.class);
   }
 
   @Override

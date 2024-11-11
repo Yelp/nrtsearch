@@ -220,7 +220,7 @@ public class BucketedTieredMergePolicy extends TieredMergePolicy {
         }
       }
     }
-    if (aggregateMerges.merges.size() > 0) {
+    if (!aggregateMerges.merges.isEmpty()) {
       return aggregateMerges;
     } else {
       return null;

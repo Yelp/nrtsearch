@@ -21,11 +21,10 @@ import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,8 +54,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private AmazonS3 getS3() {
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint(S3_ENDPOINT);
+    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     s3.createBucket(TEST_BUCKET);
     return s3;
   }

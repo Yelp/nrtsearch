@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.search.collectors.additional;
 
 import com.google.protobuf.DoubleValue;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
+import com.yelp.nrtsearch.server.grpc.MinCollector;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
@@ -52,15 +53,14 @@ public class MinCollectorManager
       CollectorCreatorContext context) {
     this.name = name;
 
-    switch (grpcMinCollector.getValueSourceCase()) {
-      case SCRIPT:
-        valueProvider =
-            new ScriptValueProvider(
-                grpcMinCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "Unknown value source: " + grpcMinCollector.getValueSourceCase());
+    if (grpcMinCollector.getValueSourceCase()
+        == com.yelp.nrtsearch.server.grpc.MinCollector.ValueSourceCase.SCRIPT) {
+      valueProvider =
+          new ScriptValueProvider(
+              grpcMinCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
+    } else {
+      throw new IllegalArgumentException(
+          "Unknown value source: " + grpcMinCollector.getValueSourceCase());
     }
   }
 

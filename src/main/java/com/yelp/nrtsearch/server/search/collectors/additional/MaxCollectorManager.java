@@ -53,15 +53,14 @@ public class MaxCollectorManager
       CollectorCreatorContext context) {
     this.name = name;
 
-    switch (grpcMaxCollector.getValueSourceCase()) {
-      case SCRIPT:
-        valueProvider =
-            new ScriptValueProvider(
-                grpcMaxCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "Unknown value source: " + grpcMaxCollector.getValueSourceCase());
+    if (grpcMaxCollector.getValueSourceCase()
+        == com.yelp.nrtsearch.server.grpc.MaxCollector.ValueSourceCase.SCRIPT) {
+      valueProvider =
+          new ScriptValueProvider(
+              grpcMaxCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
+    } else {
+      throw new IllegalArgumentException(
+          "Unknown value source: " + grpcMaxCollector.getValueSourceCase());
     }
   }
 

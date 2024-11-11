@@ -62,8 +62,7 @@ public class HighlighterService {
     instance = new HighlighterService(configuration);
     initializeBuiltinHighlighters();
     for (Plugin plugin : plugins) {
-      if (plugin instanceof HighlighterPlugin) {
-        HighlighterPlugin highlighterPlugin = (HighlighterPlugin) plugin;
+      if (plugin instanceof HighlighterPlugin highlighterPlugin) {
         instance.register(highlighterPlugin.getHighlighters());
       }
     }

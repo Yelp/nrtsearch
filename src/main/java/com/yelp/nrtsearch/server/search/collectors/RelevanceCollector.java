@@ -26,6 +26,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,7 @@ public class RelevanceCollector extends DocCollector {
     } else if (context.getRequest().getTotalHitsThreshold() != 0) {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
-    manager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
+    manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
   }
 
   @Override

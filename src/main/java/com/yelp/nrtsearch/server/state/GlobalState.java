@@ -38,7 +38,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +86,7 @@ public abstract class GlobalState implements Closeable {
     this.port = configuration.getPort();
     this.replicaReplicationPortPingInterval = configuration.getReplicaReplicationPortPingInterval();
     this.threadPoolConfiguration = configuration.getThreadPoolConfiguration();
-    if (Files.exists(stateDir) == false) {
+    if (!Files.exists(stateDir)) {
       Files.createDirectories(stateDir);
     }
     this.indexExecutor =
@@ -143,12 +142,6 @@ public abstract class GlobalState implements Closeable {
   @Override
   public void close() throws IOException {
     indexExecutor.shutdown();
-    TimeLimitingCollector.getGlobalTimerThread().stopTimer();
-    try {
-      TimeLimitingCollector.getGlobalTimerThread().join();
-    } catch (InterruptedException ie) {
-      throw new RuntimeException(ie);
-    }
   }
 
   /** Get base directory for all index data. */

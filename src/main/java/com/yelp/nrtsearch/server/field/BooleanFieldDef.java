@@ -37,8 +37,9 @@ import org.apache.lucene.search.Query;
 
 /** Field class for 'BOOLEAN' field type. */
 public class BooleanFieldDef extends IndexableFieldDef<Boolean> implements TermQueryable {
-  protected BooleanFieldDef(String name, Field requestField) {
-    super(name, requestField, Boolean.class);
+  protected BooleanFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Boolean.class);
   }
 
   @Override

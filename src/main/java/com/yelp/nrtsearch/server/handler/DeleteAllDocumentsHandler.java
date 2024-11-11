@@ -52,7 +52,7 @@ public class DeleteAllDocumentsHandler
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, writer.deleteAll failed",
-          Thread.currentThread().getName() + Thread.currentThread().getId());
+          Thread.currentThread().getName() + Thread.currentThread().threadId());
       throw new DeleteAllDocumentsHandlerException(e);
     }
     return DeleteAllDocumentsResponse.newBuilder().setGenId(String.valueOf(gen)).build();

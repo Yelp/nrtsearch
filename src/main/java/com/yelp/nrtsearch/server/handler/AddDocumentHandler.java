@@ -61,12 +61,12 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
   public StreamObserver<AddDocumentRequest> handle(
       StreamObserver<AddDocumentResponse> responseObserver) {
     return new StreamObserver<>() {
-      Multimap<String, Future<Long>> futures = HashMultimap.create();
+      final Multimap<String, Future<Long>> futures = HashMultimap.create();
       // Map of {indexName: addDocumentRequestQueue}
-      Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
+      final Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
           new ConcurrentHashMap<>();
       // Map of {indexName: count}
-      Map<String, Long> countMap = new ConcurrentHashMap<>();
+      final Map<String, Long> countMap = new ConcurrentHashMap<>();
 
       private int getAddDocumentsMaxBufferLen(String indexName) {
         try {
@@ -289,7 +289,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
 
-      ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
+      ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_PATH)))
           .parseDocumentField(
               documentsContext.getRootDocument(), List.of(IndexState.ROOT), List.of());
 
@@ -308,8 +308,8 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
 
     /** Extract all field names in the document and stores it into a hidden field */
     private static void extractFieldNamesForDocument(Document document) {
-      IndexableFieldDef fieldNamesFieldDef =
-          (IndexableFieldDef) IndexState.getMetaField(IndexState.FIELD_NAMES);
+      IndexableFieldDef<?> fieldNamesFieldDef =
+          (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.FIELD_NAMES);
 
       List<String> fieldNames =
           document.getFields().stream()
@@ -339,7 +339,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       ProtocolStringList fieldValues = value.getValueList();
       List<FacetHierarchyPath> facetHierarchyPaths = value.getFaceHierarchyPathsList();
       List<List<String>> facetHierarchyPathValues =
-          facetHierarchyPaths.stream().map(fp -> fp.getValueList()).collect(Collectors.toList());
+          facetHierarchyPaths.stream()
+              .map(FacetHierarchyPath::getValueList)
+              .collect(Collectors.toList());
       if (!facetHierarchyPathValues.isEmpty()) {
         if (facetHierarchyPathValues.size() != fieldValues.size()) {
           throw new AddDocumentHandlerException(
@@ -350,11 +352,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                   field.getName(), fieldValues.size(), facetHierarchyPathValues.size()));
         }
       }
-      if (!(field instanceof IndexableFieldDef)) {
+      if (!(field instanceof IndexableFieldDef<?> indexableFieldDef)) {
         throw new AddDocumentHandlerException(
             String.format("Field: %s is not indexable", field.getName()));
       }
-      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
       indexableFieldDef.parseFieldWithChildren(
           documentsContext, fieldValues, facetHierarchyPathValues);
     }
@@ -394,7 +395,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       logger.debug(
           String.format(
               "running indexing job on threadId: %s",
-              Thread.currentThread().getName() + Thread.currentThread().getId()));
+              Thread.currentThread().getName() + Thread.currentThread().threadId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
       IndexState indexState;
       ShardState shardState;
@@ -425,7 +426,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
               logger.warn(
                   String.format(
                       "ThreadId: %s, IndexWriter.addDocuments failed",
-                      Thread.currentThread().getName() + Thread.currentThread().getId()));
+                      Thread.currentThread().getName() + Thread.currentThread().threadId()));
               throw new IOException(e);
             }
           } else {
@@ -448,13 +449,13 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         logger.warn(
             String.format(
                 "ThreadId: %s, IndexWriter.addDocuments failed",
-                Thread.currentThread().getName() + Thread.currentThread().getId()));
+                Thread.currentThread().getName() + Thread.currentThread().threadId()));
         throw new IOException(e);
       }
       logger.debug(
           String.format(
               "indexing job on threadId: %s done with SequenceId: %s",
-              Thread.currentThread().getName() + Thread.currentThread().getId(),
+              Thread.currentThread().getName() + Thread.currentThread().threadId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
     }
@@ -476,9 +477,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
-            e.getValue().stream()
-                .map(v -> handleFacets(indexState, shardState, v))
-                .collect(Collectors.toList()));
+            e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
@@ -505,9 +504,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
-            e.getValue().stream()
-                .map(v -> handleFacets(indexState, shardState, v))
-                .collect(Collectors.toList()));
+            e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);

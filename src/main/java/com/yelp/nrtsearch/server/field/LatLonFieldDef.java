@@ -47,8 +47,9 @@ import org.apache.lucene.search.SortField;
 
 /** Field class for 'LAT_LON' field type. */
 public class LatLonFieldDef extends IndexableFieldDef<GeoPoint> implements Sortable, GeoQueryable {
-  public LatLonFieldDef(String name, Field requestField) {
-    super(name, requestField, GeoPoint.class);
+  public LatLonFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, GeoPoint.class);
   }
 
   @Override

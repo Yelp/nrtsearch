@@ -1,0 +1,69 @@
+[versions]
+aws = "1.12.768"
+grpc = "1.66.0"
+jackson = "2.17.2"
+log4j = "2.23.1"
+lucene = "9.12.0"
+prometheus = "1.3.1"
+protobuf = "3.25.3"
+
+[libraries]
+aws-java-sdk-core = { module = "com.amazonaws:aws-java-sdk-core", version.ref = "aws" }
+aws-java-sdk-s3 = { module = "com.amazonaws:aws-java-sdk-s3", version.ref = "aws" }
+aws-java-sdk-sts = { module = "com.amazonaws:aws-java-sdk-sts", version.ref = "aws" }
+commons-compress = { module = "org.apache.commons:commons-compress", version = "1.27.0" }
+commons-csv = { module = "org.apache.commons:commons-csv", version = "1.11.0" }
+commons-io = { module = "commons-io:commons-io", version = "2.16.1" }
+disruptor = { module = "com.lmax:disruptor", version = "4.0.0" }
+fastutil = { module = "it.unimi.dsi:fastutil", version = "8.5.14" }
+grpc-netty-shaded = { module = "io.grpc:grpc-netty-shaded", version.ref = "grpc" }
+grpc-okhttp = { module = "io.grpc:grpc-okhttp", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-services = { module = "io.grpc:grpc-services", version.ref = "grpc" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+gson = { module = "com.google.code.gson:gson", version = "2.11.0" }
+guice = { module = "com.google.inject:guice", version = "7.0.0" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-dataformat-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+jakarta-xml-bind-api = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version = "4.0.2" }
+javax-annotation-api = { module = "javax.annotation:javax.annotation-api", version = "1.2" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
+log4j-slf4j2-impl = { module = "org.apache.logging.log4j:log4j-slf4j2-impl", version.ref = "log4j" }
+lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
+lucene-backward-codecs = { module = "org.apache.lucene:lucene-backward-codecs", version.ref = "lucene" }
+lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
+lucene-codecs = { module = "org.apache.lucene:lucene-codecs", version.ref = "lucene" }
+lucene-expressions = { module = "org.apache.lucene:lucene-expressions", version.ref = "lucene" }
+lucene-facet = { module = "org.apache.lucene:lucene-facet", version.ref = "lucene" }
+lucene-grouping = { module = "org.apache.lucene:lucene-grouping", version.ref = "lucene" }
+lucene-highlighter = { module = "org.apache.lucene:lucene-highlighter", version.ref = "lucene" }
+lucene-join = { module = "org.apache.lucene:lucene-join", version.ref = "lucene" }
+lucene-queries = { module = "org.apache.lucene:lucene-queries", version.ref = "lucene" }
+lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }
+lucene-replicator = { module = "org.apache.lucene:lucene-replicator", version.ref = "lucene" }
+lucene-suggest = { module = "org.apache.lucene:lucene-suggest", version.ref = "lucene" }
+lz4-java = { module = "org.lz4:lz4-java", version = "1.8.0" }
+picocli = { module = "info.picocli:picocli", version = "4.7.6" }
+prometheus-metrics-core = { module = "io.prometheus:prometheus-metrics-core", version.ref = "prometheus"}
+prometheus-metrics-exposition-formats = { module = "io.prometheus:prometheus-metrics-exposition-formats", version.ref = "prometheus"}
+prometheus-metrics-instrumentation-jvm = { module = "io.prometheus:prometheus-metrics-instrumentation-jvm", version.ref = "prometheus"}
+proto-google-common-protos = { module = "com.google.api.grpc:proto-google-common-protos", version = "2.41.0" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version = "2.0.16" }
+snakeyaml = { module = "org.yaml:snakeyaml", version = "2.2" }
+
+assertj-core = { module = "org.assertj:assertj-core", version = "3.26.3" }
+grpc-inprocess = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
+grpc-testing = { module = "io.grpc:grpc-testing", version.ref = "grpc" }
+junit = { module = "junit:junit", version = "4.13.2" }
+lucene-test-framework = { module = "org.apache.lucene:lucene-test-framework", version.ref = "lucene" }
+mockito-core = { module = "org.mockito:mockito-core", version = "5.12.0" }
+s3mock = { module = "io.findify:s3mock_2.13", version = "0.2.6" }
+spatial4j = { module = "org.locationtech.spatial4j:spatial4j", version = "0.8" }
+
+[plugins]
+protobuf = { id = "com.google.protobuf", version = "0.9.4" }
+sphinx = { id = "kr.motd.sphinx", version = "2.10.1" }
+spotless = { id = "com.diffplug.spotless", version = "6.25.0" }

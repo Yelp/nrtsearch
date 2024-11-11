@@ -56,7 +56,6 @@ import org.apache.lucene.facet.range.LongRangeFacetCounts;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetCounts;
 import org.apache.lucene.facet.taxonomy.FastTaxonomyFacetCounts;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.facet.taxonomy.TaxonomyFacetCounts;
 import org.apache.lucene.facet.taxonomy.TaxonomyReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -212,7 +211,7 @@ public class DrillSidewaysImpl extends DrillSideways {
   }
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult getDocValuesFacetResult(
-      Facet facet, FacetsCollector drillDowns, IndexableFieldDef fieldDef) throws IOException {
+      Facet facet, FacetsCollector drillDowns, IndexableFieldDef<?> fieldDef) throws IOException {
     Map<Object, Integer> countsMap = new HashMap<>();
     int totalDocs = 0;
     // get doc values for all match docs, and aggregate counts
@@ -270,7 +269,7 @@ public class DrillSidewaysImpl extends DrillSideways {
     builder.setValue(totalDocs);
     builder.setChildCount(countsMap.size());
 
-    if (countsMap.size() > 0 && facet.getTopN() > 0) {
+    if (!countsMap.isEmpty() && facet.getTopN() > 0) {
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<Map.Entry<Object, Integer>> priorityQueue =
           new PriorityQueue<>(
@@ -390,8 +389,7 @@ public class DrillSidewaysImpl extends DrillSideways {
           c = drillDowns;
         }
         DoubleRangeFacetCounts doubleRangeFacetCounts;
-        if (fieldDef instanceof VirtualFieldDef) {
-          VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fieldDef;
+        if (fieldDef instanceof VirtualFieldDef virtualFieldDef) {
           doubleRangeFacetCounts =
               new DoubleRangeFacetCounts(
                   virtualFieldDef.getName(), virtualFieldDef.getValuesSource(), c, ranges);
@@ -407,8 +405,7 @@ public class DrillSidewaysImpl extends DrillSideways {
                 facet.getPathsList().toArray(new String[facet.getPathsCount()]));
       } else {
         throw new IllegalArgumentException(
-            String.format(
-                "numericRanges must be provided only on field type numeric e.g. int, double, flat"));
+            "numericRanges must be provided only on field type numeric e.g. int, double, flat");
       }
     } else if (fieldDef.getFacetValueType()
         == IndexableFieldDef.FacetValueType.SORTED_SET_DOC_VALUES) {
@@ -454,7 +451,6 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
 
       FacetsCollector c = dsDimMap.get(fieldDef.getName());
-      boolean useCachedOrds = facet.getUseOrdsCache();
 
       Facets luceneFacets;
       if (c != null) {
@@ -463,21 +459,12 @@ public class DrillSidewaysImpl extends DrillSideways {
         // drill-sideways collector:
         String indexFieldName =
             indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
-        if (useCachedOrds) {
-          luceneFacets =
-              new TaxonomyFacetCounts(
-                  shardState.getOrdsCache(indexFieldName),
-                  searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.getFacetsConfig(),
-                  c);
-        } else {
-          luceneFacets =
-              new FastTaxonomyFacetCounts(
-                  indexFieldName,
-                  searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.getFacetsConfig(),
-                  c);
-        }
+        luceneFacets =
+            new FastTaxonomyFacetCounts(
+                indexFieldName,
+                searcherAndTaxonomyManager.taxonomyReader,
+                indexState.getFacetsConfig(),
+                c);
       } else {
 
         // nocommit test both normal & ssdv facets in same index
@@ -486,25 +473,15 @@ public class DrillSidewaysImpl extends DrillSideways {
         // counts for this indexFieldName:
         String indexFieldName =
             indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
-        Map<String, Facets> facetsMap = indexFieldNameToFacets;
-        luceneFacets = facetsMap.get(indexFieldName);
+        luceneFacets = indexFieldNameToFacets.get(indexFieldName);
         if (luceneFacets == null) {
-          if (useCachedOrds) {
-            luceneFacets =
-                new TaxonomyFacetCounts(
-                    shardState.getOrdsCache(indexFieldName),
-                    searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.getFacetsConfig(),
-                    drillDowns);
-          } else {
-            luceneFacets =
-                new FastTaxonomyFacetCounts(
-                    indexFieldName,
-                    searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.getFacetsConfig(),
-                    drillDowns);
-          }
-          facetsMap.put(indexFieldName, luceneFacets);
+          luceneFacets =
+              new FastTaxonomyFacetCounts(
+                  indexFieldName,
+                  searcherAndTaxonomyManager.taxonomyReader,
+                  indexState.getFacetsConfig(),
+                  drillDowns);
+          indexFieldNameToFacets.put(indexFieldName, luceneFacets);
         }
       }
       if (facet.getTopN() != 0) {
@@ -517,22 +494,16 @@ public class DrillSidewaysImpl extends DrillSideways {
         }
         facetResult =
             new FacetResult(
-                fieldDef.getName(),
-                path,
-                -1,
-                results.toArray(new LabelAndValue[results.size()]),
-                -1);
+                fieldDef.getName(), path, -1, results.toArray(new LabelAndValue[0]), -1);
       } else {
-        throw new IllegalArgumentException(
-            String.format("each facet request must have either topN or labels"));
+        throw new IllegalArgumentException("each facet request must have either topN or labels");
       }
     } else {
       // if no facet type is enabled on the field, try using the field doc values
-      if (!(fieldDef instanceof IndexableFieldDef)) {
+      if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
         throw new IllegalArgumentException(
             "Doc values facet requires an indexable field : " + fieldName);
       }
-      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
       if (!indexableFieldDef.hasDocValues()) {
         throw new IllegalArgumentException(
             "Doc values facet requires doc values enabled : " + fieldName);

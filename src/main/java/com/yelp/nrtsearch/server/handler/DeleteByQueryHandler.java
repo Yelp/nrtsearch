@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,13 +52,13 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
     List<Query> queryList =
         deleteByQueryRequest.getQueryList().stream()
             .map(query -> queryNodeMapper.getQuery(query, indexState))
-            .collect(Collectors.toList());
+            .toList();
     try {
       shardState.writer.deleteDocuments(queryList.toArray(new Query[] {}));
     } catch (IOException e) {
       logger.warn(
           "ThreadId: {}, writer.deleteDocuments failed",
-          Thread.currentThread().getName() + Thread.currentThread().getId());
+          Thread.currentThread().getName() + Thread.currentThread().threadId());
       throw new DeleteByQueryHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();

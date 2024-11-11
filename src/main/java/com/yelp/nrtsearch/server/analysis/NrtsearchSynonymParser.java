@@ -90,14 +90,14 @@ class NrtsearchSynonymParser extends SynonymMap.Parser {
   }
 
   private static String[] split(String s, String separator) {
-    ArrayList<String> list = new ArrayList(2);
+    ArrayList<String> list = new ArrayList<>(2);
     StringBuilder sb = new StringBuilder();
     int pos = 0;
     int end = s.length();
 
     while (pos < end) {
       if (s.startsWith(separator, pos)) {
-        if (sb.length() > 0) {
+        if (!sb.isEmpty()) {
           list.add(sb.toString());
           sb = new StringBuilder();
         }
@@ -118,15 +118,15 @@ class NrtsearchSynonymParser extends SynonymMap.Parser {
       }
     }
 
-    if (sb.length() > 0) {
+    if (!sb.isEmpty()) {
       list.add(sb.toString());
     }
 
-    return list.toArray(new String[list.size()]);
+    return list.toArray(new String[0]);
   }
 
   private String unescape(String s) {
-    if (s.indexOf("\\") < 0) {
+    if (!s.contains("\\")) {
       return s;
     } else {
       StringBuilder sb = new StringBuilder();

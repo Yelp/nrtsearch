@@ -27,7 +27,7 @@ import com.yelp.nrtsearch.server.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.sort.SortContext;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -36,8 +36,8 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 
 /**
  * Object to store all necessary context information for {@link InnerHitFetchTask} to search and
@@ -61,7 +61,7 @@ public class InnerHitContext implements FieldFetchContext {
   private final Map<String, FieldDef> retrieveFields;
   private final SortContext sortContext;
 
-  private final CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+  private final CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs>
       topDocsCollectorManager;
   private final FetchTasks fetchTasks;
   private SearchContext searchContext = null;
@@ -86,20 +86,18 @@ public class InnerHitContext implements FieldFetchContext {
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
     this.explain = builder.explain;
-    this.fetchTasks =
-        new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null, null);
+    this.fetchTasks = new FetchTasks(List.of(), builder.highlightFetchTask, null, null);
 
     if (builder.querySort == null) {
       // relevance collector
       this.sortContext = null;
       this.topDocsCollectorManager =
-          TopScoreDocCollector.createSharedManager(topHits, null, Integer.MAX_VALUE);
+          new TopScoreDocCollectorManager(topHits, null, Integer.MAX_VALUE);
     } else {
       // sortedField collector
       this.sortContext = new SortContext(builder.querySort, queryFields);
       this.topDocsCollectorManager =
-          TopFieldCollector.createSharedManager(
-              sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
+          new TopFieldCollectorManager(sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
     }
 
     if (needValidation) {
@@ -235,7 +233,7 @@ public class InnerHitContext implements FieldFetchContext {
   }
 
   /** Get the topDocsCollectorManager to collect the search results. */
-  public CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+  public CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs>
       getTopDocsCollectorManager() {
     return topDocsCollectorManager;
   }

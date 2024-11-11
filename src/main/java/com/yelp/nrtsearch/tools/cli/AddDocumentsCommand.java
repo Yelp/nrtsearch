@@ -89,7 +89,9 @@ public class AddDocumentsCommand implements Callable<Integer> {
       Path filePath = Paths.get(getFileName());
       if (fileType.equalsIgnoreCase("csv")) {
         Reader reader = Files.newBufferedReader(filePath);
-        CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+        CSVParser csvParser =
+            new CSVParser(
+                reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
         addDocumentRequestStream =
             new NrtsearchClientBuilder.AddDocumentsClientBuilder(indexName, csvParser)
                 .buildRequest(filePath);

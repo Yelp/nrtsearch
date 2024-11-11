@@ -258,7 +258,8 @@ public class MyIndexSearcher extends IndexSearcher {
         BulkScorer scorer = weight.bulkScorer(ctx);
         if (scorer != null) {
           try {
-            scorer.score(leafCollector, ctx.reader().getLiveDocs());
+            scorer.score(
+                leafCollector, ctx.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
           } catch (CollectionTerminatedException e) {
             // collection was terminated prematurely
             // continue with the following leaf

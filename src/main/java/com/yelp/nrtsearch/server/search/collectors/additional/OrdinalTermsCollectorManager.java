@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.server.search.collectors.additional;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-
 import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
@@ -51,7 +49,7 @@ import org.apache.lucene.util.LongValues;
 /** Collector manager that aggregates terms using global ordinals into buckets. */
 public class OrdinalTermsCollectorManager extends TermsCollectorManager {
 
-  private final IndexableFieldDef fieldDef;
+  private final IndexableFieldDef<?> fieldDef;
   private final GlobalOrdinalLookup globalOrdinalLookup;
 
   /**
@@ -69,7 +67,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
-      IndexableFieldDef indexableFieldDef,
+      IndexableFieldDef<?> indexableFieldDef,
       GlobalOrdinalable globalOrdinalable,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
           nestedCollectorSuppliers,
@@ -212,14 +210,14 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       @Override
       public void collect(int doc) throws IOException {
         if (docValues.advanceExact(doc)) {
-          long ord = docValues.nextOrd();
-          while (ord != NO_MORE_ORDS) {
+          int count = docValues.docValueCount();
+          for (int i = 0; i < count; i++) {
+            long ord = docValues.nextOrd();
             long globalOrd = segmentOrdsMapping.get(ord);
             countsMap.addTo(globalOrd, 1);
             if (nestedLeafCollectors != null) {
               nestedLeafCollectors.collect(globalOrd, doc);
             }
-            ord = docValues.nextOrd();
           }
         }
       }

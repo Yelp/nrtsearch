@@ -20,6 +20,7 @@ import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.inject.Inject;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,8 +69,9 @@ public class LegacyVersionManager {
     String latestVersionFile = String.format("%s/_latest_version", versionPath);
     if (s3.doesObjectExist(bucketName, latestVersionFile)) {
       try (final S3Object s3Object = s3.getObject(bucketName, latestVersionFile); ) {
-        final String versionString = IOUtils.toString(s3Object.getObjectContent());
-        return Integer.valueOf(versionString);
+        final String versionString =
+            IOUtils.toString(s3Object.getObjectContent(), StandardCharsets.UTF_8);
+        return Integer.parseInt(versionString);
       }
     }
     return version;
@@ -162,7 +164,7 @@ public class LegacyVersionManager {
     final String absoluteResourcePath =
         String.format("%s/_version/%s/%s", serviceName, resource, version);
     try (final S3Object s3Object = s3.getObject(bucketName, absoluteResourcePath)) {
-      return IOUtils.toString(s3Object.getObjectContent());
+      return IOUtils.toString(s3Object.getObjectContent(), StandardCharsets.UTF_8);
     }
   }
 }

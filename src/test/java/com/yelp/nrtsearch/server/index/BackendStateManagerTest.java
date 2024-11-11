@@ -145,6 +145,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -172,6 +173,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -199,6 +201,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -331,6 +334,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getMergedSettings();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
@@ -396,6 +400,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
@@ -458,6 +463,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
@@ -538,6 +544,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
@@ -621,6 +628,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
@@ -712,6 +720,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getMergedLiveSettings(false);
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
@@ -759,6 +768,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getMergedLiveSettings(false);
     verify(mockState, times(1)).getMergedLiveSettings(true);
 
@@ -829,6 +839,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
@@ -895,6 +906,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
@@ -976,6 +988,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
@@ -1060,6 +1073,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
@@ -1148,6 +1162,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(true);
@@ -1224,6 +1239,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(true);
@@ -1297,6 +1313,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
+    verify(mockGlobalState, times(2)).getConfiguration();
     verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
@@ -1371,6 +1388,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
+    verify(mockGlobalState, times(2)).getConfiguration();
     verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
@@ -1470,6 +1488,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
+    verify(mockGlobalState, times(2)).getConfiguration();
     verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
@@ -1528,6 +1547,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -1578,6 +1598,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
@@ -1614,6 +1635,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
@@ -1647,6 +1669,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.REPLICA, mockDataManager, 1, mockReplicationClient);
 
@@ -1690,6 +1713,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), updatedState);
+    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(3)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);

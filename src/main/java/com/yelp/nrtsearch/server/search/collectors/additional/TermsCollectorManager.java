@@ -103,77 +103,87 @@ public abstract class TermsCollectorManager
             name, grpcTermsCollector, context, nestedCollectorSuppliers, bucketOrder);
       case FIELD:
         FieldDef field = context.getQueryFields().get(grpcTermsCollector.getField());
-        if (field == null) {
-          throw new IllegalArgumentException("Unknown field: " + grpcTermsCollector.getField());
-        }
-        if (field instanceof IndexableFieldDef) {
-          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
-          if (!indexableFieldDef.hasDocValues()) {
-            throw new IllegalArgumentException(
-                "Terms collection requires doc values for field: " + grpcTermsCollector.getField());
-          }
-          // Pick implementation based on field type
-          if (indexableFieldDef instanceof IntFieldDef) {
-            return new IntTermsCollectorManager(
-                name,
-                grpcTermsCollector,
-                context,
-                indexableFieldDef,
-                nestedCollectorSuppliers,
-                bucketOrder);
-          } else if (indexableFieldDef instanceof LongFieldDef) {
-            return new LongTermsCollectorManager(
-                name,
-                grpcTermsCollector,
-                context,
-                indexableFieldDef,
-                nestedCollectorSuppliers,
-                bucketOrder);
-          } else if (indexableFieldDef instanceof FloatFieldDef) {
-            return new FloatTermsCollectorManager(
-                name,
-                grpcTermsCollector,
-                context,
-                indexableFieldDef,
-                nestedCollectorSuppliers,
-                bucketOrder);
-          } else if (indexableFieldDef instanceof DoubleFieldDef) {
-            return new DoubleTermsCollectorManager(
-                name,
-                grpcTermsCollector,
-                context,
-                indexableFieldDef,
-                nestedCollectorSuppliers,
-                bucketOrder);
-          } else if (indexableFieldDef instanceof TextBaseFieldDef) {
-            if (indexableFieldDef instanceof GlobalOrdinalable
-                && ((GlobalOrdinalable) indexableFieldDef).usesOrdinals()) {
-              return new OrdinalTermsCollectorManager(
-                  name,
-                  grpcTermsCollector,
-                  context,
-                  indexableFieldDef,
-                  (GlobalOrdinalable) indexableFieldDef,
-                  nestedCollectorSuppliers,
-                  bucketOrder);
-            } else {
-              return new StringTermsCollectorManager(
-                  name,
-                  grpcTermsCollector,
-                  context,
-                  indexableFieldDef,
-                  nestedCollectorSuppliers,
-                  bucketOrder);
+        switch (field) {
+          case null ->
+              throw new IllegalArgumentException("Unknown field: " + grpcTermsCollector.getField());
+          case IndexableFieldDef<?> indexableFieldDef -> {
+            if (!indexableFieldDef.hasDocValues()) {
+              throw new IllegalArgumentException(
+                  "Terms collection requires doc values for field: "
+                      + grpcTermsCollector.getField());
+            }
+            // Pick implementation based on field type
+            switch (indexableFieldDef) {
+              case IntFieldDef intFieldDef -> {
+                return new IntTermsCollectorManager(
+                    name,
+                    grpcTermsCollector,
+                    context,
+                    indexableFieldDef,
+                    nestedCollectorSuppliers,
+                    bucketOrder);
+              }
+              case LongFieldDef longFieldDef -> {
+                return new LongTermsCollectorManager(
+                    name,
+                    grpcTermsCollector,
+                    context,
+                    indexableFieldDef,
+                    nestedCollectorSuppliers,
+                    bucketOrder);
+              }
+              case FloatFieldDef floatFieldDef -> {
+                return new FloatTermsCollectorManager(
+                    name,
+                    grpcTermsCollector,
+                    context,
+                    indexableFieldDef,
+                    nestedCollectorSuppliers,
+                    bucketOrder);
+              }
+              case DoubleFieldDef doubleFieldDef -> {
+                return new DoubleTermsCollectorManager(
+                    name,
+                    grpcTermsCollector,
+                    context,
+                    indexableFieldDef,
+                    nestedCollectorSuppliers,
+                    bucketOrder);
+              }
+              case TextBaseFieldDef textBaseFieldDef -> {
+                if (indexableFieldDef instanceof GlobalOrdinalable
+                    && ((GlobalOrdinalable) indexableFieldDef).usesOrdinals()) {
+                  return new OrdinalTermsCollectorManager(
+                      name,
+                      grpcTermsCollector,
+                      context,
+                      indexableFieldDef,
+                      (GlobalOrdinalable) indexableFieldDef,
+                      nestedCollectorSuppliers,
+                      bucketOrder);
+                } else {
+                  return new StringTermsCollectorManager(
+                      name,
+                      grpcTermsCollector,
+                      context,
+                      indexableFieldDef,
+                      nestedCollectorSuppliers,
+                      bucketOrder);
+                }
+              }
+              default -> {}
             }
           }
-        } else if (field instanceof VirtualFieldDef) {
-          return new VirtualTermsCollectorManager(
-              name,
-              grpcTermsCollector,
-              context,
-              (VirtualFieldDef) field,
-              nestedCollectorSuppliers,
-              bucketOrder);
+          case VirtualFieldDef virtualFieldDef -> {
+            return new VirtualTermsCollectorManager(
+                name,
+                grpcTermsCollector,
+                context,
+                virtualFieldDef,
+                nestedCollectorSuppliers,
+                bucketOrder);
+          }
+          default -> {}
         }
         throw new IllegalArgumentException(
             "Terms collection does not support field: "
@@ -320,7 +330,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<ObjectBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -423,7 +433,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<IntBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -526,7 +536,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<LongBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -629,7 +639,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<FloatBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -732,7 +742,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<DoubleBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -833,7 +843,7 @@ public abstract class TermsCollectorManager
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<LongBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
       QueueAddDecider queueAddDecider;
       if (bucketOrder.getOrderType() == OrderType.DESC) {
@@ -927,7 +937,7 @@ public abstract class TermsCollectorManager
       throw new IllegalStateException("Collector ordering requires nested collectors");
     }
     int size = getSize();
-    if (counts.size() > 0 && size > 0) {
+    if (!counts.isEmpty() && size > 0) {
       Comparator<CollectorResult> orderComparator = bucketOrder.getCollectorResultComparator();
       if (bucketOrder.getOrderType() == OrderType.ASC) {
         orderComparator = orderComparator.reversed();

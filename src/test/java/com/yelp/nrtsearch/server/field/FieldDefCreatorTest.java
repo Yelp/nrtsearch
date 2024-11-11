@@ -15,7 +15,10 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
@@ -24,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,9 +53,12 @@ public class FieldDefCreatorTest {
   }
 
   static class TestFieldDef extends FieldDef {
+    final FieldDefCreator.FieldDefCreatorContext context;
 
-    public TestFieldDef(String name, Field requestField) {
+    public TestFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       super(name);
+      this.context = context;
     }
 
     @Override
@@ -90,7 +97,8 @@ public class FieldDefCreatorTest {
                         "type", Value.newBuilder().setStringValue("custom_field_type").build())
                     .build())
             .build();
-    FieldDefCreator.getInstance().createFieldDef("test_field", field);
+    FieldDefCreator.getInstance()
+        .createFieldDef("test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
   }
 
   @Test
@@ -105,7 +113,40 @@ public class FieldDefCreatorTest {
                         "type", Value.newBuilder().setStringValue("custom_field_type").build())
                     .build())
             .build();
-    FieldDef testFieldDef = FieldDefCreator.getInstance().createFieldDef("test_field", field);
+    FieldDef testFieldDef =
+        FieldDefCreator.getInstance()
+            .createFieldDef(
+                "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
     assertTrue(testFieldDef instanceof TestFieldDef);
+  }
+
+  @Test
+  public void testProvidesContext() {
+    init(Collections.singletonList(new TestFieldTypePlugin()));
+    Field field =
+        Field.newBuilder()
+            .setType(FieldType.CUSTOM)
+            .setAdditionalProperties(
+                Struct.newBuilder()
+                    .putFields(
+                        "type", Value.newBuilder().setStringValue("custom_field_type").build())
+                    .build())
+            .build();
+    FieldDefCreator.FieldDefCreatorContext mockContext =
+        mock(FieldDefCreator.FieldDefCreatorContext.class);
+    FieldDef testFieldDef =
+        FieldDefCreator.getInstance().createFieldDef("test_field", field, mockContext);
+    assertTrue(testFieldDef instanceof TestFieldDef);
+    assertSame(mockContext, ((TestFieldDef) testFieldDef).context);
+  }
+
+  @Test
+  public void testCreateContext() {
+    NrtsearchConfig config = getEmptyConfig();
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    when(mockGlobalState.getConfiguration()).thenReturn(config);
+    FieldDefCreator.FieldDefCreatorContext context = FieldDefCreator.createContext(mockGlobalState);
+
+    assertSame(config, context.config());
   }
 }

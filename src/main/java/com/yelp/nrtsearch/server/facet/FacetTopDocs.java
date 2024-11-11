@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
@@ -64,7 +63,7 @@ public class FacetTopDocs {
       Diagnostics.Builder diagnostics)
       throws IOException {
     List<Facet> sampleFacets =
-        facets.stream().filter(facet -> facet.getSampleTopDocs() > 0).collect(Collectors.toList());
+        facets.stream().filter(facet -> facet.getSampleTopDocs() > 0).toList();
     if (sampleFacets.isEmpty()) {
       return Collections.emptyList();
     }
@@ -83,11 +82,10 @@ public class FacetTopDocs {
       TopDocs topDocs, Facet facet, IndexState indexState, IndexSearcher searcher)
       throws IOException {
     FieldDef fieldDef = indexState.getFieldOrThrow(facet.getDim());
-    if (!(fieldDef instanceof IndexableFieldDef)) {
+    if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
       throw new IllegalArgumentException(
           "Sampling facet field must be indexable: " + facet.getDim());
     }
-    IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
     if (!indexableFieldDef.hasDocValues()) {
       throw new IllegalArgumentException(
           "Sampling facet field must have doc values enabled: " + facet.getDim());

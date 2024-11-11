@@ -160,8 +160,7 @@ public class CollectorCreator {
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new CollectorCreator(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof CollectorPlugin) {
-        CollectorPlugin collectorPlugin = (CollectorPlugin) plugin;
+      if (plugin instanceof CollectorPlugin collectorPlugin) {
         instance.register(collectorPlugin.getCollectors());
       }
     }

@@ -36,9 +36,11 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
   /**
    * @param name name of field
    * @param requestField field definition from grpc request
+   * @param context creation context
    */
-  protected ContextSuggestFieldDef(String name, Field requestField) {
-    super(name, requestField, Void.class);
+  protected ContextSuggestFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name, requestField, context, Void.class);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
   }
@@ -79,8 +81,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
    */
   private void parseFieldValueToDocumentField(Document document, String fieldValue) {
     ContextSuggestFieldData csfData = GSON.fromJson(fieldValue, ContextSuggestFieldData.class);
-    CharSequence[] contexts =
-        csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
+    CharSequence[] contexts = csfData.getContexts().toArray(new CharSequence[0]);
     ContextSuggestField csf =
         new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
     document.add(csf);

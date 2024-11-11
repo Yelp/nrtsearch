@@ -48,9 +48,6 @@ import java.util.concurrent.*;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
-import org.apache.lucene.facet.taxonomy.CachedOrdinalsReader;
-import org.apache.lucene.facet.taxonomy.DocValuesOrdinalsReader;
-import org.apache.lucene.facet.taxonomy.OrdinalsReader;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
 import org.apache.lucene.index.DirectoryReader;
@@ -126,12 +123,6 @@ public class ShardState implements Closeable {
 
   /** Maps snapshot gen -&gt; version. */
   public final Map<Long, Long> snapshotGenToVersion = new ConcurrentHashMap<>();
-
-  /**
-   * Holds cached ordinals; doesn't use any RAM unless it's actually used when a caller sets
-   * useOrdsCache=true.
-   */
-  private final Map<String, OrdinalsReader> ordsCache = new HashMap<>();
 
   /**
    * Enables lookup of previously used searchers, so follow-on actions (next page, drill
@@ -583,7 +574,7 @@ public class ShardState implements Closeable {
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -609,12 +600,7 @@ public class ShardState implements Closeable {
         openMode = IndexWriterConfig.OpenMode.APPEND;
       }
 
-      Path taxoDirFile;
-      if (rootDir == null) {
-        taxoDirFile = null;
-      } else {
-        taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
-      }
+      Path taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
       taxoDir =
           indexState
               .getDirectoryFactory()
@@ -718,7 +704,7 @@ public class ShardState implements Closeable {
               .open(
                   indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
 
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -841,16 +827,6 @@ public class ShardState implements Closeable {
         }
       };
 
-  /** Returns cached ordinals for the specified index field name. */
-  public synchronized OrdinalsReader getOrdsCache(String indexFieldName) {
-    OrdinalsReader ords = ordsCache.get(indexFieldName);
-    if (ords == null) {
-      ords = new CachedOrdinalsReader(new DocValuesOrdinalsReader(indexFieldName));
-      ordsCache.put(indexFieldName, ords);
-    }
-    return ords;
-  }
-
   public SortedSetDocValuesReaderState getSSDVState(
       IndexState indexState, SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd)
       throws IOException {
@@ -889,7 +865,8 @@ public class ShardState implements Closeable {
         }
         if (ssdvState == null) {
           ssdvState =
-              new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
+              new DefaultSortedSetDocValuesReaderState(
+                  reader, dimConfig.indexFieldName, indexState.getFacetsConfig()) {
                 @Override
                 public SortedSetDocValues getDocValues() throws IOException {
                   SortedSetDocValues values = super.getDocValues();
@@ -952,7 +929,7 @@ public class ShardState implements Closeable {
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {

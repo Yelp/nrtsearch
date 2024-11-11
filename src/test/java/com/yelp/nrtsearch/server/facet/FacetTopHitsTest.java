@@ -540,7 +540,6 @@ public class FacetTopHitsTest extends ServerTestCase {
         Facet.newBuilder()
             .setName("numeric_range")
             .setDim("long_field")
-            .setUseOrdsCache(false)
             .addAllNumericRange(numericRangeTypes)
             .setTopN(20)
             .build();

@@ -28,6 +28,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
@@ -68,7 +69,7 @@ public class SortFieldCollector extends DocCollector {
 
     sortContext = new SortContext(context.getRequest().getQuerySort(), context.getQueryFields());
     manager =
-        TopFieldCollector.createSharedManager(
+        new TopFieldCollectorManager(
             sortContext.getSort(), topHits, searchAfter, totalHitsThreshold);
   }
 

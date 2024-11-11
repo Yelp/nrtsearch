@@ -400,7 +400,9 @@ public class GrpcServer {
       String addDocsFile = fileName == null ? "addDocs.csv" : fileName;
       Path filePath = Paths.get("src", "test", "resources", addDocsFile);
       Reader reader = Files.newBufferedReader(filePath);
-      CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+      CSVParser csvParser =
+          new CSVParser(
+              reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
       return new NrtsearchClientBuilder.AddDocumentsClientBuilder(
               grpcServer.getTestIndex(), csvParser)
           .buildRequest(filePath);

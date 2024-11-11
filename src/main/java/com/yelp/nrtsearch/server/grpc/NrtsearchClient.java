@@ -130,7 +130,7 @@ public class NrtsearchClient implements Closeable {
     try {
       logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
     } catch (Exception e) {
-      logger.info("Error printing response message: " + response, e);
+      logger.info("Error printing response message: {}", response, e);
     }
   }
 
@@ -257,7 +257,7 @@ public class NrtsearchClient implements Closeable {
     }
 
     if (!exception.isEmpty()) {
-      throw new RuntimeException(exception.get(0));
+      throw new RuntimeException(exception.getFirst());
     }
   }
 
