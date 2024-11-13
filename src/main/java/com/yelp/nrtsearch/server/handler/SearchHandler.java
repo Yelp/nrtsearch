@@ -145,14 +145,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     // this request may have been waiting in the grpc queue too long
     DeadlineUtils.checkDeadline("SearchHandler: start", "SEARCH");
 
+    var diagnostics = SearchResponse.Diagnostics.newBuilder();
+    diagnostics.setInitialDeadlineMs(DeadlineUtils.getDeadlineRemainingMs());
+
     ShardState shardState = indexState.getShard(0);
 
     // Index won't be started if we are currently warming
     if (!warming) {
       indexState.verifyStarted();
     }
-
-    var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     SearchContext searchContext;

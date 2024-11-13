@@ -786,6 +786,7 @@ message SearchResponse {
         map<string, double> rescorersTimeMs = 11;
         map<string, Diagnostics> innerHitsDiagnostics = 12;
         repeated VectorDiagnostics vectorDiagnostics = 13;
+        double initialDeadlineMs = 14;
     }
 
     message Hit {

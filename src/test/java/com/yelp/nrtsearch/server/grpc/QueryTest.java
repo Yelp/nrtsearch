@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -1034,6 +1035,39 @@ public class QueryTest {
     for (SearchResponse.Hit hit : response.getHitsList()) {
       assertEquals(1.0, hit.getScore(), 0.0);
     }
+  }
+
+  @Test
+  public void testInitialDeadlineMs_withDeadline() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND again")
+                    .setSlop(1))
+            .build();
+    long deadlineMs = 30000;
+    SearchResponse searchResponse =
+        grpcServer
+            .getBlockingStub()
+            .withDeadlineAfter(deadlineMs, TimeUnit.MILLISECONDS)
+            .search(buildSearchRequest(query));
+    assertTrue(searchResponse.getDiagnostics().getInitialDeadlineMs() > 0);
+  }
+
+  @Test
+  public void testInitialDeadlineMs_withoutDeadline() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND again")
+                    .setSlop(1))
+            .build();
+    SearchResponse searchResponse = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    assertEquals(0, searchResponse.getDiagnostics().getInitialDeadlineMs(), 0);
   }
 
   /**
