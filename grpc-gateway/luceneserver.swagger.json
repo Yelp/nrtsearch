@@ -2172,6 +2172,10 @@
           "items": {
             "$ref": "#/definitions/DiagnosticsVectorDiagnostics"
           }
+        },
+        "initialDeadlineMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
