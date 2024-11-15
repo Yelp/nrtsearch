@@ -28,9 +28,11 @@ import java.util.List;
  */
 public class HitsLoggerFetchTask implements FetchTask {
   private final HitsLogger hitsLogger;
+  private final int hitsToLog;
 
   public HitsLoggerFetchTask(LoggingHits loggingHits) {
     this.hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
+    this.hitsToLog = loggingHits.getHitsToLog();
   }
 
   /**
@@ -43,5 +45,9 @@ public class HitsLoggerFetchTask implements FetchTask {
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
     hitsLogger.log(searchContext, hits);
+  }
+
+  public int getHitsToLog() {
+    return hitsToLog;
   }
 }

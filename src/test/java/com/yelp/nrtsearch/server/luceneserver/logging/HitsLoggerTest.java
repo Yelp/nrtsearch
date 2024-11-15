@@ -105,7 +105,14 @@ public class HitsLoggerTest extends ServerTestCase {
 
       @Override
       public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
-        HitsLoggerTest.logMessage = "LOGGED " + hits.toString();
+        HitsLoggerTest.logMessage = "LOGGED ";
+
+        for (SearchResponse.Hit.Builder hit : hits) {
+          HitsLoggerTest.logMessage +=
+                  "doc_id: "
+                          + hit.getFieldsMap().get("doc_id").getFieldValueList().get(0).getTextValue()
+                          + ", ";
+        }
 
         if (!params.isEmpty()) {
           HitsLoggerTest.logMessage += " " + params;
@@ -122,7 +129,14 @@ public class HitsLoggerTest extends ServerTestCase {
 
       @Override
       public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
-        HitsLoggerTest.logMessage = "LOGGED_2 " + hits.toString();
+        HitsLoggerTest.logMessage = "LOGGED_2 ";
+
+        for (SearchResponse.Hit.Builder hit : hits) {
+          HitsLoggerTest.logMessage +=
+                  "doc_id: "
+                          + hit.getFieldsMap().get("doc_id").getFieldValueList().get(0).getTextValue()
+                          + ", ";
+        }
 
         if (!params.isEmpty()) {
           HitsLoggerTest.logMessage += " " + params;
@@ -142,7 +156,7 @@ public class HitsLoggerTest extends ServerTestCase {
   public void testCustomHitsLoggerWithParam() {
     SearchRequest request =
         SearchRequest.newBuilder()
-            .setTopHits(1)
+            .setTopHits(2)
             .setStartHit(0)
             .setIndexName(DEFAULT_TEST_INDEX)
             .addRetrieveFields("doc_id")
@@ -157,6 +171,7 @@ public class HitsLoggerTest extends ServerTestCase {
             .setLoggingHits(
                 LoggingHits.newBuilder()
                     .setName("custom_logger")
+                    .setHitsToLog(2)
                     .setParams(
                         Struct.newBuilder()
                             .putFields(
@@ -164,16 +179,18 @@ public class HitsLoggerTest extends ServerTestCase {
                     .build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED " + List.of(response.getHits(0)) + " {external_value=abc}";
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2,  {external_value=abc}";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
+    assertEquals(2, response.getTotalHits().getValue());
+    assertEquals(2, response.getHitsCount());
   }
 
   @Test
   public void testCustomHitsLoggerWithoutParam() {
     SearchRequest request =
         SearchRequest.newBuilder()
-            .setTopHits(1)
+            .setTopHits(2)
             .setStartHit(0)
             .setIndexName(DEFAULT_TEST_INDEX)
             .addRetrieveFields("doc_id")
@@ -185,11 +202,47 @@ public class HitsLoggerTest extends ServerTestCase {
                             .setTextValue("vendor")
                             .build())
                     .build())
-            .setLoggingHits(LoggingHits.newBuilder().setName("custom_logger_2").build())
+            .setLoggingHits(LoggingHits.newBuilder().setName("custom_logger_2").setHitsToLog(2).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED_2 " + List.of(response.getHits(0));
+    String expectedLogMessage = "LOGGED_2 doc_id: 1, doc_id: 2, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
+    assertEquals(2, response.getTotalHits().getValue());
+    assertEquals(2, response.getHitsCount());
+  }
+
+  @Test
+  public void testHitsLoggerResponseSize() {
+    SearchRequest request =
+            SearchRequest.newBuilder()
+                    .setTopHits(1)
+                    .setStartHit(0)
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .addRetrieveFields("doc_id")
+                    .setQuery(
+                            Query.newBuilder()
+                                    .setTermQuery(
+                                            TermQuery.newBuilder()
+                                                    .setField("vendor_name")
+                                                    .setTextValue("vendor")
+                                                    .build())
+                                    .build())
+                    .setLoggingHits(
+                            LoggingHits.newBuilder()
+                                    .setName("custom_logger")
+                                    .setHitsToLog(2)
+                                    .setParams(
+                                            Struct.newBuilder()
+                                                    .putFields(
+                                                            "external_value", Value.newBuilder().setStringValue("abc").build()))
+                                    .build())
+                    .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2,  {external_value=abc}";
+
+    assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
+    assertEquals(2, response.getTotalHits().getValue());
+    assertEquals(1, response.getHitsCount());
   }
 }

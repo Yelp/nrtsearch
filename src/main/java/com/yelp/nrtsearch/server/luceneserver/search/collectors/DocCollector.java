@@ -65,6 +65,11 @@ public abstract class DocCollector {
 
     // determine how many hits to collect based on request, facets and rescore window
     int collectHits = request.getTopHits();
+
+    if (request.hasLoggingHits()) {
+      collectHits = request.getLoggingHits().getHitsToLog();
+    }
+
     for (Facet facet : request.getFacetsList()) {
       int facetSample = facet.getSampleTopDocs();
       if (facetSample > 0 && facetSample > collectHits) {
