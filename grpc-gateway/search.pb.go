@@ -26,11 +26,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Type of match operator used in MatchQuery
 type MatchOperator int32
 
 const (
+	// Or operation
 	MatchOperator_SHOULD MatchOperator = 0
-	MatchOperator_MUST   MatchOperator = 1
+	// And operation
+	MatchOperator_MUST MatchOperator = 1
 )
 
 // Enum value maps for MatchOperator.
@@ -76,17 +79,27 @@ func (MatchOperator) EnumDescriptor() ([]byte, []int) {
 type RewriteMethod int32
 
 const (
-	// Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching terms in sequence and returns matching documents using a bit set.
+	// Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching
+	// terms in sequence and returns matching documents using a bit set.
 	RewriteMethod_CONSTANT_SCORE RewriteMethod = 0
-	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term.
+	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+	// matching term.
 	RewriteMethod_CONSTANT_SCORE_BOOLEAN RewriteMethod = 1
-	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates the relevance score for each matching document.
+	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+	// matching term. Calculates the relevance score for each matching document.
 	RewriteMethod_SCORING_BOOLEAN RewriteMethod = 2
-	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document as if all terms had the same frequency, the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+	// matching term. Calculates a relevance score for each matching document as if all terms had the same frequency,
+	// the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for
+	// the top N (specified separately) scoring terms.
 	RewriteMethod_TOP_TERMS_BLENDED_FREQS RewriteMethod = 3
-	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Assigns each matching document a relevance score equal to the boost parameter. The final BooleanQuery query only includes Term queries for the top N (specified separately) terms.
+	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+	// matching term. Assigns each matching document a relevance score equal to the boost parameter. The final
+	// BooleanQuery query only includes Term queries for the top N (specified separately) terms.
 	RewriteMethod_TOP_TERMS_BOOST RewriteMethod = 4
-	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+	// This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+	// matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only
+	// includes Term queries for the top N (specified separately) scoring terms.
 	RewriteMethod_TOP_TERMS RewriteMethod = 5
 )
 
@@ -137,6 +150,7 @@ func (RewriteMethod) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{1}
 }
 
+// Type of completion query
 type CompletionQueryType int32
 
 const (
@@ -189,21 +203,21 @@ func (CompletionQueryType) EnumDescriptor() ([]byte, []int) {
 type RegexpFlag int32
 
 const (
-	// Syntax flag, enables all optional regexp syntax.
+	// Syntax flag, enables all optional regexp syntax
 	RegexpFlag_REGEXP_ALL RegexpFlag = 0
-	// Syntax flag, enables anystring (@).
+	// Syntax flag, enables anystring (@)
 	RegexpFlag_REGEXP_ANYSTRING RegexpFlag = 1
-	// Syntax flag, enables named automata (<identifier>).
+	// Syntax flag, enables named automata (<identifier>)
 	RegexpFlag_REGEXP_AUTOMATON RegexpFlag = 2
-	// Syntax flag, enables complement (~).
+	// Syntax flag, enables complement (~)
 	RegexpFlag_REGEXP_COMPLEMENT RegexpFlag = 3
-	// Syntax flag, enables empty language (#).
+	// Syntax flag, enables empty language (#)
 	RegexpFlag_REGEXP_EMPTY RegexpFlag = 4
-	// Syntax flag, enables intersection (&).
+	// Syntax flag, enables intersection (&)
 	RegexpFlag_REGEXP_INTERSECTION RegexpFlag = 5
-	// Syntax flag, enables numerical intervals ( <n-m>).
+	// Syntax flag, enables numerical intervals (<n-m>)
 	RegexpFlag_REGEXP_INTERVAL RegexpFlag = 6
-	// Syntax flag, enables no optional regexp syntax.
+	// Syntax flag, enables no optional regexp syntax
 	RegexpFlag_REGEXP_NONE RegexpFlag = 7
 )
 
@@ -258,7 +272,7 @@ func (RegexpFlag) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{3}
 }
 
-// Defines different types of QueryNodes.
+// Deprecated: Defines different types of QueryNodes
 type QueryType int32
 
 const (
@@ -372,10 +386,14 @@ func (QueryType) EnumDescriptor() ([]byte, []int) {
 type Selector int32
 
 const (
-	Selector_MIN        Selector = 0 // Minimum value
-	Selector_MAX        Selector = 1 // Maximum value
-	Selector_MIDDLE_MIN Selector = 2 // Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
-	Selector_MIDDLE_MAX Selector = 3 // Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+	// Minimum value
+	Selector_MIN Selector = 0
+	// Maximum value
+	Selector_MAX Selector = 1
+	// Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
+	Selector_MIDDLE_MIN Selector = 2
+	// Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+	Selector_MIDDLE_MAX Selector = 3
 )
 
 // Enum value maps for Selector.
@@ -474,6 +492,7 @@ func (BooleanClause_Occur) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{0, 0}
 }
 
+// How child documents score affects final score
 type NestedQuery_ScoreMode int32
 
 const (
@@ -578,15 +597,15 @@ func (MatchPhraseQuery_ZeroTerms) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{13, 0}
 }
 
-// Type defining the execution behavior of the match.
+// Type defining the execution behavior of the match
 type MultiMatchQuery_MatchType int32
 
 const (
-	// Finds documents which match any field, but uses the _score from the best field.
+	// Finds documents which match any field, but uses the _score from the best field
 	MultiMatchQuery_BEST_FIELDS MultiMatchQuery_MatchType = 0
-	// Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field.
+	// Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field
 	MultiMatchQuery_PHRASE_PREFIX MultiMatchQuery_MatchType = 1
-	// Finds documents that match across multiple fields, as if they were a single field.
+	// Finds documents that match across multiple fields, as if they were a single field
 	MultiMatchQuery_CROSS_FIELDS MultiMatchQuery_MatchType = 2
 )
 
@@ -631,6 +650,7 @@ func (MultiMatchQuery_MatchType) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{15, 0}
 }
 
+// Decay function types
 type MultiFunctionScoreQuery_DecayType int32
 
 const (
@@ -785,7 +805,7 @@ func (MultiFunctionScoreQuery_BoostMode) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{24, 2}
 }
 
-// null parameter value
+// Null parameter value
 type Script_ParamNullValue int32
 
 const (
@@ -829,13 +849,13 @@ func (Script_ParamNullValue) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{39, 0}
 }
 
-// * How the {TotalHits#value} should be interpreted.
+// How the {TotalHits#value} should be interpreted
 type TotalHits_Relation int32
 
 const (
-	// The total hit count is equal to {@link TotalHits#value}.
+	// The total hit count is equal to {@link TotalHits#value}
 	TotalHits_EQUAL_TO TotalHits_Relation = 0
-	// The total hit count is greater than or equal to {@link TotalHits#value}.
+	// The total hit count is greater than or equal to {@link TotalHits#value}
 	TotalHits_GREATER_THAN_OR_EQUAL_TO TotalHits_Relation = 1
 )
 
@@ -928,7 +948,8 @@ func (BucketOrder_OrderType) EnumDescriptor() ([]byte, []int) {
 type Highlight_Type int32
 
 const (
-	// When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.
+	// When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting,
+	// use the type from the global setting.
 	Highlight_DEFAULT     Highlight_Type = 0
 	Highlight_FAST_VECTOR Highlight_Type = 1
 	// not supported yet
@@ -985,8 +1006,10 @@ type BooleanClause struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Query *Query              `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`                                        // The Query for the clause.
-	Occur BooleanClause_Occur `protobuf:"varint,2,opt,name=occur,proto3,enum=luceneserver.BooleanClause_Occur" json:"occur,omitempty"` // Specifies how this clause must occur in a matching document. SHOULD by default.
+	// The Query for the clause
+	Query *Query `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Specifies how this clause must occur in a matching document. SHOULD by default.
+	Occur BooleanClause_Occur `protobuf:"varint,2,opt,name=occur,proto3,enum=luceneserver.BooleanClause_Occur" json:"occur,omitempty"`
 }
 
 func (x *BooleanClause) Reset() {
@@ -1035,16 +1058,25 @@ func (x *BooleanClause) GetOccur() BooleanClause_Occur {
 	return BooleanClause_SHOULD
 }
 
+// Parameters for fuzzy queries
 type FuzzyParams struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	MaxEdits       int32                      `protobuf:"varint,1,opt,name=maxEdits,proto3" json:"maxEdits,omitempty"`             // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto.
-	PrefixLength   int32                      `protobuf:"varint,2,opt,name=prefixLength,proto3" json:"prefixLength,omitempty"`     // Length of common (non-fuzzy) prefix
-	MaxExpansions  int32                      `protobuf:"varint,3,opt,name=maxExpansions,proto3" json:"maxExpansions,omitempty"`   // The maximum number of terms to match.
-	Transpositions bool                       `protobuf:"varint,4,opt,name=transpositions,proto3" json:"transpositions,omitempty"` // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
-	Auto           *FuzzyParams_AutoFuzziness `protobuf:"bytes,5,opt,name=auto,proto3" json:"auto,omitempty"`                      // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+	// The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+	// Either set this or auto.
+	MaxEdits int32 `protobuf:"varint,1,opt,name=maxEdits,proto3" json:"maxEdits,omitempty"`
+	// Length of common (non-fuzzy) prefix
+	PrefixLength int32 `protobuf:"varint,2,opt,name=prefixLength,proto3" json:"prefixLength,omitempty"`
+	// The maximum number of terms to match
+	MaxExpansions int32 `protobuf:"varint,3,opt,name=maxExpansions,proto3" json:"maxExpansions,omitempty"`
+	// True if transpositions should be treated as a primitive edit operation. If this is false, comparisons
+	// will implement the classic Levenshtein algorithm. Default is true.
+	Transpositions bool `protobuf:"varint,4,opt,name=transpositions,proto3" json:"transpositions,omitempty"`
+	// Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting.
+	// Either set this or maxEdits.
+	Auto *FuzzyParams_AutoFuzziness `protobuf:"bytes,5,opt,name=auto,proto3" json:"auto,omitempty"`
 }
 
 func (x *FuzzyParams) Reset() {
@@ -1114,14 +1146,16 @@ func (x *FuzzyParams) GetAuto() *FuzzyParams_AutoFuzziness {
 	return nil
 }
 
-// A query that matches documents using boolean combinations of other queries.
+// A query that matches documents using boolean combinations of other queries
 type BooleanQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Clauses                  []*BooleanClause `protobuf:"bytes,1,rep,name=clauses,proto3" json:"clauses,omitempty"`                                    // Clauses for a boolean query.
-	MinimumNumberShouldMatch int32            `protobuf:"varint,2,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"` // Minimum number of optional clauses that must match.
+	// Clauses for a boolean query
+	Clauses []*BooleanClause `protobuf:"bytes,1,rep,name=clauses,proto3" json:"clauses,omitempty"`
+	// Minimum number of optional clauses that must match
+	MinimumNumberShouldMatch int32 `protobuf:"varint,2,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"`
 }
 
 func (x *BooleanQuery) Reset() {
@@ -1170,17 +1204,19 @@ func (x *BooleanQuery) GetMinimumNumberShouldMatch() int32 {
 	return 0
 }
 
-// A Query that matches documents containing a particular sequence of terms.
+// A Query that matches documents containing a particular sequence of terms
 type PhraseQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
-	// of terms in a document.
-	Slop  int32    `protobuf:"varint,1,opt,name=slop,proto3" json:"slop,omitempty"`
-	Field string   `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"` // The field in the index that this query applies to.
-	Terms []string `protobuf:"bytes,3,rep,name=terms,proto3" json:"terms,omitempty"` // Terms to match.
+	// of terms in a document
+	Slop int32 `protobuf:"varint,1,opt,name=slop,proto3" json:"slop,omitempty"`
+	// Field in the document to query
+	Field string `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
+	// Terms to match
+	Terms []string `protobuf:"bytes,3,rep,name=terms,proto3" json:"terms,omitempty"`
 }
 
 func (x *PhraseQuery) Reset() {
@@ -1236,19 +1272,19 @@ func (x *PhraseQuery) GetTerms() []string {
 	return nil
 }
 
-// A query that matches documents that contain a specific prefix in a provided field.
+// A query that matches documents that contain a specific prefix in a provided field
 type PrefixQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Document field name.
+	// Document field name
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	// Prefix to search for.
+	// Prefix to search for
 	Prefix string `protobuf:"bytes,2,opt,name=prefix,proto3" json:"prefix,omitempty"`
-	// Method used to rewrite the query.
+	// Method used to rewrite the query
 	Rewrite RewriteMethod `protobuf:"varint,3,opt,name=rewrite,proto3,enum=luceneserver.RewriteMethod" json:"rewrite,omitempty"`
-	// Specifies the size to use for the TOP_TERMS* rewrite methods.
+	// Specifies the size to use for the TOP_TERMS* rewrite methods
 	RewriteTopTermsSize int32 `protobuf:"varint,4,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
 }
 
@@ -1328,9 +1364,9 @@ type TermRangeQuery struct {
 	IncludeLower bool `protobuf:"varint,4,opt,name=include_lower,json=includeLower,proto3" json:"include_lower,omitempty"`
 	// Whether to include the upper bound in the range
 	IncludeUpper bool `protobuf:"varint,5,opt,name=include_upper,json=includeUpper,proto3" json:"include_upper,omitempty"`
-	// Method used to rewrite the query.
+	// Method used to rewrite the query
 	Rewrite RewriteMethod `protobuf:"varint,6,opt,name=rewrite,proto3,enum=luceneserver.RewriteMethod" json:"rewrite,omitempty"`
-	// Specifies the size to use for the TOP_TERMS* rewrite methods.
+	// Specifies the size to use for the TOP_TERMS* rewrite methods
 	RewriteTopTermsSize int32 `protobuf:"varint,7,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
 }
 
@@ -1415,14 +1451,16 @@ func (x *TermRangeQuery) GetRewriteTopTermsSize() int32 {
 	return 0
 }
 
-// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
+// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score
 type FunctionScoreQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Query  *Query  `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`   // Input query
-	Script *Script `protobuf:"bytes,2,opt,name=script,proto3" json:"script,omitempty"` // script definition to compute a custom document score
+	// Input query
+	Query *Query `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Script definition to compute a custom document score
+	Script *Script `protobuf:"bytes,2,opt,name=script,proto3" json:"script,omitempty"`
 }
 
 func (x *FunctionScoreQuery) Reset() {
@@ -1477,7 +1515,8 @@ type FunctionFilterQuery struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Script *Script `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"` // script definition to compute a custom document score
+	// Script definition to compute a custom document score
+	Script *Script `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
 }
 
 func (x *FunctionFilterQuery) Reset() {
@@ -1519,14 +1558,18 @@ func (x *FunctionFilterQuery) GetScript() *Script {
 	return nil
 }
 
+// Query that matches nested documents
 type NestedQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Query     *Query                `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`                                                  // query for the child documents
-	Path      string                `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`                                                    // field name of the nested
-	ScoreMode NestedQuery_ScoreMode `protobuf:"varint,3,opt,name=scoreMode,proto3,enum=luceneserver.NestedQuery_ScoreMode" json:"scoreMode,omitempty"` // how child documents score affects final score
+	// Query for the child documents
+	Query *Query `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Path to the child document
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// How child documents score affects final score
+	ScoreMode NestedQuery_ScoreMode `protobuf:"varint,3,opt,name=scoreMode,proto3,enum=luceneserver.NestedQuery_ScoreMode" json:"scoreMode,omitempty"`
 }
 
 func (x *NestedQuery) Reset() {
@@ -1582,13 +1625,13 @@ func (x *NestedQuery) GetScoreMode() NestedQuery_ScoreMode {
 	return NestedQuery_NONE
 }
 
-// A query that matches documents containing a term.
+// A query that matches documents containing a term
 type TermQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Field in the document to query.
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
 	// Types that are assignable to TermTypes:
 	//
@@ -1694,32 +1737,32 @@ type isTermQuery_TermTypes interface {
 }
 
 type TermQuery_TextValue struct {
-	// TEXT FieldType term to search for.
+	// TEXT FieldType term to search for
 	TextValue string `protobuf:"bytes,2,opt,name=textValue,proto3,oneof"`
 }
 
 type TermQuery_IntValue struct {
-	// INT FieldType term to search for.
+	// INT FieldType term to search for
 	IntValue int32 `protobuf:"varint,3,opt,name=intValue,proto3,oneof"`
 }
 
 type TermQuery_LongValue struct {
-	// LONG FieldType term to search for.
+	// LONG FieldType term to search for
 	LongValue int64 `protobuf:"varint,4,opt,name=longValue,proto3,oneof"`
 }
 
 type TermQuery_FloatValue struct {
-	// FLOAT FieldType term to search for.
+	// FLOAT FieldType term to search for
 	FloatValue float32 `protobuf:"fixed32,5,opt,name=floatValue,proto3,oneof"`
 }
 
 type TermQuery_DoubleValue struct {
-	// DOUBLE FieldType term to search for.
+	// DOUBLE FieldType term to search for
 	DoubleValue float64 `protobuf:"fixed64,6,opt,name=doubleValue,proto3,oneof"`
 }
 
 type TermQuery_BooleanValue struct {
-	// BOOLEAN FieldType term to search for.
+	// BOOLEAN FieldType term to search for
 	BooleanValue bool `protobuf:"varint,7,opt,name=booleanValue,proto3,oneof"`
 }
 
@@ -1735,13 +1778,15 @@ func (*TermQuery_DoubleValue) isTermQuery_TermTypes() {}
 
 func (*TermQuery_BooleanValue) isTermQuery_TermTypes() {}
 
-// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the one that matches the type of the field.
+// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery
+// containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the
+// one that matches the type of the field.
 type TermInSetQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Field in the document to query.
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
 	// Types that are assignable to TermTypes:
 	//
@@ -1839,27 +1884,27 @@ type isTermInSetQuery_TermTypes interface {
 }
 
 type TermInSetQuery_TextTerms_ struct {
-	// Text terms to search for.
+	// TEXT terms to search for.
 	TextTerms *TermInSetQuery_TextTerms `protobuf:"bytes,2,opt,name=textTerms,proto3,oneof"`
 }
 
 type TermInSetQuery_IntTerms_ struct {
-	// Int terms to search for.
+	// INT terms to search for.
 	IntTerms *TermInSetQuery_IntTerms `protobuf:"bytes,3,opt,name=intTerms,proto3,oneof"`
 }
 
 type TermInSetQuery_LongTerms_ struct {
-	// Long terms to search for.
+	// LONG terms to search for.
 	LongTerms *TermInSetQuery_LongTerms `protobuf:"bytes,4,opt,name=longTerms,proto3,oneof"`
 }
 
 type TermInSetQuery_FloatTerms_ struct {
-	// Float terms to search for.
+	// FLOAT terms to search for.
 	FloatTerms *TermInSetQuery_FloatTerms `protobuf:"bytes,5,opt,name=floatTerms,proto3,oneof"`
 }
 
 type TermInSetQuery_DoubleTerms_ struct {
-	// Double terms to search for.
+	// DOUBLE terms to search for.
 	DoubleTerms *TermInSetQuery_DoubleTerms `protobuf:"bytes,6,opt,name=doubleTerms,proto3,oneof"`
 }
 
@@ -1874,14 +1919,18 @@ func (*TermInSetQuery_FloatTerms_) isTermInSetQuery_TermTypes() {}
 func (*TermInSetQuery_DoubleTerms_) isTermInSetQuery_TermTypes() {}
 
 // A query that generates the union of documents produced by its subqueries, and that scores each document with the
-// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional matching subqueries.
+// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional
+// matching subqueries.
 type DisjunctionMaxQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Disjuncts            []*Query `protobuf:"bytes,1,rep,name=disjuncts,proto3" json:"disjuncts,omitempty"`                         // A list of all the disjuncts to add
-	TieBreakerMultiplier float32  `protobuf:"fixed32,2,opt,name=tieBreakerMultiplier,proto3" json:"tieBreakerMultiplier,omitempty"` // The score of each non-maximum disjunct for a document is multiplied by this weight and added into the final score.
+	// A list of all the disjuncts to add
+	Disjuncts []*Query `protobuf:"bytes,1,rep,name=disjuncts,proto3" json:"disjuncts,omitempty"`
+	// The score of each non-maximum disjunct for a document is multiplied by this weight and added into the
+	// final score
+	TieBreakerMultiplier float32 `protobuf:"fixed32,2,opt,name=tieBreakerMultiplier,proto3" json:"tieBreakerMultiplier,omitempty"`
 }
 
 func (x *DisjunctionMaxQuery) Reset() {
@@ -1930,18 +1979,26 @@ func (x *DisjunctionMaxQuery) GetTieBreakerMultiplier() float32 {
 	return 0
 }
 
-// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses.
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are
+// combined using term queries in boolean clauses.
 type MatchQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field                    string        `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`                                        // Field in the document to query.
-	Query                    string        `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`                                        // The text to query with.
-	Operator                 MatchOperator `protobuf:"varint,3,opt,name=operator,proto3,enum=luceneserver.MatchOperator" json:"operator,omitempty"` // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
-	MinimumNumberShouldMatch int32         `protobuf:"varint,4,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"` // Minimum number of optional clauses that must match.
-	Analyzer                 *Analyzer     `protobuf:"bytes,5,opt,name=analyzer,proto3" json:"analyzer,omitempty"`                                  // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-	FuzzyParams              *FuzzyParams  `protobuf:"bytes,6,opt,name=fuzzyParams,proto3" json:"fuzzyParams,omitempty"`                            // Parameters to set the fuzziness of the query
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// The text to query with
+	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	// Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+	Operator MatchOperator `protobuf:"varint,3,opt,name=operator,proto3,enum=luceneserver.MatchOperator" json:"operator,omitempty"`
+	// Minimum number of optional clauses that must match
+	MinimumNumberShouldMatch int32 `protobuf:"varint,4,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"`
+	// Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be
+	// used instead.
+	Analyzer *Analyzer `protobuf:"bytes,5,opt,name=analyzer,proto3" json:"analyzer,omitempty"`
+	// Parameters to set the fuzziness of the query
+	FuzzyParams *FuzzyParams `protobuf:"bytes,6,opt,name=fuzzyParams,proto3" json:"fuzzyParams,omitempty"`
 }
 
 func (x *MatchQuery) Reset() {
@@ -2018,17 +2075,26 @@ func (x *MatchQuery) GetFuzzyParams() *FuzzyParams {
 	return nil
 }
 
-// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined into a PhraseQuery.
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are
+// combined into a PhraseQuery.
 type MatchPhraseQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field          string                     `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`                                                                 // Field in the document to query.
-	Query          string                     `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`                                                                 // The text to query with.
-	Slop           int32                      `protobuf:"varint,3,opt,name=slop,proto3" json:"slop,omitempty"`                                                                  // Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document.
-	Analyzer       *Analyzer                  `protobuf:"bytes,4,opt,name=analyzer,proto3" json:"analyzer,omitempty"`                                                           // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-	ZeroTermsQuery MatchPhraseQuery_ZeroTerms `protobuf:"varint,5,opt,name=zeroTermsQuery,proto3,enum=luceneserver.MatchPhraseQuery_ZeroTerms" json:"zeroTermsQuery,omitempty"` // Indicates whether none or all documents are returned if the analyzer removes all tokens. Valid values are NONE_ZERO_TERMS and ALL_ZERO_TERMS.
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// The text to query with
+	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	// Edit distance between respective positions of tokens generated by analyzing this query and the positions of
+	// terms in a document
+	Slop int32 `protobuf:"varint,3,opt,name=slop,proto3" json:"slop,omitempty"`
+	// Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be
+	// used instead.
+	Analyzer *Analyzer `protobuf:"bytes,4,opt,name=analyzer,proto3" json:"analyzer,omitempty"`
+	// Indicates whether none or all documents are returned if the analyzer removes all tokens. Valid values
+	// are NONE_ZERO_TERMS and ALL_ZERO_TERMS.
+	ZeroTermsQuery MatchPhraseQuery_ZeroTerms `protobuf:"varint,5,opt,name=zeroTermsQuery,proto3,enum=luceneserver.MatchPhraseQuery_ZeroTerms" json:"zeroTermsQuery,omitempty"`
 }
 
 func (x *MatchPhraseQuery) Reset() {
@@ -2098,19 +2164,22 @@ func (x *MatchPhraseQuery) GetZeroTermsQuery() MatchPhraseQuery_ZeroTerms {
 	return MatchPhraseQuery_NONE_ZERO_TERMS
 }
 
-// A query that matches documents containing terms in the same order as those in the analyzed query string. The final analyzed token is treated as a prefix
+// A query that matches documents containing terms in the same order as those in the analyzed query string.
+// The final analyzed token is treated as a prefix
 type MatchPhrasePrefixQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Field in the document to query.
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	// The text to query with.
+	// The text to query with
 	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
-	// Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document.
+	// Edit distance between respective positions of tokens generated by analyzing this query and the positions
+	// of terms in a document
 	Slop int32 `protobuf:"varint,3,opt,name=slop,proto3" json:"slop,omitempty"`
-	// Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+	// Analyzer used to analyze the query. If not provided, the default search analyzer for the field would
+	// be used instead.
 	Analyzer *Analyzer `protobuf:"bytes,4,opt,name=analyzer,proto3" json:"analyzer,omitempty"`
 	// Maximum number of terms to which the last provided term of the query value will expand. Defaults to 50.
 	MaxExpansions int32 `protobuf:"varint,5,opt,name=max_expansions,json=maxExpansions,proto3" json:"max_expansions,omitempty"`
@@ -2183,23 +2252,35 @@ func (x *MatchPhrasePrefixQuery) GetMaxExpansions() int32 {
 	return 0
 }
 
-// A query that creates a match query for each field provided and wraps all the match queries in a disjunction max query.
+// A query that creates a match query for each field provided and wraps all the match queries in a
+// disjunction max query.
 type MultiMatchQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Fields                   []string           `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields,omitempty"`                                                                                                     // Fields in the document to query.
-	Query                    string             `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`                                                                                                       // The text to query with.
-	FieldBoosts              map[string]float32 `protobuf:"bytes,3,rep,name=fieldBoosts,proto3" json:"fieldBoosts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed32,2,opt,name=value,proto3"` // Boosts for each field, if any.
-	Operator                 MatchOperator      `protobuf:"varint,4,opt,name=operator,proto3,enum=luceneserver.MatchOperator" json:"operator,omitempty"`                                                                // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
-	MinimumNumberShouldMatch int32              `protobuf:"varint,5,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"`                                                                // Minimum number of optional clauses that must match.
-	Analyzer                 *Analyzer          `protobuf:"bytes,6,opt,name=analyzer,proto3" json:"analyzer,omitempty"`                                                                                                 // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-	FuzzyParams              *FuzzyParams       `protobuf:"bytes,7,opt,name=fuzzyParams,proto3" json:"fuzzyParams,omitempty"`                                                                                           // Parameters to set the fuzziness of the query
-	TieBreakerMultiplier     float32            `protobuf:"fixed32,8,opt,name=tieBreakerMultiplier,proto3" json:"tieBreakerMultiplier,omitempty"`                                                                       // The score of each non-maximum match query disjunct for a document will be multiplied by this weight and added into the final score.
-	// Type defining match behavior of query.
+	// Fields in the document to query
+	Fields []string `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields,omitempty"`
+	// The text to query with
+	Query string `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	// Boosts for each field, if any
+	FieldBoosts map[string]float32 `protobuf:"bytes,3,rep,name=fieldBoosts,proto3" json:"fieldBoosts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed32,2,opt,name=value,proto3"`
+	// Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+	Operator MatchOperator `protobuf:"varint,4,opt,name=operator,proto3,enum=luceneserver.MatchOperator" json:"operator,omitempty"`
+	// Minimum number of optional clauses that must match
+	MinimumNumberShouldMatch int32 `protobuf:"varint,5,opt,name=minimumNumberShouldMatch,proto3" json:"minimumNumberShouldMatch,omitempty"`
+	// Analyzer used to analyze the query. If not provided, the default search analyzer for the field would
+	// be used instead.
+	Analyzer *Analyzer `protobuf:"bytes,6,opt,name=analyzer,proto3" json:"analyzer,omitempty"`
+	// Parameters to set the fuzziness of the query
+	FuzzyParams *FuzzyParams `protobuf:"bytes,7,opt,name=fuzzyParams,proto3" json:"fuzzyParams,omitempty"`
+	// The score of each non-maximum match query disjunct for a document will be multiplied by this weight
+	// and added into the final score
+	TieBreakerMultiplier float32 `protobuf:"fixed32,8,opt,name=tieBreakerMultiplier,proto3" json:"tieBreakerMultiplier,omitempty"`
+	// Type defining match behavior of query
 	Type MultiMatchQuery_MatchType `protobuf:"varint,9,opt,name=type,proto3,enum=luceneserver.MultiMatchQuery_MatchType" json:"type,omitempty"`
-	// Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document, applies to PHRASE_PREFIX type matching.
+	// Edit distance between respective positions of tokens generated by analyzing this query and the positions
+	// of terms in a document, applies to PHRASE_PREFIX type matching
 	Slop int32 `protobuf:"varint,10,opt,name=slop,proto3" json:"slop,omitempty"`
 	// Maximum number of terms to which the prefix token will expand when using PHRASE_PREFIX matching. Defaults to 50.
 	MaxExpansions int32 `protobuf:"varint,11,opt,name=maxExpansions,proto3" json:"maxExpansions,omitempty"`
@@ -2314,17 +2395,24 @@ func (x *MultiMatchQuery) GetMaxExpansions() int32 {
 	return 0
 }
 
-// A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
+// A query that matches documents with values within the specified range. The lower and upper values though provided
+// as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME
+// field types.
 type RangeQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field          string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`                    // Field in the document to query
-	Lower          string `protobuf:"bytes,2,opt,name=lower,proto3" json:"lower,omitempty"`                    // Lower bound, inclusive by default
-	Upper          string `protobuf:"bytes,3,opt,name=upper,proto3" json:"upper,omitempty"`                    // Upper bound, inclusive by default
-	LowerExclusive bool   `protobuf:"varint,4,opt,name=lowerExclusive,proto3" json:"lowerExclusive,omitempty"` // Set true to make lower bound exclusive
-	UpperExclusive bool   `protobuf:"varint,5,opt,name=upperExclusive,proto3" json:"upperExclusive,omitempty"` // Set true to make upper bound exclusive
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// Lower bound, inclusive by default
+	Lower string `protobuf:"bytes,2,opt,name=lower,proto3" json:"lower,omitempty"`
+	// Upper bound, inclusive by default
+	Upper string `protobuf:"bytes,3,opt,name=upper,proto3" json:"upper,omitempty"`
+	// Set true to make lower bound exclusive
+	LowerExclusive bool `protobuf:"varint,4,opt,name=lowerExclusive,proto3" json:"lowerExclusive,omitempty"`
+	// Set true to make upper bound exclusive
+	UpperExclusive bool `protobuf:"varint,5,opt,name=upperExclusive,proto3" json:"upperExclusive,omitempty"`
 }
 
 func (x *RangeQuery) Reset() {
@@ -2394,15 +2482,18 @@ func (x *RangeQuery) GetUpperExclusive() bool {
 	return false
 }
 
-// A query that matches documents with geopoint within the geo box.
+// A query that matches documents with geopoint within the geo box
 type GeoBoundingBoxQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field       string         `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`             // Field in the document to query
-	TopLeft     *latlng.LatLng `protobuf:"bytes,2,opt,name=topLeft,proto3" json:"topLeft,omitempty"`         // top left corner of the geo box
-	BottomRight *latlng.LatLng `protobuf:"bytes,3,opt,name=bottomRight,proto3" json:"bottomRight,omitempty"` // bottom right corner of the geo box
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// Top left corner of the geo box
+	TopLeft *latlng.LatLng `protobuf:"bytes,2,opt,name=topLeft,proto3" json:"topLeft,omitempty"`
+	// Bottom right corner of the geo box
+	BottomRight *latlng.LatLng `protobuf:"bytes,3,opt,name=bottomRight,proto3" json:"bottomRight,omitempty"`
 }
 
 func (x *GeoBoundingBoxQuery) Reset() {
@@ -2464,9 +2555,12 @@ type GeoRadiusQuery struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field  string         `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`   // Field in the document to query
-	Center *latlng.LatLng `protobuf:"bytes,2,opt,name=center,proto3" json:"center,omitempty"` // target center geo point to calculate distance
-	Radius string         `protobuf:"bytes,3,opt,name=radius,proto3" json:"radius,omitempty"` // distance radius  like "12 km". supports m, km and mi, default to m
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// Target center geo point to calculate distance
+	Center *latlng.LatLng `protobuf:"bytes,2,opt,name=center,proto3" json:"center,omitempty"`
+	// Distance radius like "12 km". supports m, km and mi, default to m
+	Radius string `protobuf:"bytes,3,opt,name=radius,proto3" json:"radius,omitempty"`
 }
 
 func (x *GeoRadiusQuery) Reset() {
@@ -2522,14 +2616,16 @@ func (x *GeoRadiusQuery) GetRadius() string {
 	return ""
 }
 
-// A query that matches documents with polygon that contains the geo point.
+// A query that matches documents with polygon that contains the geo point
 type GeoPointQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field string         `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"` // Field in the document to query
-	Point *latlng.LatLng `protobuf:"bytes,2,opt,name=point,proto3" json:"point,omitempty"` // point used to query whether the polygon contains it.
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
+	// Point to check if the polygon contains
+	Point *latlng.LatLng `protobuf:"bytes,2,opt,name=point,proto3" json:"point,omitempty"`
 }
 
 func (x *GeoPointQuery) Reset() {
@@ -2584,7 +2680,9 @@ type Polygon struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side.
+	// Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be
+	// self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian.
+	// Instead, use two polygons: one on each side.
 	Points []*latlng.LatLng `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
 	// Specify holes in the polygon. Hole polygons cannot themselves contain holes.
 	Holes []*Polygon `protobuf:"bytes,2,rep,name=holes,proto3" json:"holes,omitempty"`
@@ -2694,13 +2792,14 @@ func (x *GeoPolygonQuery) GetPolygons() []*Polygon {
 	return nil
 }
 
-// A query that matches documents which contain a value for a field.
+// A query that matches documents which contain a value for a field
 type ExistsQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"` // Field in the document to query
+	// Field in the document to query
+	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
 }
 
 func (x *ExistsQuery) Reset() {
@@ -2834,7 +2933,7 @@ type MultiFunctionScoreQuery struct {
 	BoostMode MultiFunctionScoreQuery_BoostMode `protobuf:"varint,4,opt,name=boost_mode,json=boostMode,proto3,enum=luceneserver.MultiFunctionScoreQuery_BoostMode" json:"boost_mode,omitempty"`
 	// Optional minimal score to match a document. By default, it's 0.
 	MinScore float32 `protobuf:"fixed32,5,opt,name=min_score,json=minScore,proto3" json:"min_score,omitempty"`
-	// Determine minimal score is excluded or not. By default, it's false;
+	// Determine minimal score is excluded or not. By default, it's false.
 	MinExcluded bool `protobuf:"varint,6,opt,name=min_excluded,json=minExcluded,proto3" json:"min_excluded,omitempty"`
 }
 
@@ -2912,7 +3011,7 @@ func (x *MultiFunctionScoreQuery) GetMinExcluded() bool {
 	return false
 }
 
-// Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query.
+// Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query
 type ConstantScoreQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3057,17 +3156,19 @@ func (*SpanQuery_SpanNearQuery) isSpanQuery_Query() {}
 
 func (*SpanQuery_SpanMultiTermQuery) isSpanQuery_Query() {}
 
-// A query that matches documents containing terms matching a pattern.
+// A query that matches documents containing terms matching a pattern
 type WildcardQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Text  string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	// Method used to rewrite the query.
+	// Pattern to search for
+	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	// Method used to rewrite the query
 	Rewrite RewriteMethod `protobuf:"varint,3,opt,name=rewrite,proto3,enum=luceneserver.RewriteMethod" json:"rewrite,omitempty"`
-	// Specifies the size to use for the TOP_TERMS* rewrite methods.
+	// Specifies the size to use for the TOP_TERMS* rewrite methods
 	RewriteTopTermsSize int32 `protobuf:"varint,4,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
 }
 
@@ -3131,27 +3232,33 @@ func (x *WildcardQuery) GetRewriteTopTermsSize() int32 {
 	return 0
 }
 
-// A query that matches documents containing terms similar to the specified term.
+// A query that matches documents containing terms similar to the specified term
 type FuzzyQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Text  string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	// The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto. Default is 2.
+	// Term to search for
+	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	// The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+	// Either set this or auto. Default is 2.
 	MaxEdits *int32 `protobuf:"varint,3,opt,name=maxEdits,proto3,oneof" json:"maxEdits,omitempty"`
 	// Length of common (non-fuzzy) prefix. Default is 0.
 	PrefixLength *int32 `protobuf:"varint,4,opt,name=prefixLength,proto3,oneof" json:"prefixLength,omitempty"`
 	// The maximum number of terms to match. Default is 50.
 	MaxExpansions *int32 `protobuf:"varint,5,opt,name=maxExpansions,proto3,oneof" json:"maxExpansions,omitempty"`
-	// True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
+	// True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will
+	// implement the classic Levenshtein algorithm. Default is true.
 	Transpositions *bool `protobuf:"varint,6,opt,name=transpositions,proto3,oneof" json:"transpositions,omitempty"`
-	// Method used to rewrite the query.
+	// Method used to rewrite the query
 	Rewrite RewriteMethod `protobuf:"varint,7,opt,name=rewrite,proto3,enum=luceneserver.RewriteMethod" json:"rewrite,omitempty"`
-	// Specifies the size to use for the TOP_TERMS* rewrite methods.
-	RewriteTopTermsSize int32                      `protobuf:"varint,8,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
-	Auto                *FuzzyParams_AutoFuzziness `protobuf:"bytes,9,opt,name=auto,proto3" json:"auto,omitempty"` // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+	// Specifies the size to use for the TOP_TERMS* rewrite methods
+	RewriteTopTermsSize int32 `protobuf:"varint,8,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
+	// Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting.
+	// Either set this or maxEdits.
+	Auto *FuzzyParams_AutoFuzziness `protobuf:"bytes,9,opt,name=auto,proto3" json:"auto,omitempty"`
 }
 
 func (x *FuzzyQuery) Reset() {
@@ -3381,15 +3488,18 @@ type RegexpQuery struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Field in the document to query
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Text  string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	// Regular expression to search for
+	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
 	// Optional flags for the regular expression
 	Flag RegexpFlag `protobuf:"varint,3,opt,name=flag,proto3,enum=luceneserver.RegexpFlag" json:"flag,omitempty"`
-	// maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more complex queries and lower to prevent memory exhaustion. Default is 10000.
+	// Maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more
+	// complex queries and lower to prevent memory exhaustion. Default is 10000.
 	MaxDeterminizedStates *int32 `protobuf:"varint,4,opt,name=maxDeterminizedStates,proto3,oneof" json:"maxDeterminizedStates,omitempty"`
-	// Method used to rewrite the query.
+	// Method used to rewrite the query
 	Rewrite RewriteMethod `protobuf:"varint,5,opt,name=rewrite,proto3,enum=luceneserver.RewriteMethod" json:"rewrite,omitempty"`
-	// Specifies the size to use for the TOP_TERMS* rewrite methods.
+	// Specifies the size to use for the TOP_TERMS* rewrite methods
 	RewriteTopTermsSize int32 `protobuf:"varint,6,opt,name=rewriteTopTermsSize,proto3" json:"rewriteTopTermsSize,omitempty"`
 }
 
@@ -3467,17 +3577,17 @@ func (x *RegexpQuery) GetRewriteTopTermsSize() int32 {
 	return 0
 }
 
-// A query that matches documents containing terms within a specified range.
+// A query that matches documents containing terms within a specified range
 type SpanNearQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Clauses for a span near query.
+	// Clauses for a span near query
 	Clauses []*SpanQuery `protobuf:"bytes,1,rep,name=clauses,proto3" json:"clauses,omitempty"`
-	// Maximum number of positions between matching terms.
+	// Maximum number of positions between matching terms
 	Slop int32 `protobuf:"varint,2,opt,name=slop,proto3" json:"slop,omitempty"`
-	// True if the matching terms must be in the same order as the query.
+	// True if the matching terms must be in the same order as the query
 	InOrder bool `protobuf:"varint,3,opt,name=inOrder,proto3" json:"inOrder,omitempty"`
 }
 
@@ -3573,15 +3683,20 @@ func (*MatchAllQuery) Descriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{32}
 }
 
-// Defines a full query consisting of a QueryNode which may be one of several types.
+// Defines a full query consisting of a QueryNode which may be one of several types
 type Query struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// No longer needed, type inferred from set QueryNode
+	//
 	// Deprecated: Do not use.
-	QueryType QueryType `protobuf:"varint,1,opt,name=queryType,proto3,enum=luceneserver.QueryType" json:"queryType,omitempty"` // no longer needed, type inferred from set QueryNode
-	Boost     float32   `protobuf:"fixed32,2,opt,name=boost,proto3" json:"boost,omitempty"`                                    // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
+	QueryType QueryType `protobuf:"varint,1,opt,name=queryType,proto3,enum=luceneserver.QueryType" json:"queryType,omitempty"`
+	// Boost values that are less than one will give less importance to this query compared to other ones while
+	// values that are greater than one will give more importance to the scores returned by this query. Boost
+	// value of zero will do nothing (default). Boost less than 0 is invalid.
+	Boost float32 `protobuf:"fixed32,2,opt,name=boost,proto3" json:"boost,omitempty"`
 	// Types that are assignable to QueryNode:
 	//
 	//	*Query_BooleanQuery
@@ -3981,43 +4096,64 @@ func (*Query_SpanQuery) isQuery_QueryNode() {}
 
 func (*Query_MatchAllQuery) isQuery_QueryNode() {}
 
+// Search query request
 type SearchRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"` //index to search against
-	StartHit  int32  `protobuf:"varint,2,opt,name=startHit,proto3" json:"startHit,omitempty"`  // Which hit to start from (for pagination); default: 0
-	TopHits   int32  `protobuf:"varint,3,opt,name=topHits,proto3" json:"topHits,omitempty"`    // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
+	// Index to search against
+	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"`
+	// Which hit to start from (for pagination); default: 0
+	StartHit int32 `protobuf:"varint,2,opt,name=startHit,proto3" json:"startHit,omitempty"`
+	// How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0.
+	// For pagination: set it to startHit + window_size.
+	TopHits int32 `protobuf:"varint,3,opt,name=topHits,proto3" json:"topHits,omitempty"`
 	// Maximum number of seconds spent on each collection phase; note that for
 	// multi-pass searches (e.g. query-time grouping), this timeout applies to each phase.
-	TimeoutSec     float64         `protobuf:"fixed64,4,opt,name=timeoutSec,proto3" json:"timeoutSec,omitempty"`
-	RetrieveFields []string        `protobuf:"bytes,5,rep,name=retrieveFields,proto3" json:"retrieveFields,omitempty"` //Which fields to highlight or retrieve.
-	QueryText      string          `protobuf:"bytes,6,opt,name=queryText,proto3" json:"queryText,omitempty"`           //Query text to parse using the specified QueryParser.
-	VirtualFields  []*VirtualField `protobuf:"bytes,7,rep,name=virtualFields,proto3" json:"virtualFields,omitempty"`   //Defines virtual fields (name'd dynamic expressions) for this query.
-	Query          *Query          `protobuf:"bytes,8,opt,name=query,proto3" json:"query,omitempty"`                   // Full query to execute using QueryNodes
-	QuerySort      *QuerySortField `protobuf:"bytes,9,opt,name=querySort,proto3" json:"querySort,omitempty"`           //Sort hits by field (default is by relevance).
+	TimeoutSec float64 `protobuf:"fixed64,4,opt,name=timeoutSec,proto3" json:"timeoutSec,omitempty"`
+	// Which fields to retrieve
+	RetrieveFields []string `protobuf:"bytes,5,rep,name=retrieveFields,proto3" json:"retrieveFields,omitempty"`
+	// Query text to parse using the specified QueryParser. If query is provided, this is ignored.
+	QueryText string `protobuf:"bytes,6,opt,name=queryText,proto3" json:"queryText,omitempty"`
+	// Defines virtual fields (named dynamic expressions) for this query
+	VirtualFields []*VirtualField `protobuf:"bytes,7,rep,name=virtualFields,proto3" json:"virtualFields,omitempty"`
+	// Full query to execute
+	Query *Query `protobuf:"bytes,8,opt,name=query,proto3" json:"query,omitempty"`
+	// Sort hits by field (default is by relevance)
+	QuerySort *QuerySortField `protobuf:"bytes,9,opt,name=querySort,proto3" json:"querySort,omitempty"`
 	// Types that are assignable to Searcher:
 	//
 	//	*SearchRequest_IndexGen
 	//	*SearchRequest_Version
 	//	*SearchRequest_Snapshot
-	Searcher               isSearchRequest_Searcher `protobuf_oneof:"Searcher"`
-	TotalHitsThreshold     int32                    `protobuf:"varint,13,opt,name=totalHitsThreshold,proto3" json:"totalHitsThreshold,omitempty"`         //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
-	Facets                 []*Facet                 `protobuf:"bytes,14,rep,name=facets,proto3" json:"facets,omitempty"`                                  // Which facets to retrieve
-	FetchTasks             []*FetchTask             `protobuf:"bytes,15,rep,name=fetchTasks,proto3" json:"fetchTasks,omitempty"`                          //Any custom tasks that should be performed on top documents after ranking
-	DisallowPartialResults bool                     `protobuf:"varint,16,opt,name=disallowPartialResults,proto3" json:"disallowPartialResults,omitempty"` //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
-	QueryNestedPath        string                   `protobuf:"bytes,17,opt,name=queryNestedPath,proto3" json:"queryNestedPath,omitempty"`                //nested path we want to query by if we want to query child documents.
-	Rescorers              []*Rescorer              `protobuf:"bytes,18,rep,name=rescorers,proto3" json:"rescorers,omitempty"`                            // Rescorers which are executed in-order after the first pass
+	Searcher isSearchRequest_Searcher `protobuf_oneof:"Searcher"`
+	// By default we count hits accurately up to 1000. This makes sure that we don't spend most time on
+	// computing hit counts.
+	TotalHitsThreshold int32 `protobuf:"varint,13,opt,name=totalHitsThreshold,proto3" json:"totalHitsThreshold,omitempty"`
+	// Which facets to retrieve
+	Facets []*Facet `protobuf:"bytes,14,rep,name=facets,proto3" json:"facets,omitempty"`
+	// Any custom tasks that should be performed on top documents after ranking
+	FetchTasks []*FetchTask `protobuf:"bytes,15,rep,name=fetchTasks,proto3" json:"fetchTasks,omitempty"`
+	// Should partial result be a failure condition. Applies when a search request times out. If false, the top
+	// documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to
+	// true in the response.
+	DisallowPartialResults bool `protobuf:"varint,16,opt,name=disallowPartialResults,proto3" json:"disallowPartialResults,omitempty"`
+	// Nested path we want to query by if we want to query child documents
+	QueryNestedPath string `protobuf:"bytes,17,opt,name=queryNestedPath,proto3" json:"queryNestedPath,omitempty"`
+	// Rescorers which are executed in-order after the first pass
+	Rescorers []*Rescorer `protobuf:"bytes,18,rep,name=rescorers,proto3" json:"rescorers,omitempty"`
 	// If detailed request execution profiling should be included in the response
 	Profile bool `protobuf:"varint,19,opt,name=profile,proto3" json:"profile,omitempty"`
-	// Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
+	// Check the search timeout condition after each collection of n documents in a segment.
+	// If 0, timeout is only checked on the segment boundary.
 	TimeoutCheckEvery int32 `protobuf:"varint,20,opt,name=timeoutCheckEvery,proto3" json:"timeoutCheckEvery,omitempty"`
 	// Additional document collectors. Provides support for operations such as aggregation.
 	Collectors map[string]*Collector `protobuf:"bytes,21,rep,name=collectors,proto3" json:"collectors,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Stop document collection in search phase after this many documents, 0 for unlimited.
+	// Stop document collection in search phase after this many documents, 0 for unlimited
 	TerminateAfter int32 `protobuf:"varint,22,opt,name=terminateAfter,proto3" json:"terminateAfter,omitempty"`
-	// Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
+	// Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to
+	// uncompressed. Valid codecs: identity, gzip, lz4
 	ResponseCompression string `protobuf:"bytes,23,opt,name=responseCompression,proto3" json:"responseCompression,omitempty"`
 	// Specify how to highlight matched text
 	Highlight *Highlight `protobuf:"bytes,24,opt,name=highlight,proto3" json:"highlight,omitempty"`
@@ -4027,13 +4163,15 @@ type SearchRequest struct {
 	InnerHits map[string]*InnerHit `protobuf:"bytes,26,rep,name=inner_hits,json=innerHits,proto3" json:"inner_hits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Defines runtime fields for this query
 	RuntimeFields []*RuntimeField `protobuf:"bytes,27,rep,name=runtimeFields,proto3" json:"runtimeFields,omitempty"`
-	// Stop document collection in search phase after this many recalled documents, after terminateAfter docs will be counted but not scored upto terminateAfterMaxRecallCount.
+	// Stop document collection in search phase after this many recalled documents, after terminateAfter docs
+	// will be counted but not scored upto terminateAfterMaxRecallCount
 	TerminateAfterMaxRecallCount int32 `protobuf:"varint,28,opt,name=terminateAfterMaxRecallCount,proto3" json:"terminateAfterMaxRecallCount,omitempty"`
 	// Any custom logging that should log hits after ranking
 	LoggingHits *LoggingHits `protobuf:"bytes,29,opt,name=loggingHits,proto3" json:"loggingHits,omitempty"`
 	// Keeps tracks of last hit for search after
 	SearchAfter *LastHitInfo `protobuf:"bytes,30,opt,name=searchAfter,proto3" json:"searchAfter,omitempty"`
-	// Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic
+	// Request kNN vector search queries, results will be combined with the standard query (if provided) using
+	// the boolean query SHOULD logic
 	Knn []*KnnQuery `protobuf:"bytes,31,rep,name=knn,proto3" json:"knn,omitempty"`
 }
 
@@ -4298,15 +4436,21 @@ type isSearchRequest_Searcher interface {
 }
 
 type SearchRequest_IndexGen struct {
-	IndexGen int64 `protobuf:"varint,10,opt,name=indexGen,proto3,oneof"` //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
+	// Search a generation previously returned by an indexing operation such as #addDocument.
+	// Use this to search a non-committed (near-real-time) view of the index.
+	IndexGen int64 `protobuf:"varint,10,opt,name=indexGen,proto3,oneof"`
 }
 
 type SearchRequest_Version struct {
-	Version int64 `protobuf:"varint,11,opt,name=version,proto3,oneof"` //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
+	// Search a specific searcher version. This is typically used by follow-on searches
+	// (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by
+	// the original search.
+	Version int64 `protobuf:"varint,11,opt,name=version,proto3,oneof"`
 }
 
 type SearchRequest_Snapshot struct {
-	Snapshot string `protobuf:"bytes,12,opt,name=snapshot,proto3,oneof"` //Search a snapshot previously created with #createSnapshot
+	// Search a snapshot previously created with #createSnapshot
+	Snapshot string `protobuf:"bytes,12,opt,name=snapshot,proto3,oneof"`
 }
 
 func (*SearchRequest_IndexGen) isSearchRequest_Searcher() {}
@@ -4321,9 +4465,12 @@ type LastHitInfo struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Last hit sort field values
 	LastFieldValues []string `protobuf:"bytes,1,rep,name=lastFieldValues,proto3" json:"lastFieldValues,omitempty"`
-	LastDocId       int32    `protobuf:"varint,2,opt,name=lastDocId,proto3" json:"lastDocId,omitempty"`
-	LastScore       float32  `protobuf:"fixed32,3,opt,name=lastScore,proto3" json:"lastScore,omitempty"`
+	// Last hit Lucene doc id
+	LastDocId int32 `protobuf:"varint,2,opt,name=lastDocId,proto3" json:"lastDocId,omitempty"`
+	// Last hit score
+	LastScore float32 `protobuf:"fixed32,3,opt,name=lastScore,proto3" json:"lastScore,omitempty"`
 }
 
 func (x *LastHitInfo) Reset() {
@@ -4385,19 +4532,20 @@ type InnerHit struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Nested path to search against assuming same index as the parent Query.
+	// Nested path to search against assuming same index as the parent Query
 	QueryNestedPath string `protobuf:"bytes,1,opt,name=query_nested_path,json=queryNestedPath,proto3" json:"query_nested_path,omitempty"`
 	// Which hit to start from (for pagination); default: 0
 	StartHit int32 `protobuf:"varint,2,opt,name=start_hit,json=startHit,proto3" json:"start_hit,omitempty"`
-	// How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
+	// How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0.
+	// For pagination: set it to startHit + window_size.
 	TopHits int32 `protobuf:"varint,3,opt,name=top_hits,json=topHits,proto3" json:"top_hits,omitempty"`
-	// InnerHit query to query against the nested documents specified by queryNestedPath.
+	// InnerHit query to query against the nested documents specified by queryNestedPath
 	InnerQuery *Query `protobuf:"bytes,4,opt,name=inner_query,json=innerQuery,proto3" json:"inner_query,omitempty"`
-	// Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
+	// Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit
 	RetrieveFields []string `protobuf:"bytes,5,rep,name=retrieve_fields,json=retrieveFields,proto3" json:"retrieve_fields,omitempty"`
-	// Sort hits by field (default is by relevance).
+	// Sort hits by field (default is by relevance)
 	QuerySort *QuerySortField `protobuf:"bytes,6,opt,name=query_sort,json=querySort,proto3" json:"query_sort,omitempty"`
-	// Highlight the children documents.
+	// Highlight the children documents
 	Highlight *Highlight `protobuf:"bytes,7,opt,name=highlight,proto3" json:"highlight,omitempty"`
 }
 
@@ -4488,8 +4636,10 @@ type VirtualField struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Script *Script `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"` // Script defining this field's values.
-	Name   string  `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`     // Virtual field's name. Must be different from registered fields and any other virtual fields.
+	// Script defining this field's values
+	Script *Script `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
+	// Virtual field's name. Must be different from registered fields and any other virtual fields.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 }
 
 func (x *VirtualField) Reset() {
@@ -4544,7 +4694,7 @@ type RuntimeField struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Script defining this field's values.
+	// Script defining this field's values
 	Script *Script `protobuf:"bytes,1,opt,name=script,proto3" json:"script,omitempty"`
 	// Runtime field's name. Must be different from registered fields and any other runtime fields.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -4596,14 +4746,18 @@ func (x *RuntimeField) GetName() string {
 	return ""
 }
 
+// Definition of user-defined script
 type Script struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Lang   string                        `protobuf:"bytes,1,opt,name=lang,proto3" json:"lang,omitempty"`                                                                                             // script language
-	Source string                        `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`                                                                                         // script source
-	Params map[string]*Script_ParamValue `protobuf:"bytes,7,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // parameters passed into script execution
+	// Script language
+	Lang string `protobuf:"bytes,1,opt,name=lang,proto3" json:"lang,omitempty"`
+	// Script source
+	Source string `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	// Parameters passed into script execution
+	Params map[string]*Script_ParamValue `protobuf:"bytes,7,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *Script) Reset() {
@@ -4659,14 +4813,18 @@ func (x *Script) GetParams() map[string]*Script_ParamValue {
 	return nil
 }
 
+// Definition doing ranking by sorting on fields
 type QuerySortField struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	DoDocScores bool        `protobuf:"varint,1,opt,name=doDocScores,proto3" json:"doDocScores,omitempty"` //Compute the doc score for each collected (costs added CPU); default:false
-	DoMaxScore  bool        `protobuf:"varint,2,opt,name=doMaxScore,proto3" json:"doMaxScore,omitempty"`   //Compute the max score across all hits (costs added CPU); default: false
-	Fields      *SortFields `protobuf:"bytes,3,opt,name=fields,proto3" json:"fields,omitempty"`            //List of Fields to sort on.
+	// Compute the doc score for each collected (costs added CPU); default:false
+	DoDocScores bool `protobuf:"varint,1,opt,name=doDocScores,proto3" json:"doDocScores,omitempty"`
+	// Compute the max score across all hits (costs added CPU); default: false
+	DoMaxScore bool `protobuf:"varint,2,opt,name=doMaxScore,proto3" json:"doMaxScore,omitempty"`
+	// List of Fields to sort on
+	Fields *SortFields `protobuf:"bytes,3,opt,name=fields,proto3" json:"fields,omitempty"`
 }
 
 func (x *QuerySortField) Reset() {
@@ -4728,6 +4886,7 @@ type SortFields struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Fields to sort on
 	SortedFields []*SortType `protobuf:"bytes,1,rep,name=sortedFields,proto3" json:"sortedFields,omitempty"`
 }
 
@@ -4770,15 +4929,18 @@ func (x *SortFields) GetSortedFields() []*SortType {
 	return nil
 }
 
-// "The field to sort on. Pass <code>docid</code> for index order and <code>score</code> for relevance sort.
+// The field to sort on. Pass 'docid' for index order and 'score' for relevance sort.
 type SortType struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	FieldName string   `protobuf:"bytes,1,opt,name=fieldName,proto3" json:"fieldName,omitempty"`                           // name of field to sort
-	Selector  Selector `protobuf:"varint,2,opt,name=selector,proto3,enum=luceneserver.Selector" json:"selector,omitempty"` // For multi valued fields, how to select which value is used for sorting
-	Origin    *Point   `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`                                 // For distance sort, the point that we measure distance from
+	// Name of field to sort on
+	FieldName string `protobuf:"bytes,1,opt,name=fieldName,proto3" json:"fieldName,omitempty"`
+	// For multi valued fields, how to select which value is used for sorting
+	Selector Selector `protobuf:"varint,2,opt,name=selector,proto3,enum=luceneserver.Selector" json:"selector,omitempty"`
+	// For distance sort, the point that we measure distance from
+	Origin *Point `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`
 	// Whether missing values should sort last instead of first.
 	// Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
 	// be at the end.
@@ -4863,13 +5025,14 @@ func (x *SortType) GetUnit() string {
 	return ""
 }
 
+// Query total hits
 type TotalHits struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	Relation TotalHits_Relation `protobuf:"varint,1,opt,name=relation,proto3,enum=luceneserver.TotalHits_Relation" json:"relation,omitempty"`
-	// * The value of the total hit count. Must be interpreted in the context of * {#relation}.
+	// The value of the total hit count. Must be interpreted in the context of {#relation}.
 	Value int64 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
 }
 
@@ -4925,8 +5088,10 @@ type Point struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Latitude  float64 `protobuf:"fixed64,1,opt,name=latitude,proto3" json:"latitude,omitempty"`   // Latitude of the point
-	Longitude float64 `protobuf:"fixed64,2,opt,name=longitude,proto3" json:"longitude,omitempty"` // Longitude of the point
+	// Latitude of the point
+	Latitude float64 `protobuf:"fixed64,1,opt,name=latitude,proto3" json:"latitude,omitempty"`
+	// Longitude of the point
+	Longitude float64 `protobuf:"fixed64,2,opt,name=longitude,proto3" json:"longitude,omitempty"`
 }
 
 func (x *Point) Reset() {
@@ -4975,17 +5140,24 @@ func (x *Point) GetLongitude() float64 {
 	return 0
 }
 
+// Response to a search request
 type SearchResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Query diagnostics
 	Diagnostics *SearchResponse_Diagnostics `protobuf:"bytes,1,opt,name=diagnostics,proto3" json:"diagnostics,omitempty"`
-	HitTimeout  bool                        `protobuf:"varint,2,opt,name=hitTimeout,proto3" json:"hitTimeout,omitempty"` // Set to true if search times out and a degraded response is returned
-	TotalHits   *TotalHits                  `protobuf:"bytes,3,opt,name=totalHits,proto3" json:"totalHits,omitempty"`
-	Hits        []*SearchResponse_Hit       `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
+	// Set to true if search times out and a degraded response is returned
+	HitTimeout bool `protobuf:"varint,2,opt,name=hitTimeout,proto3" json:"hitTimeout,omitempty"`
+	// Total hits for the query
+	TotalHits *TotalHits `protobuf:"bytes,3,opt,name=totalHits,proto3" json:"totalHits,omitempty"`
+	// Ranked top hits
+	Hits []*SearchResponse_Hit `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
+	// State for use in subsequent searches (search after)
 	SearchState *SearchResponse_SearchState `protobuf:"bytes,5,opt,name=searchState,proto3" json:"searchState,omitempty"`
-	FacetResult []*FacetResult              `protobuf:"bytes,6,rep,name=facetResult,proto3" json:"facetResult,omitempty"` ////Counts or aggregates for a single dimension
+	// Counts or aggregates for a single dimension
+	FacetResult []*FacetResult `protobuf:"bytes,6,rep,name=facetResult,proto3" json:"facetResult,omitempty"`
 	// Detailed stats returned when profile=true in request
 	ProfileResult *ProfileResult `protobuf:"bytes,7,opt,name=profileResult,proto3" json:"profileResult,omitempty"`
 	// Results from any additional document collectors
@@ -5089,16 +5261,22 @@ func (x *SearchResponse) GetTerminatedEarly() bool {
 	return false
 }
 
+// Define numeric range for facet
 type NumericRangeType struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Label        string `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"`                //Label for this range
-	Min          int64  `protobuf:"varint,2,opt,name=min,proto3" json:"min,omitempty"`                   //Min value for the range
-	MinInclusive bool   `protobuf:"varint,3,opt,name=minInclusive,proto3" json:"minInclusive,omitempty"` //True if the min value is inclusive
-	Max          int64  `protobuf:"varint,4,opt,name=max,proto3" json:"max,omitempty"`                   //Max value for the range
-	MaxInclusive bool   `protobuf:"varint,5,opt,name=maxInclusive,proto3" json:"maxInclusive,omitempty"` //True if the max value is inclusive
+	// Label for this range
+	Label string `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"`
+	// Min value for the range
+	Min int64 `protobuf:"varint,2,opt,name=min,proto3" json:"min,omitempty"`
+	// True if the min value is inclusive
+	MinInclusive bool `protobuf:"varint,3,opt,name=minInclusive,proto3" json:"minInclusive,omitempty"`
+	// Max value for the range
+	Max int64 `protobuf:"varint,4,opt,name=max,proto3" json:"max,omitempty"`
+	// True if the max value is inclusive
+	MaxInclusive bool `protobuf:"varint,5,opt,name=maxInclusive,proto3" json:"maxInclusive,omitempty"`
 }
 
 func (x *NumericRangeType) Reset() {
@@ -5168,21 +5346,32 @@ func (x *NumericRangeType) GetMaxInclusive() bool {
 	return false
 }
 
+// Facet request definition
 type Facet struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Dim          string              `protobuf:"bytes,1,opt,name=dim,proto3" json:"dim,omitempty"`                   //Dimension (field)
-	Paths        []string            `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`               //Prefix path to facet 'under'
-	NumericRange []*NumericRangeType `protobuf:"bytes,3,rep,name=numericRange,proto3" json:"numericRange,omitempty"` //Custom numeric ranges.  Field must be indexed with facet=numericRange.
+	// Dimension (field)
+	Dim string `protobuf:"bytes,1,opt,name=dim,proto3" json:"dim,omitempty"`
+	// Prefix path to facet 'under'
+	Paths []string `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
+	// Custom numeric ranges. Field must be indexed with facet=numericRange.
+	NumericRange []*NumericRangeType `protobuf:"bytes,3,rep,name=numericRange,proto3" json:"numericRange,omitempty"`
+	// No longer used
+	//
 	// Deprecated: Do not use.
-	UseOrdsCache  bool     `protobuf:"varint,4,opt,name=useOrdsCache,proto3" json:"useOrdsCache,omitempty"`   // True if the ordinals cache should be used
-	Labels        []string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty"`                // Specific facet labels to retrieve
-	TopN          int32    `protobuf:"varint,6,opt,name=topN,proto3" json:"topN,omitempty"`                   //How many top facets to return
-	Script        *Script  `protobuf:"bytes,7,opt,name=script,proto3" json:"script,omitempty"`                //FacetScript definition to use in place of index facet
-	SampleTopDocs int32    `protobuf:"varint,8,opt,name=sampleTopDocs,proto3" json:"sampleTopDocs,omitempty"` //Facet over the top N ranked documents, instead of all hits. Only works with field doc values.
-	Name          string   `protobuf:"bytes,9,opt,name=name,proto3" json:"name,omitempty"`                    //Name for this facet
+	UseOrdsCache bool `protobuf:"varint,4,opt,name=useOrdsCache,proto3" json:"useOrdsCache,omitempty"`
+	// Specific facet labels to retrieve
+	Labels []string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty"`
+	// How many top facets to return
+	TopN int32 `protobuf:"varint,6,opt,name=topN,proto3" json:"topN,omitempty"`
+	// FacetScript definition to use in place of index facet
+	Script *Script `protobuf:"bytes,7,opt,name=script,proto3" json:"script,omitempty"`
+	// Facet over the top N ranked documents, instead of all hits. Only works with field doc values.
+	SampleTopDocs int32 `protobuf:"varint,8,opt,name=sampleTopDocs,proto3" json:"sampleTopDocs,omitempty"`
+	// Name for this facet
+	Name string `protobuf:"bytes,9,opt,name=name,proto3" json:"name,omitempty"`
 }
 
 func (x *Facet) Reset() {
@@ -5281,17 +5470,25 @@ func (x *Facet) GetName() string {
 	return ""
 }
 
+// Result of facet collection
 type FacetResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Dim         string           `protobuf:"bytes,1,opt,name=dim,proto3" json:"dim,omitempty"`                 //Dimension that was requested
-	Path        []string         `protobuf:"bytes,2,rep,name=path,proto3" json:"path,omitempty"`               //Path whose children were requested.
-	Value       float64          `protobuf:"fixed64,3,opt,name=value,proto3" json:"value,omitempty"`           //Total value for this path (sum of all child counts, or sum of all child values), even those not included in the topN.
-	LabelValues []*LabelAndValue `protobuf:"bytes,4,rep,name=labelValues,proto3" json:"labelValues,omitempty"` // Child counts.
-	ChildCount  int64            `protobuf:"varint,5,opt,name=childCount,proto3" json:"childCount,omitempty"`  //How many child labels were encountered.
-	Name        string           `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`               //Name for this facet
+	// Dimension that was requested
+	Dim string `protobuf:"bytes,1,opt,name=dim,proto3" json:"dim,omitempty"`
+	// Path whose children were requested
+	Path []string `protobuf:"bytes,2,rep,name=path,proto3" json:"path,omitempty"`
+	// Total value for this path (sum of all child counts, or sum of all child values), even those not included
+	// in the topN
+	Value float64 `protobuf:"fixed64,3,opt,name=value,proto3" json:"value,omitempty"`
+	// Child counts
+	LabelValues []*LabelAndValue `protobuf:"bytes,4,rep,name=labelValues,proto3" json:"labelValues,omitempty"`
+	// How many child labels were encountered
+	ChildCount int64 `protobuf:"varint,5,opt,name=childCount,proto3" json:"childCount,omitempty"`
+	// Name for this facet
+	Name string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 }
 
 func (x *FacetResult) Reset() {
@@ -5368,6 +5565,7 @@ func (x *FacetResult) GetName() string {
 	return ""
 }
 
+// Facet result label and value
 type LabelAndValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -5423,13 +5621,16 @@ func (x *LabelAndValue) GetValue() float64 {
 	return 0
 }
 
+// Define additional task to perform in the fetch phase
 type FetchTask struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     //Name of task, as registered by a FetchTaskPlugin
-	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` //Optional task parameters
+	// Name of task, as registered by a FetchTaskPlugin
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Optional task parameters
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"`
 }
 
 func (x *FetchTask) Reset() {
@@ -5484,8 +5685,10 @@ type PluginRescorer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
+	// Rescorer name registered by plugin
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Arguments passed to the plugin rescorer
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"`
 }
 
 func (x *PluginRescorer) Reset() {
@@ -5540,8 +5743,11 @@ type QueryRescorer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	RescoreQuery       *Query  `protobuf:"bytes,1,opt,name=rescoreQuery,proto3" json:"rescoreQuery,omitempty"`
-	QueryWeight        float64 `protobuf:"fixed64,2,opt,name=queryWeight,proto3" json:"queryWeight,omitempty"`
+	// Query to rescore documents
+	RescoreQuery *Query `protobuf:"bytes,1,opt,name=rescoreQuery,proto3" json:"rescoreQuery,omitempty"`
+	// Weight to multiply with original query score
+	QueryWeight float64 `protobuf:"fixed64,2,opt,name=queryWeight,proto3" json:"queryWeight,omitempty"`
+	// Weight to multiply with rescore query score
 	RescoreQueryWeight float64 `protobuf:"fixed64,3,opt,name=rescoreQueryWeight,proto3" json:"rescoreQueryWeight,omitempty"`
 }
 
@@ -5604,6 +5810,7 @@ type Rescorer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Maximum number of hits from previous phase to rescore
 	WindowSize int32 `protobuf:"varint,1,opt,name=windowSize,proto3" json:"windowSize,omitempty"`
 	// Types that are assignable to Rescorers:
 	//
@@ -5686,10 +5893,12 @@ type isRescorer_Rescorers interface {
 }
 
 type Rescorer_QueryRescorer struct {
+	// Rescore with Lucene query
 	QueryRescorer *QueryRescorer `protobuf:"bytes,2,opt,name=queryRescorer,proto3,oneof"`
 }
 
 type Rescorer_PluginRescorer struct {
+	// Rescore with plugin registered rescorer
 	PluginRescorer *PluginRescorer `protobuf:"bytes,3,opt,name=pluginRescorer,proto3,oneof"`
 }
 
@@ -5703,10 +5912,14 @@ type ProfileResult struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	SearchStats    *ProfileResult_SearchStats `protobuf:"bytes,1,opt,name=searchStats,proto3" json:"searchStats,omitempty"`
-	ParsedQuery    string                     `protobuf:"bytes,2,opt,name=parsedQuery,proto3" json:"parsedQuery,omitempty"`
-	RewrittenQuery string                     `protobuf:"bytes,3,opt,name=rewrittenQuery,proto3" json:"rewrittenQuery,omitempty"`
-	DrillDownQuery string                     `protobuf:"bytes,4,opt,name=drillDownQuery,proto3" json:"drillDownQuery,omitempty"`
+	// Stats for search phase
+	SearchStats *ProfileResult_SearchStats `protobuf:"bytes,1,opt,name=searchStats,proto3" json:"searchStats,omitempty"`
+	// Parsed query string
+	ParsedQuery string `protobuf:"bytes,2,opt,name=parsedQuery,proto3" json:"parsedQuery,omitempty"`
+	// Rewritten query string
+	RewrittenQuery string `protobuf:"bytes,3,opt,name=rewrittenQuery,proto3" json:"rewrittenQuery,omitempty"`
+	// Drill down query string
+	DrillDownQuery string `protobuf:"bytes,4,opt,name=drillDownQuery,proto3" json:"drillDownQuery,omitempty"`
 }
 
 func (x *ProfileResult) Reset() {
@@ -5769,7 +5982,7 @@ func (x *ProfileResult) GetDrillDownQuery() string {
 	return ""
 }
 
-// Definition of additional document collector.
+// Definition of additional document collector
 type Collector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -5784,7 +5997,7 @@ type Collector struct {
 	//	*Collector_Max
 	//	*Collector_Min
 	Collectors isCollector_Collectors `protobuf_oneof:"Collectors"`
-	// Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
+	// Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors
 	NestedCollectors map[string]*Collector `protobuf:"bytes,3,rep,name=nestedCollectors,proto3" json:"nestedCollectors,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -5881,7 +6094,7 @@ type isCollector_Collectors interface {
 }
 
 type Collector_Terms struct {
-	// Collector for aggregating based on term values.
+	// Collector for aggregating based on term values
 	Terms *TermsCollector `protobuf:"bytes,1,opt,name=terms,proto3,oneof"`
 }
 
@@ -5890,7 +6103,7 @@ type Collector_PluginCollector struct {
 }
 
 type Collector_TopHitsCollector struct {
-	// Collector for getting top hits based on score or sorting.
+	// Collector for getting top hits based on score or sorting
 	TopHitsCollector *TopHitsCollector `protobuf:"bytes,4,opt,name=topHitsCollector,proto3,oneof"`
 }
 
@@ -5900,12 +6113,12 @@ type Collector_Filter struct {
 }
 
 type Collector_Max struct {
-	// Collector for finding a max double value from collected documents.
+	// Collector for finding a max double value from collected documents
 	Max *MaxCollector `protobuf:"bytes,6,opt,name=max,proto3,oneof"`
 }
 
 type Collector_Min struct {
-	// Collector for finding a min double value from collected documents.
+	// Collector for finding a min double value from collected documents
 	Min *MinCollector `protobuf:"bytes,7,opt,name=min,proto3,oneof"`
 }
 
@@ -5927,8 +6140,10 @@ type PluginCollector struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
+	// Name of plugin registered collector
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Arguments passed to the plugin collector
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"`
 }
 
 func (x *PluginCollector) Reset() {
@@ -5977,7 +6192,7 @@ func (x *PluginCollector) GetParams() *structpb.Struct {
 	return nil
 }
 
-// Definition of term aggregating collector.
+// Definition of term aggregating collector
 type TermsCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -5988,9 +6203,9 @@ type TermsCollector struct {
 	//	*TermsCollector_Field
 	//	*TermsCollector_Script
 	TermsSource isTermsCollector_TermsSource `protobuf_oneof:"TermsSource"`
-	// Maximum number of top terms to return.
+	// Maximum number of top terms to return
 	Size int32 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
-	// How results Buckets should be ordered, defaults to descending Bucket _count.
+	// How results Buckets should be ordered, defaults to descending Bucket _count
 	Order *BucketOrder `protobuf:"bytes,4,opt,name=order,proto3" json:"order,omitempty"`
 }
 
@@ -6066,12 +6281,12 @@ type isTermsCollector_TermsSource interface {
 }
 
 type TermsCollector_Field struct {
-	// Use field values for terms.
+	// Use field values for terms
 	Field string `protobuf:"bytes,1,opt,name=field,proto3,oneof"`
 }
 
 type TermsCollector_Script struct {
-	// Use FacetScript definition to produce terms.
+	// Use FacetScript definition to produce terms
 	Script *Script `protobuf:"bytes,2,opt,name=script,proto3,oneof"`
 }
 
@@ -6079,19 +6294,19 @@ func (*TermsCollector_Field) isTermsCollector_TermsSource() {}
 
 func (*TermsCollector_Script) isTermsCollector_TermsSource() {}
 
-// Definition of top hits based collector.
+// Definition of top hits based collector
 type TopHitsCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Offset for retrieval of top hits.
+	// Offset for retrieval of top hits
 	StartHit int32 `protobuf:"varint,1,opt,name=startHit,proto3" json:"startHit,omitempty"`
-	// Total hits to collect, note that the number of hits returned is (topHits - startHit).
+	// Total hits to collect, note that the number of hits returned is (topHits - startHit)
 	TopHits int32 `protobuf:"varint,2,opt,name=topHits,proto3" json:"topHits,omitempty"`
-	// When specified, collector does sort based collection. Otherwise, relevance score is used.
+	// When specified, collector does sort based collection. Otherwise, relevance score is used
 	QuerySort *QuerySortField `protobuf:"bytes,3,opt,name=querySort,proto3" json:"querySort,omitempty"`
-	// Which fields to retrieve.
+	// Which fields to retrieve
 	RetrieveFields []string `protobuf:"bytes,4,rep,name=retrieveFields,proto3" json:"retrieveFields,omitempty"`
 	// If Lucene explanation should be included in the collector response
 	Explain bool `protobuf:"varint,5,opt,name=explain,proto3" json:"explain,omitempty"`
@@ -6164,7 +6379,7 @@ func (x *TopHitsCollector) GetExplain() bool {
 	return false
 }
 
-// Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
+// Definition of filtering collector, there must be at least one nested collector specified in the Collector message
 type FilterCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -6235,12 +6450,13 @@ type isFilterCollector_Filter interface {
 }
 
 type FilterCollector_Query struct {
-	// Only propagate documents that match the given query.
+	// Only propagate documents that match the given query
 	Query *Query `protobuf:"bytes,1,opt,name=query,proto3,oneof"`
 }
 
 type FilterCollector_SetQuery struct {
-	// Specialized implementation for set queries, checks if field doc values are in the provided set. This can be useful for large set sizes with lower recall, where building the scorer would be expensive.
+	// Specialized implementation for set queries, checks if field doc values are in the provided set.
+	// This can be useful for large set sizes with lower recall, where building the scorer would be expensive.
 	SetQuery *TermInSetQuery `protobuf:"bytes,2,opt,name=setQuery,proto3,oneof"`
 }
 
@@ -6248,7 +6464,8 @@ func (*FilterCollector_Query) isFilterCollector_Filter() {}
 
 func (*FilterCollector_SetQuery) isFilterCollector_Filter() {}
 
-// Definition of collector to find a max double value over documents. Currently only allows for script based value production.
+// Definition of collector to find a max double value over documents. Currently only allows for script based
+// value production.
 type MaxCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -6317,7 +6534,8 @@ type MaxCollector_Script struct {
 
 func (*MaxCollector_Script) isMaxCollector_ValueSource() {}
 
-// Definition of collector to find a min double value over documents. Currently only allows for script based value production.
+// Definition of collector to find a min double value over documents. Currently only allows for script based
+// value production.
 type MinCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -6386,6 +6604,7 @@ type MinCollector_Script struct {
 
 func (*MinCollector_Script) isMinCollector_ValueSource() {}
 
+// Result of aggregating collector
 type CollectorResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -6480,7 +6699,7 @@ type isCollectorResult_CollectorResults interface {
 }
 
 type CollectorResult_BucketResult struct {
-	// Result of collector that produces buckets and counts.
+	// Result of collector that produces buckets and counts
 	BucketResult *BucketResult `protobuf:"bytes,1,opt,name=bucketResult,proto3,oneof"`
 }
 
@@ -6490,17 +6709,17 @@ type CollectorResult_AnyResult struct {
 }
 
 type CollectorResult_HitsResult struct {
-	// Result of collector that returns document hits.
+	// Result of collector that returns document hits
 	HitsResult *HitsResult `protobuf:"bytes,4,opt,name=hitsResult,proto3,oneof"`
 }
 
 type CollectorResult_FilterResult struct {
-	// Result of collector that filters documents.
+	// Result of collector that filters documents
 	FilterResult *FilterResult `protobuf:"bytes,5,opt,name=filterResult,proto3,oneof"`
 }
 
 type CollectorResult_DoubleResult struct {
-	// Result of collector that produces a single double value.
+	// Result of collector that produces a single double value
 	DoubleResult *wrapperspb.DoubleValue `protobuf:"bytes,6,opt,name=doubleResult,proto3,oneof"`
 }
 
@@ -6514,13 +6733,14 @@ func (*CollectorResult_FilterResult) isCollectorResult_CollectorResults() {}
 
 func (*CollectorResult_DoubleResult) isCollectorResult_CollectorResults() {}
 
-// Defines how Buckets should be ordered in BucketResult.
+// Defines how Buckets should be ordered in BucketResult
 type BucketOrder struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering.
+	// What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that
+	// supports ordering.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// Sorting order
 	Order BucketOrder_OrderType `protobuf:"varint,2,opt,name=order,proto3,enum=luceneserver.BucketOrder_OrderType" json:"order,omitempty"`
@@ -6572,15 +6792,17 @@ func (x *BucketOrder) GetOrder() BucketOrder_OrderType {
 	return BucketOrder_DESC
 }
 
+// Results from bucketing collector
 type BucketResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Buckets
 	Buckets []*BucketResult_Bucket `protobuf:"bytes,1,rep,name=buckets,proto3" json:"buckets,omitempty"`
-	// Number of unique buckets, including those not in the buckets list.
+	// Number of unique buckets, including those not in the buckets list
 	TotalBuckets int32 `protobuf:"varint,2,opt,name=totalBuckets,proto3" json:"totalBuckets,omitempty"`
-	// Number of other collected counts not represented in the buckets' counts.
+	// Number of other collected counts not represented in the buckets' counts
 	TotalOtherCounts int32 `protobuf:"varint,3,opt,name=totalOtherCounts,proto3" json:"totalOtherCounts,omitempty"`
 }
 
@@ -6637,14 +6859,15 @@ func (x *BucketResult) GetTotalOtherCounts() int32 {
 	return 0
 }
 
+// Result from top hits collector
 type HitsResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Total hit information.
+	// Total hit information
 	TotalHits *TotalHits `protobuf:"bytes,3,opt,name=totalHits,proto3" json:"totalHits,omitempty"`
-	// Ordered hits with scoring/sorting info and retrieved fields.
+	// Ordered hits with scoring/sorting info and retrieved fields
 	Hits []*SearchResponse_Hit `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
 }
 
@@ -6694,14 +6917,15 @@ func (x *HitsResult) GetHits() []*SearchResponse_Hit {
 	return nil
 }
 
+// Result from filter collector
 type FilterResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Number of documents that passed the filter.
+	// Number of documents that passed the filter
 	DocCount int32 `protobuf:"varint,1,opt,name=docCount,proto3" json:"docCount,omitempty"`
-	// Results from nested collectors.
+	// Results from nested collectors
 	NestedCollectorResults map[string]*CollectorResult `protobuf:"bytes,2,rep,name=nestedCollectorResults,proto3" json:"nestedCollectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -6751,12 +6975,13 @@ func (x *FilterResult) GetNestedCollectorResults() map[string]*CollectorResult {
 	return nil
 }
 
+// Defines logger for search hits
 type LoggingHits struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// name of the hits logger to be called, as registered by a HitsLoggerPlugin
+	// Name of the hits logger to be called, as registered by a HitsLoggerPlugin
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Optional logging parameters
 	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"`
@@ -6887,7 +7112,8 @@ type KnnQuery struct {
 	Filter *Query `protobuf:"bytes,2,opt,name=filter,proto3" json:"filter,omitempty"`
 	// Number of top nearest neighbor documents to collect, must be <= num_candidates
 	K int32 `protobuf:"varint,3,opt,name=k,proto3" json:"k,omitempty"`
-	// Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
+	// Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k.
+	// Must be <= 10000.
 	NumCandidates int32 `protobuf:"varint,4,opt,name=num_candidates,json=numCandidates,proto3" json:"num_candidates,omitempty"`
 	// Vector value to use for query vector, for fields with float element type
 	QueryVector []float32 `protobuf:"fixed32,5,rep,packed,name=query_vector,json=queryVector,proto3" json:"query_vector,omitempty"`
@@ -6978,14 +7204,17 @@ func (x *KnnQuery) GetBoost() float32 {
 	return 0
 }
 
-// Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
+// Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset.
+// Valid values are low >= 0 and low < high
 type FuzzyParams_AutoFuzziness struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Low  int32 `protobuf:"varint,6,opt,name=low,proto3" json:"low,omitempty"`   // Optional low distance argument.
-	High int32 `protobuf:"varint,7,opt,name=high,proto3" json:"high,omitempty"` // Optional high distance argument.
+	// Optional low distance argument
+	Low int32 `protobuf:"varint,6,opt,name=low,proto3" json:"low,omitempty"`
+	// Optional high distance argument
+	High int32 `protobuf:"varint,7,opt,name=high,proto3" json:"high,omitempty"`
 }
 
 func (x *FuzzyParams_AutoFuzziness) Reset() {
@@ -7039,6 +7268,7 @@ type TermInSetQuery_TextTerms struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// TEXT field terms
 	Terms []string `protobuf:"bytes,1,rep,name=terms,proto3" json:"terms,omitempty"`
 }
 
@@ -7086,6 +7316,7 @@ type TermInSetQuery_IntTerms struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// INT field terms
 	Terms []int32 `protobuf:"varint,1,rep,packed,name=terms,proto3" json:"terms,omitempty"`
 }
 
@@ -7133,6 +7364,7 @@ type TermInSetQuery_LongTerms struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// LONG field terms
 	Terms []int64 `protobuf:"varint,1,rep,packed,name=terms,proto3" json:"terms,omitempty"`
 }
 
@@ -7180,6 +7412,7 @@ type TermInSetQuery_FloatTerms struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// FLOAT field terms
 	Terms []float32 `protobuf:"fixed32,1,rep,packed,name=terms,proto3" json:"terms,omitempty"`
 }
 
@@ -7227,6 +7460,7 @@ type TermInSetQuery_DoubleTerms struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// DOUBLE field terms
 	Terms []float64 `protobuf:"fixed64,1,rep,packed,name=terms,proto3" json:"terms,omitempty"`
 }
 
@@ -7392,9 +7626,12 @@ type MultiFunctionScoreQuery_DecayFunction struct {
 	//	*MultiFunctionScoreQuery_DecayFunction_GeoPoint
 	Origin isMultiFunctionScoreQuery_DecayFunction_Origin `protobuf_oneof:"Origin"`
 	// Currently only distance based scale and offset units are supported
-	// Distance from origin + offset at which computed score will be equal to decay. Scale should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
+	// Distance from origin + offset at which computed score will be equal to decay. Scale should be distance,
+	// unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
 	Scale string `protobuf:"bytes,4,opt,name=scale,proto3" json:"scale,omitempty"`
-	// Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set. Offset should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
+	// Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set. Offset
+	// should be distance, unit (m, km, mi) with space is optional. Default unit will be meters.
+	// Ex: "10", "15 km", "5 m", "7 mi"
 	Offset string `protobuf:"bytes,5,opt,name=offset,proto3" json:"offset,omitempty"`
 	// Defines decay rate for scoring. Should be between (0, 1)
 	Decay float32 `protobuf:"fixed32,6,opt,name=decay,proto3" json:"decay,omitempty"`
@@ -7492,7 +7729,7 @@ type MultiFunctionScoreQuery_DecayFunction_GeoPoint struct {
 func (*MultiFunctionScoreQuery_DecayFunction_GeoPoint) isMultiFunctionScoreQuery_DecayFunction_Origin() {
 }
 
-// script parameter entry
+// Script parameter entry
 type Script_ParamValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -7686,12 +7923,13 @@ func (*Script_ParamValue_StructValue) isScript_ParamValue_ParamValues() {}
 
 func (*Script_ParamValue_FloatVectorValue) isScript_ParamValue_ParamValues() {}
 
-// map parameter value
+// Map parameter value
 type Script_ParamStructValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Parameter values map
 	Fields map[string]*Script_ParamValue `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -7734,12 +7972,13 @@ func (x *Script_ParamStructValue) GetFields() map[string]*Script_ParamValue {
 	return nil
 }
 
-// list parameter value
+// List parameter value
 type Script_ParamListValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Parameter values list
 	Values []*Script_ParamValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 }
 
@@ -7782,11 +8021,13 @@ func (x *Script_ParamListValue) GetValues() []*Script_ParamValue {
 	return nil
 }
 
+// Float vector parameter value
 type Script_ParamFloatVectorValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Float vector value
 	Values []float32 `protobuf:"fixed32,1,rep,packed,name=values,proto3" json:"values,omitempty"`
 }
 
@@ -7841,18 +8082,29 @@ type SearchResponse_Diagnostics struct {
 	// Deprecated: Do not use.
 	RewrittenQuery string `protobuf:"bytes,2,opt,name=rewrittenQuery,proto3" json:"rewrittenQuery,omitempty"`
 	// Deprecated: Do not use.
-	DrillDownQuery            string                                          `protobuf:"bytes,3,opt,name=drillDownQuery,proto3" json:"drillDownQuery,omitempty"`
-	FirstPassSearchTimeMs     float64                                         `protobuf:"fixed64,4,opt,name=firstPassSearchTimeMs,proto3" json:"firstPassSearchTimeMs,omitempty"`
-	HighlightTimeMs           float64                                         `protobuf:"fixed64,5,opt,name=highlightTimeMs,proto3" json:"highlightTimeMs,omitempty"`
-	GetFieldsTimeMs           float64                                         `protobuf:"fixed64,6,opt,name=getFieldsTimeMs,proto3" json:"getFieldsTimeMs,omitempty"`
-	NewSnapshotSearcherOpenMs float64                                         `protobuf:"fixed64,7,opt,name=newSnapshotSearcherOpenMs,proto3" json:"newSnapshotSearcherOpenMs,omitempty"`
-	NrtWaitTimeMs             float64                                         `protobuf:"fixed64,8,opt,name=nrtWaitTimeMs,proto3" json:"nrtWaitTimeMs,omitempty"`
-	FacetTimeMs               map[string]float64                              `protobuf:"bytes,9,rep,name=facetTimeMs,proto3" json:"facetTimeMs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-	RescoreTimeMs             float64                                         `protobuf:"fixed64,10,opt,name=rescoreTimeMs,proto3" json:"rescoreTimeMs,omitempty"`
-	RescorersTimeMs           map[string]float64                              `protobuf:"bytes,11,rep,name=rescorersTimeMs,proto3" json:"rescorersTimeMs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-	InnerHitsDiagnostics      map[string]*SearchResponse_Diagnostics          `protobuf:"bytes,12,rep,name=innerHitsDiagnostics,proto3" json:"innerHitsDiagnostics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	VectorDiagnostics         []*SearchResponse_Diagnostics_VectorDiagnostics `protobuf:"bytes,13,rep,name=vectorDiagnostics,proto3" json:"vectorDiagnostics,omitempty"`
-	InitialDeadlineMs         float64                                         `protobuf:"fixed64,14,opt,name=initialDeadlineMs,proto3" json:"initialDeadlineMs,omitempty"`
+	DrillDownQuery string `protobuf:"bytes,3,opt,name=drillDownQuery,proto3" json:"drillDownQuery,omitempty"`
+	// Time for initial recall and ranking
+	FirstPassSearchTimeMs float64 `protobuf:"fixed64,4,opt,name=firstPassSearchTimeMs,proto3" json:"firstPassSearchTimeMs,omitempty"`
+	// Time for highlighting
+	HighlightTimeMs float64 `protobuf:"fixed64,5,opt,name=highlightTimeMs,proto3" json:"highlightTimeMs,omitempty"`
+	// Time to fetch fields and perform other fetch tasks
+	GetFieldsTimeMs float64 `protobuf:"fixed64,6,opt,name=getFieldsTimeMs,proto3" json:"getFieldsTimeMs,omitempty"`
+	// Time to open a new snapshot searcher
+	NewSnapshotSearcherOpenMs float64 `protobuf:"fixed64,7,opt,name=newSnapshotSearcherOpenMs,proto3" json:"newSnapshotSearcherOpenMs,omitempty"`
+	// Time waiting for nrt replication
+	NrtWaitTimeMs float64 `protobuf:"fixed64,8,opt,name=nrtWaitTimeMs,proto3" json:"nrtWaitTimeMs,omitempty"`
+	// Time to execute facets
+	FacetTimeMs map[string]float64 `protobuf:"bytes,9,rep,name=facetTimeMs,proto3" json:"facetTimeMs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	// Time to execute rescorers
+	RescoreTimeMs float64 `protobuf:"fixed64,10,opt,name=rescoreTimeMs,proto3" json:"rescoreTimeMs,omitempty"`
+	// Time to execute each rescorer
+	RescorersTimeMs map[string]float64 `protobuf:"bytes,11,rep,name=rescorersTimeMs,proto3" json:"rescorersTimeMs,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	// Inner hits diagnostics
+	InnerHitsDiagnostics map[string]*SearchResponse_Diagnostics `protobuf:"bytes,12,rep,name=innerHitsDiagnostics,proto3" json:"innerHitsDiagnostics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Diagnostic info related to kNN vector search queries
+	VectorDiagnostics []*SearchResponse_Diagnostics_VectorDiagnostics `protobuf:"bytes,13,rep,name=vectorDiagnostics,proto3" json:"vectorDiagnostics,omitempty"`
+	// Amount of gRPC request deadline remaining at the start of search processing
+	InitialDeadlineMs float64 `protobuf:"fixed64,14,opt,name=initialDeadlineMs,proto3" json:"initialDeadlineMs,omitempty"`
 }
 
 func (x *SearchResponse_Diagnostics) Reset() {
@@ -7988,15 +8240,20 @@ func (x *SearchResponse_Diagnostics) GetInitialDeadlineMs() float64 {
 	return 0
 }
 
+// Message for query document hit
 type SearchResponse_Hit struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	LuceneDocId  int32                                              `protobuf:"varint,1,opt,name=luceneDocId,proto3" json:"luceneDocId,omitempty"`
-	Score        float64                                            `protobuf:"fixed64,2,opt,name=score,proto3" json:"score,omitempty"`
-	Fields       map[string]*SearchResponse_Hit_CompositeFieldValue `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`             // Field name to value
-	SortedFields map[string]*SearchResponse_Hit_CompositeFieldValue `protobuf:"bytes,4,rep,name=sortedFields,proto3" json:"sortedFields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Sorted field name to value
+	// Lucene document id
+	LuceneDocId int32 `protobuf:"varint,1,opt,name=luceneDocId,proto3" json:"luceneDocId,omitempty"`
+	// Document score
+	Score float64 `protobuf:"fixed64,2,opt,name=score,proto3" json:"score,omitempty"`
+	// Retrieved field data
+	Fields map[string]*SearchResponse_Hit_CompositeFieldValue `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// When using query sorting, sorted field names to values
+	SortedFields map[string]*SearchResponse_Hit_CompositeFieldValue `protobuf:"bytes,4,rep,name=sortedFields,proto3" json:"sortedFields,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Field name to highlighted text fragments
 	Highlights map[string]*SearchResponse_Hit_Highlights `protobuf:"bytes,5,rep,name=highlights,proto3" json:"highlights,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Lucene explanation of the hit
@@ -8086,19 +8343,29 @@ func (x *SearchResponse_Hit) GetInnerHits() map[string]*HitsResult {
 	return nil
 }
 
+// State for use in subsequent searches (search after)
 type SearchResponse_SearchState struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Timestamp       int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Query time
+	Timestamp int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Index searcher version
 	SearcherVersion int64 `protobuf:"varint,2,opt,name=searcherVersion,proto3" json:"searcherVersion,omitempty"`
+	// replaced by lastHitInfo
+	//
 	// Deprecated: Do not use.
-	LastDocId int32 `protobuf:"varint,3,opt,name=lastDocId,proto3" json:"lastDocId,omitempty"` // replaced by lastHitInfo
+	LastDocId int32 `protobuf:"varint,3,opt,name=lastDocId,proto3" json:"lastDocId,omitempty"`
+	// replaced by lastHitInfo
+	//
 	// Deprecated: Do not use.
-	LastFieldValues []string `protobuf:"bytes,4,rep,name=lastFieldValues,proto3" json:"lastFieldValues,omitempty"` // replaced by lastHitInfo
+	LastFieldValues []string `protobuf:"bytes,4,rep,name=lastFieldValues,proto3" json:"lastFieldValues,omitempty"`
+	// replaced by lastHitInfo
+	//
 	// Deprecated: Do not use.
-	LastScore   float32      `protobuf:"fixed32,5,opt,name=lastScore,proto3" json:"lastScore,omitempty"` // replaced by lastHitInfo
+	LastScore float32 `protobuf:"fixed32,5,opt,name=lastScore,proto3" json:"lastScore,omitempty"`
+	// Last hit info for search after
 	LastHitInfo *LastHitInfo `protobuf:"bytes,6,opt,name=lastHitInfo,proto3" json:"lastHitInfo,omitempty"`
 }
 
@@ -8237,6 +8504,7 @@ func (x *SearchResponse_Diagnostics_VectorDiagnostics) GetTotalHits() *TotalHits
 	return nil
 }
 
+// Field value for a hit
 type SearchResponse_Hit_FieldValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8371,35 +8639,43 @@ type isSearchResponse_Hit_FieldValue_FieldValues interface {
 }
 
 type SearchResponse_Hit_FieldValue_TextValue struct {
-	TextValue string `protobuf:"bytes,1,opt,name=textValue,proto3,oneof"` // Value for ATOM and TEXT  FieldType
+	// Value for ATOM and TEXT FieldType
+	TextValue string `protobuf:"bytes,1,opt,name=textValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_BooleanValue struct {
-	BooleanValue bool `protobuf:"varint,2,opt,name=booleanValue,proto3,oneof"` // Value for BOOLEAN FieldType
+	// Value for BOOLEAN FieldType
+	BooleanValue bool `protobuf:"varint,2,opt,name=booleanValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_IntValue struct {
-	IntValue int32 `protobuf:"varint,3,opt,name=intValue,proto3,oneof"` // Value for INT FieldType
+	// Value for INT FieldType
+	IntValue int32 `protobuf:"varint,3,opt,name=intValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_LongValue struct {
-	LongValue int64 `protobuf:"varint,4,opt,name=longValue,proto3,oneof"` // Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
+	// Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
+	LongValue int64 `protobuf:"varint,4,opt,name=longValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_FloatValue struct {
-	FloatValue float32 `protobuf:"fixed32,5,opt,name=floatValue,proto3,oneof"` // Value for FLOAT FieldType
+	// Value for FLOAT FieldType
+	FloatValue float32 `protobuf:"fixed32,5,opt,name=floatValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_DoubleValue struct {
-	DoubleValue float64 `protobuf:"fixed64,6,opt,name=doubleValue,proto3,oneof"` // Value for DOUBLE FieldType
+	// Value for DOUBLE FieldType
+	DoubleValue float64 `protobuf:"fixed64,6,opt,name=doubleValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_LatLngValue struct {
-	LatLngValue *latlng.LatLng `protobuf:"bytes,7,opt,name=latLngValue,proto3,oneof"` // Value for LAT_LON FieldType
+	// Value for LAT_LON FieldType
+	LatLngValue *latlng.LatLng `protobuf:"bytes,7,opt,name=latLngValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_StructValue struct {
-	StructValue *structpb.Struct `protobuf:"bytes,8,opt,name=structValue,proto3,oneof"` // Value for structured data
+	// Value for structured data
+	StructValue *structpb.Struct `protobuf:"bytes,8,opt,name=structValue,proto3,oneof"`
 }
 
 type SearchResponse_Hit_FieldValue_VectorValue struct {
@@ -8408,6 +8684,7 @@ type SearchResponse_Hit_FieldValue_VectorValue struct {
 }
 
 type SearchResponse_Hit_FieldValue_ListValue struct {
+	// List of values
 	ListValue *structpb.ListValue `protobuf:"bytes,10,opt,name=listValue,proto3,oneof"`
 }
 
@@ -8431,11 +8708,13 @@ func (*SearchResponse_Hit_FieldValue_VectorValue) isSearchResponse_Hit_FieldValu
 
 func (*SearchResponse_Hit_FieldValue_ListValue) isSearchResponse_Hit_FieldValue_FieldValues() {}
 
+// Field with multiple values
 type SearchResponse_Hit_CompositeFieldValue struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Field values
 	FieldValue []*SearchResponse_Hit_FieldValue `protobuf:"bytes,3,rep,name=fieldValue,proto3" json:"fieldValue,omitempty"`
 }
 
@@ -8478,6 +8757,7 @@ func (x *SearchResponse_Hit_CompositeFieldValue) GetFieldValue() []*SearchRespon
 	return nil
 }
 
+// Highlighted text result
 type SearchResponse_Hit_Highlights struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8583,6 +8863,7 @@ func (x *SearchResponse_Hit_FieldValue_Vector) GetBytesValue() []byte {
 	return nil
 }
 
+// Stats for aggregating collector
 type ProfileResult_AdditionalCollectorStats struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8631,13 +8912,15 @@ func (x *ProfileResult_AdditionalCollectorStats) GetCollectTimeMs() float64 {
 	return 0
 }
 
+// Stats for parallel search collector
 type ProfileResult_CollectorStats struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// If collection for this index slice was terminated early, such as by a timeout.
-	Terminated   bool                          `protobuf:"varint,1,opt,name=terminated,proto3" json:"terminated,omitempty"`
+	// If collection for this index slice was terminated early, such as by a timeout
+	Terminated bool `protobuf:"varint,1,opt,name=terminated,proto3" json:"terminated,omitempty"`
+	// Stats for each collector segment
 	SegmentStats []*ProfileResult_SegmentStats `protobuf:"bytes,2,rep,name=segmentStats,proto3" json:"segmentStats,omitempty"`
 	// Total docs collected by this collector
 	TotalCollectedCount int32 `protobuf:"varint,3,opt,name=totalCollectedCount,proto3" json:"totalCollectedCount,omitempty"`
@@ -8714,6 +8997,7 @@ func (x *ProfileResult_CollectorStats) GetAdditionalCollectorStats() map[string]
 	return nil
 }
 
+// Stats for a single collector segment
 type ProfileResult_SegmentStats struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8798,6 +9082,7 @@ func (x *ProfileResult_SegmentStats) GetCollectTimeMs() float64 {
 	return 0
 }
 
+// Stats for search phase
 type ProfileResult_SearchStats struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8806,8 +9091,9 @@ type ProfileResult_SearchStats struct {
 	// Total time for all document collection
 	TotalCollectTimeMs float64 `protobuf:"fixed64,1,opt,name=totalCollectTimeMs,proto3" json:"totalCollectTimeMs,omitempty"`
 	// Total time to reduce results from all parallel search slices
-	TotalReduceTimeMs float64                         `protobuf:"fixed64,2,opt,name=totalReduceTimeMs,proto3" json:"totalReduceTimeMs,omitempty"`
-	CollectorStats    []*ProfileResult_CollectorStats `protobuf:"bytes,3,rep,name=collectorStats,proto3" json:"collectorStats,omitempty"`
+	TotalReduceTimeMs float64 `protobuf:"fixed64,2,opt,name=totalReduceTimeMs,proto3" json:"totalReduceTimeMs,omitempty"`
+	// Stats for each collector
+	CollectorStats []*ProfileResult_CollectorStats `protobuf:"bytes,3,rep,name=collectorStats,proto3" json:"collectorStats,omitempty"`
 }
 
 func (x *ProfileResult_SearchStats) Reset() {
@@ -8868,9 +9154,11 @@ type BucketResult_Bucket struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Count int32  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
-	// Nested collector results for sub-aggregations of this bucket.
+	// Bucket key
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// Bucket item count
+	Count int32 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	// Nested collector results for sub-aggregations of this bucket
 	NestedCollectorResults map[string]*CollectorResult `protobuf:"bytes,8,rep,name=nestedCollectorResults,proto3" json:"nestedCollectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -8934,33 +9222,40 @@ type Highlight_Settings struct {
 
 	// Specify type of highlighter to use. Ignored right now in nrtsearch.
 	HighlighterType Highlight_Type `protobuf:"varint,1,opt,name=highlighter_type,json=highlighterType,proto3,enum=luceneserver.Highlight_Type" json:"highlighter_type,omitempty"`
-	// Used along with post_tags to specify how to wrap the highlighted text.
+	// Used along with post_tags to specify how to wrap the highlighted text
 	PreTags []string `protobuf:"bytes,2,rep,name=pre_tags,json=preTags,proto3" json:"pre_tags,omitempty"`
-	// Used along with pre_tags to specify how to wrap the highlighted text.
+	// Used along with pre_tags to specify how to wrap the highlighted text
 	PostTags []string `protobuf:"bytes,3,rep,name=post_tags,json=postTags,proto3" json:"post_tags,omitempty"`
 	// Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field.
 	FragmentSize *wrapperspb.UInt32Value `protobuf:"bytes,4,opt,name=fragment_size,json=fragmentSize,proto3" json:"fragment_size,omitempty"`
-	// Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
+	// Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single
+	// fragment ignoring fragment_size.
 	MaxNumberOfFragments *wrapperspb.UInt32Value `protobuf:"bytes,5,opt,name=max_number_of_fragments,json=maxNumberOfFragments,proto3" json:"max_number_of_fragments,omitempty"`
-	// Specify a query here if highlighting is desired against a different query than the search query.
+	// Specify a query here if highlighting is desired against a different query than the search query
 	HighlightQuery *Query `protobuf:"bytes,6,opt,name=highlight_query,json=highlightQuery,proto3" json:"highlight_query,omitempty"`
-	// Set to true to highlight fields only if specified in the search query.
+	// Set to true to highlight fields only if specified in the search query
 	FieldMatch *wrapperspb.BoolValue `protobuf:"bytes,7,opt,name=field_match,json=fieldMatch,proto3" json:"field_match,omitempty"`
-	// Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)
+	// Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order
+	// they appear in the field. (Default is true)
 	ScoreOrdered *wrapperspb.BoolValue `protobuf:"bytes,8,opt,name=score_ordered,json=scoreOrdered,proto3" json:"score_ordered,omitempty"`
 	// Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters.
 	Fragmenter *wrapperspb.StringValue `protobuf:"bytes,9,opt,name=fragmenter,proto3" json:"fragmenter,omitempty"`
-	// Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
+	// Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields
+	// if set true. (Default is false)
 	DiscreteMultivalue *wrapperspb.BoolValue `protobuf:"bytes,10,opt,name=discrete_multivalue,json=discreteMultivalue,proto3" json:"discrete_multivalue,omitempty"`
-	// When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
+	// When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for
+	// any other highlighter_types.
 	CustomHighlighterName string `protobuf:"bytes,11,opt,name=custom_highlighter_name,json=customHighlighterName,proto3" json:"custom_highlighter_name,omitempty"`
-	// Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen.
+	// Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting
+	// will be omitted for this field, and no merge will happen.
 	CustomHighlighterParams *structpb.Struct `protobuf:"bytes,12,opt,name=custom_highlighter_params,json=customHighlighterParams,proto3" json:"custom_highlighter_params,omitempty"`
-	// Define the boundary decision when creating fragments. Options are "simple" (default in fast vector highlighter), "word" or "sentence".
+	// Define the boundary decision when creating fragments. Options are "simple" (default in fast vector
+	// highlighter), "word" or "sentence".
 	BoundaryScanner *wrapperspb.StringValue `protobuf:"bytes,13,opt,name=boundary_scanner,json=boundaryScanner,proto3" json:"boundary_scanner,omitempty"`
-	// Terminating chars when using "simple" boundary_scanner. The default is ".,!? \t\n".
+	// Terminating chars when using "simple" boundary_scanner. The default is ".,!? \t\n"
 	BoundaryChars *wrapperspb.StringValue `protobuf:"bytes,14,opt,name=boundary_chars,json=boundaryChars,proto3" json:"boundary_chars,omitempty"`
-	// Number of chars to scan before finding the boundary_chars if using "simple" boundary scanner; If "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
+	// Number of chars to scan before finding the boundary_chars if using "simple" boundary scanner; If
+	// "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
 	BoundaryMaxScan *wrapperspb.UInt32Value `protobuf:"bytes,15,opt,name=boundary_max_scan,json=boundaryMaxScan,proto3" json:"boundary_max_scan,omitempty"`
 	// Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
 	BoundaryScannerLocale *wrapperspb.StringValue `protobuf:"bytes,16,opt,name=boundary_scanner_locale,json=boundaryScannerLocale,proto3" json:"boundary_scanner_locale,omitempty"`

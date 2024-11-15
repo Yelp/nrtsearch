@@ -20,26 +20,28 @@ option go_package = "github.com/Yelp/nrtsearch";
 
 package luceneserver;
 
-// The LuceneServer service definition.
+// The LuceneServer service definition
 service LuceneServer {
-    /* Create an Index */
+    // Create an Index. Optionally, initial settings and live settings may be specified. The index is created
+    // in the stopped state, unless specified.
     rpc createIndex (CreateIndexRequest) returns (CreateIndexResponse) {
         option (google.api.http) = {
-      post: "/v1/create_index"
-      body: "*"
-    };
-
+            post: "/v1/create_index"
+            body: "*"
+        };
     }
-    /* Change global offline or online settings for this index. */
+
+    // Change live settings for an index. These settings may be changed while the index is started. Pass no
+    // settings changes to retrieve current live settings.
     rpc liveSettings (LiveSettingsRequest) returns (LiveSettingsResponse) {
         option (google.api.http) = {
-      post: "/v1/live_settings"
-      body: "*"
-    };
-
+            post: "/v1/live_settings"
+            body: "*"
+        };
     }
 
-    /* Change global offline or online settings for this index. */
+    // Change live settings for an index. These settings may be changed while the index is started. Pass no
+    // settings changes to retrieve current live settings.
     rpc liveSettingsV2 (LiveSettingsV2Request) returns (LiveSettingsV2Response) {
         option (google.api.http) = {
             post: "/v2/live_settings"
@@ -48,44 +50,38 @@ service LuceneServer {
                 get: "/v2/live_settings/{indexName}"
             }
         };
-
     }
-    /* Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-      Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-      and once a field is registered it cannot be changed (write-once).
-      This returns the full set of fields currently registered. */
+
+    // Adds one or more fields. Fields must be registered before they can be added in a document (via @addDocument).
+    // Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+    // and once a field is registered it cannot be changed (write-once).
+    // This returns the full set of fields currently registered.
     rpc registerFields (FieldDefRequest) returns (FieldDefResponse) {
         option (google.api.http) = {
-      post: "/v1/register_fields"
-      body: "*"
-    };
-
+            post: "/v1/register_fields"
+            body: "*"
+        };
     }
 
-    /* Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-  Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-  and once a field is registered it cannot be changed (write-once).
-  This returns the full set of fields currently registered. */
+    // Adds one or more fields to an index. The behavior is currently the same as registerFields.
     rpc updateFields (FieldDefRequest) returns (FieldDefResponse) {
         option (google.api.http) = {
-      post: "/v1/update_fields"
-      body: "*"
-    };
-
+            post: "/v1/update_fields"
+            body: "*"
+        };
     }
 
-    /* Change global offline settings for this index.
-    This returns the currently set settings; pass no settings changes to retrieve current settings.*/
+    // Change offline settings for an index. The index must be in a stopped state to make settings changes.
+    // This returns the currently set settings. Passing no settings changes retrieves the current settings.
     rpc settings (SettingsRequest) returns (SettingsResponse) {
         option (google.api.http) = {
-      post: "/v1/settings"
-      body: "*"
-    };
-
+            post: "/v1/settings"
+            body: "*"
+        };
     }
 
-    /* Change global offline settings for this index.
-    This returns the currently set settings; pass no settings to retrieve current settings.*/
+    // Change offline settings for an index. The index must be in a stopped state to make settings changes.
+    // This returns the currently set settings. Passing no settings changes retrieves the current settings.
     rpc settingsV2 (SettingsV2Request) returns (SettingsV2Response) {
         option (google.api.http) = {
             post: "/v2/settings"
@@ -94,19 +90,17 @@ service LuceneServer {
                 get: "/v2/settings/{indexName}"
             }
         };
-
     }
 
-    /* Starts an index */
+    // Starts an index
     rpc startIndex (StartIndexRequest) returns (StartIndexResponse) {
         option (google.api.http) = {
-      post: "/v1/start_index"
-      body: "*"
-    };
-
+            post: "/v1/start_index"
+            body: "*"
+        };
     }
 
-    /* Starts an index using configuration in IndexStartConfig */
+    // Starts an index based on configuration in IndexStartConfig
     rpc startIndexV2 (StartIndexV2Request) returns (StartIndexResponse) {
         option (google.api.http) = {
             post: "/v2/start_index"
@@ -114,183 +108,180 @@ service LuceneServer {
         };
     }
 
-    /* Stops an index */
+    // Stops an index
     rpc stopIndex (StopIndexRequest) returns (DummyResponse) {
         option (google.api.http) = {
-      post: "/v1/stop_index"
-      body: "*"
-    };
-
+            post: "/v1/stop_index"
+            body: "*"
+        };
     }
-    /* Reload state from the backend */
+
+    // Reload state from the backend. When run on replicas, this processes state changes made by the primary.
+    // New indices are created/started, and existing indices state is updated as needed.
     rpc reloadState (ReloadStateRequest) returns (ReloadStateResponse) {
         option (google.api.http) = {
-      post: "/v1/reload_state"
-      body: "*"
-    };
-
+            post: "/v1/reload_state"
+            body: "*"
+        };
     }
-    /* Adds a stream of Documents */
+
+    // Adds a stream of Documents to an index. Changes are not durable until after the next successful @commit call.
     rpc addDocuments (stream AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
-      post: "/v1/add_documents"
-      body: "*"
-    };
-
+            post: "/v1/add_documents"
+            body: "*"
+        };
     }
-    /* Refresh the latest searcher for an index */
+
+    // Refresh the latest searcher for an index
     rpc refresh (RefreshRequest) returns (RefreshResponse) {
         option (google.api.http) = {
-      post: "/v1/refresh"
-      body: "*"
-    };
-
+            post: "/v1/refresh"
+            body: "*"
+        };
     }
-    /* Commits all pending changes to durable storage*/
+
+    // Commits all pending index data changes to durable storage
     rpc commit (CommitRequest) returns (CommitResponse) {
         option (google.api.http) = {
-      post: "/v1/commit"
-      body: "*"
-    };
-
+            post: "/v1/commit"
+            body: "*"
+        };
     }
-    /* Retrieve index statistics*/
+
+    // Retrieve index statistics
     rpc stats (StatsRequest) returns (StatsResponse) {
         option (google.api.http) = {
-      post: "/v1/stats"
-      body: "*"
-      additional_bindings {
-        get: "/v1/stats/{indexName}"
-      }
-    };
-
+            post: "/v1/stats"
+            body: "*"
+            additional_bindings {
+                get: "/v1/stats/{indexName}"
+            }
+        };
     }
-    /* Search */
+
+    // Execute a search query against an index
     rpc search (SearchRequest) returns (SearchResponse) {
         option (google.api.http) = {
-      post: "/v1/search"
-      body: "*"
-    };
+            post: "/v1/search"
+            body: "*"
+        };
     }
 
-    /* Search V2 */
+    // Execute a search query against an index. Return response as an Any gRPC message. Useful if the client does
+    // not need to process the response and wants to avoid some deserialization work.
     rpc searchV2 (SearchRequest) returns (google.protobuf.Any) {
         option (google.api.http) = {
-      post: "/v2/search"
-      body: "*"
-    };
+            post: "/v2/search"
+            body: "*"
+        };
     }
 
-    /* Delete documents */
+    // Delete documents from an index. Changes are not durable until after the next successful @commit call.
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
-      post: "/v1/delete"
-      body: "*"
-    };
-
+            post: "/v1/delete"
+            body: "*"
+        };
     }
-    /* Delete documents matching a query */
+
+    // Delete documents matching a query from an index. Changes are not durable until after the next successful
+    // @commit call.
     rpc deleteByQuery (DeleteByQueryRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
-      post: "/v1/delete_by_query"
-      body: "*"
-    };
-
+            post: "/v1/delete_by_query"
+            body: "*"
+        };
     }
-    /* Delete all documents for index */
+
+    // Delete all documents for index. Changes are not durable until after the next successful @commit call.
     rpc deleteAll (DeleteAllDocumentsRequest) returns (DeleteAllDocumentsResponse) {
         option (google.api.http) = {
-      post: "/v1/delete_all"
-      body: "*"
-    };
-
+            post: "/v1/delete_all"
+            body: "*"
+        };
     }
-    /* Delete index */
+
+    // Delete index and all of its local data
     rpc deleteIndex (DeleteIndexRequest) returns (DeleteIndexResponse) {
         option (google.api.http) = {
-      post: "/v1/delete_index"
-      body: "*"
-    };
-
+            post: "/v1/delete_index"
+            body: "*"
+        };
     }
 
-    /*
-    Creates a snapshot in the index, which is saved point-in-time view of the last commit
-    in the index such that no files referenced by that snapshot will be deleted by ongoing
-    indexing until the snapshot is released with @releaseSnapshot.  Note that this will
-    reference the last commit, so be sure to call commit first if you have pending changes
-    that you'd like to be included in the snapshot.
-    This can be used for backup purposes, i.e. after creating the snapshot you can copy
-    all referenced files to backup storage, and then release the snapshot once complete.
-    To restore the backup, just copy all the files back and restart the server.
-    It can also be used for transactional purposes, i.e. if you sometimes need to search a
-    specific snapshot instead of the current live index. Creating a snapshot is very fast
-    (does not require any file copying), but over time it will consume extra disk space as
-    old segments are merged in the index.  Be sure to release the snapshot once you're done.
-    Snapshots survive shutdown and restart of the server.  Returns all protected filenames
-    referenced by this snapshot: these files will not change and will not be deleted until
-    the snapshot is released.  This returns the directories and files referenced by the snapshot.
-    */
+    // Creates a snapshot in the index, which is saved point-in-time view of the last commit
+    // in the index such that no files referenced by that snapshot will be deleted by ongoing
+    // indexing until the snapshot is released with @releaseSnapshot.  Note that this will
+    // reference the last commit, so be sure to call commit first if you have pending changes
+    // that you'd like to be included in the snapshot.
+    // This can be used for backup purposes, i.e. after creating the snapshot you can copy
+    // all referenced files to backup storage, and then release the snapshot once complete.
+    // To restore the backup, just copy all the files back and restart the server.
+    // It can also be used for transactional purposes, i.e. if you sometimes need to search a
+    // specific snapshot instead of the current live index. Creating a snapshot is very fast
+    // (does not require any file copying), but over time it will consume extra disk space as
+    // old segments are merged in the index.  Be sure to release the snapshot once you're done.
+    // Snapshots survive shutdown and restart of the server.  Returns all protected filenames
+    // referenced by this snapshot: these files will not change and will not be deleted until
+    // the snapshot is released. This returns the directories and files referenced by the snapshot.
     rpc createSnapshot (CreateSnapshotRequest) returns (CreateSnapshotResponse) {
         option (google.api.http) = {
-      post: "/v1/create_snapshot"
-      body: "*"
-    };
-
+            post: "/v1/create_snapshot"
+            body: "*"
+        };
     }
 
-    /* releases a snapshot previously created with @createSnapshot. */
+    // Releases a snapshot previously created with @createSnapshot.
     rpc releaseSnapshot (ReleaseSnapshotRequest) returns (ReleaseSnapshotResponse) {
         option (google.api.http) = {
-      post: "/v1/release_snapshot"
-      body: "*"
-    };
-
+            post: "/v1/release_snapshot"
+            body: "*"
+        };
     }
 
-    /* Gets all unreleased index gens of snapshots previously created with @createSnapshot. */
+    // Gets all unreleased index gens of snapshots previously created with @createSnapshot
     rpc getAllSnapshotIndexGen (GetAllSnapshotGenRequest) returns (GetAllSnapshotGenResponse) {
         option (google.api.http) = {
-      get: "/v1/get_all_snapshot_index_gen/{indexName}"
-    };
-
+            get: "/v1/get_all_snapshot_index_gen/{indexName}"
+        };
     }
 
-    /* Backup warming queries to S3 */
+    // Backup warming queries for an index to S3
     rpc backupWarmingQueries (BackupWarmingQueriesRequest) returns (BackupWarmingQueriesResponse) {
         option (google.api.http) = {
-      post: "/v1/backup_warming_queries"
-      body: "*"
-    };
+            post: "/v1/backup_warming_queries"
+            body: "*"
+        };
     }
 
-    /** Get information about this node */
+    // Get information about this node
     rpc nodeInfo (NodeInfoRequest) returns (NodeInfoResponse) {
         option (google.api.http) = {
-      get: "/v1/node_info"
-    };
+            get: "/v1/node_info"
+        };
     }
 
-    /* Get the global state of the cluster */
+    // Get the global state of the cluster
     rpc globalState (GlobalStateRequest) returns (GlobalStateResponse) {
         option (google.api.http) = {
-      post: "/v1/global_state"
-      body: "*"
-    };
+            post: "/v1/global_state"
+            body: "*"
+        };
     }
 
-    /* Gets the state of a started index, includes settings, live_settings, search schema */
+    // Gets the state of an index, includes settings, live_settings, search schema
     rpc state (StateRequest) returns (StateResponse) {
         option (google.api.http) = {
-        post: "/v1/state"
-        body: "*"
-        additional_bindings {
-            get: "/v1/state/{indexName}"
-        }
-    };
+            post: "/v1/state"
+            body: "*"
+            additional_bindings {
+                get: "/v1/state/{indexName}"
+            }
+        };
     }
 
-    /* Gets the state information for an index, includes settings, live_settings, search schema */
+    // Gets the state information for an index, includes settings, live_settings, search schema
     rpc indexState (IndexStateRequest) returns (IndexStateResponse) {
         option (google.api.http) = {
             post: "/v1/index_state"
@@ -301,72 +292,63 @@ service LuceneServer {
         };
     }
 
-    //GET methods
-    /* healthcheck */
+    // Basic healthcheck, successful if the server is running
     rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
         option (google.api.http) = {
-      get: "/v1/status"
-    };
-
+            get: "/v1/status"
+        };
     }
 
-    /*
-    Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
-    are started. Can specify comma-separated list of index name to only check specific indices if needed.
-    */
+    // Checks if a node is ready to receive traffic by checking if all the indices configured to be started
+    // are started. Can specify comma-separated list of index names to only check specific indices if needed.
     rpc ready (ReadyCheckRequest) returns (HealthCheckResponse) {
         option (google.api.http) = {
             get: "/v1/ready"
             additional_bindings {
-				get: "/v1/ready/{indexNames}"
-			}
+				        get: "/v1/ready/{indexNames}"
+			      }
         };
     }
 
-    /* metrics  */
+    // Get prometheus metrics
     rpc metrics (google.protobuf.Empty) returns (google.api.HttpBody) {
         option (google.api.http) = {
-      get: "/status/metrics"
-    };
+            get: "/status/metrics"
+        };
     }
-    /* indices  */
+
+    // Get information for all created indices
     rpc indices (IndicesRequest) returns (IndicesResponse) {
         option (google.api.http) = {
-      get: "/v1/indices"
-    };
+            get: "/v1/indices"
+        };
     }
 
-    /*
-    Forces merge policy to merge segments until there are <= maxNumSegments. The actual
-    merges to be executed are determined by the MergePolicy. This call will merge those
-    segments present in the index when the call started. If other threads are still
-    adding documents and flushing segments, those newly created segments will not be
-    merged unless you call forceMerge again.
-    */
+    // Forces merge policy to merge segments until there are <= maxNumSegments. The actual
+    // merges to be executed are determined by the MergePolicy. This call will merge those
+    // segments present in the index when the call started. If other threads are still
+    // adding documents and flushing segments, those newly created segments will not be
+    // merged unless you call forceMerge again.
     rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
         option (google.api.http) = {
-      post: "/v1/force_merge"
-      body: "*"
-    };
+            post: "/v1/force_merge"
+            body: "*"
+        };
     }
 
-    /*
-    Forces merging of all segments that have deleted documents. The actual merges to be
-    executed are determined by the MergePolicy. For example, the default TieredMergePolicy
-    will only pick a segment if the percentage of deleted docs is over 10%.
-    This method first flushes a new segment (if there are indexed documents), and applies
-    all buffered deletes.
-    */
+    // Forces merging of all segments that have deleted documents. The actual merges to be
+    // executed are determined by the MergePolicy. For example, the default TieredMergePolicy
+    // will only pick a segment if the percentage of deleted docs is over 10%.
+    // This method first flushes a new segment (if there are indexed documents), and applies
+    // all buffered deletes.
     rpc forceMergeDeletes(ForceMergeDeletesRequest) returns (ForceMergeDeletesResponse) {
         option (google.api.http) = {
-      post: "/v1/force_merge_deletes"
-      body: "*"
-    };
+            post: "/v1/force_merge_deletes"
+            body: "*"
+        };
     }
 
-    /*
-    Process request in a plugin which implements CustomRequestPlugin interface.
-    */
+    // Process request in a plugin which implements CustomRequestPlugin interface.
     rpc custom(CustomRequest) returns (CustomResponse) {
         option (google.api.http) = {
             post: "/v1/custom/{id}/{path}"
@@ -375,44 +357,58 @@ service LuceneServer {
     }
 }
 
-//The ReplicationServer service definition.
+// The ReplicationServer service definition.
 service ReplicationServer {
-    /* Issued by replica on primary node when it comes up */
+    // Issued by replica on primary node when it comes up
     rpc addReplicas (AddReplicaRequest) returns (AddReplicaResponse) {
     }
-    /* Issued by replica to receive CopyState from primary */
+
+    // Issued by replica to receive CopyState from primary
     rpc recvCopyState (CopyStateRequest) returns (CopyState) {
     }
-    /* Send a file as a stream in chunks*/
+
+    // Send a file as a stream in chunks
     rpc sendRawFile (stream RawFileChunk) returns (TransferStatus) {
     }
-    /* Receives a file as a stream in chunks. Typically issued by replica on primary */
+
+    // Receives a file as a stream in chunks. Typically issued by replica on primary
     rpc recvRawFile (FileInfo) returns (stream RawFileChunk) {
     }
+
+    // Receives a file as a stream in chunks. Uses bidirectional streaming for acks to control in flight data.
     rpc recvRawFileV2 (stream FileInfo) returns (stream RawFileChunk) {
     }
-    /* Issued by primary on replica to inform it to start copying files either pre-warming (new merged segments) or when replica comes up first time */
+
+    // Issued by primary on replica to inform it to start copying files either pre-warming (new merged segments)
+    // or when replica comes up first time
     rpc copyFiles (CopyFiles) returns (stream TransferStatus) {
     }
-    /* Invoked externally to replica, to notify it that a new NRT point was just created on the primary */
+
+    // Invoked externally to replica, to notify it that a new NRT point was just created on the primary
     rpc newNRTPoint (NewNRTPoint) returns (TransferStatus) {
     }
-    /** Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas */
+
+    // Invoked externally to primary, to make all recent index operations searchable on the primary and,
+    // once copying is done, on the replicas
     rpc writeNRTPoint (IndexName) returns (SearcherVersion) {
     }
-    /** Invoked externally to replica, to get the current Searcher version on replica.*/
+
+    // Invoked externally to replica, to get the current Searcher version on replica
     rpc getCurrentSearcherVersion (IndexName) returns (SearcherVersion) {
     }
-    /** Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index */
+
+    // Invoked externally on primary to find the list of replica nodes this node is connected to for binary
+    // replication for an index
     rpc getConnectedNodes (GetNodesRequest) returns (GetNodesResponse) {
     }
-
 }
 
-/* Input to createIndex */
+// Input to createIndex
 message CreateIndexRequest {
-    string indexName = 1; // name of the index to be created. [a-zA-Z0-9]*
-    // Set if state/data already exists in the data backend. Provides the yyyyMMddHHmmssSSS formatted date-time string to identify and load the index.
+    // Name of the index to be created. [a-zA-Z0-9_-]+
+    string indexName = 1;
+    // Set if state/data already exists in the data backend. Provides the yyyyMMddHHmmssSSS formatted date-time
+    // string to identify and load the index data.
     string existsWithId = 2;
     // Optional initial index settings
     IndexSettings settings = 3;
@@ -424,176 +420,253 @@ message CreateIndexRequest {
     bool start = 6;
 }
 
-/* Response from Server to createIndex */
+// Response from Server to createIndex
 message CreateIndexResponse {
+    // Message confirming creation of the index
     string response = 1;
 }
 
-/* Input to liveSettings */
+// Input to liveSettings
 message LiveSettingsRequest {
-    string indexName = 1; // name of index whose liveSettings are to be updated.
-    //Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen).
+    // Name of index whose liveSettings are to be updated
+    string indexName = 1;
+    // Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen)
     double maxRefreshSec = 2;
-    //Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen).
+    // Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen)
     double minRefreshSec = 3;
-    //Non-current searchers older than this are pruned.
+    // Non-current searchers older than this are pruned
     double maxSearcherAgeSec = 4;
-    //Size (in MB) of IndexWriter's RAM buffer.
+    // Size (in MB) of IndexWriter's RAM buffer
     double indexRamBufferSizeMB = 5;
-    //Max number of documents to add at a time.
+    // Max number of documents to add at a time
     int32 addDocumentsMaxBufferLen = 6;
-    //Maximum number of documents allowed in a parallel search slice.
+    // Maximum number of documents allowed in a parallel search slice
     int32 sliceMaxDocs = 7;
-    //Maximum number of segments allowed in a parallel search slice.
+    // Maximum number of segments allowed in a parallel search slice
     int32 sliceMaxSegments = 8;
-    //Number of virtual shards to use for this index.
+    // Number of virtual shards to use for this index
     int32 virtualShards = 9;
-    //Maximum sized segment to produce during normal merging
+    // Maximum sized segment to produce during normal merging
     int32 maxMergedSegmentMB = 10;
-    //Number of segments per tier used by TieredMergePolicy
+    // Number of segments per tier used by TieredMergePolicy
     int32 segmentsPerTier = 11;
-    //Timeout value to used when not specified in the search request.
+    // Timeout value to used when not specified in the search request
     double defaultSearchTimeoutSec = 12;
-    //Timeout check every value to use when not specified in the search request.
+    // Timeout check every value to use when not specified in the search request
     int32 defaultSearchTimeoutCheckEvery = 13;
-    //Terminate after value to use when not specified in the search request.
+    // Terminate after value to use when not specified in the search request
     int32 defaultTerminateAfter = 14;
 }
 
-/* Response from Server to liveSettings */
+// Response from Server to liveSettings
 message LiveSettingsResponse {
+    // Json string of updated IndexLiveSettings
     string response = 1;
 }
 
+// Input to liveSettingsV2
 message LiveSettingsV2Request {
-    // Index name
+    // Name of index whose liveSettings are to be updated
     string indexName = 1;
     // Live settings to merge into existing live settings, or unset to get current live settings
     IndexLiveSettings liveSettings = 2;
-    // When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.
+    // When set to true, live settings changes are only applied to the local node. These changes are ephemeral,
+    // so will not persist through a restart. Also, the live settings returned in the response will contain the
+    // local overrides only when this flag is true.
     bool local = 3;
 }
 
+// Response from Server to liveSettingsV2
 message LiveSettingsV2Response {
     // Current live settings, including default values
     IndexLiveSettings liveSettings = 1;
 }
 
-//Type of the field
+// Type of a Field
 enum FieldType {
-    ATOM = 0; // Text that's indexed as a single token, with DOCS_ONLY and omitting norms.
-    TEXT = 1; // Text that's tokenized and indexed, with the index-time analyzer.
-    BOOLEAN = 2; // Boolean value.
-    LONG = 3; //Long value.
-    INT = 4; // Int value.
-    DOUBLE = 5; //Double value.
-    FLOAT = 6; // Float value.
-    LAT_LON = 7; // A latitude/longitude point.
-    DATE_TIME = 8; // Date and optional time.
-    // TODO name this "dynamic" instead of "virtual"?
-    VIRTUAL = 9; // Virtual field defined with a JavaScript expression.
-    // TODO need tests for internal:
-    INTERNAL = 10; //Internal field, currently only for holding indexed facets data.
-    CUSTOM = 11; // Field type specified by name.
-    _ID = 12; // Field which will be used as document IDs
-    POLYGON = 13; // Geojson string for polygon
-    OBJECT = 14; // JSON
+    // Text that's indexed as a single token, with DOCS_ONLY and omitting norms
+    ATOM = 0;
+    // Text that's tokenized and indexed, with the index-time analyzer
+    TEXT = 1;
+    // Boolean value
+    BOOLEAN = 2;
+    // Long value
+    LONG = 3;
+    // Int value
+    INT = 4;
+    // Double value
+    DOUBLE = 5;
+    // Float value
+    FLOAT = 6;
+    // A latitude/longitude point
+    LAT_LON = 7;
+    // Date and optional time
+    DATE_TIME = 8;
+    // Virtual field defined with a Script
+    VIRTUAL = 9;
+    // Internal field, not currently used
+    INTERNAL = 10;
+    // Field type specified by name
+    CUSTOM = 11;
+    // Field type for document ID
+    _ID = 12;
+    // Geojson defined polygon
+    POLYGON = 13;
+    // Json object with child fields for each key
+    OBJECT = 14;
     // List of float values
     VECTOR = 15;
-    CONTEXT_SUGGEST = 16; //Field used for contextual suggest fields
+    // Field used for contextual suggest fields
+    CONTEXT_SUGGEST = 16;
     // Runtime fields
     RUNTIME = 17;
 }
 
-//How the tokens should be indexed.
+// How text tokens should be indexed
 enum IndexOptions {
-    DEFAULT = 0; // Use field default index options: ATOM=DOCS, TEXT=DOCS_FREQS_POSITIONS
-    DOCS = 1; // Index only doc ids (for binary search).
-    DOCS_FREQS = 2; // Index doc ids and term frequencies.
-    DOCS_FREQS_POSITIONS = 3; // Index doc ids, term frequencies and positions.
-    DOCS_FREQS_POSITIONS_OFFSETS = 4; // Index doc ids, term frequencies, positions and offsets.
+    // Use field default index options: ATOM=DOCS, TEXT=DOCS_FREQS_POSITIONS
+    DEFAULT = 0;
+    // Index only doc ids
+    DOCS = 1;
+    // Index doc ids and term frequencies
+    DOCS_FREQS = 2;
+    // Index doc ids, term frequencies and positions
+    DOCS_FREQS_POSITIONS = 3;
+    // Index doc ids, term frequencies, positions and offsets
+    DOCS_FREQS_POSITIONS_OFFSETS = 4;
 }
 
-//Whether/how term vectors should be indexed.
+// Whether/how term vectors should be indexed
 enum TermVectors {
-    NO_TERMVECTORS = 0; // no term vectors are indexed
-    TERMS = 1; // Index terms and freqs only.
-    TERMS_POSITIONS = 2; // Index terms, freqs and positions.
-    TERMS_POSITIONS_OFFSETS = 3; // Index terms, freqs, positions and offsets.
-    TERMS_POSITIONS_OFFSETS_PAYLOADS = 4; // Index terms, freqs, positions, offsets and payloads
+    // No term vectors are indexed
+    NO_TERMVECTORS = 0;
+    // Index terms only
+    TERMS = 1;
+    // Index terms and positions
+    TERMS_POSITIONS = 2;
+    // Index terms, positions and offsets
+    TERMS_POSITIONS_OFFSETS = 3;
+    // Index terms, positions, offsets and payloads
+    TERMS_POSITIONS_OFFSETS_PAYLOADS = 4;
 }
 
-//Whether/How this field should index facets, and how.
+// Whether/how facets should be indexed
 enum FacetType {
-    NO_FACETS = 0; //No facets are indexed.
-    FLAT = 1; //Facets are indexed with no hierarchy.
-    HIERARCHY = 2; //Facets are indexed and are hierarchical.
-    NUMERIC_RANGE = 3; //Compute facet counts for custom numeric ranges
-    SORTED_SET_DOC_VALUES = 4; //Uses SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
+    // No facets are indexed
+    NO_FACETS = 0;
+    // Facets are indexed with no hierarchy
+    FLAT = 1;
+    // Facets are indexed and are hierarchical
+    HIERARCHY = 2;
+    // Compute facet counts for custom numeric ranges
+    NUMERIC_RANGE = 3;
+    // Uses SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
+    SORTED_SET_DOC_VALUES = 4;
 }
 
+// Type of doc values to use for storing text values
 enum TextDocValuesType {
+    // Unspecified doc values type, use field default
     TEXT_DOC_VALUES_TYPE_UNSPECIFIED = 0;
-    // Binary docvalues support text longer than 32766 bytes and are good when most values are unique or you need to use aggregations on the field.
+    // Binary doc values support text longer than 32766 bytes and are good when most values are unique or
+    // you don't need to use sorting/aggregations on the field.
     TEXT_DOC_VALUES_TYPE_BINARY = 1;
-    // Sorted docvalues only store values shorter than 32766 bytes and are better when most values are not unique.
+    // Sorted doc values only store values shorter than 32766 bytes and are better when many values are not unique.
     TEXT_DOC_VALUES_TYPE_SORTED = 2;
 }
 
+// Definition of a field in an index
 message Field {
-    string name = 1; // name of the field
+    // Name of the field
+    string name = 1;
+    // Type of the field
     FieldType type = 2;
-    bool search = 3; // True if the value should be available for searching (or numeric range searching, for a numeric field).
-    bool store = 4; // True if the value should be stored.
-    bool storeDocValues = 5; // Whether to index the value into doc values.
-    bool sort = 6 [deprecated = true]; // True if the value should be indexed into doc values for sorting.
-    bool tokenize = 7 [deprecated = true]; // This is now determined from the field type
-    bool group = 8 [deprecated = true]; // True if the value should be indexed into doc values for grouping.
-    bool multiValued = 9; // True if this field may sometimes have more than one value.
-    bool highlight = 10 [deprecated = true]; // This parameter would be ignored
-    bool omitNorms = 11; // True if norms are omitted.
-    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp) 3) "strict_date_optional_time" (date with optional time in pattern of "yyyy-MM-dd['T'HH:mm:ss[.SSS]]")
-    string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
-    string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
-    IndexOptions indexOptions = 15; //How the tokens should be indexed.
-    Script script = 16; // The script definition defining a virtual field's value (only used with type=virtual).
-    //TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc
-    Analyzer analyzer = 17; // Analyzer to use for this field during indexing and searching.
-    Analyzer indexAnalyzer = 18; // Analyzer to use for this field during indexing.
-    Analyzer searchAnalyzer = 19; //Analyzer to use for this field during searching.
-    TermVectors termVectors = 20; // Whether/how term vectors should be indexed.
-    //TODO make similarity message types i.d. DefaultSimilarity, CustomSimilarity, BM25Similarity;
-    string similarity = 21; // Which Similarity implementation to use for this field.
-    FacetType facet = 22; // Whether this field should index facets, and how.
-    string facetIndexFieldName = 23; // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
-    google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
-    google.protobuf.Struct similarityParams = 25; // Parameters for similarity implementation.
-    repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
-
-    bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
-    bool nestedDoc = 28; // True if object data should be indexed as child documents
-    int32 vectorDimensions = 29; // Dimensions for vector field type
-    // If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
+    // True if the value should be available for searching (or numeric range searching, for a numeric fields)
+    bool search = 3;
+    // True if the value should be stored in the index
+    bool store = 4;
+    // True if the value should be indexed into doc values
+    bool storeDocValues = 5;
+    // No longer used
+    bool sort = 6 [deprecated = true];
+    // No longer used
+    bool tokenize = 7 [deprecated = true];
+    // No longer used
+    bool group = 8 [deprecated = true];
+    // True if this field may have more than one value
+    bool multiValued = 9;
+    // No longer used
+    bool highlight = 10 [deprecated = true];
+    // True if norms are omitted for text fields
+    bool omitNorms = 11;
+    // Format string used to parse datetime fields, supported values are:
+    //     1) DateTimeFormatter format
+    //     2) "epoch_millis" (datetime value is epoch timestamp)
+    //     3) "strict_date_optional_time" (date with optional time in pattern of "yyyy-MM-dd['T'HH:mm:ss[.SSS]]")
+    string dateTimeFormat = 12;
+    // Which PostingsFormat should be used to index this field, defaults to Lucene codec default
+    string postingsFormat = 13;
+    // Which DocValuesFormat should be used to index this field, defaults to Lucene codec default
+    string docValuesFormat = 14;
+    // How the tokens should be indexed for text fields
+    IndexOptions indexOptions = 15;
+    // The script definition defining a virtual field's value (only used with type=virtual)
+    Script script = 16;
+    // Analyzer to use for this field during indexing and searching, defaults to Lucene standard analyzer
+    Analyzer analyzer = 17;
+    // Analyzer to use for this field during indexing, if different from analyzer
+    Analyzer indexAnalyzer = 18;
+    // Analyzer to use for this field during searching, if different from analyzer
+    Analyzer searchAnalyzer = 19;
+    // Whether/how term vectors should be indexed
+    TermVectors termVectors = 20;
+    // Which Similarity implementation to use for this field, defaults to BM25Similarity
+    string similarity = 21;
+    // Whether/how facets should be indexed
+    FacetType facet = 22;
+    // Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets,
+    // defaults to '$_<field_name>'
+    string facetIndexFieldName = 23;
+    // Additional info needed to configure field, used for CUSTOM types
+    google.protobuf.Struct additionalProperties = 24;
+    // Parameters for similarity implementation
+    google.protobuf.Struct similarityParams = 25;
+    // Child fields accessible by dot notation. For standard fields, this indexes the same data as the parent field.
+    // For object fields, this represents the subfields within the object.
+    repeated Field childFields = 26;
+    // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query.
+    // Currently only for SORTED_SET_DOC_VALUES facet type.
+    bool eagerGlobalOrdinals = 27;
+    // True if object data should be indexed as child documents
+    bool nestedDoc = 28;
+    // Dimensions for vector field types
+    int32 vectorDimensions = 29;
+    // If field based global ordinals should be built up front, otherwise this is done lazily on first access.
+    // Currently only for fields with text doc values (TEXT/ATOM).
     bool eagerFieldGlobalOrdinals = 30;
     // Similarity type for search enabled VECTOR fields. This is a required option when search=true.
     // Accepts built in types:
     //      'l2_norm'          : (1 / (1 + l2_norm(query, vector)^2))
     //      'dot_product'      : Float vector: ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length)
-    //                           Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims)) (all vectors must have the same length)
+    //                           Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims))
+    //                              (all vectors must have the same length)
     //      'cosine'           : ((1 + cosine(query, vector)) / 2)
     //      'max_inner_product': when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
     //                           when >= 0: max_inner_product(query, vector) + 1
     string vectorSimilarity = 31;
-    // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
+    // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16,
+    // ef_construction=100 when not set.
     VectorIndexingOptions vectorIndexingOptions = 32;
-    //  Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED when not set. Multivalued fields will always use SORTED_SET.
+    //  Specify doc values type for TEXT/ATOM field types. This is optional, defaulting to SORTED when not set.
+    //  Multivalued fields will always use SORTED_SET.
     TextDocValuesType textDocValuesType = 33;
-    // Element type for vector field, defaulting to FLOAT when not set.
+    // Element type for vector field, defaulting to FLOAT when not set
     VectorElementType vectorElementType = 34;
     // Position increment gap for indexing multi valued TEXT fields. Must be >= 0, defaulting to 100 when not set.
     optional int32 positionIncrementGap = 35;
-    // For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.
-    // This option is also useful for protecting against Lucene’s term byte-length limit of 32766
+    // For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer
+    // than ignore_above will not be indexed or stored. This option is useful for protecting against Lucene’s
+    // term byte-length limit of 32766
     optional int32 ignoreAbove = 36;
 }
 
@@ -615,52 +688,73 @@ message VectorIndexingOptions {
     optional int32 hnsw_ef_construction = 3;
     // Number of threads to use for merging vector data, default: 1
     optional int32 merge_workers = 4;
-    // The confidenceInterval for scalar quantizing the vectors. When unset, it is calculated based on the vector dimension.
-    // When `0`, the quantiles are dynamically determined by sampling many confidence intervals and determining the most accurate pair.
-    // Otherwise, the value must be between 0.9 and 1.0 (both inclusive). default: unset
+    // The confidenceInterval for scalar quantizing the vectors. When unset, it is calculated based on the
+    // vector dimension. When `0`, the quantiles are dynamically determined by sampling many confidence intervals and
+    // determining the most accurate pair. Otherwise, the value must be between 0.9 and 1.0 (both inclusive).
+    // default: unset
     optional float quantized_confidence_interval = 5;
     // The number of bits to use for quantizing the vectors. It can have the following values:
     //      4 - half byte
     //      7 - signed byte (default)
     optional int32 quantized_bits = 6;
     // Whether to compress the vectors, if true, the vectors that are quantized with <= 4 bits will be compressed into
-    // a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed. default: false
+    // a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.
+    // default: false
     optional bool quantized_compress = 7;
 }
 
-/* Input to registerFields */
+// Input to registerFields
 message FieldDefRequest {
-    string indexName = 1; // name of the index against which the field is to be created
+    // Name of index to add fields to
+    string indexName = 1;
+    // List of fields to add
     repeated Field field = 2;
 }
 
-/* Response from Server for registerFields */
+// Response from Server for registerFields
 message FieldDefResponse {
+    // Json string of object containing all index fields (including newly added fields)
     string response = 1;
 }
 
-/* Input to settings */
+// Input to settings
 message SettingsRequest {
-    string indexName = 1; // Index name
-    double mergeMaxMBPerSec = 2; // Rate limit merges to at most this many MB/sec
-    double nrtCachingDirectoryMaxMergeSizeMB = 3; // Largest merged segment size to cache in RAMDirectory, default: 5.0MB
-    double nrtCachingDirectoryMaxSizeMB = 4; // Largest overall size for all files cached in NRTCachingDirectory; set to -1 to disable NRTCachingDirectory default: 60.0MB
-    int32 concurrentMergeSchedulerMaxThreadCount = 5; // How many merge threads to allow at once
-    int32 concurrentMergeSchedulerMaxMergeCount = 6; // Maximum backlog of pending merges before indexing threads are stalled
-    SortFields indexSort = 7; // Index time sorting; can only be written once", SearchHandler.SORT_TYPE
-    bool indexVerbose = 8 [deprecated = true]; // Deprecated, moved to lucene config. Turn on IndexWriter's infoStream (to stdout)
-    bool indexMergeSchedulerAutoThrottle = 9; // Turn on/off the merge scheduler's auto throttling
-    string normsFormat = 10; // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
-    // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
+    // Name of index whose settings are to be updated
+    string indexName = 1;
+    // No longer used
+    double mergeMaxMBPerSec = 2 [deprecated = true];
+    // Largest merged segment size to cache in RAMDirectory, default: 5.0MB
+    double nrtCachingDirectoryMaxMergeSizeMB = 3;
+    // Largest overall size for all files cached in NRTCachingDirectory; set to -1 to disable NRTCachingDirectory,
+    // default: 60.0MB
+    double nrtCachingDirectoryMaxSizeMB = 4;
+    // How many merge threads to allow at once
+    int32 concurrentMergeSchedulerMaxThreadCount = 5;
+    // Maximum backlog of pending merges before indexing threads are stalled
+    int32 concurrentMergeSchedulerMaxMergeCount = 6;
+    // Index time sorting; can only be written once, default: no sorting
+    SortFields indexSort = 7;
+    // Deprecated, moved to lucene config. Turn on IndexWriter's infoStream (to stdout)
+    bool indexVerbose = 8 [deprecated = true];
+    // Turn on/off the merge scheduler's auto throttling
+    bool indexMergeSchedulerAutoThrottle = 9;
+    // No longer used
+    string normsFormat = 10 [deprecated = true];
+    // Base Directory implementation to use either one of the core implementations
+    // (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory
+    // implementation that has a public constructor taking a single File argument default: FSDirectory.
+    // This implementation will be wrapped by NRTCachingDirectory, if enabled and not using MMappedDirectory.
     string directory = 11;
 
 }
 
-/* Settings Response returned from Server */
+// Settings Response returned from Server
 message SettingsResponse {
+    // Json string of updated IndexSettings
     string response = 1;
 }
 
+// Input to settingsV2
 message SettingsV2Request {
     // Index name
     string indexName = 1;
@@ -668,353 +762,496 @@ message SettingsV2Request {
     IndexSettings settings = 2;
 }
 
+// Response from Server for settingsV2
 message SettingsV2Response {
     // Current index settings, including default values
     IndexSettings settings = 1;
 }
 
-/* Start the index */
+// Input to startIndex
 message StartIndexRequest {
-    string indexName = 1; //index name
-    Mode mode = 2; //Standalone, NRT primary or replica mode to start this index.
-    int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
-    string primaryAddress = 4; //replica, the IP address or host name of the remote primary
-    int32 port = 5; //replica, the TCP port of the remote primary
-    RestoreIndex restore = 6; // restore index from backup
-    // replica, location of discovery file containing primary host/port. Used if primaryAddress is empty. If port is specified in this request, it overrides the value in the file
+    // Index name
+    string indexName = 1;
+    // Mode to start this index: Standalone, NRT primary or replica
+    Mode mode = 2;
+    // Generation of this primary (should increase each time a new primary starts for this index).
+    // Pass -1 use generation based on epoch time.
+    int64 primaryGen = 3; //primary,
+    // Replica config: the IP address or host name of the remote primary
+    string primaryAddress = 4;
+    // Replica config: the TCP port of the remote primary
+    int32 port = 5;
+    // Restore index from backup
+    RestoreIndex restore = 6;
+    // Replica config: location of discovery file containing primary host/port. Used if primaryAddress is empty.
+    // If port is specified in this request, it overrides the port value in the file.
     string primaryDiscoveryFile = 7;
 }
 
-/* Start the index using IndexStartConfig configuration */
+// Start the index using IndexStartConfig configuration
 message StartIndexV2Request {
-    // index name
+    // Index name
     string indexName = 1;
 }
 
+// Index start mode
 enum Mode {
+    // Standalone index with no replication
     STANDALONE = 0;
+    // Primary index in an nrt cluster setup
     PRIMARY = 1;
+    // Replica index in an nrt cluster setup
     REPLICA = 2;
 }
 
+// Response from Server for startIndex
 message StartIndexResponse {
-    int32 maxDoc = 1; //one greater than the largest possible document number
-    int32 numDocs = 2; //the number of documents in this index.
-    string segments = 3; //string representation of the IndexReader implementation
-    double startTimeMS = 4; //time taken to start the index
+    // One greater than the largest possible document number
+    int32 maxDoc = 1;
+    // Number of documents in this index
+    int32 numDocs = 2;
+    // String representation of the IndexReader implementation
+    string segments = 3;
+    // Time taken to start the index
+    double startTimeMS = 4;
 }
 
+// Message representing a document to index
 message AddDocumentRequest {
-    string indexName = 1; //name of the index
-    //we use this wrapper object to represent each field as a multivalued field.
+    // Index name
+    string indexName = 1;
+    // Wrapper object to represent each field as a multivalued field.
     message MultiValuedField {
-        repeated string value = 1; //list of values for this field
-        //Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY
+        // List of values for this field
+        repeated string value = 1;
+        // Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY
         repeated FacetHierarchyPath faceHierarchyPaths = 2;
     }
-    map<string, MultiValuedField> fields = 3; //map of field name to a list of string values.
+    // Map of field name to a list of string values
+    map<string, MultiValuedField> fields = 3;
 }
 
+// Path for hierarchical facets
 message FacetHierarchyPath {
+    // Facet path
     repeated string value = 1;
 }
 
+// Response from Server for addDocument
 message AddDocumentResponse {
+    // Lucene index sequence number after adding the documents
     string genId = 1;
     // Unique identifier for the primary instance that processed the request
     string primaryId = 2;
 }
 
+// Input to refresh
 message RefreshRequest {
-    string indexName = 1; //index name to be refreshed
+    // Index name to be refreshed
+    string indexName = 1;
 }
 
+// Response from Server for refresh
 message RefreshResponse {
-    double refreshTimeMS = 1; //time taken in milliseconds to refresh the index
+    // Time taken in milliseconds to refresh the index
+    double refreshTimeMS = 1;
 }
 
+// Input to commit
 message CommitRequest {
-  string indexName = 1; //index to commit
+    // Index name to commit
+    string indexName = 1;
 }
 
+// Response from Server for commit
 message CommitResponse {
-    /*  sequence number of the last operation in the commit.  All sequence numbers less than this value
-    will be reflected in the commit, and all others will not.*/
+    // Sequence number of the last operation in the commit. All sequence numbers less than this value
+    // will be reflected in the commit, and all others will not.
     int64 gen = 1;
     // Unique identifier for the primary instance that processed the request
     string primaryId = 2;
 }
 
+// Input to stats
 message StatsRequest {
-    string indexName = 1; //retrieve stats of the index
+    // Index name to retrieve stats
+    string indexName = 1;
 }
 
+// Response from Server for stats
 message StatsResponse {
-    int32 ord = 1; //shard ordinal
-    /* The total number of docs in this index, including docs not yet flushed (still in the RAM buffer),
-    not counting deletions.*/
+    // Shard ordinal
+    int32 ord = 1;
+    // The total number of docs in this index, including docs not yet flushed (still in the RAM buffer),
+    // not counting deletions.
     int32 maxDoc = 2;
-    /**
-     * The total number of docs in this index, including
-     * docs not yet flushed (still in the RAM buffer), and
-     * including deletions. NOTE: buffered deletions
-     * are not counted.  If you really need these to be
-     * counted you should call {@link IndexWriter#commit()} first.
-     */
+    // The total number of docs in this index, including docs not yet flushed (still in the RAM buffer), and
+    // including deletions. NOTE: buffered deletions are not counted.  If you really need these to be
+    // counted you should call {@link IndexWriter#commit()} first.
     int32 numDocs = 3;
-    int64 dirSize = 4; //size of the this indexDir
-    string state = 5; //state of the index
-    Taxonomy taxonomy = 6; //Taxonomy(facets) stats
-    repeated Searcher searchers = 7; //Searcher stats
-    Searcher currentSearcher = 8; //Current Searcher stats
+    // The total size of this indexDir
+    int64 dirSize = 4;
+    // The state of the index
+    string state = 5;
+    // Taxonomy(facets) stats
+    Taxonomy taxonomy = 6;
+    // Searcher stats
+    repeated Searcher searchers = 7;
+    // Current Searcher stats
+    Searcher currentSearcher = 8;
 }
 
+// Taxonomy stats
 message Taxonomy {
-    int32 numOrds = 1; //number of docs in this taxonomy reader
-    string segments = 2; //string representation of segments
+    // Number of docs in this taxonomy reader
+    int32 numOrds = 1;
+    // String representation of segments
+    string segments = 2;
 }
 
+// Index searcher stats
 message Searcher {
-    /* the version recorded in the commit that the reader opened.
-    This version is advanced every time a change is made with IndexWriter.*/
+    // Version recorded in the commit that the reader opened. This version is advanced every time a change
+    // is made with IndexWriter.
     int64 version = 1;
-    int32 numDocs = 2; //total number of docs in this index
-    string segments = 3; //string representation of segments
-    double staleAgeSeconds = 4; //how much time has passed since this searcher was the current (live) searcher
-    int32 numSegments = 5; // number of segments, filled only if Searcher has StandardDirectoryReader
+    // Total number of docs in this index
+    int32 numDocs = 2;
+    // String representation of segments
+    string segments = 3;
+    // How much time has passed since this searcher was the current (live) searcher
+    double staleAgeSeconds = 4;
+    // Number of segments, filled only if Searcher has StandardDirectoryReader
+    int32 numSegments = 5;
 }
 
+// Input to deleteAllDocuments
 message DeleteAllDocumentsRequest {
-    string indexName = 1; //index to delete all documents  from
+    // Index name to delete all documents from
+    string indexName = 1;
 }
 
+// Response from Server for deleteAllDocuments
 message DeleteAllDocumentsResponse {
-    string genId = 1; //Returns the index generation (indexGen) that reflects the deletion.
+    // Lucene index sequence number after deleting all documents
+    string genId = 1;
 }
 
+// Input to deleteIndex
 message DeleteIndexRequest {
-    string indexName = 1; //index to delete
+    // Index name to delete
+    string indexName = 1;
 }
 
+// Response from Server for deleteIndex
 message DeleteIndexResponse {
-    string ok = 1; //Returns "ok" string on  success
+    // Returns "ok" string on success
+    string ok = 1;
 }
 
+// Response with no content
 message DummyResponse {
-    string ok = 1; // returns "ok" string on success
+    // Returns "ok" string on success
+    string ok = 1;
 }
 
+// Input to stopIndex
 message StopIndexRequest {
-    string indexName = 1; //index name to stop
+    // Index name to stop
+    string indexName = 1;
 }
 
+// Input to reloadState
 message ReloadStateRequest {
 }
 
+// Response from Server for reloadState
 message ReloadStateResponse {
 }
 
-/*
-Creates a snapshot in the index, which is saved point-in-time view of the last commit in the
-index such that no files referenced by that snapshot will be deleted by ongoing indexing until
-the snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,
- so be sure to call commit first if you have pending changes that you'd like to be included in
- the snapshot.<p>This can be used for backup purposes, i.e. after creating the snapshot you can
- copy all referenced files to backup storage, and then release the snapshot once complete.
- To restore the backup, just copy all the files back and restart the server.  It can also
- be used for transactional purposes, i.e. if you sometimes need to search a specific snapshot
- instead of the current live index.<p>Creating a snapshot is very fast (does not require any
- file copying), but over time it will consume extra disk space as old segments are merged in
- the index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown
- and restart of the server.  Returns all protected filenames referenced by this snapshot:
- these files will not change and will not be deleted until the snapshot is released.
- This returns the directories and files referenced by the snapshot.
- */
+// Creates a snapshot in the index, which is saved point-in-time view of the last commit in the
+// index such that no files referenced by that snapshot will be deleted by ongoing indexing until
+// the snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,
+// so be sure to call commit first if you have pending changes that you'd like to be included in
+// the snapshot.<p>This can be used for backup purposes, i.e. after creating the snapshot you can
+// copy all referenced files to backup storage, and then release the snapshot once complete.
+// To restore the backup, just copy all the files back and restart the server.  It can also
+// be used for transactional purposes, i.e. if you sometimes need to search a specific snapshot
+// instead of the current live index.<p>Creating a snapshot is very fast (does not require any
+// file copying), but over time it will consume extra disk space as old segments are merged in
+// the index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown
+// and restart of the server.  Returns all protected filenames referenced by this snapshot:
+// these files will not change and will not be deleted until the snapshot is released.
+// This returns the directories and files referenced by the snapshot.
 message CreateSnapshotRequest {
-    string indexName = 1; //name of the index to snapshot;
-    bool openSearcher = 2; //Pass true if you intend to do searches against this snapshot, by passing searcher: {snapshot: X} to @search
+    // Name of the index to snapshot
+    string indexName = 1;
+    // Pass true if you intend to do searches against this snapshot, by passing searcher: {snapshot: X} to @search
+    bool openSearcher = 2;
 }
 
+// Response from Server for createSnapshot
 message CreateSnapshotResponse {
+    // List of index files referenced by this snapshot
     repeated string indexFiles = 1;
+    // List of taxonomy index files referenced by this snapshot
     repeated string taxonomyFiles = 2;
+    // List of state index files referenced by this snapshot
     repeated string stateFiles = 3;
+    // Snapshot id
     SnapshotId snapshotId = 4;
 }
 
+// Snapshot id
 message SnapshotId {
+    // Index generation
     int64 indexGen = 1;
+    // Taxonomy index generation
     int64 taxonomyGen = 2;
+    // State generation
     int64 stateGen = 3;
 }
 
+// Input to releaseSnapshot
 message ReleaseSnapshotRequest {
-    string indexName = 1; // name of snapshotted index to be released
-    SnapshotId snapshotId = 2; //The id for this snapshot; this must have been previously created via @createSnapshot.
+    // Name of the index to release snapshot
+    string indexName = 1;
+    // Id of snapshot to release, previously returned by @createSnapshot
+    SnapshotId snapshotId = 2;
 }
 
+// Response from Server for releaseSnapshot
 message ReleaseSnapshotResponse {
-    bool success = 1; //true if successful
+    // True if successful
+    bool success = 1;
 }
 
+// Input to getAllSnapshotGen
 message GetAllSnapshotGenRequest {
-    string indexName = 1; // name of index whose snapshotted index gens are needed
+    // Name of the index to get snapshot gens
+    string indexName = 1;
 }
 
+// Response from Server for getAllSnapshotGen
 message GetAllSnapshotGenResponse {
-    repeated int64 indexGens = 1; // list of snapshotted index gens
+    // List of snapshot gens
+    repeated int64 indexGens = 1;
 }
 
+// Input to backupWarmingQueries
 message BackupWarmingQueriesRequest {
-    string index = 1; // Index whose warming queries to backup
-    string serviceName = 2; // remote storage namespace qualifier for service
-    int32 numQueriesThreshold = 3; // optional; minimum # of queries required to backup warming queries
-    int32 uptimeMinutesThreshold = 4; // optional; minimum # of minutes uptime to backup warming queries
+    // Index whose warming queries to backup
+    string index = 1;
+    // Remote storage namespace qualifier for service
+    string serviceName = 2;
+    // Optional; minimum # of queries required to backup warming queries
+    int32 numQueriesThreshold = 3;
+    // Optional; minimum # of minutes uptime to backup warming queries
+    int32 uptimeMinutesThreshold = 4;
 }
 
+// Response from Server for backupWarmingQueries
 message BackupWarmingQueriesResponse {
 }
 
+// Input to indices
 message IndicesRequest {
 }
 
+// Response from Server for indices
 message IndicesResponse {
-    repeated IndexStatsResponse indicesResponse = 1; //list of IndexStatsResponse
+    // List of index stats
+    repeated IndexStatsResponse indicesResponse = 1;
 }
 
+// Index stats response
 message IndexStatsResponse {
-    string indexName = 1; //index name
-    StatsResponse statsResponse = 2; //stats for an index
+    // Index name
+    string indexName = 1;
+    // Index stats
+    StatsResponse statsResponse = 2;
 }
 
+// Index restore information
 message RestoreIndex {
-    string serviceName = 1; // remote storage namespace qualifier for service
-    string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
-    bool deleteExistingData = 3; // delete any existing data for the index
+    // Remote storage namespace qualifier for service
+    string serviceName = 1;
+    // Remote storage namespace qualifier for resource e.g. indexName
+    string resourceName = 2;
+    // Delete any existing local data for the index
+    bool deleteExistingData = 3;
 }
 
+// Input to nodeInfo
 message NodeInfoRequest {
 }
 
+// Response from Server for nodeInfo
 message NodeInfoResponse {
-    // node name
+    // Node name
     string node_name = 1;
-    // service name
+    // Service name
     string service_name = 2;
-    // host name
+    // Host name
     string host_name = 3;
-    // nrtsearch version
+    // Nrtsearch version
     string version = 4;
-    // node ephemeral id
+    // Node ephemeral id
     string ephemeral_id = 5;
 }
 
+// Input to globalState
 message GlobalStateRequest {
 }
 
+// Response from Server for globalState
 message GlobalStateResponse {
-    // cluster global state
+    // Cluster global state
     GlobalStateInfo global_state = 1;
 }
 
+// Input to state
 message StateRequest {
-    string indexName = 1; //index name
+    // Index name to retrieve state
+    string indexName = 1;
 }
 
+// Response from Server for state
 message StateResponse {
-    string response = 1; //json string of the current index state
+    // Json string of the current index state
+    string response = 1;
 }
 
+// Input to indexState
 message IndexStateRequest {
-    // index name
+    // Index name
     string index_name = 1;
 }
 
+// Response from Server for indexState
 message IndexStateResponse {
-    // index state
+    // Index state
     IndexStateInfo index_state = 1;
 }
 
+// Input to addReplica
 message AddReplicaRequest {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int32 replicaId = 3 [deprecated = true]; //replica Id
-    string hostName = 4; // replica host name
-    int32 port = 5; // replica port number
-    // index id
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
+    // No longer used
+    int32 replicaId = 3 [deprecated = true];
+    // Replica host name
+    string hostName = 4;
+    // Replica port number
+    int32 port = 5;
+    // Index id
     string indexId = 6;
-    // node name
+    // Node name
     string nodeName = 7;
 }
 
+// Response from Server for addReplica
 message AddReplicaResponse {
-    string ok = 1; //Returns "ok" string on  success
+    // Returns "ok" string on success
+    string ok = 1;
 }
 
-/* Holds incRef'd file level details for one point-in-time segment infos on the primary node. */
+// Holds incRef'd file level details for one point-in-time segment infos on the primary node
 message CopyState {
-    int32 infoBytesLength = 1; // infoBytes len
-    bytes infoBytes = 2; //infoBytes
-    int64 gen = 3; //gen
-    int64 version = 4; //versiom
-    FilesMetadata filesMetadata = 5; //fileMetadata
-    int32 completedMergeFilesSize = 6; //completed merged files
-    repeated string completedMergeFiles = 7; //names of files that finished merge
-    int64 primaryGen = 8; //primary Gen
+    // InfoBytes length
+    int32 infoBytesLength = 1;
+    // InfoBytes
+    bytes infoBytes = 2;
+    // Index generation
+    int64 gen = 3;
+    // Index version
+    int64 version = 4;
+    // Index file metadata
+    FilesMetadata filesMetadata = 5;
+    // Completed merged files size
+    int32 completedMergeFilesSize = 6;
+    // Completed merged files
+    repeated string completedMergeFiles = 7;
+    // Primary generation
+    int64 primaryGen = 8;
 }
 
+// Metadata for multiple index files
 message FilesMetadata {
     int32 numFiles = 1; //number of files int this set
     repeated FileMetadata fileMetadata = 2; //list of metadata for each file
 }
 
+// Metadata for a single index file
 message FileMetadata {
-    string fileName = 1; //file Name
-    int64 len = 2; //file checksum
-    int64 checksum = 3; //file checksum
-    int32 headerLength = 4; //file header length;
-    bytes header = 5; //file header;
-    int32 footerLength = 6; //file header length;
-    bytes footer = 7; //file header;
+    // File name
+    string fileName = 1;
+    // File length
+    int64 len = 2;
+    // File checksum
+    int64 checksum = 3;
+    // File header length
+    int32 headerLength = 4;
+    // File header
+    bytes header = 5;
+    // File footer length
+    int32 footerLength = 6;
+    // File footer
+    bytes footer = 7;
 }
 
-/** Primary invokes this on a replica to ask it to copy files */
+// Primary invokes this on a replica to ask it to copy files
 message CopyFiles {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
-    FilesMetadata filesMetadata = 4; //file metadata to copy
-    // index id
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
+    // Primary generation
+    int64 primaryGen = 3;
+    // Files metadata to copy
+    FilesMetadata filesMetadata = 4;
+    // Index id
     string indexId = 5;
 }
 
-/** Replica invokes this on a primary to let primary know it needs the CopyState */
+// Replica invokes this on a primary to let primary know it needs the CopyState
 message CopyStateRequest {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int32 replicaId = 3; //replica Id
-    // index id
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
+    // Replica id
+    int32 replicaId = 3;
+    // Index id
     string indexId = 4;
 }
 
+// Request to receive file data from primary
 message FileInfo {
-    string fileName = 1; // Name of the file the replica wants primary to send
-    int64 fpStart = 2; // Starting offset in the file primary should start sending bytes from:
-    string indexName = 3; //index name these files belong to
-    // sequence number to ack, only used for acked file copy
+    // Name of the file the replica wants primary to send
+    string fileName = 1;
+    // Starting offset in the file primary should start sending bytes from
+    int64 fpStart = 2;
+    // Index name these files belong to
+    string indexName = 3;
+    // Sequence number to ack, only used for acked file copy
     int32 ackSeqNum = 4;
-    // index id
+    // Index id
     string indexId = 5;
 }
 
+// Chunk of file data
 message RawFileChunk {
-    bytes content = 1; //raw contents of file
-    // sequence number for this chunk, only used for acked file copy
+    // Raw contents of file
+    bytes content = 1;
+    // Sequence number for this chunk, only used for acked file copy
     int32 seqNum = 2;
-    // if this chunk should be acked, only used for acked file copy
+    // If this chunk should be acked, only used for acked file copy
     bool ack = 3;
 }
 
+// Status of file copy
 enum TransferStatusCode {
     Unknown = 0;
     Done = 1;
@@ -1022,88 +1259,134 @@ enum TransferStatusCode {
     Ongoing = 3;
 }
 
+// Input to healthCheck
 message HealthCheckRequest {
-    bool check = 1; //healthcheck request
+    // Healthcheck request
+    bool check = 1;
 }
 
+// Response from Server for healthCheck
 message HealthCheckResponse {
-    TransferStatusCode health = 1; //enum response of healthcheck;
+    // Response of healthcheck
+    TransferStatusCode health = 1;
 }
 
+// Input to readyCheck
 message ReadyCheckRequest {
     string indexNames = 1;
 }
 
+// Response with transfer status
 message TransferStatus {
+    // Response message
     string Message = 1;
+    // Transfer status code
     TransferStatusCode Code = 2;
 }
 
+// Input to newNRTPoint
 message NewNRTPoint {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
-    int64 version = 4; //version number when this SegmentInfos was generated
-    // index id
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
+    // Primary generation
+    int64 primaryGen = 3;
+    // Version number when this SegmentInfos was generated
+    int64 version = 4;
+    // Index id
     string indexId = 5;
 }
 
+// Index name with magic number
 message IndexName {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
 }
 
+// Index searcher version
 message SearcherVersion {
-    int64 version = 1; //returns the version recorded in the commit that the reader opened.  This version is advanced every time a change is made with IndexWriter
-    bool didRefresh = 2; //true if refresh happened
+    // Version recorded in the commit that the reader opened. This version is advanced every time a change
+    // is made with IndexWriter.
+    int64 version = 1;
+    // True if refresh happened
+    bool didRefresh = 2;
 }
 
+// Input to getNodes
 message GetNodesRequest {
+    // Index name
     string indexName = 1; //name of the started index whose binary connections we wish to see
 }
 
+// Response from Server for getNodes
 message GetNodesResponse {
     repeated NodeInfo nodes = 2; //list of NodeInfo
 }
 
+// Node information
 message NodeInfo {
-    string hostname = 1; //name or ip address of the remote host that this node is connected to for binary replication
-    int32 port = 2; //port number of the remote host that this node is connected to for binary replication
-    string nodeName = 3; //name of the remote node
+    // Name or ip address of the remote host that this node is connected to for binary replication
+    string hostname = 1;
+    // Port number of the remote host that this node is connected to for binary replication
+    int32 port = 2;
+    // Name of the remote node
+    string nodeName = 3;
 }
 
+// Input to deleteByQuery
 message DeleteByQueryRequest {
-    string indexName = 1; // Index to delete documents from
-    repeated Query query = 2; // Queries to match documents to be deleted
+    // Index name to delete documents from
+    string indexName = 1;
+    // Queries to match documents to be deleted
+    repeated Query query = 2;
 }
 
+// Input to forceMerge
 message ForceMergeRequest {
-    string indexName = 1; // Index whose segments must be force merged
-    int32 maxNumSegments = 2; // Maximum number of segments after force merge
-    bool doWait = 3; // If true, waits until the force merge is completed before returning a response. Otherwise starts force merging in async and returns a response.
+    // Index name whose segments must be force merged
+    string indexName = 1;
+    // Maximum number of segments after force merge
+    int32 maxNumSegments = 2;
+    // If true, waits until the force merge is completed before returning a response. Otherwise starts force
+    // merging in async and returns a response.
+    bool doWait = 3;
 }
 
+// Response from Server for forceMerge
 message ForceMergeResponse {
+    // Status of force merge
     enum Status {
         FORCE_MERGE_COMPLETED = 0;
         FORCE_MERGE_SUBMITTED = 1;
     }
+    // Status of force merge
     Status status = 1;
 }
 
+// Input to forceMergeDeletes
 message ForceMergeDeletesRequest {
-    string indexName = 1; // Index whose segments having deletes must be force merged
-    bool doWait = 2; // If true, waits until the force merge is completed before returning a response. Otherwise starts force merging in async and returns a response.
+    // Index name whose segments having deletes must be force merged
+    string indexName = 1;
+    // If true, waits until the force merge is completed before returning a response. Otherwise starts force
+    // merging in async and returns a response.
+    bool doWait = 2;
 }
 
+// Response from Server for forceMergeDeletes
 message ForceMergeDeletesResponse {
+    // Status of force merge deletes
     enum Status {
         FORCE_MERGE_DELETES_COMPLETED = 0;
         FORCE_MERGE_DELETES_SUBMITTED = 1;
     }
+    // Status of force merge deletes
     Status status = 1;
 }
 
+// Index offline settings
 message IndexSettings {
     // Largest merged segment size to cache in RAMDirectory, default: 5.0MB
     google.protobuf.DoubleValue nrtCachingDirectoryMaxMergeSizeMB = 1;
@@ -1117,15 +1400,20 @@ message IndexSettings {
     SortFields indexSort = 5;
     // Turn on/off the merge scheduler's auto throttling, default: off
     google.protobuf.BoolValue indexMergeSchedulerAutoThrottle = 6;
-    // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
+    // Base Directory implementation to use either one of the core implementations
+    // (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory
+    // implementation that has a public constructor taking a single File argument default: FSDirectory.
+    // This implementation will be wrapped by NRTCachingDirectory, if enabled and not using MMappedDirectory.
     google.protobuf.StringValue directory = 7;
 
 }
 
+// Index live settings
 message IndexLiveSettings {
     // Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0
     google.protobuf.DoubleValue maxRefreshSec = 1;
-    // Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05
+    // Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen),
+    // default: 0.05
     google.protobuf.DoubleValue minRefreshSec = 2;
     // Non-current searchers older than this are pruned, default: 60.0
     google.protobuf.DoubleValue maxSearcherAgeSec = 3;
@@ -1151,7 +1439,8 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultTerminateAfter = 13;
     // Merge precopy would be stopped after this time, or 0 for no checks, default: 0
     google.protobuf.UInt64Value maxMergePreCopyDurationSec = 14;
-    // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
+    // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory
+    // and/or compute, default: false
     google.protobuf.BoolValue verboseMetrics = 15;
     // If fetch parallelism should be done by groups of fields instead of document, default: false
     google.protobuf.BoolValue parallelFetchByField = 16;
@@ -1159,6 +1448,7 @@ message IndexLiveSettings {
     google.protobuf.Int32Value parallelFetchChunkSize = 17;
 }
 
+// Index state
 message IndexStateInfo {
     // Name of the index
     string indexName = 1;
@@ -1174,6 +1464,7 @@ message IndexStateInfo {
     map<string, Field> fields = 6;
 }
 
+// Per index information stored in global state
 message IndexGlobalState {
     // Unique identifier for index (yyyyMMddHHmmssSSS formatted date-time string)
     string id = 1;
@@ -1181,6 +1472,7 @@ message IndexGlobalState {
     bool started = 2;
 }
 
+// Cluster global state
 message GlobalStateInfo {
     // State version generation
     int64 gen = 1;
@@ -1188,12 +1480,17 @@ message GlobalStateInfo {
     map<string, IndexGlobalState> indices = 2;
 }
 
+// Input to custom
 message CustomRequest {
-    string id = 1; // ID defined for custom requests in a plugin
-    string path = 2; // Custom path that is defined in a plugin that maps to a route
-    map<string, string> params = 3; // Parameters that can be processed by the plugin at the specified path
+    // ID defined for custom requests in a plugin
+    string id = 1;
+    // Custom path that is defined in a plugin that maps to a route
+    string path = 2;
+    // Parameters that can be processed by the plugin at the specified path
+    map<string, string> params = 3;
 }
 
+// Response from Server for custom
 message CustomResponse {
     map<string, string> response = 1; // Custom response sent by the plugin
 }
