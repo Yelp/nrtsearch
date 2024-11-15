@@ -782,6 +782,26 @@ public class ImmutableIndexStateTest {
   }
 
   @Test
+  public void testDefaultTerminateAfterMaxRecallCount_default() throws IOException {
+    assertEquals(0, getIndexState(getEmptyState()).getDefaultTerminateAfterMaxRecallCount());
+  }
+
+  @Test
+  public void testDefaultTerminateAfterMaxRecallCount_set() throws IOException {
+    verifyIntLiveSetting(
+        100,
+        ImmutableIndexState::getDefaultTerminateAfterMaxRecallCount,
+        b -> b.setDefaultTerminateAfterMaxRecallCount(wrap(100)));
+  }
+
+  @Test
+  public void testDefaultTerminateAfterMaxRecallCount_invalid() throws IOException {
+    String expectedMsg = "defaultTerminateAfterMaxRecallCount must be >= 0";
+    assertLiveSettingException(
+        expectedMsg, b -> b.setDefaultTerminateAfterMaxRecallCount(wrap(-1)));
+  }
+
+  @Test
   public void testMaxMergePreCopyDurationSec_default() throws IOException {
     assertEquals(0, getIndexState(getEmptyState()).getMaxMergePreCopyDurationSec());
   }
