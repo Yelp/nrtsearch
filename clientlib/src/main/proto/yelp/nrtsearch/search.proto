@@ -1108,6 +1108,8 @@ message LoggingHits {
     string name = 1;
     //Optional logging parameters
     google.protobuf.Struct params = 2;
+    // number of hits to log
+    int32 hitsToLog = 3;
 }
 
 // Specify how to highlight matched text in SearchRequest
