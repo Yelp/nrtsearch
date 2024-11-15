@@ -121,6 +121,13 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "-1")
   private int defaultTerminateAfter;
 
+  @CommandLine.Option(
+      names = {"--defaultTerminateAfterMaxRecallCount"},
+      description =
+          "Terminate after max recall count to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private int defaultTerminateAfterMaxRecallCount;
+
   public String getIndexName() {
     return indexName;
   }
@@ -177,6 +184,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return defaultTerminateAfter;
   }
 
+  public int getDefaultTerminateAfterMaxRecallCount() {
+    return defaultTerminateAfterMaxRecallCount;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -195,7 +206,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getSegmentsPerTier(),
           getDefaultSearchTimeoutSec(),
           getDefaultSearchTimeoutCheckEvery(),
-          getDefaultTerminateAfter());
+          getDefaultTerminateAfter(),
+          getDefaultTerminateAfterMaxRecallCount());
     } finally {
       client.shutdown();
     }

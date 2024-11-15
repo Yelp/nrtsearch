@@ -132,14 +132,16 @@ public class LuceneServerClient implements Closeable {
       int segmentsPerTier,
       double defaultSearchTimeoutSec,
       int defaultSearchTimeoutCheckEvery,
-      int defaultTerminateAfter) {
+      int defaultTerminateAfter,
+      int defaultTerminateAfterMaxRecallCount) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
                 + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, "
                 + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s, "
-                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s, defaultTerminateAfter: %s ",
+                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s, defaultTerminateAfter: %s, "
+                + "defaultTerminateAfterMaxRecallCount: %s",
             indexName,
             maxRefreshSec,
             minRefreshSec,
@@ -153,7 +155,8 @@ public class LuceneServerClient implements Closeable {
             segmentsPerTier,
             defaultSearchTimeoutSec,
             defaultSearchTimeoutCheckEvery,
-            defaultTerminateAfter));
+            defaultTerminateAfter,
+            defaultTerminateAfterMaxRecallCount));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -170,6 +173,7 @@ public class LuceneServerClient implements Closeable {
             .setDefaultSearchTimeoutSec(defaultSearchTimeoutSec)
             .setDefaultSearchTimeoutCheckEvery(defaultSearchTimeoutCheckEvery)
             .setDefaultTerminateAfter(defaultTerminateAfter)
+            .setDefaultTerminateAfterMaxRecallCount(defaultTerminateAfterMaxRecallCount)
             .build();
     LiveSettingsResponse response;
     try {
