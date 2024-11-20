@@ -124,7 +124,7 @@ public class IndexMetrics {
       // segments per slice
       int[] segments = new int[slices.length];
       for (int i = 0; i < slices.length; ++i) {
-        segments[i] = slices[i].leaves.length;
+        segments[i] = slices[i].partitions.length;
       }
       Arrays.sort(segments);
       sliceSegments.labelValues(index, "min").set(segments[0]);
@@ -136,11 +136,7 @@ public class IndexMetrics {
       // docs per slice
       long[] docCounts = new long[slices.length];
       for (int i = 0; i < slices.length; ++i) {
-        long sliceCount = 0;
-        for (int j = 0; j < slices[i].leaves.length; ++j) {
-          sliceCount += slices[i].leaves[j].reader().maxDoc();
-        }
-        docCounts[i] = sliceCount;
+        docCounts[i] = slices[i].getMaxDocs();
       }
       Arrays.sort(docCounts);
       sliceDocs.labelValues(index, "min").set(docCounts[0]);

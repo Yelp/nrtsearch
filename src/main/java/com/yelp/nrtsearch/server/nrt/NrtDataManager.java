@@ -245,7 +245,7 @@ public class NrtDataManager implements Closeable {
     // make sure the latest version is used for the merged task
     CopyState taskCopyState;
     CopyState releaseCopyState;
-    if (previous.copyState.version <= next.copyState.version) {
+    if (previous.copyState.version() <= next.copyState.version()) {
       taskCopyState = next.copyState;
       releaseCopyState = previous.copyState;
     } else {
@@ -294,7 +294,7 @@ public class NrtDataManager implements Closeable {
                 "Uploading new index files for service: {}, index: {}, version: {}",
                 serviceName,
                 indexIdentifier,
-                task.copyState.version);
+                task.copyState.version());
             Map<String, NrtFileMetaData> versionFiles = uploadDiff(task.copyState);
             NrtPointState pointState = new NrtPointState(task.copyState, versionFiles, ephemeralId);
             byte[] data = RemoteUtils.pointStateToUtf8(pointState);
@@ -304,7 +304,7 @@ public class NrtDataManager implements Closeable {
             logger.info(
                 "Later version committed, skipping. Committed version: {}, Task version: {}",
                 lastPointState.version,
-                task.copyState.version);
+                task.copyState.version());
           }
           for (RefreshUploadFuture watcher : task.watchers) {
             watcher.setDone(null);
@@ -330,7 +330,7 @@ public class NrtDataManager implements Closeable {
     }
 
     private boolean isLaterVersion(CopyState copyState, NrtPointState lastPointState) {
-      return lastPointState == null || copyState.version > lastPointState.version;
+      return lastPointState == null || copyState.version() > lastPointState.version;
     }
 
     private Map<String, NrtFileMetaData> uploadDiff(CopyState copyState) throws IOException {
@@ -339,7 +339,7 @@ public class NrtDataManager implements Closeable {
       Map<String, NrtFileMetaData> currentPointFiles = new HashMap<>();
       Map<String, NrtFileMetaData> filesToUpload = new HashMap<>();
 
-      for (Map.Entry<String, FileMetaData> entry : copyState.files.entrySet()) {
+      for (Map.Entry<String, FileMetaData> entry : copyState.files().entrySet()) {
         String fileName = entry.getKey();
         FileMetaData fileMetaData = entry.getValue();
 
@@ -361,10 +361,10 @@ public class NrtDataManager implements Closeable {
 
     @VisibleForTesting
     static boolean isSameFile(FileMetaData fileMetaData, NrtFileMetaData nrtFileMetaData) {
-      return fileMetaData.length == nrtFileMetaData.length
-          && fileMetaData.checksum == nrtFileMetaData.checksum
-          && Arrays.equals(fileMetaData.header, nrtFileMetaData.header)
-          && Arrays.equals(fileMetaData.footer, nrtFileMetaData.footer);
+      return fileMetaData.length() == nrtFileMetaData.length
+          && fileMetaData.checksum() == nrtFileMetaData.checksum
+          && Arrays.equals(fileMetaData.header(), nrtFileMetaData.header)
+          && Arrays.equals(fileMetaData.footer(), nrtFileMetaData.footer);
     }
   }
 

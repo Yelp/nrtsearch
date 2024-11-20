@@ -51,7 +51,7 @@ public final class QueryRescore extends QueryRescorer implements RescoreOperatio
   @Override
   public TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException {
     return rescore(
-        context.getSearchContext().getSearcherAndTaxonomy().searcher,
+        context.getSearchContext().getSearcherAndTaxonomy().searcher(),
         hits,
         context.getWindowSize());
   }

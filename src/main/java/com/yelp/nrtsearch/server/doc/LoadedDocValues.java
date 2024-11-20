@@ -1075,20 +1075,22 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
    */
   public static final class SingleSearchVector extends LoadedDocValues<FloatVectorType> {
     private final FloatVectorValues vectorValues;
+    private final KnnVectorValues.DocIndexIterator vectorIterator;
     private FloatVectorType value = null;
 
     public SingleSearchVector(FloatVectorValues vectorValues) {
       this.vectorValues = vectorValues;
+      this.vectorIterator = vectorValues != null ? vectorValues.iterator() : null;
     }
 
     @Override
     public void setDocId(int docID) throws IOException {
-      if (vectorValues != null) {
-        if (vectorValues.docID() < docID) {
-          vectorValues.advance(docID);
+      if (vectorIterator != null) {
+        if (vectorIterator.docID() < docID) {
+          vectorIterator.advance(docID);
         }
-        if (vectorValues.docID() == docID) {
-          value = new FloatVectorType(vectorValues.vectorValue());
+        if (vectorIterator.docID() == docID) {
+          value = new FloatVectorType(vectorValues.vectorValue(vectorIterator.index()));
         } else {
           value = null;
         }
@@ -1133,20 +1135,22 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
    */
   public static final class SingleSearchByteVector extends LoadedDocValues<ByteVectorType> {
     private final ByteVectorValues vectorValues;
+    private final KnnVectorValues.DocIndexIterator vectorIterator;
     private ByteVectorType value = null;
 
     public SingleSearchByteVector(ByteVectorValues vectorValues) {
       this.vectorValues = vectorValues;
+      this.vectorIterator = vectorValues != null ? vectorValues.iterator() : null;
     }
 
     @Override
     public void setDocId(int docID) throws IOException {
-      if (vectorValues != null) {
-        if (vectorValues.docID() < docID) {
-          vectorValues.advance(docID);
+      if (vectorIterator != null) {
+        if (vectorIterator.docID() < docID) {
+          vectorIterator.advance(docID);
         }
-        if (vectorValues.docID() == docID) {
-          value = new ByteVectorType(vectorValues.vectorValue());
+        if (vectorIterator.docID() == docID) {
+          value = new ByteVectorType(vectorValues.vectorValue(vectorIterator.index()));
         } else {
           value = null;
         }

@@ -3,7 +3,7 @@ aws = "1.12.768"
 grpc = "1.66.0"
 jackson = "2.17.2"
 log4j = "2.23.1"
-lucene = "9.12.0"
+lucene = "10.0.0"
 prometheus = "1.3.1"
 protobuf = "3.25.3"
 
@@ -59,7 +59,7 @@ grpc-inprocess = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
 grpc-testing = { module = "io.grpc:grpc-testing", version.ref = "grpc" }
 junit = { module = "junit:junit", version = "4.13.2" }
 lucene-test-framework = { module = "org.apache.lucene:lucene-test-framework", version.ref = "lucene" }
-mockito-core = { module = "org.mockito:mockito-core", version = "5.12.0" }
+mockito-core = { module = "org.mockito:mockito-core", version = "5.14.2" }
 s3mock = { module = "io.findify:s3mock_2.13", version = "0.2.6" }
 spatial4j = { module = "org.locationtech.spatial4j:spatial4j", version = "0.8" }
 

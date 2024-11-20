@@ -80,11 +80,11 @@ public class SimpleCopyJob extends CopyJob {
       iter = toCopy.iterator();
       // This means we resumed an already in-progress copy; we do this one first:
       if (current != null) {
-        totBytes += current.metaData.length;
+        totBytes += current.metaData.length();
       }
       for (Map.Entry<String, FileMetaData> ent : toCopy) {
         FileMetaData metaData = ent.getValue();
-        totBytes += metaData.length;
+        totBytes += metaData.length();
       }
 
       // Send all file names / offsets up front to avoid ping-ping latency:

@@ -95,11 +95,11 @@ public class FilterCollectorManager
           QueryNodeMapper.getInstance().getQuery(grpcQuery, context.getIndexState());
       try {
         org.apache.lucene.search.Query rewritten =
-            context.getSearcherAndTaxonomy().searcher.rewrite(query);
+            context.getSearcherAndTaxonomy().searcher().rewrite(query);
         filterWeight =
             context
                 .getSearcherAndTaxonomy()
-                .searcher
+                .searcher()
                 .createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
       } catch (IOException e) {
         throw new RuntimeException("Error creating filter query weight", e);

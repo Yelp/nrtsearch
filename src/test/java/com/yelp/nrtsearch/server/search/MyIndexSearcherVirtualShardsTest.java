@@ -115,12 +115,10 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
     ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       s = shardState.acquire();
-      assertTrue(s.searcher instanceof MyIndexSearcher);
-      MyIndexSearcher searcher = (MyIndexSearcher) s.searcher;
-      assertTrue(searcher.getExecutor() instanceof MyIndexSearcher.ExecutorWithParams);
-      MyIndexSearcher.ExecutorWithParams params =
-          (MyIndexSearcher.ExecutorWithParams) searcher.getExecutor();
-      assertEquals(111, params.virtualShards);
+      assertTrue(s.searcher() instanceof MyIndexSearcher);
+      MyIndexSearcher searcher = (MyIndexSearcher) s.searcher();
+      MyIndexSearcher.SlicingParams params = searcher.getSlicingParams();
+      assertEquals(111, params.virtualShards());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -182,16 +180,11 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
     ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       s = shardState.acquire();
-      LeafSlice[] slices = s.searcher.getSlices();
+      LeafSlice[] slices = s.searcher().getSlices();
       assertEquals(docCounts.size(), slices.length);
       for (int i = 0; i < docCounts.size(); ++i) {
-        assertEquals(segmentCounts.get(i), Integer.valueOf(slices[i].leaves.length));
-
-        int totalDocs = 0;
-        for (int j = 0; j < slices[i].leaves.length; ++j) {
-          totalDocs += slices[i].leaves[j].reader().numDocs();
-        }
-        assertEquals(docCounts.get(i), Integer.valueOf(totalDocs));
+        assertEquals(segmentCounts.get(i), Integer.valueOf(slices[i].partitions.length));
+        assertEquals(docCounts.get(i), Integer.valueOf(slices[i].getMaxDocs()));
       }
     } finally {
       if (s != null) {

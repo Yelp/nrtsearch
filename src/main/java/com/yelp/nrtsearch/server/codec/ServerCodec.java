@@ -24,10 +24,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 
 /** Implements per-index {@link Codec}. */
-public class ServerCodec extends Lucene912Codec {
+public class ServerCodec extends Lucene100Codec {
   private final IndexStateManager stateManager;
 
   // nocommit expose compression control

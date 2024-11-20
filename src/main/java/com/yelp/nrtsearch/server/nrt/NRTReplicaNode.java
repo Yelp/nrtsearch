@@ -159,7 +159,7 @@ public class NRTReplicaNode extends ReplicaNode {
       } catch (Throwable t) {
         throw new NodeCommunicationException("exc while reading files to copy", t);
       }
-      files = copyState.files;
+      files = copyState.files();
     } else {
       copyState = null;
     }
@@ -250,7 +250,7 @@ public class NRTReplicaNode extends ReplicaNode {
           .labelValues(indexName)
           .observe((System.nanoTime() - startNS) / 1000000.0);
       NrtMetrics.nrtPointSize.labelValues(indexName).observe(job.getTotalBytesCopied());
-      NrtMetrics.searcherVersion.labelValues(indexName).set(job.getCopyState().version);
+      NrtMetrics.searcherVersion.labelValues(indexName).set(job.getCopyState().version());
     }
   }
 
@@ -356,7 +356,7 @@ public class NRTReplicaNode extends ReplicaNode {
       logger.info(
           "Nrt sync: started new copy job, my version: {}, job version: {}",
           curVersion,
-          job.getCopyState().version);
+          job.getCopyState().version());
       while (true) {
         curVersion = getCurrentSearchingVersion();
         if (curVersion >= primaryIndexVersion) {

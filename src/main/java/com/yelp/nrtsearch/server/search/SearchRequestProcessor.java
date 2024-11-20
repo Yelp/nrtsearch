@@ -159,7 +159,7 @@ public class SearchRequestProcessor {
       profileResult.setParsedQuery(query.toString());
     }
 
-    query = searcherAndTaxonomy.searcher.rewrite(query);
+    query = searcherAndTaxonomy.searcher().rewrite(query);
     if (profileResult != null) {
       profileResult.setRewrittenQuery(query.toString());
     }
@@ -210,7 +210,7 @@ public class SearchRequestProcessor {
     contextBuilder.setCollector(docCollector);
 
     contextBuilder.setRescorers(
-        getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
+        getRescorers(indexState, searcherAndTaxonomy.searcher(), searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
@@ -234,7 +234,7 @@ public class SearchRequestProcessor {
       for (int i = 0; i < knnQueries.size(); ++i) {
         Query resolvedKnnQuery =
             resolveKnnQueryAndBoost(
-                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher, diagnostics);
+                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher(), diagnostics);
         queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
       }
       query = queryBuilder.build();
@@ -310,8 +310,8 @@ public class SearchRequestProcessor {
           com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
               .setRelation(
                   com.yelp.nrtsearch.server.grpc.TotalHits.Relation.valueOf(
-                      vectorTotalHits.relation.name()))
-              .setValue(vectorTotalHits.value)
+                      vectorTotalHits.relation().name()))
+              .setValue(vectorTotalHits.value())
               .build());
     }
     diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());

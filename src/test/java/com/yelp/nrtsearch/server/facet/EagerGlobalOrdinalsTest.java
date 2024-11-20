@@ -86,16 +86,16 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
           getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(EAGER_FIELD);
       addDocAndRefresh();
       s = shardState.acquire();
-      assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
       doQuery(EAGER_FIELD);
-      assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
 
       // create new reader version
       addDocAndRefresh();
       shardState.release(s);
       s = null;
       s = shardState.acquire();
-      assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -112,18 +112,18 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
           getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(NOT_EAGER_FIELD);
       addDocAndRefresh();
       s = shardState.acquire();
-      assertNoGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertNoGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
       doQuery(NOT_EAGER_FIELD);
-      assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
 
       // create new reader version
       addDocAndRefresh();
       shardState.release(s);
       s = null;
       s = shardState.acquire();
-      assertNoGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertNoGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
       doQuery(NOT_EAGER_FIELD);
-      assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
+      assertGlobalOrdinals(s.searcher().getIndexReader(), fieldDef);
     } finally {
       if (s != null) {
         shardState.release(s);
