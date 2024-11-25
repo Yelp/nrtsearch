@@ -26,70 +26,100 @@ message BooleanClause {
         MUST_NOT = 3;
     }
 
-    Query query = 1; // The Query for the clause.
-    Occur occur = 2; // Specifies how this clause must occur in a matching document. SHOULD by default.
+    // The Query for the clause
+    Query query = 1;
+    // Specifies how this clause must occur in a matching document. SHOULD by default.
+    Occur occur = 2;
 }
 
+// Type of match operator used in MatchQuery
 enum MatchOperator {
+    // Or operation
     SHOULD = 0;
+    // And operation
     MUST = 1;
 }
 
 // Method used to rewrite a MultiTermQuery
 enum RewriteMethod {
-    // Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching terms in sequence and returns matching documents using a bit set.
+    // Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching
+    // terms in sequence and returns matching documents using a bit set.
     CONSTANT_SCORE = 0;
-    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term.
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+    // matching term.
     CONSTANT_SCORE_BOOLEAN = 1;
-    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates the relevance score for each matching document.
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+    // matching term. Calculates the relevance score for each matching document.
     SCORING_BOOLEAN = 2;
-    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document as if all terms had the same frequency, the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+    // matching term. Calculates a relevance score for each matching document as if all terms had the same frequency,
+    // the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for
+    // the top N (specified separately) scoring terms.
     TOP_TERMS_BLENDED_FREQS = 3;
-    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Assigns each matching document a relevance score equal to the boost parameter. The final BooleanQuery query only includes Term queries for the top N (specified separately) terms.
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+    // matching term. Assigns each matching document a relevance score equal to the boost parameter. The final
+    // BooleanQuery query only includes Term queries for the top N (specified separately) terms.
     TOP_TERMS_BOOST = 4;
-    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each
+    // matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only
+    // includes Term queries for the top N (specified separately) scoring terms.
     TOP_TERMS = 5;
 }
 
+// Parameters for fuzzy queries
 message FuzzyParams {
-    int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto.
-    int32 prefixLength = 2; // Length of common (non-fuzzy) prefix
-    int32 maxExpansions = 3; // The maximum number of terms to match.
-    bool transpositions = 4; // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
-    AutoFuzziness auto = 5; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+    // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+    // Either set this or auto.
+    int32 maxEdits = 1;
+    // Length of common (non-fuzzy) prefix
+    int32 prefixLength = 2;
+    // The maximum number of terms to match
+    int32 maxExpansions = 3;
+    // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons
+    // will implement the classic Levenshtein algorithm. Default is true.
+    bool transpositions = 4;
+    // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting.
+    // Either set this or maxEdits.
+    AutoFuzziness auto = 5;
 
-    // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
+    // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset.
+    // Valid values are low >= 0 and low < high
     message AutoFuzziness {
-        int32 low = 6; // Optional low distance argument.
-        int32 high = 7; // Optional high distance argument.
+        // Optional low distance argument
+        int32 low = 6;
+        // Optional high distance argument
+        int32 high = 7;
     }
 }
 
-// A query that matches documents using boolean combinations of other queries.
+// A query that matches documents using boolean combinations of other queries
 message BooleanQuery {
-    repeated BooleanClause clauses = 1; // Clauses for a boolean query.
-    int32 minimumNumberShouldMatch = 2; // Minimum number of optional clauses that must match.
+    // Clauses for a boolean query
+    repeated BooleanClause clauses = 1;
+    // Minimum number of optional clauses that must match
+    int32 minimumNumberShouldMatch = 2;
 }
 
-// A Query that matches documents containing a particular sequence of terms.
+// A Query that matches documents containing a particular sequence of terms
 message PhraseQuery {
-    /* Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
-       of terms in a document.
-    */
+    // Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
+    // of terms in a document
     int32 slop = 1;
-    string field = 2; // The field in the index that this query applies to.
-    repeated string terms = 3; // Terms to match.
+    // Field in the document to query
+    string field = 2;
+    // Terms to match
+    repeated string terms = 3;
 }
 
-// A query that matches documents that contain a specific prefix in a provided field.
+// A query that matches documents that contain a specific prefix in a provided field
 message PrefixQuery {
-    // Document field name.
+    // Document field name
     string field = 1;
-    // Prefix to search for.
+    // Prefix to search for
     string prefix = 2;
-    // Method used to rewrite the query.
+    // Method used to rewrite the query
     RewriteMethod rewrite = 3;
-    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    // Specifies the size to use for the TOP_TERMS* rewrite methods
     int32 rewriteTopTermsSize = 4;
 }
 
@@ -105,25 +135,29 @@ message TermRangeQuery {
     bool include_lower = 4;
     // Whether to include the upper bound in the range
     bool include_upper = 5;
-    // Method used to rewrite the query.
+    // Method used to rewrite the query
     RewriteMethod rewrite = 6;
-    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    // Specifies the size to use for the TOP_TERMS* rewrite methods
     int32 rewriteTopTermsSize = 7;
 }
 
-// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
+// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score
 message FunctionScoreQuery {
-    Query query = 1; // Input query
-    Script script = 2; // script definition to compute a custom document score
+    // Input query
+    Query query = 1;
+    // Script definition to compute a custom document score
+    Script script = 2;
 }
 
 // A query that retrieves all documents with a positive score calculated by the script
 message FunctionFilterQuery {
-    Script script = 1; // script definition to compute a custom document score
+    // Script definition to compute a custom document score
+    Script script = 1;
 }
 
-//
+// Query that matches nested documents
 message NestedQuery {
+    // How child documents score affects final score
     enum ScoreMode {
         NONE = 0;
         AVG = 1;
@@ -131,91 +165,122 @@ message NestedQuery {
         MIN = 3;
         SUM = 4;
     }
-    Query query = 1; // query for the child documents
-    string path = 2; // field name of the nested
-    ScoreMode scoreMode = 3; // how child documents score affects final score
+    // Query for the child documents
+    Query query = 1;
+    // Path to the child document
+    string path = 2;
+    // How child documents score affects final score
+    ScoreMode scoreMode = 3;
 }
 
-// A query that matches documents containing a term.
+// A query that matches documents containing a term
 message TermQuery {
-    // Field in the document to query.
+    // Field in the document to query
     string field = 1;
 
     oneof TermTypes {
-        // TEXT FieldType term to search for.
+        // TEXT FieldType term to search for
         string textValue = 2;
-        // INT FieldType term to search for.
+        // INT FieldType term to search for
         int32 intValue = 3;
-        // LONG FieldType term to search for.
+        // LONG FieldType term to search for
         int64 longValue = 4;
-        // FLOAT FieldType term to search for.
+        // FLOAT FieldType term to search for
         float floatValue = 5;
-        // DOUBLE FieldType term to search for.
+        // DOUBLE FieldType term to search for
         double doubleValue = 6;
-        // BOOLEAN FieldType term to search for.
+        // BOOLEAN FieldType term to search for
         bool booleanValue = 7;
     }
 }
 
-// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the one that matches the type of the field.
+// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery
+// containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the
+// one that matches the type of the field.
 message TermInSetQuery {
-    // Field in the document to query.
+    // Field in the document to query
     string field = 1;
 
     message TextTerms {
+        // TEXT field terms
         repeated string terms = 1;
     }
     message IntTerms {
+        // INT field terms
         repeated int32 terms = 1;
     }
     message LongTerms {
+        // LONG field terms
         repeated int64 terms = 1;
     }
     message FloatTerms {
+        // FLOAT field terms
         repeated float terms = 1;
     }
     message DoubleTerms {
+        // DOUBLE field terms
         repeated double terms = 1;
     }
 
     oneof TermTypes {
-        // Text terms to search for.
+        // TEXT terms to search for.
         TextTerms textTerms = 2;
-        // Int terms to search for.
+        // INT terms to search for.
         IntTerms intTerms = 3;
-        // Long terms to search for.
+        // LONG terms to search for.
         LongTerms longTerms = 4;
-        // Float terms to search for.
+        // FLOAT terms to search for.
         FloatTerms floatTerms = 5;
-        // Double terms to search for.
+        // DOUBLE terms to search for.
         DoubleTerms doubleTerms = 6;
     }
 }
 
 // A query that generates the union of documents produced by its subqueries, and that scores each document with the
-// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional matching subqueries.
+// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional
+// matching subqueries.
 message DisjunctionMaxQuery {
-    repeated Query disjuncts = 1; // A list of all the disjuncts to add
-    float tieBreakerMultiplier = 2; // The score of each non-maximum disjunct for a document is multiplied by this weight and added into the final score.
+    // A list of all the disjuncts to add
+    repeated Query disjuncts = 1;
+    // The score of each non-maximum disjunct for a document is multiplied by this weight and added into the
+    // final score
+    float tieBreakerMultiplier = 2;
 }
 
-// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses.
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are
+// combined using term queries in boolean clauses.
 message MatchQuery {
-    string field = 1; // Field in the document to query.
-    string query = 2; // The text to query with.
-    MatchOperator operator = 3; // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
-    int32 minimumNumberShouldMatch = 4; // Minimum number of optional clauses that must match.
-    Analyzer analyzer = 5; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-    FuzzyParams fuzzyParams = 6; // Parameters to set the fuzziness of the query
+    // Field in the document to query
+    string field = 1;
+    // The text to query with
+    string query = 2;
+    // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+    MatchOperator operator = 3;
+    // Minimum number of optional clauses that must match
+    int32 minimumNumberShouldMatch = 4;
+    // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be
+    // used instead.
+    Analyzer analyzer = 5;
+    // Parameters to set the fuzziness of the query
+    FuzzyParams fuzzyParams = 6;
 }
 
-// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined into a PhraseQuery.
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are
+// combined into a PhraseQuery.
 message MatchPhraseQuery {
-    string field = 1; // Field in the document to query.
-    string query = 2; // The text to query with.
-    int32 slop = 3; // Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document.
-    Analyzer analyzer = 4; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-    ZeroTerms zeroTermsQuery = 5; // Indicates whether none or all documents are returned if the analyzer removes all tokens. Valid values are NONE_ZERO_TERMS and ALL_ZERO_TERMS.
+    // Field in the document to query
+    string field = 1;
+    // The text to query with
+    string query = 2;
+    // Edit distance between respective positions of tokens generated by analyzing this query and the positions of
+    // terms in a document
+    int32 slop = 3;
+    // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be
+    // used instead.
+    Analyzer analyzer = 4;
+    // Indicates whether none or all documents are returned if the analyzer removes all tokens. Valid values
+    // are NONE_ZERO_TERMS and ALL_ZERO_TERMS.
+    ZeroTerms zeroTermsQuery = 5;
 
     // Zero Terms options when analyzer removes all tokens.
     enum ZeroTerms {
@@ -226,80 +291,112 @@ message MatchPhraseQuery {
     }
 }
 
-// A query that matches documents containing terms in the same order as those in the analyzed query string. The final analyzed token is treated as a prefix
+// A query that matches documents containing terms in the same order as those in the analyzed query string.
+// The final analyzed token is treated as a prefix
 message MatchPhrasePrefixQuery {
-    // Field in the document to query.
+    // Field in the document to query
     string field = 1;
-    // The text to query with.
+    // The text to query with
     string query = 2;
-    // Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document.
+    // Edit distance between respective positions of tokens generated by analyzing this query and the positions
+    // of terms in a document
     int32 slop = 3;
-    // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+    // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would
+    // be used instead.
     Analyzer analyzer = 4;
     // Maximum number of terms to which the last provided term of the query value will expand. Defaults to 50.
     int32 max_expansions = 5;
 }
 
-// A query that creates a match query for each field provided and wraps all the match queries in a disjunction max query.
+// A query that creates a match query for each field provided and wraps all the match queries in a
+// disjunction max query.
 message MultiMatchQuery {
-    // Type defining the execution behavior of the match.
+    // Type defining the execution behavior of the match
     enum MatchType {
-        // Finds documents which match any field, but uses the _score from the best field.
+        // Finds documents which match any field, but uses the _score from the best field
         BEST_FIELDS = 0;
-        // Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field.
+        // Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field
         PHRASE_PREFIX = 1;
-        // Finds documents that match across multiple fields, as if they were a single field.
+        // Finds documents that match across multiple fields, as if they were a single field
         CROSS_FIELDS = 2;
     }
 
-    repeated string fields = 1; // Fields in the document to query.
-    string query = 2; // The text to query with.
-    map<string, float> fieldBoosts = 3; // Boosts for each field, if any.
-    MatchOperator operator = 4; // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
-    int32 minimumNumberShouldMatch = 5; // Minimum number of optional clauses that must match.
-    Analyzer analyzer = 6; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
-    FuzzyParams fuzzyParams = 7; // Parameters to set the fuzziness of the query
-    float tieBreakerMultiplier = 8; // The score of each non-maximum match query disjunct for a document will be multiplied by this weight and added into the final score.
-    // Type defining match behavior of query.
+    // Fields in the document to query
+    repeated string fields = 1;
+    // The text to query with
+    string query = 2;
+    // Boosts for each field, if any
+    map<string, float> fieldBoosts = 3;
+    // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+    MatchOperator operator = 4;
+    // Minimum number of optional clauses that must match
+    int32 minimumNumberShouldMatch = 5;
+    // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would
+    // be used instead.
+    Analyzer analyzer = 6;
+    // Parameters to set the fuzziness of the query
+    FuzzyParams fuzzyParams = 7;
+    // The score of each non-maximum match query disjunct for a document will be multiplied by this weight
+    // and added into the final score
+    float tieBreakerMultiplier = 8;
+    // Type defining match behavior of query
     MatchType type = 9;
-    // Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document, applies to PHRASE_PREFIX type matching.
+    // Edit distance between respective positions of tokens generated by analyzing this query and the positions
+    // of terms in a document, applies to PHRASE_PREFIX type matching
     int32 slop = 10;
     // Maximum number of terms to which the prefix token will expand when using PHRASE_PREFIX matching. Defaults to 50.
     int32 maxExpansions = 11;
 }
 
-// A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
+// A query that matches documents with values within the specified range. The lower and upper values though provided
+// as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME
+// field types.
 message RangeQuery {
-    string field = 1; // Field in the document to query
-    string lower = 2; // Lower bound, inclusive by default
-    string upper = 3; // Upper bound, inclusive by default
-    bool lowerExclusive = 4; // Set true to make lower bound exclusive
-    bool upperExclusive = 5; // Set true to make upper bound exclusive
+    // Field in the document to query
+    string field = 1;
+    // Lower bound, inclusive by default
+    string lower = 2;
+    // Upper bound, inclusive by default
+    string upper = 3;
+    // Set true to make lower bound exclusive
+    bool lowerExclusive = 4;
+    // Set true to make upper bound exclusive
+    bool upperExclusive = 5;
 }
 
-// A query that matches documents with geopoint within the geo box.
+// A query that matches documents with geopoint within the geo box
 message GeoBoundingBoxQuery {
-    string field = 1; // Field in the document to query
-    google.type.LatLng topLeft = 2; // top left corner of the geo box
-    google.type.LatLng bottomRight = 3; // bottom right corner of the geo box
+    // Field in the document to query
+    string field = 1;
+    // Top left corner of the geo box
+    google.type.LatLng topLeft = 2;
+    // Bottom right corner of the geo box
+    google.type.LatLng bottomRight = 3;
 }
 
 // A query that matches documents with geo point within the radius of target geo point
 message GeoRadiusQuery {
-    string field = 1; // Field in the document to query
-    google.type.LatLng center = 2; // target center geo point to calculate distance
-    string radius = 3; // distance radius  like "12 km". supports m, km and mi, default to m
+    // Field in the document to query
+    string field = 1;
+    // Target center geo point to calculate distance
+    google.type.LatLng center = 2;
+    // Distance radius like "12 km". supports m, km and mi, default to m
+    string radius = 3;
 }
 
-// A query that matches documents with polygon that contains the geo point.
+// A query that matches documents with polygon that contains the geo point
 message GeoPointQuery {
-    string field = 1; // Field in the document to query
-    google.type.LatLng point = 2; // point used to query whether the polygon contains it.
+    // Field in the document to query
+    string field = 1;
+    // Point to check if the polygon contains
+    google.type.LatLng point = 2;
 }
 
 // Polygon defined by a list of geo points
 message Polygon {
-    // Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side.
+    // Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be
+    // self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian.
+    // Instead, use two polygons: one on each side.
     repeated google.type.LatLng points = 1;
     // Specify holes in the polygon. Hole polygons cannot themselves contain holes.
     repeated Polygon holes = 2;
@@ -313,11 +410,13 @@ message GeoPolygonQuery {
     repeated Polygon polygons = 2;
 }
 
-// A query that matches documents which contain a value for a field.
+// A query that matches documents which contain a value for a field
 message ExistsQuery {
-    string field = 1; // Field in the document to query
+    // Field in the document to query
+    string field = 1;
 }
 
+// Type of completion query
 enum CompletionQueryType {
     // PrefixCompletionQuery within ContextCompletionQuery
     PREFIX_QUERY = 0;
@@ -365,14 +464,18 @@ message MultiFunctionScoreQuery {
             google.type.LatLng geoPoint = 3;
         }
         // Currently only distance based scale and offset units are supported
-        // Distance from origin + offset at which computed score will be equal to decay. Scale should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
+        // Distance from origin + offset at which computed score will be equal to decay. Scale should be distance,
+        // unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
         string scale = 4;
-        // Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set. Offset should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", "15 km", "5 m", "7 mi"
+        // Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set. Offset
+        // should be distance, unit (m, km, mi) with space is optional. Default unit will be meters.
+        // Ex: "10", "15 km", "5 m", "7 mi"
         string offset = 5;
         // Defines decay rate for scoring. Should be between (0, 1)
         float decay = 6;
     }
 
+    // Decay function types
     enum DecayType {
         // Exponential decay function
         DECAY_TYPE_EXPONENTIAL = 0;
@@ -410,11 +513,11 @@ message MultiFunctionScoreQuery {
     BoostMode boost_mode = 4;
     // Optional minimal score to match a document. By default, it's 0.
     float min_score = 5;
-    // Determine minimal score is excluded or not. By default, it's false;
+    // Determine minimal score is excluded or not. By default, it's false.
     bool min_excluded = 6;
 }
 
-// Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query.
+// Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query
 message ConstantScoreQuery {
     // Query to determine matching documents
     Query filter = 1;
@@ -429,33 +532,41 @@ message SpanQuery {
   }
 }
 
-// A query that matches documents containing terms matching a pattern.
+// A query that matches documents containing terms matching a pattern
 message WildcardQuery {
+    // Field in the document to query
     string field = 1;
+    // Pattern to search for
     string text = 2;
-    // Method used to rewrite the query.
+    // Method used to rewrite the query
     RewriteMethod rewrite = 3;
-    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    // Specifies the size to use for the TOP_TERMS* rewrite methods
     int32 rewriteTopTermsSize = 4;
 }
 
-// A query that matches documents containing terms similar to the specified term.
+// A query that matches documents containing terms similar to the specified term
 message FuzzyQuery {
+    // Field in the document to query
     string field = 1;
+    // Term to search for
     string text = 2;
-    // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto. Default is 2.
+    // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+    // Either set this or auto. Default is 2.
     optional int32 maxEdits = 3;
     // Length of common (non-fuzzy) prefix. Default is 0.
     optional int32 prefixLength = 4;
     // The maximum number of terms to match. Default is 50.
     optional int32 maxExpansions = 5;
-    // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
+    // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will
+    // implement the classic Levenshtein algorithm. Default is true.
     optional bool transpositions = 6;
-    // Method used to rewrite the query.
+    // Method used to rewrite the query
     RewriteMethod rewrite = 7;
-    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    // Specifies the size to use for the TOP_TERMS* rewrite methods
     int32 rewriteTopTermsSize = 8;
-    FuzzyParams.AutoFuzziness auto = 9; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+    // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting.
+    // Either set this or maxEdits.
+    FuzzyParams.AutoFuzziness auto = 9;
 }
 
 // Message for a SpanMultiTermQuery
@@ -472,45 +583,48 @@ message SpanMultiTermQuery{
 
 // Enum for RegexpQuery flags
 enum RegexpFlag {
-    // Syntax flag, enables all optional regexp syntax.
+    // Syntax flag, enables all optional regexp syntax
     REGEXP_ALL = 0;
-    // Syntax flag, enables anystring (@).
+    // Syntax flag, enables anystring (@)
     REGEXP_ANYSTRING = 1;
-    // Syntax flag, enables named automata (<identifier>).
+    // Syntax flag, enables named automata (<identifier>)
     REGEXP_AUTOMATON = 2;
-    // Syntax flag, enables complement (~).
+    // Syntax flag, enables complement (~)
     REGEXP_COMPLEMENT = 3;
-    // Syntax flag, enables empty language (#).
+    // Syntax flag, enables empty language (#)
     REGEXP_EMPTY = 4;
-    // Syntax flag, enables intersection (&).
+    // Syntax flag, enables intersection (&)
     REGEXP_INTERSECTION = 5;
-    // Syntax flag, enables numerical intervals ( <n-m>).
+    // Syntax flag, enables numerical intervals (<n-m>)
     REGEXP_INTERVAL = 6;
-    // Syntax flag, enables no optional regexp syntax.
+    // Syntax flag, enables no optional regexp syntax
     REGEXP_NONE = 7;
 }
 
 // Message for RegexpQuery
 message RegexpQuery {
+    // Field in the document to query
     string field = 1;
+    // Regular expression to search for
     string text = 2;
     // Optional flags for the regular expression
     RegexpFlag flag = 3;
-    // maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more complex queries and lower to prevent memory exhaustion. Default is 10000.
+    // Maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more
+    // complex queries and lower to prevent memory exhaustion. Default is 10000.
     optional int32 maxDeterminizedStates = 4;
-    // Method used to rewrite the query.
+    // Method used to rewrite the query
     RewriteMethod rewrite = 5;
-    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    // Specifies the size to use for the TOP_TERMS* rewrite methods
     int32 rewriteTopTermsSize = 6;
 }
 
-// A query that matches documents containing terms within a specified range.
+// A query that matches documents containing terms within a specified range
 message SpanNearQuery {
-    // Clauses for a span near query.
+    // Clauses for a span near query
     repeated SpanQuery clauses = 1;
-    // Maximum number of positions between matching terms.
+    // Maximum number of positions between matching terms
     int32 slop = 2;
-    // True if the matching terms must be in the same order as the query.
+    // True if the matching terms must be in the same order as the query
     bool inOrder = 3;
 }
 
@@ -518,7 +632,7 @@ message SpanNearQuery {
 message MatchAllQuery {
 }
 
-// Defines different types of QueryNodes.
+// Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
     BOOLEAN_QUERY = 1;
@@ -545,10 +659,14 @@ enum QueryType {
     SPAN_QUERY = 22;
 }
 
-// Defines a full query consisting of a QueryNode which may be one of several types.
+// Defines a full query consisting of a QueryNode which may be one of several types
 message Query {
-    QueryType queryType = 1 [deprecated = true]; // no longer needed, type inferred from set QueryNode
-    float boost = 2; // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
+    // No longer needed, type inferred from set QueryNode
+    QueryType queryType = 1 [deprecated = true];
+    // Boost values that are less than one will give less importance to this query compared to other ones while
+    // values that are greater than one will give more importance to the scores returned by this query. Boost
+    // value of zero will do nothing (default). Boost less than 0 is invalid.
+    float boost = 2;
 
     oneof QueryNode {
         BooleanQuery booleanQuery = 3;
@@ -578,38 +696,65 @@ message Query {
     }
 }
 
+// Search query request
 message SearchRequest {
-    string indexName = 1; //index to search against
-    int32 startHit = 2; // Which hit to start from (for pagination); default: 0
-    int32 topHits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
-    /* Maximum number of seconds spent on each collection phase; note that for
-     * multi-pass searches (e.g. query-time grouping), this timeout applies to each phase. */
+    // Index to search against
+    string indexName = 1;
+    // Which hit to start from (for pagination); default: 0
+    int32 startHit = 2;
+    // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0.
+    // For pagination: set it to startHit + window_size.
+    int32 topHits = 3;
+    // Maximum number of seconds spent on each collection phase; note that for
+    // multi-pass searches (e.g. query-time grouping), this timeout applies to each phase.
     double timeoutSec = 4;
-    repeated string retrieveFields = 5; //Which fields to highlight or retrieve.
-    string queryText = 6; //Query text to parse using the specified QueryParser.
-    repeated VirtualField virtualFields = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
-    Query query = 8; // Full query to execute using QueryNodes
-    QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
+    // Which fields to retrieve
+    repeated string retrieveFields = 5;
+    // Query text to parse using the specified QueryParser. If query is provided, this is ignored.
+    string queryText = 6;
+    // Defines virtual fields (named dynamic expressions) for this query
+    repeated VirtualField virtualFields = 7;
+    // Full query to execute
+    Query query = 8;
+    // Sort hits by field (default is by relevance)
+    QuerySortField querySort = 9;
     oneof Searcher {
-        int64 indexGen = 10; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
-        int64 version = 11; //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
-        string snapshot = 12; //Search a snapshot previously created with #createSnapshot
+        // Search a generation previously returned by an indexing operation such as #addDocument.
+        // Use this to search a non-committed (near-real-time) view of the index.
+        int64 indexGen = 10;
+        // Search a specific searcher version. This is typically used by follow-on searches
+        // (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by
+        // the original search.
+        int64 version = 11;
+        // Search a snapshot previously created with #createSnapshot
+        string snapshot = 12;
     }
-    int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
-    repeated Facet facets = 14; // Which facets to retrieve
-    repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
-    bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
-    string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
-    repeated Rescorer rescorers = 18; // Rescorers which are executed in-order after the first pass
-    //If detailed request execution profiling should be included in the response
+    // By default we count hits accurately up to 1000. This makes sure that we don't spend most time on
+    // computing hit counts.
+    int32 totalHitsThreshold = 13;
+    // Which facets to retrieve
+    repeated Facet facets = 14;
+    // Any custom tasks that should be performed on top documents after ranking
+    repeated FetchTask fetchTasks = 15;
+    // Should partial result be a failure condition. Applies when a search request times out. If false, the top
+    // documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to
+    // true in the response.
+    bool disallowPartialResults = 16;
+    // Nested path we want to query by if we want to query child documents
+    string queryNestedPath = 17;
+    // Rescorers which are executed in-order after the first pass
+    repeated Rescorer rescorers = 18;
+    // If detailed request execution profiling should be included in the response
     bool profile = 19;
-    //Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
+    // Check the search timeout condition after each collection of n documents in a segment.
+    // If 0, timeout is only checked on the segment boundary.
     int32 timeoutCheckEvery = 20;
-    //Additional document collectors. Provides support for operations such as aggregation.
+    // Additional document collectors. Provides support for operations such as aggregation.
     map<string, Collector> collectors = 21;
-    //Stop document collection in search phase after this many documents, 0 for unlimited.
+    // Stop document collection in search phase after this many documents, 0 for unlimited
     int32 terminateAfter = 22;
-    //Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
+    // Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to
+    // uncompressed. Valid codecs: identity, gzip, lz4
     string responseCompression = 23;
     // Specify how to highlight matched text
     Highlight highlight = 24;
@@ -619,60 +764,71 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
-    //Stop document collection in search phase after this many recalled documents, after terminateAfter docs will be counted but not scored upto terminateAfterMaxRecallCount.
+    // Stop document collection in search phase after this many recalled documents, after terminateAfter docs
+    // will be counted but not scored upto terminateAfterMaxRecallCount
     int32 terminateAfterMaxRecallCount = 28;
     // Any custom logging that should log hits after ranking
     LoggingHits loggingHits = 29;
     // Keeps tracks of last hit for search after
     LastHitInfo searchAfter = 30;
-    // Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic
+    // Request kNN vector search queries, results will be combined with the standard query (if provided) using
+    // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
 }
 
-/* Last Hit info for search after */
+// Last Hit info for search after
 message LastHitInfo {
+    // Last hit sort field values
     repeated string lastFieldValues = 1;
+    // Last hit Lucene doc id
     int32 lastDocId = 2;
+    // Last hit score
     float lastScore = 3;
 }
 
-/* Inner Hit search request */
+// Inner Hit search request
 message InnerHit {
-    // Nested path to search against assuming same index as the parent Query.
+    // Nested path to search against assuming same index as the parent Query
     string query_nested_path = 1;
     // Which hit to start from (for pagination); default: 0
     int32 start_hit = 2;
-    // How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
+    // How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0.
+    // For pagination: set it to startHit + window_size.
     int32 top_hits = 3;
-    // InnerHit query to query against the nested documents specified by queryNestedPath.
+    // InnerHit query to query against the nested documents specified by queryNestedPath
     Query inner_query = 4;
-    // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
+    // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit
     repeated string retrieve_fields = 5;
-    // Sort hits by field (default is by relevance).
+    // Sort hits by field (default is by relevance)
     QuerySortField query_sort = 6;
-    // Highlight the children documents.
+    // Highlight the children documents
     Highlight highlight = 7;
 }
 
-/* Virtual field used during search */
+// Virtual field used during search
 message VirtualField {
-    Script script = 1; // Script defining this field's values.
-    string name = 2; // Virtual field's name. Must be different from registered fields and any other virtual fields.
+    // Script defining this field's values
+    Script script = 1;
+    // Virtual field's name. Must be different from registered fields and any other virtual fields.
+    string name = 2;
 }
 
-/* Runtime field used during search */
+// Runtime field used during search
 message RuntimeField {
-    // Script defining this field's values.
+    // Script defining this field's values
     Script script = 1;
     // Runtime field's name. Must be different from registered fields and any other runtime fields.
     string name = 2;
 }
 
+// Definition of user-defined script
 message Script {
-    string lang = 1; // script language
-    string source = 2; // script source
+    // Script language
+    string lang = 1;
+    // Script source
+    string source = 2;
 
-    // script parameter entry
+    // Script parameter entry
     message ParamValue {
         oneof ParamValues {
             string textValue = 1;
@@ -688,47 +844,60 @@ message Script {
         }
     }
 
-    // null parameter value
+    // Null parameter value
     enum ParamNullValue {
         NULL_VALUE = 0;
     }
 
-    // map parameter value
+    // Map parameter value
     message ParamStructValue {
+        // Parameter values map
         map<string, ParamValue> fields = 1;
     }
 
-    // list parameter value
+    // List parameter value
     message ParamListValue {
+        // Parameter values list
         repeated ParamValue values = 1;
     }
 
+    // Float vector parameter value
     message ParamFloatVectorValue {
+        // Float vector value
         repeated float values = 1;
     }
 
-    map<string, ParamValue> params = 7; // parameters passed into script execution
+    // Parameters passed into script execution
+    map<string, ParamValue> params = 7;
 }
 
+// Definition doing ranking by sorting on fields
 message QuerySortField {
-    bool doDocScores = 1; //Compute the doc score for each collected (costs added CPU); default:false
-    bool doMaxScore = 2; //Compute the max score across all hits (costs added CPU); default: false
-    SortFields fields = 3; //List of Fields to sort on.
+    // Compute the doc score for each collected (costs added CPU); default:false
+    bool doDocScores = 1;
+    // Compute the max score across all hits (costs added CPU); default: false
+    bool doMaxScore = 2;
+    // List of Fields to sort on
+    SortFields fields = 3;
 }
 
-/* Fields to sort on either during index time or search time*/
+// Fields to sort on either during index time or search time
 message SortFields {
+    // Fields to sort on
     repeated SortType sortedFields = 1;
 }
 
-/* "The field to sort on. Pass <code>docid</code> for index order and <code>score</code> for relevance sort. */
+// The field to sort on. Pass 'docid' for index order and 'score' for relevance sort.
 message SortType {
-    string fieldName = 1; // name of field to sort
-    Selector selector = 2; // For multi valued fields, how to select which value is used for sorting
-    Point origin = 3; // For distance sort, the point that we measure distance from
-    /* Whether missing values should sort last instead of first.
-    Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
-    be at the end.*/
+    // Name of field to sort on
+    string fieldName = 1;
+    // For multi valued fields, how to select which value is used for sorting
+    Selector selector = 2;
+    // For distance sort, the point that we measure distance from
+    Point origin = 3;
+    // Whether missing values should sort last instead of first.
+    // Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
+    // be at the end.
     bool missingLast = 4;
     // Sort in reverse of the field's natural order
     bool reverse = 5;
@@ -736,33 +905,41 @@ message SortType {
     string unit = 6;
 }
 
-/* For multi valued fields, how to select which value is used for sorting */
+// For multi valued fields, how to select which value is used for sorting
 enum Selector {
-    MIN = 0; // Minimum value
-    MAX = 1; // Maximum value
-    MIDDLE_MIN = 2; // Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
-    MIDDLE_MAX = 3; // Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+    // Minimum value
+    MIN = 0;
+    // Maximum value
+    MAX = 1;
+    // Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
+    MIDDLE_MIN = 2;
+    // Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+    MIDDLE_MAX = 3;
 }
 
+// Query total hits
 message TotalHits {
-    /** How the {TotalHits#value} should be interpreted. */
+    // How the {TotalHits#value} should be interpreted
     enum Relation {
-        /* The total hit count is equal to {@link TotalHits#value}. */
+        // The total hit count is equal to {@link TotalHits#value}
         EQUAL_TO = 0;
-        /* The total hit count is greater than or equal to {@link TotalHits#value}. */
+        // The total hit count is greater than or equal to {@link TotalHits#value}
         GREATER_THAN_OR_EQUAL_TO = 1;
     }
     Relation relation = 1;
-    /** The value of the total hit count. Must be interpreted in the context of * {#relation}.*/
+    // The value of the total hit count. Must be interpreted in the context of {#relation}.
     int64 value = 2;
 }
 
-/* Point representation */
+// Point representation
 message Point {
-    double latitude = 1; // Latitude of the point
-    double longitude = 2; // Longitude of the point
+    // Latitude of the point
+    double latitude = 1;
+    // Longitude of the point
+    double longitude = 2;
 }
 
+// Response to a search request
 message SearchResponse {
     message Diagnostics {
         // Diagnostic info related kNN vector search queries
@@ -776,32 +953,54 @@ message SearchResponse {
         string parsedQuery = 1 [deprecated = true];
         string rewrittenQuery = 2 [deprecated = true];
         string drillDownQuery = 3 [deprecated = true];
+        // Time for initial recall and ranking
         double firstPassSearchTimeMs = 4;
+        // Time for highlighting
         double highlightTimeMs = 5;
+        // Time to fetch fields and perform other fetch tasks
         double getFieldsTimeMs = 6;
+        // Time to open a new snapshot searcher
         double newSnapshotSearcherOpenMs = 7;
+        // Time waiting for nrt replication
         double nrtWaitTimeMs = 8;
+        // Time to execute facets
         map<string, double> facetTimeMs = 9;
+        // Time to execute rescorers
         double rescoreTimeMs = 10;
+        // Time to execute each rescorer
         map<string, double> rescorersTimeMs = 11;
+        // Inner hits diagnostics
         map<string, Diagnostics> innerHitsDiagnostics = 12;
+        // Diagnostic info related to kNN vector search queries
         repeated VectorDiagnostics vectorDiagnostics = 13;
+        // Amount of gRPC request deadline remaining at the start of search processing
         double initialDeadlineMs = 14;
     }
 
+    // Message for query document hit
     message Hit {
+        // Field value for a hit
         message FieldValue {
             oneof FieldValues {
-                string textValue = 1; // Value for ATOM and TEXT  FieldType
-                bool booleanValue = 2; // Value for BOOLEAN FieldType
-                int32 intValue = 3; // Value for INT FieldType
-                int64 longValue = 4; // Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
-                float floatValue = 5; // Value for FLOAT FieldType
-                double doubleValue = 6; // Value for DOUBLE FieldType
-                google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
-                google.protobuf.Struct structValue = 8; // Value for structured data
+                // Value for ATOM and TEXT FieldType
+                string textValue = 1;
+                // Value for BOOLEAN FieldType
+                bool booleanValue = 2;
+                // Value for INT FieldType
+                int32 intValue = 3;
+                // Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
+                int64 longValue = 4;
+                // Value for FLOAT FieldType
+                float floatValue = 5;
+                // Value for DOUBLE FieldType
+                double doubleValue = 6;
+                // Value for LAT_LON FieldType
+                google.type.LatLng latLngValue = 7;
+                // Value for structured data
+                google.protobuf.Struct structValue = 8;
                 // Value for VECTOR FieldType
                 Vector vectorValue = 9;
+                // List of values
                 google.protobuf.ListValue listValue = 10;
             }
 
@@ -813,19 +1012,26 @@ message SearchResponse {
             }
         }
 
+        // Field with multiple values
         message CompositeFieldValue {
+            // Field values
             repeated FieldValue fieldValue = 3;
         }
 
+        // Highlighted text result
         message Highlights {
             // Highlighted text fragments
             repeated string fragments = 1;
         }
 
+        // Lucene document id
         int32 luceneDocId = 1;
+        // Document score
         double score = 2;
-        map<string, CompositeFieldValue> fields = 3; // Field name to value
-        map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
+        // Retrieved field data
+        map<string, CompositeFieldValue> fields = 3;
+        // When using query sorting, sorted field names to values
+        map<string, CompositeFieldValue> sortedFields = 4;
         // Field name to highlighted text fragments
         map<string, Highlights> highlights = 5;
         // Lucene explanation of the hit
@@ -834,21 +1040,34 @@ message SearchResponse {
         map<string, HitsResult> innerHits = 7;
     }
 
+    // State for use in subsequent searches (search after)
     message SearchState {
+        // Query time
         int64 timestamp = 1;
+        // Index searcher version
         int64 searcherVersion = 2;
-        int32 lastDocId = 3 [deprecated = true]; // replaced by lastHitInfo
-        repeated string lastFieldValues = 4 [deprecated = true]; // replaced by lastHitInfo
-        float lastScore = 5 [deprecated = true]; // replaced by lastHitInfo
+        // replaced by lastHitInfo
+        int32 lastDocId = 3 [deprecated = true];
+        // replaced by lastHitInfo
+        repeated string lastFieldValues = 4 [deprecated = true];
+        // replaced by lastHitInfo
+        float lastScore = 5 [deprecated = true];
+        // Last hit info for search after
         LastHitInfo lastHitInfo = 6;
     }
 
+    // Query diagnostics
     Diagnostics diagnostics = 1;
-    bool hitTimeout = 2; // Set to true if search times out and a degraded response is returned
+    // Set to true if search times out and a degraded response is returned
+    bool hitTimeout = 2;
+    // Total hits for the query
     TotalHits totalHits = 3;
+    // Ranked top hits
     repeated Hit hits = 4;
+    // State for use in subsequent searches (search after)
     SearchState searchState = 5;
-    repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
+    // Counts or aggregates for a single dimension
+    repeated FacetResult facetResult = 6;
     // Detailed stats returned when profile=true in request
     ProfileResult profileResult = 7;
     // Results from any additional document collectors
@@ -857,64 +1076,99 @@ message SearchResponse {
     bool terminatedEarly = 9;
 }
 
+// Define numeric range for facet
 message NumericRangeType {
-    string label = 1; //Label for this range
-    int64 min = 2; //Min value for the range
-    bool minInclusive = 3; //True if the min value is inclusive
-    int64 max = 4; //Max value for the range
-    bool maxInclusive = 5; //True if the max value is inclusive
+    // Label for this range
+    string label = 1;
+    // Min value for the range
+    int64 min = 2;
+    // True if the min value is inclusive
+    bool minInclusive = 3;
+    // Max value for the range
+    int64 max = 4;
+    // True if the max value is inclusive
+    bool maxInclusive = 5;
 }
 
+// Facet request definition
 message Facet {
-    string dim = 1; //Dimension (field)
-    repeated string paths = 2; //Prefix path to facet 'under'
-    repeated NumericRangeType numericRange = 3; //Custom numeric ranges.  Field must be indexed with facet=numericRange.
-    bool useOrdsCache = 4 [deprecated = true]; // True if the ordinals cache should be used
-    repeated string labels = 5; // Specific facet labels to retrieve
-    int32 topN = 6; //How many top facets to return
-    Script script = 7; //FacetScript definition to use in place of index facet
-    int32 sampleTopDocs = 8; //Facet over the top N ranked documents, instead of all hits. Only works with field doc values.
-    string name = 9; //Name for this facet
+    // Dimension (field)
+    string dim = 1;
+    // Prefix path to facet 'under'
+    repeated string paths = 2;
+    // Custom numeric ranges. Field must be indexed with facet=numericRange.
+    repeated NumericRangeType numericRange = 3;
+    // No longer used
+    bool useOrdsCache = 4 [deprecated = true];
+    // Specific facet labels to retrieve
+    repeated string labels = 5;
+    // How many top facets to return
+    int32 topN = 6;
+    // FacetScript definition to use in place of index facet
+    Script script = 7;
+    // Facet over the top N ranked documents, instead of all hits. Only works with field doc values.
+    int32 sampleTopDocs = 8;
+    //Name for this facet
+    string name = 9;
 }
 
-
+// Result of facet collection
 message FacetResult {
-    string dim = 1; //Dimension that was requested
-    repeated string path = 2; //Path whose children were requested.
-    double value = 3; //Total value for this path (sum of all child counts, or sum of all child values), even those not included in the topN.
-    repeated LabelAndValue labelValues = 4; // Child counts.
-    int64 childCount = 5; //How many child labels were encountered.
-    string name = 6; //Name for this facet
+    // Dimension that was requested
+    string dim = 1;
+    // Path whose children were requested
+    repeated string path = 2;
+    // Total value for this path (sum of all child counts, or sum of all child values), even those not included
+    // in the topN
+    double value = 3;
+    // Child counts
+    repeated LabelAndValue labelValues = 4;
+    // How many child labels were encountered
+    int64 childCount = 5;
+    // Name for this facet
+    string name = 6;
 }
 
+// Facet result label and value
 message LabelAndValue {
     string label = 1; //Facet's label.
     double value = 2; // Value associated with this label.
 }
 
+// Define additional task to perform in the fetch phase
 message FetchTask {
-    string name = 1; //Name of task, as registered by a FetchTaskPlugin
-    google.protobuf.Struct params = 2; //Optional task parameters
+    // Name of task, as registered by a FetchTaskPlugin
+    string name = 1;
+    // Optional task parameters
+    google.protobuf.Struct params = 2;
 }
 
 // Defines an entry point for using a rescorer from plugin
 message PluginRescorer {
+    // Rescorer name registered by plugin
     string name = 1;
-    google.protobuf.Struct params = 2; // arguments passed to the plugin
+    // Arguments passed to the plugin rescorer
+    google.protobuf.Struct params = 2;
 }
 
 // Defines a rescorer which uses query to rescore documents in the second pass
 message QueryRescorer {
+    // Query to rescore documents
     Query rescoreQuery = 1;
+    // Weight to multiply with original query score
     double queryWeight = 2;
+    // Weight to multiply with rescore query score
     double rescoreQueryWeight = 3;
 }
 
 // Defines a rescorer which is executed after the first search pass
 message Rescorer {
+    // Maximum number of hits from previous phase to rescore
     int32 windowSize = 1;
     oneof Rescorers {
+        // Rescore with Lucene query
         QueryRescorer queryRescorer = 2;
+        // Rescore with plugin registered rescorer
         PluginRescorer pluginRescorer = 3;
     }
     // Must be unique for each Rescorer
@@ -923,14 +1177,17 @@ message Rescorer {
 
 // Defines detailed profiling stats for queries that set profile=true
 message ProfileResult {
+    // Stats for aggregating collector
     message AdditionalCollectorStats {
         // Sum of all collection time
         double collectTimeMs = 1;
     }
 
+    // Stats for parallel search collector
     message CollectorStats {
-        // If collection for this index slice was terminated early, such as by a timeout.
+        // If collection for this index slice was terminated early, such as by a timeout
         bool terminated = 1;
+        // Stats for each collector segment
         repeated SegmentStats segmentStats = 2;
         // Total docs collected by this collector
         int32 totalCollectedCount = 3;
@@ -940,6 +1197,7 @@ message ProfileResult {
         map<string, AdditionalCollectorStats> additionalCollectorStats = 5;
     }
 
+    // Stats for a single collector segment
     message SegmentStats {
         // Total docs in segment
         int32 maxDoc = 1;
@@ -953,160 +1211,180 @@ message ProfileResult {
         double collectTimeMs = 5;
     }
 
+    // Stats for search phase
     message SearchStats {
         // Total time for all document collection
         double totalCollectTimeMs = 1;
         // Total time to reduce results from all parallel search slices
         double totalReduceTimeMs = 2;
+        // Stats for each collector
         repeated CollectorStats collectorStats = 3;
     }
 
+    // Stats for search phase
     SearchStats searchStats = 1;
+    // Parsed query string
     string parsedQuery = 2;
+    // Rewritten query string
     string rewrittenQuery = 3;
+    // Drill down query string
     string drillDownQuery = 4;
 }
 
-//Definition of additional document collector.
+// Definition of additional document collector
 message Collector {
     oneof Collectors {
-        //Collector for aggregating based on term values.
+        // Collector for aggregating based on term values
         TermsCollector terms = 1;
         PluginCollector pluginCollector = 2;
-        //Collector for getting top hits based on score or sorting.
+        // Collector for getting top hits based on score or sorting
         TopHitsCollector topHitsCollector = 4;
-        //Collector that filters documents to nested collectors
+        // Collector that filters documents to nested collectors
         FilterCollector filter = 5;
-        //Collector for finding a max double value from collected documents.
+        // Collector for finding a max double value from collected documents
         MaxCollector max = 6;
-        //Collector for finding a min double value from collected documents.
+        // Collector for finding a min double value from collected documents
         MinCollector min = 7;
 
     }
-    //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
+    // Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors
     map<string, Collector> nestedCollectors = 3;
 }
 
 // Defines an entry point for using a collector from a plugin
 message PluginCollector {
+    // Name of plugin registered collector
     string name = 1;
-    google.protobuf.Struct params = 2; // arguments passed to the plugin
+    // Arguments passed to the plugin collector
+    google.protobuf.Struct params = 2;
 }
 
-//Definition of term aggregating collector.
+// Definition of term aggregating collector
 message TermsCollector {
     oneof TermsSource {
-        //Use field values for terms.
+        // Use field values for terms
         string field = 1;
-        //Use FacetScript definition to produce terms.
+        // Use FacetScript definition to produce terms
         Script script = 2;
     }
-    //Maximum number of top terms to return.
+    // Maximum number of top terms to return
     int32 size = 3;
-    //How results Buckets should be ordered, defaults to descending Bucket _count.
+    // How results Buckets should be ordered, defaults to descending Bucket _count
     BucketOrder order = 4;
 }
 
-//Definition of top hits based collector.
+// Definition of top hits based collector
 message TopHitsCollector {
-    //Offset for retrieval of top hits.
+    // Offset for retrieval of top hits
     int32 startHit = 1;
-    //Total hits to collect, note that the number of hits returned is (topHits - startHit).
+    // Total hits to collect, note that the number of hits returned is (topHits - startHit)
     int32 topHits = 2;
-    //When specified, collector does sort based collection. Otherwise, relevance score is used.
+    // When specified, collector does sort based collection. Otherwise, relevance score is used
     QuerySortField querySort = 3;
-    //Which fields to retrieve.
+    // Which fields to retrieve
     repeated string retrieveFields = 4;
     // If Lucene explanation should be included in the collector response
     bool explain = 5;
 }
 
-//Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
+// Definition of filtering collector, there must be at least one nested collector specified in the Collector message
 message FilterCollector {
     oneof Filter {
-        // Only propagate documents that match the given query.
+        // Only propagate documents that match the given query
         Query query = 1;
-        // Specialized implementation for set queries, checks if field doc values are in the provided set. This can be useful for large set sizes with lower recall, where building the scorer would be expensive.
+        // Specialized implementation for set queries, checks if field doc values are in the provided set.
+        // This can be useful for large set sizes with lower recall, where building the scorer would be expensive.
         TermInSetQuery setQuery = 2;
     }
 }
 
-//Definition of collector to find a max double value over documents. Currently only allows for script based value production.
+// Definition of collector to find a max double value over documents. Currently only allows for script based
+// value production.
 message MaxCollector {
     oneof ValueSource {
-        //Script to produce a double value
+        // Script to produce a double value
         Script script = 1;
     }
 }
 
-//Definition of collector to find a min double value over documents. Currently only allows for script based value production.
+// Definition of collector to find a min double value over documents. Currently only allows for script based
+// value production.
 message MinCollector {
     oneof ValueSource {
-        //Script to produce a double value
+        // Script to produce a double value
         Script script = 1;
     }
 }
 
+// Result of aggregating collector
 message CollectorResult {
     oneof CollectorResults {
-        //Result of collector that produces buckets and counts.
+        // Result of collector that produces buckets and counts
         BucketResult bucketResult = 1;
-        //Flexible collector result for additional document collectors
+        // Flexible collector result for additional document collectors
         google.protobuf.Any anyResult = 2;
-        //Result of collector that returns document hits.
+        // Result of collector that returns document hits
         HitsResult hitsResult = 4;
-        //Result of collector that filters documents.
+        // Result of collector that filters documents
         FilterResult filterResult = 5;
-        //Result of collector that produces a single double value.
+        // Result of collector that produces a single double value
         google.protobuf.DoubleValue doubleResult = 6;
     }
 }
 
-//Defines how Buckets should be ordered in BucketResult.
+// Defines how Buckets should be ordered in BucketResult
 message BucketOrder {
-    //Sorting order type
+    // Sorting order type
     enum OrderType {
         DESC = 0;
         ASC = 1;
     }
-    //What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering.
+    // What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that
+    // supports ordering.
     string key = 1;
-    //Sorting order
+    // Sorting order
     OrderType order = 2;
 }
 
+// Results from bucketing collector
 message BucketResult {
     message Bucket {
+        // Bucket key
         string key = 1;
+        // Bucket item count
         int32 count = 2;
-        //Nested collector results for sub-aggregations of this bucket.
+        // Nested collector results for sub-aggregations of this bucket
         map<string, CollectorResult> nestedCollectorResults = 8;
     }
+    // Buckets
     repeated Bucket buckets = 1;
-    //Number of unique buckets, including those not in the buckets list.
+    // Number of unique buckets, including those not in the buckets list
     int32 totalBuckets = 2;
-    //Number of other collected counts not represented in the buckets' counts.
+    // Number of other collected counts not represented in the buckets' counts
     int32 totalOtherCounts = 3;
 }
 
+// Result from top hits collector
 message HitsResult {
-    //Total hit information.
+    // Total hit information
     TotalHits totalHits = 3;
-    //Ordered hits with scoring/sorting info and retrieved fields.
+    // Ordered hits with scoring/sorting info and retrieved fields
     repeated SearchResponse.Hit hits = 4;
 }
 
+// Result from filter collector
 message FilterResult {
-    //Number of documents that passed the filter.
+    // Number of documents that passed the filter
     int32 docCount = 1;
-    //Results from nested collectors.
+    // Results from nested collectors
     map<string, CollectorResult> nestedCollectorResults = 2;
 }
 
+// Defines logger for search hits
 message LoggingHits {
-    // name of the hits logger to be called, as registered by a HitsLoggerPlugin
+    // Name of the hits logger to be called, as registered by a HitsLoggerPlugin
     string name = 1;
-    //Optional logging parameters
+    // Optional logging parameters
     google.protobuf.Struct params = 2;
     // number of hits to log
     int32 hitsToLog = 3;
@@ -1116,7 +1394,8 @@ message LoggingHits {
 message Highlight {
 
     enum Type {
-        // When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.
+        // When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting,
+        // use the type from the global setting.
         DEFAULT = 0;
         FAST_VECTOR = 1;
         // not supported yet
@@ -1127,33 +1406,40 @@ message Highlight {
     message Settings {
         // Specify type of highlighter to use. Ignored right now in nrtsearch.
         Type highlighter_type = 1;
-        // Used along with post_tags to specify how to wrap the highlighted text.
+        // Used along with post_tags to specify how to wrap the highlighted text
         repeated string pre_tags = 2;
-        // Used along with pre_tags to specify how to wrap the highlighted text.
+        // Used along with pre_tags to specify how to wrap the highlighted text
         repeated string post_tags = 3;
         // Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field.
         google.protobuf.UInt32Value fragment_size = 4;
-        // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
+        // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single
+        // fragment ignoring fragment_size.
         google.protobuf.UInt32Value max_number_of_fragments = 5;
-        // Specify a query here if highlighting is desired against a different query than the search query.
+        // Specify a query here if highlighting is desired against a different query than the search query
         Query highlight_query = 6;
-        // Set to true to highlight fields only if specified in the search query.
+        // Set to true to highlight fields only if specified in the search query
         google.protobuf.BoolValue field_match = 7;
-        // Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)
+        // Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order
+        // they appear in the field. (Default is true)
         google.protobuf.BoolValue score_ordered = 8;
         // Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters.
         google.protobuf.StringValue fragmenter = 9;
-        // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
+        // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields
+        // if set true. (Default is false)
         google.protobuf.BoolValue discrete_multivalue = 10;
-        // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
+        // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for
+        // any other highlighter_types.
         string custom_highlighter_name = 11;
-        // Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen.
+        // Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting
+        // will be omitted for this field, and no merge will happen.
         google.protobuf.Struct custom_highlighter_params = 12;
-        // Define the boundary decision when creating fragments. Options are "simple" (default in fast vector highlighter), "word" or "sentence".
+        // Define the boundary decision when creating fragments. Options are "simple" (default in fast vector
+        // highlighter), "word" or "sentence".
         google.protobuf.StringValue  boundary_scanner = 13;
-        // Terminating chars when using "simple" boundary_scanner. The default is ".,!? \t\n".
+        // Terminating chars when using "simple" boundary_scanner. The default is ".,!? \t\n"
         google.protobuf.StringValue  boundary_chars = 14;
-        // Number of chars to scan before finding the boundary_chars if using "simple" boundary scanner; If "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
+        // Number of chars to scan before finding the boundary_chars if using "simple" boundary scanner; If
+        // "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
         google.protobuf.UInt32Value  boundary_max_scan = 15;
         // Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
         google.protobuf.StringValue  boundary_scanner_locale = 16;
@@ -1175,7 +1461,8 @@ message KnnQuery {
     Query filter = 2;
     // Number of top nearest neighbor documents to collect, must be <= num_candidates
     int32 k = 3;
-    // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
+    // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k.
+    // Must be <= 10000.
     int32 num_candidates = 4;
     // Vector value to use for query vector, for fields with float element type
     repeated float query_vector = 5;

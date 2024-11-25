@@ -10,34 +10,53 @@ option go_package = "github.com/Yelp/nrtsearch";
 
 package luceneserver;
 
+// Name of analysis component and its parameters
 message NameAndParams {
+    // Name of the analysis component
     string name = 1;
+    // Parameters for the analysis component
     map<string, string> params = 2;
 }
 
+// Used to specify a conditional token filter
 message ConditionalTokenFilter {
+    // Condition to apply the token filter
     NameAndParams condition = 1;
+    // Token filters to apply if the condition is met
     repeated NameAndParams tokenFilters = 2;
 }
 
 // Used to be able to check if a value was set
 message IntObject {
+    // Value of the int
     int32 int = 1;
 }
 
+// Custom analyzer definition
 message CustomAnalyzer {
-    repeated NameAndParams charFilters = 1; // Available char filters as of Lucene 8.2.0: htmlstrip, mapping, persian, patternreplace
-    NameAndParams tokenizer = 2; // Specify a Lucene tokenizer (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/Tokenizer.html). Possible options as of Lucene 8.2.0: keyword, letter, whitespace, edgeNGram, nGram, pathHierarchy, pattern, simplePatternSplit, simplePattern, classic, standard, uax29UrlEmail, thai, wikipedia.
-    repeated NameAndParams tokenFilters = 3; // Specify a Lucene token filter (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/TokenFilter.html). The possible options can be seen at https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/util/TokenFilterFactory.html and subclasses of TokenFilter at https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/package-tree.html or by calling TokenFilterFactory.availableTokenFilters().
-    repeated ConditionalTokenFilter conditionalTokenFilters = 4; // TODO: this is not properly supported yet, the only impl requires a protected terms file. Can support this properly later if needed
-    string defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
-    IntObject positionIncrementGap = 6; // Must be >= 0
-    IntObject offsetGap = 7; // Must be >= 0
+    // Specify a Lucene character filters (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/CharFilter.html)
+    repeated NameAndParams charFilters = 1;
+    // Specify a Lucene tokenizer (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/Tokenizer.html)
+    NameAndParams tokenizer = 2;
+    // Specify a Lucene token filter (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/TokenFilter.html)
+    repeated NameAndParams tokenFilters = 3;
+    // TODO: this is not properly supported yet, the only impl requires a protected terms file.
+    repeated ConditionalTokenFilter conditionalTokenFilters = 4;
+    // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
+    string defaultMatchVersion = 5;
+    // Must be >= 0
+    IntObject positionIncrementGap = 6;
+    // Must be >= 0
+    IntObject offsetGap = 7;
 }
 
+// Analyzer definition
 message Analyzer {
     oneof AnalyzerType {
-        string predefined = 1; // Analyzers predefined in Lucene, apart from standard and classic there are en.English, bn.Bengali, eu.Basque, etc. (names derived from Lucene's analyzer class names)
+        // Analyzers predefined in Lucene, apart from standard and classic there are en.English, bn.Bengali,
+        // eu.Basque, etc. (names derived from Lucene's analyzer class names)
+        string predefined = 1;
+        // Custom analyzer
         CustomAnalyzer custom = 2;
     }
 }

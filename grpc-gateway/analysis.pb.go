@@ -22,12 +22,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Name of analysis component and its parameters
 type NameAndParams struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Name of the analysis component
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Parameters for the analysis component
 	Params map[string]string `protobuf:"bytes,2,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -77,12 +80,15 @@ func (x *NameAndParams) GetParams() map[string]string {
 	return nil
 }
 
+// Used to specify a conditional token filter
 type ConditionalTokenFilter struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Condition    *NameAndParams   `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
+	// Condition to apply the token filter
+	Condition *NameAndParams `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
+	// Token filters to apply if the condition is met
 	TokenFilters []*NameAndParams `protobuf:"bytes,2,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`
 }
 
@@ -138,6 +144,7 @@ type IntObject struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Value of the int
 	Int int32 `protobuf:"varint,1,opt,name=int,proto3" json:"int,omitempty"`
 }
 
@@ -180,18 +187,26 @@ func (x *IntObject) GetInt() int32 {
 	return 0
 }
 
+// Custom analyzer definition
 type CustomAnalyzer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	CharFilters             []*NameAndParams          `protobuf:"bytes,1,rep,name=charFilters,proto3" json:"charFilters,omitempty"`                         // Available char filters as of Lucene 8.2.0: htmlstrip, mapping, persian, patternreplace
-	Tokenizer               *NameAndParams            `protobuf:"bytes,2,opt,name=tokenizer,proto3" json:"tokenizer,omitempty"`                             // Specify a Lucene tokenizer (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/Tokenizer.html). Possible options as of Lucene 8.2.0: keyword, letter, whitespace, edgeNGram, nGram, pathHierarchy, pattern, simplePatternSplit, simplePattern, classic, standard, uax29UrlEmail, thai, wikipedia.
-	TokenFilters            []*NameAndParams          `protobuf:"bytes,3,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`                       // Specify a Lucene token filter (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/TokenFilter.html). The possible options can be seen at https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/util/TokenFilterFactory.html and subclasses of TokenFilter at https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/package-tree.html or by calling TokenFilterFactory.availableTokenFilters().
-	ConditionalTokenFilters []*ConditionalTokenFilter `protobuf:"bytes,4,rep,name=conditionalTokenFilters,proto3" json:"conditionalTokenFilters,omitempty"` // TODO: this is not properly supported yet, the only impl requires a protected terms file. Can support this properly later if needed
-	DefaultMatchVersion     string                    `protobuf:"bytes,5,opt,name=defaultMatchVersion,proto3" json:"defaultMatchVersion,omitempty"`         // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
-	PositionIncrementGap    *IntObject                `protobuf:"bytes,6,opt,name=positionIncrementGap,proto3" json:"positionIncrementGap,omitempty"`       // Must be >= 0
-	OffsetGap               *IntObject                `protobuf:"bytes,7,opt,name=offsetGap,proto3" json:"offsetGap,omitempty"`                             // Must be >= 0
+	// Specify a Lucene character filters (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/CharFilter.html)
+	CharFilters []*NameAndParams `protobuf:"bytes,1,rep,name=charFilters,proto3" json:"charFilters,omitempty"`
+	// Specify a Lucene tokenizer (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/Tokenizer.html)
+	Tokenizer *NameAndParams `protobuf:"bytes,2,opt,name=tokenizer,proto3" json:"tokenizer,omitempty"`
+	// Specify a Lucene token filter (https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/analysis/TokenFilter.html)
+	TokenFilters []*NameAndParams `protobuf:"bytes,3,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`
+	// TODO: this is not properly supported yet, the only impl requires a protected terms file.
+	ConditionalTokenFilters []*ConditionalTokenFilter `protobuf:"bytes,4,rep,name=conditionalTokenFilters,proto3" json:"conditionalTokenFilters,omitempty"`
+	// Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
+	DefaultMatchVersion string `protobuf:"bytes,5,opt,name=defaultMatchVersion,proto3" json:"defaultMatchVersion,omitempty"`
+	// Must be >= 0
+	PositionIncrementGap *IntObject `protobuf:"bytes,6,opt,name=positionIncrementGap,proto3" json:"positionIncrementGap,omitempty"`
+	// Must be >= 0
+	OffsetGap *IntObject `protobuf:"bytes,7,opt,name=offsetGap,proto3" json:"offsetGap,omitempty"`
 }
 
 func (x *CustomAnalyzer) Reset() {
@@ -275,6 +290,7 @@ func (x *CustomAnalyzer) GetOffsetGap() *IntObject {
 	return nil
 }
 
+// Analyzer definition
 type Analyzer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -345,10 +361,13 @@ type isAnalyzer_AnalyzerType interface {
 }
 
 type Analyzer_Predefined struct {
-	Predefined string `protobuf:"bytes,1,opt,name=predefined,proto3,oneof"` // Analyzers predefined in Lucene, apart from standard and classic there are en.English, bn.Bengali, eu.Basque, etc. (names derived from Lucene's analyzer class names)
+	// Analyzers predefined in Lucene, apart from standard and classic there are en.English, bn.Bengali,
+	// eu.Basque, etc. (names derived from Lucene's analyzer class names)
+	Predefined string `protobuf:"bytes,1,opt,name=predefined,proto3,oneof"`
 }
 
 type Analyzer_Custom struct {
+	// Custom analyzer
 	Custom *CustomAnalyzer `protobuf:"bytes,2,opt,name=custom,proto3,oneof"`
 }
 
