@@ -119,6 +119,12 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
                 .setValue(liveSettingsRequest.getDefaultTerminateAfter())
                 .build());
       }
+      if (liveSettingsRequest.getDefaultTerminateAfterMaxRecallCount() >= 0) {
+        settingsBuilder.setDefaultTerminateAfterMaxRecallCount(
+            Int32Value.newBuilder()
+                .setValue(liveSettingsRequest.getDefaultTerminateAfterMaxRecallCount())
+                .build());
+      }
       try {
         updatedSettings = indexStateManager.updateLiveSettings(settingsBuilder.build(), false);
       } catch (IOException e) {
