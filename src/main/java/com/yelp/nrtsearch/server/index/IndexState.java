@@ -487,6 +487,9 @@ public abstract class IndexState implements Closeable {
   /** Get the default terminate after. */
   public abstract int getDefaultTerminateAfter();
 
+  /** Get the default terminate after max recall count. */
+  public abstract int getDefaultTerminateAfterMaxRecallCount();
+
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();
 

@@ -107,6 +107,11 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private Integer defaultTerminateAfter;
 
   @CommandLine.Option(
+      names = {"--defaultTerminateAfterMaxRecallCount"},
+      description = "Terminate after max recall count to use when not provided by the request")
+  private Integer defaultTerminateAfterMaxRecallCount;
+
+  @CommandLine.Option(
       names = {"--maxMergePreCopyDurationSec"},
       description = "Maximum time allowed for merge precopy in seconds")
   private Long maxMergePreCopyDurationSec;
@@ -191,6 +196,10 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (defaultTerminateAfter != null) {
         liveSettingsBuilder.setDefaultTerminateAfter(
             Int32Value.newBuilder().setValue(defaultTerminateAfter).build());
+      }
+      if (defaultTerminateAfterMaxRecallCount != null) {
+        liveSettingsBuilder.setDefaultTerminateAfterMaxRecallCount(
+            Int32Value.newBuilder().setValue(defaultTerminateAfterMaxRecallCount).build());
       }
       if (maxMergePreCopyDurationSec != null) {
         liveSettingsBuilder.setMaxMergePreCopyDurationSec(
