@@ -212,12 +212,21 @@ public class DocCollectorTest {
 
   @Test
   public void testHasTerminateAfterWrapper() {
-    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTerminateAfter(5).build();
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(10)
+            .setTerminateAfter(5)
+            .setTerminateAfterMaxRecallCount(10)
+            .build();
     TestDocCollector docCollector = new TestDocCollector(request);
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
     assertEquals(
         5, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+    assertEquals(
+        10,
+        ((TerminateAfterWrapper<?>) docCollector.getWrappedManager())
+            .getTerminateAfterMaxRecallCount());
   }
 
   @Test
@@ -244,6 +253,37 @@ public class DocCollectorTest {
     assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
     assertEquals(
         75, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testUsesDefaultTerminateAfterMaxRecallCount() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+    when(indexState.getDefaultTerminateAfterMaxRecallCount()).thenReturn(1000);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertEquals(
+        1000,
+        ((TerminateAfterWrapper<?>) docCollector.getWrappedManager())
+            .getTerminateAfterMaxRecallCount());
+  }
+
+  @Test
+  public void testOverrideDefaultTerminateAfterMaxRecallCount() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+    when(indexState.getDefaultTerminateAfterMaxRecallCount()).thenReturn(1000);
+
+    SearchRequest request =
+        SearchRequest.newBuilder().setTopHits(10).setTerminateAfterMaxRecallCount(75).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        75,
+        ((TerminateAfterWrapper<?>) docCollector.getWrappedManager())
+            .getTerminateAfterMaxRecallCount());
   }
 
   @Test
