@@ -271,12 +271,16 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       long t0 = System.nanoTime();
 
-      // hits to be logged also need to have their fields fetched
-      hits =
-          getHitsFromOffset(
-              hits,
-              searchContext.getStartHit(),
-              Math.max(searchContext.getTopHits(), searchContext.getHitsToLog()));
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        hits =
+            getHitsToLogFromOffset(
+                hits,
+                searchContext.getStartHit(),
+                searchContext.getTopHits(),
+                searchContext.getHitsToLog());
+      } else {
+        hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
+      }
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
@@ -287,7 +291,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       // if there were extra hits for the logging, the response size needs to be reduced to match
       // the topHits
       if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
-        setResponseTopHits(searchContext, searchContext.getTopHits());
+        setResponseTopHits(searchContext);
       }
 
       SearchState.Builder searchState = SearchState.newBuilder();
@@ -503,12 +507,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *
    * @param hits all hits
    * @param startHit offset into top docs
-   * @param hitsCount maximum number of hits needed for search response
+   * @param topHits maximum number of hits needed for search response
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int hitsCount) {
-    int retrieveHits = Math.min(hitsCount, hits.scoreDocs.length);
+  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
+    int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
     if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
       // Slice:
       int count = Math.max(0, retrieveHits - startHit);
@@ -522,14 +526,33 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   }
 
   /**
+   * Given all the top documents, produce a slice of the documents starting from a start offset and
+   * going up to the query needed maximum hits. There may be more top docs than the hits limit, if
+   * top docs sampling facets are used. There may be extra hits for logging to be retrieved.
+   *
+   * @param hits all hits
+   * @param startHit offset into top docs
+   * @param topHits maximum number of hits needed for search response
+   * @param hitsToLog maximum number of hits to be logged
+   * @return slice of hits starting at given offset, or empty slice if there are less than startHit
+   *     docs
+   */
+  public static TopDocs getHitsToLogFromOffset(
+      TopDocs hits, int startHit, int topHits, int hitsToLog) {
+    int retrieveHits = Math.min(Math.max(topHits, hitsToLog), hits.scoreDocs.length);
+    startHit = Math.min(startHit, retrieveHits - hitsToLog);
+    return getHitsFromOffset(hits, startHit, retrieveHits);
+  }
+
+  /**
    * Reduce response size by removing any extra hits used for logging. Final search response should
    * only return top hits.
    *
    * @param context search context
-   * @param topHits maximum number of hits needed for search response
    */
-  private static void setResponseTopHits(SearchContext context, int topHits) {
-    while (context.getResponseBuilder().getHitsCount() > topHits) {
+  private static void setResponseTopHits(SearchContext context) {
+    while (context.getResponseBuilder().getHitsCount()
+        > context.getTopHits() - context.getStartHit()) {
       int hitLastIdx = context.getResponseBuilder().getHitsCount() - 1;
       context.getResponseBuilder().removeHits(hitLastIdx);
     }

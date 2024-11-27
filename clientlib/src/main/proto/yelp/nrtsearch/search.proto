@@ -1386,7 +1386,8 @@ message LoggingHits {
     string name = 1;
     // Optional logging parameters
     google.protobuf.Struct params = 2;
-    // number of hits to log
+    // number of hits to log. The number of final hits to be logged can be less than this number
+    // if a query has less hits.
     int32 hitsToLog = 3;
 }
 
