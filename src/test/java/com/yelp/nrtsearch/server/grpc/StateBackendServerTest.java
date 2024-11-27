@@ -775,6 +775,8 @@ public class StateBackendServerTest {
                         IndexLiveSettings.newBuilder()
                             .setDefaultTerminateAfter(
                                 Int32Value.newBuilder().setValue(1000).build())
+                            .setDefaultTerminateAfterMaxRecallCount(
+                                Int32Value.newBuilder().setValue(1000).build())
                             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
                             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
                             .setDefaultSearchTimeoutSec(
@@ -784,6 +786,7 @@ public class StateBackendServerTest {
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+            .setDefaultTerminateAfterMaxRecallCount(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
             .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
@@ -1647,6 +1650,7 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutSec(13.0)
             .setDefaultSearchTimeoutCheckEvery(500)
             .setDefaultTerminateAfter(5000)
+            .setDefaultTerminateAfterMaxRecallCount(6000)
             .build();
 
     LiveSettingsResponse response = primaryClient.getBlockingStub().liveSettings(request);
@@ -1665,6 +1669,7 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(13.0).build())
             .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(500).build())
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(5000).build())
+            .setDefaultTerminateAfterMaxRecallCount(Int32Value.newBuilder().setValue(6000).build())
             .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
             .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
             .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
