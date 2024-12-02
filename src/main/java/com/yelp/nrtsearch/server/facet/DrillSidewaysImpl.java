@@ -191,8 +191,8 @@ public class DrillSidewaysImpl extends DrillSideways {
     int totalDocs = 0;
     // run script against all match docs, and aggregate counts
     for (MatchingDocs matchingDocs : drillDowns.getMatchingDocs()) {
-      FacetScript script = segmentFactory.newInstance(matchingDocs.context);
-      DocIdSetIterator iterator = matchingDocs.bits.iterator();
+      FacetScript script = segmentFactory.newInstance(matchingDocs.context());
+      DocIdSetIterator iterator = matchingDocs.bits().iterator();
       if (iterator == null) {
         continue;
       }
@@ -216,8 +216,8 @@ public class DrillSidewaysImpl extends DrillSideways {
     int totalDocs = 0;
     // get doc values for all match docs, and aggregate counts
     for (MatchingDocs matchingDocs : drillDowns.getMatchingDocs()) {
-      LoadedDocValues<?> docValues = fieldDef.getDocValues(matchingDocs.context);
-      DocIdSetIterator iterator = matchingDocs.bits.iterator();
+      LoadedDocValues<?> docValues = fieldDef.getDocValues(matchingDocs.context());
+      DocIdSetIterator iterator = matchingDocs.bits().iterator();
       if (iterator == null) {
         continue;
       }
@@ -462,7 +462,7 @@ public class DrillSidewaysImpl extends DrillSideways {
         luceneFacets =
             new FastTaxonomyFacetCounts(
                 indexFieldName,
-                searcherAndTaxonomyManager.taxonomyReader,
+                searcherAndTaxonomyManager.taxonomyReader(),
                 indexState.getFacetsConfig(),
                 c);
       } else {
@@ -478,7 +478,7 @@ public class DrillSidewaysImpl extends DrillSideways {
           luceneFacets =
               new FastTaxonomyFacetCounts(
                   indexFieldName,
-                  searcherAndTaxonomyManager.taxonomyReader,
+                  searcherAndTaxonomyManager.taxonomyReader(),
                   indexState.getFacetsConfig(),
                   drillDowns);
           indexFieldNameToFacets.put(indexFieldName, luceneFacets);

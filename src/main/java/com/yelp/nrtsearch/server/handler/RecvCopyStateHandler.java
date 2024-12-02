@@ -88,22 +88,22 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
   private static CopyState writeCopyState(org.apache.lucene.replicator.nrt.CopyState state)
       throws IOException {
     CopyState.Builder builder = CopyState.newBuilder();
-    builder.setInfoBytesLength(state.infosBytes.length);
-    builder.setInfoBytes(ByteString.copyFrom(state.infosBytes, 0, state.infosBytes.length));
+    builder.setInfoBytesLength(state.infosBytes().length);
+    builder.setInfoBytes(ByteString.copyFrom(state.infosBytes(), 0, state.infosBytes().length));
 
-    builder.setGen(state.gen);
-    builder.setVersion(state.version);
+    builder.setGen(state.gen());
+    builder.setVersion(state.version());
 
-    FilesMetadata filesMetadata = writeFilesMetaData(state.files);
+    FilesMetadata filesMetadata = writeFilesMetaData(state.files());
     builder.setFilesMetadata(filesMetadata);
 
-    builder.setCompletedMergeFilesSize(state.completedMergeFiles.size());
+    builder.setCompletedMergeFilesSize(state.completedMergeFiles().size());
 
-    for (String fileName : state.completedMergeFiles) {
+    for (String fileName : state.completedMergeFiles()) {
       builder.addCompletedMergeFiles(fileName);
     }
 
-    builder.setPrimaryGen(state.primaryGen);
+    builder.setPrimaryGen(state.primaryGen());
 
     return builder.build();
   }
@@ -117,12 +117,12 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
       fileMetadataBuilder.setFileName(ent.getKey());
 
       FileMetaData fmd = ent.getValue();
-      fileMetadataBuilder.setLen(fmd.length);
-      fileMetadataBuilder.setChecksum(fmd.checksum);
-      fileMetadataBuilder.setHeaderLength(fmd.header.length);
-      fileMetadataBuilder.setHeader(ByteString.copyFrom(fmd.header, 0, fmd.header.length));
-      fileMetadataBuilder.setFooterLength(fmd.footer.length);
-      fileMetadataBuilder.setFooter(ByteString.copyFrom(fmd.footer, 0, fmd.footer.length));
+      fileMetadataBuilder.setLen(fmd.length());
+      fileMetadataBuilder.setChecksum(fmd.checksum());
+      fileMetadataBuilder.setHeaderLength(fmd.header().length);
+      fileMetadataBuilder.setHeader(ByteString.copyFrom(fmd.header(), 0, fmd.header().length));
+      fileMetadataBuilder.setFooterLength(fmd.footer().length);
+      fileMetadataBuilder.setFooter(ByteString.copyFrom(fmd.footer(), 0, fmd.footer().length));
       builder.addFileMetadata(fileMetadataBuilder.build());
     }
     return builder.build();

@@ -108,15 +108,15 @@ public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
       SearcherTaxonomyManager.SearcherAndTaxonomy s = shardState.acquire();
       try {
         Taxonomy.Builder taxonomy = Taxonomy.newBuilder();
-        if (s.taxonomyReader != null) { // taxo reader is null for primary and replica
-          taxonomy.setNumOrds(s.taxonomyReader.getSize());
-          taxonomy.setSegments(s.taxonomyReader.toString());
+        if (s.taxonomyReader() != null) { // taxo reader is null for primary and replica
+          taxonomy.setNumOrds(s.taxonomyReader().getSize());
+          taxonomy.setSegments(s.taxonomyReader().toString());
         }
         statsResponseBuilder.setTaxonomy(taxonomy.build());
         Searcher.Builder searcher = Searcher.newBuilder();
-        if (s.searcher != null) {
-          searcher.setSegments(s.searcher.toString());
-          IndexReader indexReader = s.searcher.getIndexReader();
+        if (s.searcher() != null) {
+          searcher.setSegments(s.searcher().toString());
+          IndexReader indexReader = s.searcher().getIndexReader();
           searcher.setNumDocs(indexReader.numDocs());
           if (indexReader instanceof StandardDirectoryReader standardDirectoryReader) {
             searcher.setNumSegments(standardDirectoryReader.getSegmentInfos().asList().size());

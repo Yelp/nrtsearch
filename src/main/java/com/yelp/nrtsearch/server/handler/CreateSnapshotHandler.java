@@ -86,7 +86,7 @@ public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, Create
         // search is done:
         long t0 = System.nanoTime();
         IndexReader r =
-            DirectoryReader.openIfChanged((DirectoryReader) s2.searcher.getIndexReader(), c);
+            DirectoryReader.openIfChanged((DirectoryReader) s2.searcher().getIndexReader(), c);
         IndexSearcher s = new IndexSearcher(r);
         try {
           shardState.slm.record(s);

@@ -97,8 +97,8 @@ public class MultiSegmentTest extends ServerTestCase {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     try {
       s = getGlobalState().getIndexOrThrow(TEST_INDEX).getShard(0).acquire();
-      assertEquals(NUM_DOCS / SEGMENT_CHUNK, s.searcher.getIndexReader().leaves().size());
-      for (LeafReaderContext context : s.searcher.getIndexReader().leaves()) {
+      assertEquals(NUM_DOCS / SEGMENT_CHUNK, s.searcher().getIndexReader().leaves().size());
+      for (LeafReaderContext context : s.searcher().getIndexReader().leaves()) {
         assertEquals(SEGMENT_CHUNK, context.reader().maxDoc());
       }
     } finally {

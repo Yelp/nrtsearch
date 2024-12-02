@@ -74,16 +74,16 @@ public class NrtPointStateTest {
     NrtPointState nrtPointState =
         new NrtPointState(getCopyState(), Map.of("file3", nrtFileMetaData), primaryId);
     CopyState copyState = nrtPointState.toCopyState();
-    assertEquals(copyState.version, version);
-    assertEquals(copyState.gen, gen);
-    assertArrayEquals(copyState.infosBytes, infosBytes);
-    assertEquals(copyState.primaryGen, primaryGen);
-    assertEquals(copyState.completedMergeFiles, completedMergeFiles);
-    assertEquals(copyState.files.size(), 1);
-    assertEquals(copyState.files.get("file3").length, 10);
-    assertEquals(copyState.files.get("file3").checksum, 25);
-    assertArrayEquals(copyState.files.get("file3").footer, new byte[] {0, 10, 11});
-    assertArrayEquals(copyState.files.get("file3").header, new byte[] {6, 7, 8});
+    assertEquals(copyState.version(), version);
+    assertEquals(copyState.gen(), gen);
+    assertArrayEquals(copyState.infosBytes(), infosBytes);
+    assertEquals(copyState.primaryGen(), primaryGen);
+    assertEquals(copyState.completedMergeFiles(), completedMergeFiles);
+    assertEquals(copyState.files().size(), 1);
+    assertEquals(copyState.files().get("file3").length(), 10);
+    assertEquals(copyState.files().get("file3").checksum(), 25);
+    assertArrayEquals(copyState.files().get("file3").footer(), new byte[] {0, 10, 11});
+    assertArrayEquals(copyState.files().get("file3").header(), new byte[] {6, 7, 8});
   }
 
   @Test

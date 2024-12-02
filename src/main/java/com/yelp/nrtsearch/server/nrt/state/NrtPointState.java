@@ -50,11 +50,11 @@ public final class NrtPointState {
    * @param primaryId primary id
    */
   public NrtPointState(CopyState copyState, Map<String, NrtFileMetaData> files, String primaryId) {
-    version = copyState.version;
-    gen = copyState.gen;
-    infosBytes = copyState.infosBytes;
-    primaryGen = copyState.primaryGen;
-    completedMergeFiles = copyState.completedMergeFiles;
+    version = copyState.version();
+    gen = copyState.gen();
+    infosBytes = copyState.infosBytes();
+    primaryGen = copyState.primaryGen();
+    completedMergeFiles = copyState.completedMergeFiles();
     this.files = files;
     this.primaryId = primaryId;
   }
@@ -67,7 +67,8 @@ public final class NrtPointState {
   @JsonIgnore
   public CopyState toCopyState() {
     Map<String, FileMetaData> luceneFiles =
-        files.entrySet().stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        files.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().toFileMetaData()));
     return new CopyState(
         luceneFiles, version, gen, infosBytes, completedMergeFiles, primaryGen, null);
   }

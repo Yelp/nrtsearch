@@ -190,7 +190,7 @@ public abstract class BlendedTermQuery extends Query {
     int df = termContext.docFreq();
     long ttf = sumTTF;
     for (int i = 0; i < len; i++) {
-      TermState termState = termContext.get(leaves.get(i));
+      TermState termState = termContext.get(leaves.get(i)).get();
       if (termState == null) {
         continue;
       }
@@ -215,7 +215,7 @@ public abstract class BlendedTermQuery extends Query {
     }
     TermStates newCtx = new TermStates(readerContext);
     for (int i = 0; i < len; ++i) {
-      TermState termState = ctx.get(leaves.get(i));
+      TermState termState = ctx.get(leaves.get(i)).get();
       if (termState == null) {
         continue;
       }
@@ -367,7 +367,7 @@ public abstract class BlendedTermQuery extends Query {
         if (low.clauses().isEmpty()) {
           BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
           for (BooleanClause booleanClause : high) {
-            queryBuilder.add(booleanClause.getQuery(), Occur.MUST);
+            queryBuilder.add(booleanClause.query(), Occur.MUST);
           }
           return queryBuilder.build();
         } else if (high.clauses().isEmpty()) {

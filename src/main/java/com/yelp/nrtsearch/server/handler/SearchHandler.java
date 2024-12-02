@@ -185,9 +185,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         // sideways task per query.
         DrillSideways drillS =
             new DrillSidewaysImpl(
-                s.searcher,
+                s.searcher(),
                 indexState.getFacetsConfig(),
-                s.taxonomyReader,
+                s.taxonomyReader(),
                 searchRequest.getFacetsList(),
                 s,
                 indexState,
@@ -219,13 +219,14 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                     searcherResult.getTopDocs(),
                     searchRequest.getFacetsList(),
                     indexState,
-                    s.searcher,
+                    s.searcher(),
                     diagnostics));
       } else {
         try {
           searcherResult =
-              s.searcher.search(
-                  searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+              s.searcher()
+                  .search(
+                      searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
         } catch (RuntimeException e) {
           CollectionTimeoutException timeoutException = findTimeoutException(e);
           if (timeoutException != null) {
@@ -284,7 +285,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       searchState.setTimestamp(searchContext.getTimestampSec());
 
       // Record searcher version that handled this request:
-      searchState.setSearcherVersion(((DirectoryReader) s.searcher.getIndexReader()).getVersion());
+      searchState.setSearcherVersion(
+          ((DirectoryReader) s.searcher().getIndexReader()).getVersion());
 
       // Fill in lastDoc for searchAfter:
       if (hits.scoreDocs.length != 0) {
@@ -387,7 +389,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       // Fetch fields in parallel
 
       List<LeafReaderContext> leaves =
-          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+          searchContext.getSearcherAndTaxonomy().searcher().getIndexReader().leaves();
       List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
@@ -417,7 +419,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                 .fetchExecutor()
                 .submit(
                     new FillFieldsTask(
-                        searchContext.getSearcherAndTaxonomy().searcher,
+                        searchContext.getSearcherAndTaxonomy().searcher(),
                         hitIdToLeaves,
                         hitBuilders,
                         fieldsChunk,
@@ -439,7 +441,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           hitResponse.setExplain(
               searchContext
                   .getSearcherAndTaxonomy()
-                  .searcher
+                  .searcher()
                   .explain(searchContext.getQuery(), hitResponse.getLuceneDocId())
                   .toString());
         }
@@ -521,8 +523,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private static void setResponseHits(SearchContext context, TopDocs hits) {
     TotalHits totalHits =
         TotalHits.newBuilder()
-            .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
-            .setValue(hits.totalHits.value)
+            .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation().name()))
+            .setValue(hits.totalHits.value())
             .build();
     context.getResponseBuilder().setTotalHits(totalHits);
     for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
@@ -574,7 +576,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           s = openSnapshotReader(indexState, state, snapshot, diagnostics, searchExecutor);
         } else {
           SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
-          long currentVersion = ((DirectoryReader) current.searcher.getIndexReader()).getVersion();
+          long currentVersion =
+              ((DirectoryReader) current.searcher().getIndexReader()).getVersion();
           if (currentVersion == version) {
             s = current;
           } else if (version > currentVersion) {
@@ -609,9 +612,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                     SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
                     logger.info(
                         "SearchHandler: refresh completed newVersion="
-                            + ((DirectoryReader) current.searcher.getIndexReader()).getVersion());
+                            + ((DirectoryReader) current.searcher().getIndexReader()).getVersion());
                     try {
-                      if (((DirectoryReader) current.searcher.getIndexReader()).getVersion()
+                      if (((DirectoryReader) current.searcher().getIndexReader()).getVersion()
                           >= version) {
                         lock.lock();
                         try {
@@ -630,17 +633,17 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
             lock.lock();
             try {
               current = state.acquire();
-              if (((DirectoryReader) current.searcher.getIndexReader()).getVersion() < version) {
+              if (((DirectoryReader) current.searcher().getIndexReader()).getVersion() < version) {
                 // still not there yet
                 state.release(current);
                 cond.await();
                 current = state.acquire();
                 logger.info(
                     "SearchHandler: await released,  current version "
-                        + ((DirectoryReader) current.searcher.getIndexReader()).getVersion()
+                        + ((DirectoryReader) current.searcher().getIndexReader()).getVersion()
                         + " required minimum version "
                         + version);
-                assert ((DirectoryReader) current.searcher.getIndexReader()).getVersion()
+                assert ((DirectoryReader) current.searcher().getIndexReader()).getVersion()
                     >= version;
               }
               s = current;
@@ -665,8 +668,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         // but the latest taxoReader ... necessary
         // because SLM can't take taxo reader yet:
         SearcherTaxonomyManager.SearcherAndTaxonomy s2 = state.acquire();
-        s = new SearcherTaxonomyManager.SearcherAndTaxonomy(priorSearcher, s2.taxonomyReader);
-        s2.searcher.getIndexReader().decRef();
+        s = new SearcherTaxonomyManager.SearcherAndTaxonomy(priorSearcher, s2.taxonomyReader());
+        s2.searcher().getIndexReader().decRef();
       }
     } else if (searchCase.equals((SearchRequest.SearcherCase.INDEXGEN))) {
       // Searcher is identified by an indexGen, returned
@@ -688,12 +691,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0) / 1000000.0);
       }
       s = state.acquire();
-      state.slm.record(s.searcher);
+      state.slm.record(s.searcher());
     } else if (searchCase.equals(SearchRequest.SearcherCase.SEARCHER_NOT_SET)) {
       // Request didn't specify any specific searcher;
       // just use the current (latest) searcher:
       s = state.acquire();
-      state.slm.record(s.searcher);
+      state.slm.record(s.searcher());
     } else {
       throw new UnsupportedOperationException(searchCase.name() + " is not yet supported ");
     }
@@ -725,23 +728,23 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       // Returns a ref, which we return to caller:
       IndexReader r =
           DirectoryReader.openIfChanged(
-              (DirectoryReader) s.searcher.getIndexReader(),
+              (DirectoryReader) s.searcher().getIndexReader(),
               state.snapshots.getIndexCommit(snapshot.indexGen));
 
       // Ref that we return to caller
-      s.taxonomyReader.incRef();
+      s.taxonomyReader().incRef();
 
       SearcherTaxonomyManager.SearcherAndTaxonomy result =
           new SearcherTaxonomyManager.SearcherAndTaxonomy(
-              new MyIndexSearcher(
+              MyIndexSearcher.create(
                   r,
-                  new MyIndexSearcher.ExecutorWithParams(
-                      searchExecutor,
+                  searchExecutor,
+                  new MyIndexSearcher.SlicingParams(
                       indexState.getSliceMaxDocs(),
                       indexState.getSliceMaxSegments(),
                       indexState.getVirtualShards())),
-              s.taxonomyReader);
-      state.slm.record(result.searcher);
+              s.taxonomyReader());
+      state.slm.record(result.searcher());
       long t1 = System.nanoTime();
       if (diagnostics != null) {
         diagnostics.setNewSnapshotSearcherOpenMs(((t1 - t0) / 1000000.0));
@@ -910,7 +913,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         }
       }
       return new StoredFieldFetchContext(
-          fieldFetchContext.getSearcherAndTaxonomy().searcher.storedFields(),
+          fieldFetchContext.getSearcherAndTaxonomy().searcher().storedFields(),
           storedFieldNames,
           storedFieldEntries);
     }
@@ -935,7 +938,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     @Override
     public void run() {
       List<LeafReaderContext> leaves =
-          fieldFetchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+          fieldFetchContext.getSearcherAndTaxonomy().searcher().getIndexReader().leaves();
       StoredFieldFetchContext storedFieldFetchContext;
       try {
         storedFieldFetchContext = getStoredFieldFetchContext(fieldFetchContext);
@@ -1037,7 +1040,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           hit.setExplain(
               context
                   .getSearcherAndTaxonomy()
-                  .searcher
+                  .searcher()
                   .explain(resolvedExplainQuery, hit.getLuceneDocId())
                   .toString());
         }
