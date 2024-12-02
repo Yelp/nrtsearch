@@ -273,7 +273,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
         hits =
-            getHitsToLogFromOffset(
+            getHitsFromOffsetAndHitsToLog(
                 hits,
                 searchContext.getStartHit(),
                 searchContext.getTopHits(),
@@ -528,7 +528,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   /**
    * Given all the top documents, produce a slice of the documents starting from a start offset and
    * going up to the query needed maximum hits. There may be more top docs than the hits limit, if
-   * top docs sampling facets are used. There may be extra hits for logging to be retrieved.
+   * top docs sampling facets are used. There may be more hits than top hits for logging to be
+   * retrieved.
    *
    * @param hits all hits
    * @param startHit offset into top docs
@@ -537,7 +538,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  public static TopDocs getHitsToLogFromOffset(
+  public static TopDocs getHitsFromOffsetAndHitsToLog(
       TopDocs hits, int startHit, int topHits, int hitsToLog) {
     int retrieveHits = Math.min(Math.max(topHits, hitsToLog), hits.scoreDocs.length);
     startHit = Math.min(startHit, retrieveHits - hitsToLog);

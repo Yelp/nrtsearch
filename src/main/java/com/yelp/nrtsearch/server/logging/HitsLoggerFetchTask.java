@@ -44,7 +44,8 @@ public class HitsLoggerFetchTask implements FetchTask {
    */
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
-    // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits that can be logged
+    // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits that
+    // can be logged
     if (searchContext.getHitsToLog() < hits.size()) {
       hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
     } else {
