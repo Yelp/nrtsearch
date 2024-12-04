@@ -56,51 +56,75 @@ Note: This code has been tested on *Java21*
 ./build/install/nrtsearch/bin/lucene-server
 ```
 
-# Build gRPC Gateway
+# Optional: Build gRPC Gateway
 
 ```
 ./gradlew buildGrpcGateway
 ```
 
-# Run REST Server (use the appropriate binary for your platform e.g. for mac os)
+# Optional: Run REST Server (use the appropriate binary for your platform e.g. for mac os)
 
 ```
-./build/install/nrtsearch/bin/http_wrapper-darwin-amd64 <gRPC_PORT> <REST_PORT>
+./build/install/nrtsearch/bin/http_wrapper-<platform> <gRPC_PORT> <REST_PORT>
 ```
 
+for example
+```
+./build/install/nrtsearch/bin/http_wrapper-linux-amd64 6000 8000
+```
 # Example to run some basic client commands
 ## Create Index
 
 ```
-./build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx
+./build/install/nrtsearch/bin/lucene-client createIndex -i testIdx
 ```
 
+Through the Rest Server:
 ```
-curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx"}'
+curl -XPOST localhost:8000/v1/create_index -d '{"indexName": "testIdx"}'
 ```
 
 ## Update Settings
 
 ```
-./build/install/nrtsearch/bin/lucene-client settings -f settings.json
+./build/install/nrtsearch/bin/lucene-client settingsV2 -i testIdx -f settings.json
 cat settings.json
-{             "indexName": "testIdx",
-              "directory": "MMapDirectory",
-              "nrtCachingDirectoryMaxSizeMB": 0.0,
-              "indexMergeSchedulerAutoThrottle": false,
-              "concurrentMergeSchedulerMaxMergeCount": 16,
-              "concurrentMergeSchedulerMaxThreadCount": 8
+{            
+  "directory": "MMapDirectory",
+  "nrtCachingDirectoryMaxSizeMB": 0.0,
+  "indexMergeSchedulerAutoThrottle": false,
+  "concurrentMergeSchedulerMaxMergeCount": 16,
+  "concurrentMergeSchedulerMaxThreadCount": 8
 }
+```
+
+Through the Rest Server:
+```
+curl -XPOST localhost:8000/v2/settings -d '
+{        
+  "indexName": "testIdx",
+  "settings": {    
+    "directory": "MMapDirectory",
+    "nrtCachingDirectoryMaxSizeMB": 0.0,
+    "indexMergeSchedulerAutoThrottle": false,
+    "concurrentMergeSchedulerMaxMergeCount": 16,
+    "concurrentMergeSchedulerMaxThreadCount": 8
+  }
+}'
 ```
 
 ## Start Index
 
 ```
-./build/install/nrtsearch/bin/lucene-client startIndex -f startIndex.json
-cat startIndex.json
-{
-  "indexName" : "testIdx"
-}
+./build/install/nrtsearch/bin/lucene-client startIndexV2 -i testIdx
+```
+
+Through the Rest Server:
+```
+curl -XPOST localhost:8000/v2/start_index -d '
+{        
+  "indexName": "testIdx"
+}'
 ```
 
 ## RegisterFields
@@ -108,14 +132,29 @@ cat startIndex.json
 ```
 ./build/install/nrtsearch/bin/lucene-client registerFields -f registerFields.json
 cat registerFields.json
-{             "indexName": "testIdx",
-              "field":
-              [
-                      { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
-                      { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
-                      { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
-              ]
+{ 
+  "indexName": "testIdx",
+  "field":
+  [
+    { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
+    { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
+    { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
+  ]
 }
+```
+
+Through the Rest Server:
+```
+curl -XPOST localhost:8000/v1/register_fields -d '
+{             
+  "indexName": "testIdx",
+  "field":
+  [
+    { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
+    { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
+    { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
+  ]
+}'
 ```
 
 ## Add Documents
@@ -128,20 +167,47 @@ doc_id,vendor_name,license_no
 1,second vendor,111;222
 ```
 
+Through the Rest Server:
+```
+curl -XPOST localhost:8000/v1/add_documents -d '
+{             
+  "indexName": "testIdx",
+  "fields":{
+     "doc_id": {"value": ["0"]}, "vendor_name": {"value": ["first vendor"]}, "license_no": {"value": ["100", "200"]}
+  }
+}
+{             
+  "indexName": "testIdx",
+  "fields":{
+     "doc_id": {"value": ["1"]}, "vendor_name": {"value": ["second vendor"]}, "license_no": {"value": ["111", "222"]}
+  }
+}'
+```
+
 ## Search
 
 ```
 ./build/install/nrtsearch/bin/lucene-client search -f search.json
 cat search.json
 {
-        "indexName": "testIdx",
-        "startHit": 0,
-        "topHits": 100,
-        "retrieveFields": ["doc_id", "license_no", "vendor_name"],
-         "queryText": "vendor_name:first vendor"
+  "indexName": "testIdx",
+  "startHit": 0,
+  "topHits": 100,
+  "retrieveFields": ["doc_id", "license_no", "vendor_name"],
+    "queryText": "vendor_name:first vendor"
 }
 ```
 
+Through the Rest Server:
+```
+{             
+  "indexName": "testIdx",
+  "startHit": 0,
+  "topHits": 100,
+  "retrieveFields": ["doc_id", "license_no", "vendor_name"],
+  "queryText": "vendor_name:first"
+}'
+```
 
 # API documentation
 The build uses protoc-gen-doc program to generate the documentation needed in html (or markdown) files from proto files. It is run inside a docker container. The gradle task to generate this documentation is as follows.
@@ -167,3 +233,4 @@ This tool indexes yelp reviews available at [Yelp dataset challenge](https://www
 This test indexes businesses, creates an Infix Suggester and fetches suggestions. It requires a host, a port and a writeable directory in a standalone nrtSearch server.
 
 ```./gradlew :test -DsuggestTmp=remoteServerDir -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "com.yelp.nrtsearch.server.YelpSuggestTest"```
+
