@@ -1103,10 +1103,6 @@ message IndexLiveSettings {
     google.protobuf.UInt64Value maxMergePreCopyDurationSec = 14;
     // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
     google.protobuf.BoolValue verboseMetrics = 15;
-    // If fetch parallelism should be done by groups of fields instead of document, default: false
-    google.protobuf.BoolValue parallelFetchByField = 16;
-    // The number of documents/fields per parallel fetch task, default: 50
-    google.protobuf.Int32Value parallelFetchChunkSize = 17;
     // Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0
     google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
 }
