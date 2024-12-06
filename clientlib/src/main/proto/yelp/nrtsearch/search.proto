@@ -766,6 +766,7 @@ message SearchResponse {
         double rescoreTimeMs = 10;
         map<string, double> rescorersTimeMs = 11;
         map<string, Diagnostics> innerHitsDiagnostics = 12;
+        double loggingHitsTimeMs = 13;
     }
 
     message Hit {
