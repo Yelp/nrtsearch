@@ -51,9 +51,9 @@ public class HitsLoggerFetchTask implements FetchTask {
   }
 
   /**
-   * Get the total time taken so far to generate highlights.
+   * Get the total time taken so far to logging hits.
    *
-   * @return Total time taken to generate highlights in ms.
+   * @return Total time taken to logging hits in ms.
    */
   public double getTimeTakenMs() {
     return timeTakenMs.doubleValue();

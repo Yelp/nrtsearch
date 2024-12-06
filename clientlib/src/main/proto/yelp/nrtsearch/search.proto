@@ -975,7 +975,7 @@ message SearchResponse {
         repeated VectorDiagnostics vectorDiagnostics = 13;
         // Amount of gRPC request deadline remaining at the start of search processing
         double initialDeadlineMs = 14;
-        // Time for highlighting
+        // Time for logging hits
         double loggingHitsTimeMs = 15;
     }
 
