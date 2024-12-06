@@ -97,6 +97,11 @@ public class TerminateAfterWrapper<C extends Collector>
     return terminateAfter;
   }
 
+  /** Max documents to count beyond terminateAfter. */
+  public int getTerminateAfterMaxRecallCount() {
+    return terminateAfterMaxRecallCount;
+  }
+
   /**
    * {@link Collector} implementation that wraps another collector and terminates collection after a
    * certain global count of documents is reached.
