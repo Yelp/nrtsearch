@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.logging;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
@@ -191,5 +192,35 @@ public class HitsLoggerTest extends ServerTestCase {
     String expectedLogMessage = "LOGGED_2 " + List.of(response.getHits(0));
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
+  }
+
+  @Test
+  public void testLoggingTimeTaken() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(1)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder()
+                    .setName("custom_logger")
+                    .setParams(
+                        Struct.newBuilder()
+                            .putFields(
+                                "external_value", Value.newBuilder().setStringValue("abc").build()))
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertTrue(response.getDiagnostics().getLoggingHitsTimeMs() > 0);
   }
 }
