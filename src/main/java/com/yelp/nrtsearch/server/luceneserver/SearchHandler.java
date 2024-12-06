@@ -249,6 +249,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         diagnostics.setHighlightTimeMs(
             searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
       }
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        diagnostics.setLoggingHitsTimeMs(
+            searchContext.getFetchTasks().getHitsLoggerFetchTask().getTimeTakenMs());
+      }
       if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
         diagnostics.putAllInnerHitsDiagnostics(
             searchContext.getFetchTasks().getInnerHitFetchTaskList().stream()
