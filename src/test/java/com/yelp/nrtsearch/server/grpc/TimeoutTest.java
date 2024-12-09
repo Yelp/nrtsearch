@@ -153,8 +153,8 @@ public class TimeoutTest extends ServerTestCase {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     try {
       s = getGlobalState().getIndexOrThrow(TEST_INDEX).getShard(0).acquire();
-      assertEquals(NUM_DOCS / SEGMENT_CHUNK, s.searcher.getIndexReader().leaves().size());
-      for (LeafReaderContext context : s.searcher.getIndexReader().leaves()) {
+      assertEquals(NUM_DOCS / SEGMENT_CHUNK, s.searcher().getIndexReader().leaves().size());
+      for (LeafReaderContext context : s.searcher().getIndexReader().leaves()) {
         assertEquals(SEGMENT_CHUNK, context.reader().maxDoc());
       }
     } finally {
@@ -237,7 +237,7 @@ public class TimeoutTest extends ServerTestCase {
                 throw new RuntimeException(e);
               }
             });
-    assertEquals(NUM_DOCS, hits.totalHits.value);
+    assertEquals(NUM_DOCS, hits.totalHits.value());
     assertEquals(NUM_DOCS - 1, hits.scoreDocs[0].score, 0);
   }
 
@@ -324,7 +324,7 @@ public class TimeoutTest extends ServerTestCase {
                 throw new RuntimeException(e);
               }
             });
-    assertEquals(expectedHits, hits.totalHits.value);
+    assertEquals(expectedHits, hits.totalHits.value());
   }
 
   @Test(expected = CollectionTimeoutException.class)
@@ -503,9 +503,9 @@ public class TimeoutTest extends ServerTestCase {
       List<FacetResult> grpcFacetResults = new ArrayList<>();
       DrillSideways drillS =
           new DrillSidewaysImpl(
-              context.getSearcherAndTaxonomy().searcher,
+              context.getSearcherAndTaxonomy().searcher(),
               context.getIndexState().getFacetsConfig(),
-              context.getSearcherAndTaxonomy().taxonomyReader,
+              context.getSearcherAndTaxonomy().taxonomyReader(),
               Collections.singletonList(getTestFacet()),
               context.getSearcherAndTaxonomy(),
               context.getIndexState(),
@@ -521,7 +521,7 @@ public class TimeoutTest extends ServerTestCase {
       topDocs =
           context
               .getSearcherAndTaxonomy()
-              .searcher
+              .searcher()
               .search(context.getQuery(), manager)
               .getTopDocs();
     }

@@ -144,7 +144,7 @@ public class StartIndexProcessor {
       throw new StartIndexProcessorException(e);
     }
     try {
-      IndexReader r = s.searcher.getIndexReader();
+      IndexReader r = s.searcher().getIndexReader();
       startIndexResponseBuilder.setMaxDoc(r.maxDoc());
       startIndexResponseBuilder.setNumDocs(r.numDocs());
       startIndexResponseBuilder.setSegments(r.toString());

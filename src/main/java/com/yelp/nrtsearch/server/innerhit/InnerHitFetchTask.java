@@ -70,7 +70,7 @@ public class InnerHitFetchTask implements FetchTask {
 
   public InnerHitFetchTask(InnerHitContext innerHitContext) throws IOException {
     this.innerHitContext = innerHitContext;
-    this.searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
+    this.searcher = innerHitContext.getSearcherAndTaxonomy().searcher();
     boolean needScore =
         innerHitContext.getTopHits() >= innerHitContext.getStartHit()
             && (innerHitContext.getSortContext() == null
@@ -124,8 +124,8 @@ public class InnerHitFetchTask implements FetchTask {
     HitsResult.Builder innerHitResultBuilder = HitsResult.newBuilder();
     TotalHits totalInnerHits =
         TotalHits.newBuilder()
-            .setRelation(TotalHits.Relation.valueOf(topDocs.totalHits.relation.name()))
-            .setValue(topDocs.totalHits.value)
+            .setRelation(TotalHits.Relation.valueOf(topDocs.totalHits.relation().name()))
+            .setValue(topDocs.totalHits.value())
             .build();
     innerHitResultBuilder.setTotalHits(totalInnerHits);
 

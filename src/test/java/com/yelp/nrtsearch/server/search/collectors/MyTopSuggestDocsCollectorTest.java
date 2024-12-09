@@ -81,8 +81,8 @@ public class MyTopSuggestDocsCollectorTest {
     TopSuggestDocs reduced = manager.reduce(collectors);
 
     // check total hits
-    assertEquals(5, reduced.totalHits.value);
-    assertEquals(TotalHits.Relation.EQUAL_TO, reduced.totalHits.relation);
+    assertEquals(5, reduced.totalHits.value());
+    assertEquals(TotalHits.Relation.EQUAL_TO, reduced.totalHits.relation());
 
     // check suggest score docs
     assertEquals(expectedFinalSuggestScoreDocs.length, reduced.scoreDocs.length);
@@ -122,8 +122,8 @@ public class MyTopSuggestDocsCollectorTest {
     TopSuggestDocs reduced = manager.reduce(collectors);
 
     // check total hits
-    assertEquals(2, reduced.totalHits.value);
-    assertEquals(TotalHits.Relation.EQUAL_TO, reduced.totalHits.relation);
+    assertEquals(2, reduced.totalHits.value());
+    assertEquals(TotalHits.Relation.EQUAL_TO, reduced.totalHits.relation());
 
     // check suggest score docs
     assertEquals(expectedFinalSuggestScoreDocs.length, reduced.scoreDocs.length);

@@ -414,9 +414,9 @@ public class ShardState implements Closeable {
 
   public void release(SearcherTaxonomyManager.SearcherAndTaxonomy s) throws IOException {
     if (nrtPrimaryNode != null) {
-      nrtPrimaryNode.getSearcherManager().release(s.searcher);
+      nrtPrimaryNode.getSearcherManager().release(s.searcher());
     } else if (nrtReplicaNode != null) {
-      nrtReplicaNode.getSearcherManager().release(s.searcher);
+      nrtReplicaNode.getSearcherManager().release(s.searcher());
     } else {
       manager.release(s);
     }
@@ -504,10 +504,10 @@ public class ShardState implements Closeable {
         throws IOException {
       IndexState indexState = indexStateManager.getCurrent();
       IndexSearcher searcher =
-          new MyIndexSearcher(
+          MyIndexSearcher.create(
               reader,
-              new MyIndexSearcher.ExecutorWithParams(
-                  searchExecutor,
+              searchExecutor,
+              new MyIndexSearcher.SlicingParams(
                   indexState.getSliceMaxDocs(),
                   indexState.getSliceMaxSegments(),
                   indexState.getVirtualShards()));
@@ -788,10 +788,10 @@ public class ShardState implements Closeable {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) {
                   IndexSearcher searcher =
-                      new MyIndexSearcher(
+                      MyIndexSearcher.create(
                           r,
-                          new MyIndexSearcher.ExecutorWithParams(
-                              searchExecutor,
+                          searchExecutor,
+                          new MyIndexSearcher.SlicingParams(
                               indexState.getSliceMaxDocs(),
                               indexState.getSliceMaxSegments(),
                               indexState.getVirtualShards()));
@@ -830,7 +830,7 @@ public class ShardState implements Closeable {
   public SortedSetDocValuesReaderState getSSDVState(
       IndexState indexState, SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd)
       throws IOException {
-    return getSSDVStateForReader(indexState, s.searcher.getIndexReader(), fd);
+    return getSSDVStateForReader(indexState, s.searcher().getIndexReader(), fd);
   }
 
   public SortedSetDocValuesReaderState getSSDVStateForReader(
@@ -988,7 +988,7 @@ public class ShardState implements Closeable {
             public void afterRefresh(boolean didRefresh) throws IOException {
               SearcherTaxonomyManager.SearcherAndTaxonomy current = acquire();
               try {
-                slm.record(current.searcher);
+                slm.record(current.searcher());
               } finally {
                 release(current);
               }

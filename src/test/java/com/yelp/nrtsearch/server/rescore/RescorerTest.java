@@ -134,7 +134,7 @@ public class RescorerTest extends ServerTestCase {
               context
                   .getSearchContext()
                   .getSearcherAndTaxonomy()
-                  .searcher
+                  .searcher()
                   .getIndexReader()
                   .leaves();
           int leafIndex = ReaderUtil.subIndex(doc.doc, leaves);

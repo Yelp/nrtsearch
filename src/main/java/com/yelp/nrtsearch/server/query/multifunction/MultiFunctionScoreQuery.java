@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -142,7 +143,7 @@ public class MultiFunctionScoreQuery extends Query {
 
   @Override
   public void visit(QueryVisitor visitor) {
-    innerQuery.visit(visitor);
+    innerQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
   }
 
   @Override
@@ -256,6 +257,45 @@ public class MultiFunctionScoreQuery extends Query {
       return expl;
     }
 
+    @Override
+    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+      ScorerSupplier innerScorerSupplier = innerWeight.scorerSupplier(context);
+      if (innerScorerSupplier == null) {
+        return null;
+      }
+      return new ScorerSupplier() {
+        @Override
+        public Scorer get(long leadCost) throws IOException {
+          Scorer innerScorer = innerWeight.scorer(context);
+          LeafFunction[] leafFunctions = new LeafFunction[functions.length];
+          Bits[] docSets = new Bits[functions.length];
+          for (int i = 0; i < filterWeights.length; ++i) {
+            leafFunctions[i] = functions[i].getLeafFunction(context);
+            if (filterWeights[i] != null) {
+              ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
+              docSets[i] =
+                  QueryUtils.asSequentialAccessBits(
+                      context.reader().maxDoc(), filterScorerSupplier);
+            } else {
+              docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
+            }
+          }
+
+          Scorer scorer =
+              new MultiFunctionScorer(innerScorer, scoreMode, boostMode, leafFunctions, docSets);
+          if (isMinScoreWrapperUsed()) {
+            scorer = new MinScoreWrapper(scorer, minScore, minExcluded);
+          }
+          return scorer;
+        }
+
+        @Override
+        public long cost() {
+          return innerScorerSupplier.cost();
+        }
+      };
+    }
+
     private Explanation explainBoost(Explanation queryExpl, Explanation funcExpl) {
       return switch (boostMode) {
         case BOOST_MODE_MULTIPLY ->
@@ -281,37 +321,8 @@ public class MultiFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Scorer scorer(LeafReaderContext context) throws IOException {
-      Scorer innerScorer = innerWeight.scorer(context);
-      if (innerScorer == null) {
-        return null;
-      }
-
-      LeafFunction[] leafFunctions = new LeafFunction[functions.length];
-      Bits[] docSets = new Bits[functions.length];
-      for (int i = 0; i < filterWeights.length; ++i) {
-        leafFunctions[i] = functions[i].getLeafFunction(context);
-        if (filterWeights[i] != null) {
-          ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
-          docSets[i] =
-              QueryUtils.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
-        } else {
-          docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
-        }
-      }
-
-      Scorer scorer =
-          new MultiFunctionScorer(innerScorer, this, scoreMode, boostMode, leafFunctions, docSets);
-      if (isMinScoreWrapperUsed()) {
-        scorer = new MinScoreWrapper(scorer.getWeight(), scorer, minScore, minExcluded);
-      }
-      return scorer;
-    }
-
-    @Override
     public boolean isCacheable(LeafReaderContext ctx) {
-      // When not using MinScoreWrapper, it is cacheable.
-      return !isMinScoreWrapperUsed();
+      return false;
     }
   }
 
@@ -335,8 +346,7 @@ public class MultiFunctionScoreQuery extends Query {
     private float curScore;
     private final boolean minExcluded;
 
-    public MinScoreWrapper(Weight weight, Scorer in, float minScore, boolean minExcluded) {
-      super(weight);
+    public MinScoreWrapper(Scorer in, float minScore, boolean minExcluded) {
       this.in = in;
       this.minScore = minScore;
       this.minExcluded = minExcluded;
@@ -415,12 +425,11 @@ public class MultiFunctionScoreQuery extends Query {
 
     public MultiFunctionScorer(
         Scorer innerScorer,
-        MultiFunctionWeight weight,
         FunctionScoreMode scoreMode,
         BoostMode boostMode,
         LeafFunction[] leafFunctions,
         Bits[] docSets) {
-      super(innerScorer, weight);
+      super(innerScorer);
       this.scoreMode = scoreMode;
       this.boostMode = boostMode;
       this.leafFunctions = leafFunctions;

@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergePolicy.MergeSpecification;
 import org.apache.lucene.index.MergePolicy.OneMerge;
@@ -91,14 +90,10 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
-      assertEquals(5, s.searcher.getSlices().length);
-      for (LeafSlice slice : s.searcher.getSlices()) {
-        assertTrue(slice.leaves.length < 100);
-        int totalDocs = 0;
-        for (LeafReaderContext context : slice.leaves) {
-          totalDocs += context.reader().numDocs();
-        }
-        assertEquals(100, totalDocs);
+      assertEquals(5, s.searcher().getSlices().length);
+      for (LeafSlice slice : s.searcher().getSlices()) {
+        assertTrue(slice.partitions.length < 100);
+        assertEquals(100, slice.getMaxDocs());
       }
     } finally {
       if (s != null) {
@@ -121,14 +116,10 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
-      assertEquals(10, s.searcher.getSlices().length);
-      for (LeafSlice slice : s.searcher.getSlices()) {
-        assertEquals(1, slice.leaves.length);
-        int totalDocs = 0;
-        for (LeafReaderContext context : slice.leaves) {
-          totalDocs += context.reader().numDocs();
-        }
-        assertEquals(60, totalDocs);
+      assertEquals(10, s.searcher().getSlices().length);
+      for (LeafSlice slice : s.searcher().getSlices()) {
+        assertEquals(1, slice.partitions.length);
+        assertEquals(60, slice.getMaxDocs());
       }
     } finally {
       if (s != null) {
@@ -146,14 +137,10 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
     s = null;
     try {
       s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
-      assertEquals(5, s.searcher.getSlices().length);
-      for (LeafSlice slice : s.searcher.getSlices()) {
-        assertEquals(1, slice.leaves.length);
-        int totalDocs = 0;
-        for (LeafReaderContext context : slice.leaves) {
-          totalDocs += context.reader().numDocs();
-        }
-        assertEquals(120, totalDocs);
+      assertEquals(5, s.searcher().getSlices().length);
+      for (LeafSlice slice : s.searcher().getSlices()) {
+        assertEquals(1, slice.partitions.length);
+        assertEquals(120, slice.getMaxDocs());
       }
     } finally {
       if (s != null) {

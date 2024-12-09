@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -46,7 +47,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
@@ -76,7 +77,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
@@ -104,7 +105,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
@@ -149,7 +150,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
@@ -193,7 +194,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
@@ -234,7 +235,7 @@ public class PrimaryNodeReferenceManagerTest {
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
-    IndexReader mockIndexReader = mock(IndexReader.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
     when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
     when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
     when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);

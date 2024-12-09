@@ -71,8 +71,9 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertEmptyLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
-      assertEmptyLookup(indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+      assertEmptyLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher().getIndexReader());
+      assertEmptyLookup(
+          indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher().getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -103,9 +104,9 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertSingleLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
+      assertSingleLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher().getIndexReader());
       assertSingleLookup(
-          indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+          indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher().getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -132,8 +133,9 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertMultiLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
-      assertMultiLookup(indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+      assertMultiLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher().getIndexReader());
+      assertMultiLookup(
+          indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher().getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);

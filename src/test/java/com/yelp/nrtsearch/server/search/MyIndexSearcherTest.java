@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.search;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
@@ -25,7 +24,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
-import com.yelp.nrtsearch.server.search.MyIndexSearcher.ExecutorWithParams;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,14 +134,11 @@ public class MyIndexSearcherTest extends ServerTestCase {
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertTrue(s.searcher instanceof MyIndexSearcher);
-      MyIndexSearcher searcher = (MyIndexSearcher) s.searcher;
-      assertTrue(searcher.getExecutor() instanceof MyIndexSearcher.ExecutorWithParams);
-      MyIndexSearcher.ExecutorWithParams params =
-          (MyIndexSearcher.ExecutorWithParams) searcher.getExecutor();
-      assertSame(indexState.getSearchExecutor(), params.wrapped);
-      assertEquals(maxDocs, params.sliceMaxDocs);
-      assertEquals(maxSegments, params.sliceMaxSegments);
+      assertTrue(s.searcher() instanceof MyIndexSearcher);
+      MyIndexSearcher searcher = (MyIndexSearcher) s.searcher();
+      MyIndexSearcher.SlicingParams params = searcher.getSlicingParams();
+      assertEquals(maxDocs, params.sliceMaxDocs());
+      assertEquals(maxSegments, params.sliceMaxSegments());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -157,12 +152,12 @@ public class MyIndexSearcherTest extends ServerTestCase {
     ShardState shardState = getGlobalState().getIndexOrThrow(DOCS_INDEX).getShard(0);
     try {
       s = shardState.acquire();
-      LeafSlice[] slices = s.searcher.getSlices();
+      LeafSlice[] slices = s.searcher().getSlices();
       assertEquals(4, slices.length);
-      assertEquals(3, slices[0].leaves.length);
-      assertEquals(3, slices[1].leaves.length);
-      assertEquals(3, slices[2].leaves.length);
-      assertEquals(1, slices[3].leaves.length);
+      assertEquals(3, slices[0].partitions.length);
+      assertEquals(3, slices[1].partitions.length);
+      assertEquals(3, slices[2].partitions.length);
+      assertEquals(1, slices[3].partitions.length);
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -176,20 +171,15 @@ public class MyIndexSearcherTest extends ServerTestCase {
     ShardState shardState = getGlobalState().getIndexOrThrow(SEGMENTS_INDEX).getShard(0);
     try {
       s = shardState.acquire();
-      LeafSlice[] slices = s.searcher.getSlices();
+      LeafSlice[] slices = s.searcher().getSlices();
       assertEquals(3, slices.length);
-      assertEquals(4, slices[0].leaves.length);
-      assertEquals(4, slices[1].leaves.length);
-      assertEquals(2, slices[2].leaves.length);
+      assertEquals(4, slices[0].partitions.length);
+      assertEquals(4, slices[1].partitions.length);
+      assertEquals(2, slices[2].partitions.length);
     } finally {
       if (s != null) {
         shardState.release(s);
       }
     }
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testNullWrappedExecutor() throws IOException {
-    new ExecutorWithParams(null, 10, 10, 1);
   }
 }

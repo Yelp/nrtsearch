@@ -77,7 +77,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
     try {
       globalOrdinalLookup =
           globalOrdinalable.getOrdinalLookup(
-              context.getSearcherAndTaxonomy().searcher.getIndexReader());
+              context.getSearcherAndTaxonomy().searcher().getIndexReader());
     } catch (IOException e) {
       throw new RuntimeException("Error getting ordinal map");
     }
