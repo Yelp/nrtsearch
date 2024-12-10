@@ -119,12 +119,13 @@ public class NRTFastVectorHighlighter implements Highlighter {
           "Unknown boundary scanner: " + settings.getBoundaryScanner());
     }
 
-    BaseFragmentsBuilder fragmentsBuilder;
-    if (settings.isScoreOrdered()) {
-      fragmentsBuilder = new ScoreOrderFragmentsBuilder(boundaryScanner);
-    } else {
-      fragmentsBuilder = new SimpleFragmentsBuilder(boundaryScanner);
-    }
+    BaseFragmentsBuilder fragmentsBuilder =
+        new TopBoostOnlyFragmentsBuilderAdaptor(
+            settings.isScoreOrdered()
+                ? new ScoreOrderFragmentsBuilder()
+                : new SimpleFragmentsBuilder(),
+            boundaryScanner,
+            settings.getTopBoostOnly());
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
     try {

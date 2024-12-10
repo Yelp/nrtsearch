@@ -24,6 +24,8 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
+import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
@@ -78,8 +80,9 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                     .addAllValue(
                         List.of(
                             "The food is good there, but the service is terrible.",
-                            "I personally don't like the staff at this place",
-                            "Not all food are good."))
+                            "I personally don't like the staff at this place.",
+                            "Not all food are good.",
+                            "The margarita pizza and the marinara pizza in this pizzeria are yummy and inexpensive."))
                     .build())
             .putFields(
                 "boundary_scanner_field",
@@ -187,6 +190,73 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
             "Not all <em>food</em> are good.");
     assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly("High quality <em>food</em>. Fresh and delicious!");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testHighlightMultivalueFieldWithTopBoostOnly() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment_multivalue")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setPhraseQuery(
+                                                        PhraseQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .addAllTerms(
+                                                                List.of("margarita", "pizza")))
+                                                    .setBoost(3))
+                                            .setOccurValue(BooleanClause.Occur.SHOULD_VALUE))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setPhraseQuery(
+                                                        PhraseQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .addAllTerms(
+                                                                List.of("marinara", "pizza")))
+                                                    .setBoost(3))
+                                            .setOccurValue(BooleanClause.Occur.SHOULD_VALUE))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("delicious"))
+                                                    .setBoost(4)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("yummy"))
+                                                    .setBoost(2)))))
+                    .setMaxNumberOfFragments(UInt32Value.of(1))
+                    .setFragmentSize(UInt32Value.of(250))
+                    .setTopBoostOnly(BoolValue.of(true))
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(true)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly(
+            "The <em>margarita pizza</em> and the <em>marinara pizza</em> in this pizzeria are yummy and inexpensive.");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
