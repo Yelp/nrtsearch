@@ -38,6 +38,7 @@ public class HighlightSettings {
   private final char[] boundaryChars;
   private final int boundaryMaxScan;
   private final Locale boundaryScannerLocale;
+  private final boolean topBoostOnly;
 
   public HighlightSettings(
       Highlighter highlighter,
@@ -54,6 +55,7 @@ public class HighlightSettings {
       char[] boundaryChars,
       int boundaryMaxScan,
       Locale boundaryScannerLocale,
+      boolean topBoostOnly,
       Map<String, Object> customHighlighterParams) {
     this.highlighter = highlighter;
     this.preTags = preTags;
@@ -69,6 +71,7 @@ public class HighlightSettings {
     this.boundaryChars = boundaryChars;
     this.boundaryMaxScan = boundaryMaxScan;
     this.boundaryScannerLocale = boundaryScannerLocale;
+    this.topBoostOnly = topBoostOnly;
     this.customHighlighterParams = customHighlighterParams;
   }
 
@@ -88,6 +91,7 @@ public class HighlightSettings {
         .withBoundaryChars(this.boundaryChars)
         .withBoundaryMaxScan(this.boundaryMaxScan)
         .withBoundaryScannerLocale(this.boundaryScannerLocale)
+        .withTopBoostOnly(this.topBoostOnly)
         .withCustomHighlighterParams(this.customHighlighterParams);
   }
 
@@ -147,6 +151,10 @@ public class HighlightSettings {
     return boundaryScannerLocale;
   }
 
+  public boolean getTopBoostOnly() {
+    return topBoostOnly;
+  }
+
   public Map<String, Object> getCustomHighlighterParams() {
     return customHighlighterParams;
   }
@@ -182,10 +190,12 @@ public class HighlightSettings {
         + '\''
         + ", boundaryChars="
         + Arrays.toString(boundaryChars)
-        + ", boundaryCharsMaxScan="
+        + ", boundaryMaxScan="
         + boundaryMaxScan
         + ", boundaryScannerLocale="
-        + boundaryScannerLocale.toLanguageTag()
+        + boundaryScannerLocale
+        + ", topBoostOnly="
+        + topBoostOnly
         + '}';
   }
 
@@ -205,6 +215,7 @@ public class HighlightSettings {
     private char[] boundaryChars;
     private int boundaryMaxScan;
     private Locale boundaryScannerLocale;
+    private boolean topBoostOnly;
     private Map<String, Object> customHighlighterParams;
 
     public Builder() {}
@@ -279,6 +290,11 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withTopBoostOnly(boolean topBoostOnly) {
+      this.topBoostOnly = topBoostOnly;
+      return this;
+    }
+
     public Builder withCustomHighlighterParams(Map<String, Object> customHighlighterParams) {
       this.customHighlighterParams = customHighlighterParams;
       return this;
@@ -300,6 +316,7 @@ public class HighlightSettings {
           boundaryChars,
           boundaryMaxScan,
           boundaryScannerLocale,
+          topBoostOnly,
           customHighlighterParams);
     }
   }
