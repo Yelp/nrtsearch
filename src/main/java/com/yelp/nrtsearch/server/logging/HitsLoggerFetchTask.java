@@ -30,10 +30,12 @@ import java.util.concurrent.atomic.DoubleAdder;
 public class HitsLoggerFetchTask implements FetchTask {
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final HitsLogger hitsLogger;
+  private final int hitsToLog;
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
   public HitsLoggerFetchTask(LoggingHits loggingHits) {
     this.hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
+    this.hitsToLog = loggingHits.getHitsToLog();
   }
 
   /**
@@ -46,7 +48,15 @@ public class HitsLoggerFetchTask implements FetchTask {
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
     long startTime = System.nanoTime();
-    hitsLogger.log(searchContext, hits);
+
+    // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits that
+    // can be logged
+    if (searchContext.getHitsToLog() < hits.size()) {
+      hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
+    } else {
+      hitsLogger.log(searchContext, hits);
+    }
+
     timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
   }
 
@@ -57,5 +67,14 @@ public class HitsLoggerFetchTask implements FetchTask {
    */
   public double getTimeTakenMs() {
     return timeTakenMs.doubleValue();
+  }
+
+  /**
+   * Get the total number of hits to log.
+   *
+   * @return Total number of hits to log.
+   */
+  public int getHitsToLog() {
+    return hitsToLog;
   }
 }

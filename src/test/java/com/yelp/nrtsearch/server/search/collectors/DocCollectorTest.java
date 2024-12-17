@@ -20,6 +20,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
@@ -206,6 +207,25 @@ public class DocCollectorTest {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     builder.setTopHits(200);
     builder.addRescorers(Rescorer.newBuilder().setWindowSize(1000).build());
+    TestDocCollector docCollector = new TestDocCollector(builder.build());
+    assertEquals(1000, docCollector.getNumHitsToCollect());
+  }
+
+  @Test
+  public void testNumHitsToCollectWithHitsToLog() {
+    SearchRequest.Builder builder = SearchRequest.newBuilder();
+    builder.setTopHits(200);
+    builder.setLoggingHits(LoggingHits.newBuilder().setHitsToLog(300).build());
+    TestDocCollector docCollector = new TestDocCollector(builder.build());
+    assertEquals(300, docCollector.getNumHitsToCollect());
+  }
+
+  @Test
+  public void testNumHitsToCollectWithHitsToLogAndWindowSize() {
+    SearchRequest.Builder builder = SearchRequest.newBuilder();
+    builder.setTopHits(200);
+    builder.addRescorers(Rescorer.newBuilder().setWindowSize(1000).build());
+    builder.setLoggingHits(LoggingHits.newBuilder().setHitsToLog(300).build());
     TestDocCollector docCollector = new TestDocCollector(builder.build());
     assertEquals(1000, docCollector.getNumHitsToCollect());
   }
