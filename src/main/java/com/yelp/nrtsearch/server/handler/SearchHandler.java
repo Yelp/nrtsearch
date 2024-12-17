@@ -271,16 +271,13 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       long t0 = System.nanoTime();
 
-      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
-        hits =
-            getHitsFromOffsetAndHitsToLog(
-                hits,
-                searchContext.getStartHit(),
-                searchContext.getTopHits(),
-                searchContext.getHitsToLog());
-      } else {
-        hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
-      }
+      hits =
+          getHitsFromOffset(
+              hits,
+              searchContext.getStartHit(),
+              Math.max(
+                  searchContext.getTopHits(),
+                  searchContext.getHitsToLog() + searchContext.getStartHit()));
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
@@ -511,12 +508,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *
    * @param hits all hits
    * @param startHit offset into top docs
-   * @param topHits maximum number of hits needed for search response
+   * @param hitsCount maximum number of hits needed for search response
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
-    int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
+  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int hitsCount) {
+    int retrieveHits = Math.min(hitsCount, hits.scoreDocs.length);
     if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
       // Slice:
       int count = Math.max(0, retrieveHits - startHit);
@@ -527,26 +524,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       return new TopDocs(hits.totalHits, newScoreDocs);
     }
     return hits;
-  }
-
-  /**
-   * Given all the top documents, produce a slice of the documents starting from a start offset and
-   * going up to the query needed maximum hits. There may be more top docs than the hits limit, if
-   * top docs sampling facets are used. There may be more hits than top hits for logging to be
-   * retrieved.
-   *
-   * @param hits all hits
-   * @param startHit offset into top docs
-   * @param topHits maximum number of hits needed for search response
-   * @param hitsToLog maximum number of hits to be logged
-   * @return slice of hits starting at given offset, or empty slice if there are less than startHit
-   *     docs
-   */
-  public static TopDocs getHitsFromOffsetAndHitsToLog(
-      TopDocs hits, int startHit, int topHits, int hitsToLog) {
-    int retrieveHits = Math.min(Math.max(topHits, hitsToLog), hits.scoreDocs.length);
-    startHit = Math.min(startHit, retrieveHits - hitsToLog);
-    return getHitsFromOffset(hits, startHit, retrieveHits);
   }
 
   /**

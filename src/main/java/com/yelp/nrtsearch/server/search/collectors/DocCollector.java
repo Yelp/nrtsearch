@@ -70,7 +70,8 @@ public abstract class DocCollector {
     // determine how many hits to collect based on request, facets, rescore window and hits to log
     int collectHits = request.getTopHits();
     if (request.hasLoggingHits()) {
-      collectHits = Math.max(collectHits, request.getLoggingHits().getHitsToLog());
+      collectHits =
+          Math.max(collectHits, request.getLoggingHits().getHitsToLog() + request.getStartHit());
     }
     for (Facet facet : request.getFacetsList()) {
       int facetSample = facet.getSampleTopDocs();
