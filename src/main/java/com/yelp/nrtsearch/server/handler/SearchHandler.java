@@ -508,7 +508,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *
    * @param hits all hits
    * @param startHit offset into top docs
-   * @param hitsCount maximum number of hits needed for search response
+   * @param hitsCount maximum number of hits needed for the query
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
