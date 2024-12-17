@@ -61,7 +61,7 @@ public class HitsLoggerTest extends ServerTestCase {
   protected void initIndex(String name) throws Exception {
     List<AddDocumentRequest> docs = new ArrayList<>();
 
-    for (int docNum = 0; docNum < 10; docNum++) {
+    for (int docNum = 1; docNum < 11; docNum++) {
       AddDocumentRequest request =
           AddDocumentRequest.newBuilder()
               .setIndexName(name)
@@ -175,7 +175,7 @@ public class HitsLoggerTest extends ServerTestCase {
                     .build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1,  {external_value=abc}";
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2,  {external_value=abc}";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -202,7 +202,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger_2").setHitsToLog(2).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED_2 doc_id: 0, doc_id: 1, ";
+    String expectedLogMessage = "LOGGED_2 doc_id: 1, doc_id: 2, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -229,7 +229,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(5).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, ";
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, doc_id: 5, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -263,7 +263,7 @@ public class HitsLoggerTest extends ServerTestCase {
                     .build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1,  {external_value=abc}";
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2,  {external_value=abc}";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -291,7 +291,7 @@ public class HitsLoggerTest extends ServerTestCase {
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
     String expectedLogMessage =
-        "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
+        "LOGGED doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, doc_id: 10, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -318,7 +318,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(3).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, ";
+    String expectedLogMessage = "LOGGED doc_id: 1, doc_id: 2, doc_id: 3, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -345,7 +345,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(5).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
+    String expectedLogMessage = "LOGGED doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, doc_id: 10, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -372,7 +372,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(6).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
+    String expectedLogMessage = "LOGGED doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, doc_id: 10, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -400,7 +400,7 @@ public class HitsLoggerTest extends ServerTestCase {
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
     String expectedLogMessage =
-        "LOGGED doc_id: 4, doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
+        "LOGGED doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, doc_id: 10, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -427,7 +427,7 @@ public class HitsLoggerTest extends ServerTestCase {
                 LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(3).build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED doc_id: 5, doc_id: 6, doc_id: 7, ";
+    String expectedLogMessage = "LOGGED doc_id: 6, doc_id: 7, doc_id: 8, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
