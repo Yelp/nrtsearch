@@ -212,22 +212,22 @@ public class HitsLoggerTest extends ServerTestCase {
   @Test
   public void testResponseSizeReductionWithHitsToLogSameAsHitsCount() {
     SearchRequest request =
-            SearchRequest.newBuilder()
-                    .setTopHits(5)
-                    .setStartHit(0)
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .addRetrieveFields("doc_id")
-                    .setQuery(
-                            Query.newBuilder()
-                                    .setTermQuery(
-                                            TermQuery.newBuilder()
-                                                    .setField("vendor_name")
-                                                    .setTextValue("vendor")
-                                                    .build())
-                                    .build())
-                    .setLoggingHits(
-                            LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(5).build())
-                    .build();
+        SearchRequest.newBuilder()
+            .setTopHits(5)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(5).build())
+            .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
     String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, ";
 
@@ -273,25 +273,25 @@ public class HitsLoggerTest extends ServerTestCase {
   @Test
   public void testResponseSizeReductionWithHitsToLogGreaterThanHitsCountAndTotalDocs() {
     SearchRequest request =
-            SearchRequest.newBuilder()
-                    .setTopHits(10)
-                    .setStartHit(0)
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .addRetrieveFields("doc_id")
-                    .setQuery(
-                            Query.newBuilder()
-                                    .setTermQuery(
-                                            TermQuery.newBuilder()
-                                                    .setField("vendor_name")
-                                                    .setTextValue("vendor")
-                                                    .build())
-                                    .build())
-                    .setLoggingHits(
-                            LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(15).build())
-                    .build();
+        SearchRequest.newBuilder()
+            .setTopHits(10)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(15).build())
+            .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
     String expectedLogMessage =
-            "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
+        "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, doc_id: 3, doc_id: 4, doc_id: 5, doc_id: 6, doc_id: 7, doc_id: 8, doc_id: 9, ";
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
     assertEquals(10, response.getTotalHits().getValue());
@@ -301,22 +301,22 @@ public class HitsLoggerTest extends ServerTestCase {
   @Test
   public void testResponseSizeReductionWithHitsToLogLessThanHitsCount() {
     SearchRequest request =
-            SearchRequest.newBuilder()
-                    .setTopHits(5)
-                    .setStartHit(0)
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .addRetrieveFields("doc_id")
-                    .setQuery(
-                            Query.newBuilder()
-                                    .setTermQuery(
-                                            TermQuery.newBuilder()
-                                                    .setField("vendor_name")
-                                                    .setTextValue("vendor")
-                                                    .build())
-                                    .build())
-                    .setLoggingHits(
-                            LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(3).build())
-                    .build();
+        SearchRequest.newBuilder()
+            .setTopHits(5)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder().setName("custom_logger").setHitsToLog(3).build())
+            .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
     String expectedLogMessage = "LOGGED doc_id: 0, doc_id: 1, doc_id: 2, ";
 
