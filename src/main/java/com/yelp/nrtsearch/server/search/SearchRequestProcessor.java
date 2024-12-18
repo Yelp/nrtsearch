@@ -76,6 +76,9 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -270,13 +273,32 @@ public class SearchRequestProcessor {
       throw new IllegalArgumentException("Field does not support vector search: " + field);
     }
 
+    // Path to nested document containing this field
+    String fieldNestedPath = IndexState.getFieldBaseNestedPath(field, indexState);
+    // Path to parent document, this will be null if the field is in the root document
+    String parentNestedPath = IndexState.getFieldBaseNestedPath(fieldNestedPath, indexState);
+
     Query filterQuery;
     if (knnQuery.hasFilter()) {
       filterQuery = QueryNodeMapper.getInstance().getQuery(knnQuery.getFilter(), indexState);
     } else {
       filterQuery = null;
     }
-    return vectorQueryable.getKnnQuery(knnQuery, filterQuery);
+
+    BitSetProducer parentBitSetProducer = null;
+    if (parentNestedPath != null) {
+      Query parentQuery =
+          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, parentNestedPath);
+      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
+      if (filterQuery != null) {
+        // Filter query is applied to the parent document only
+        filterQuery =
+            QueryNodeMapper.getInstance()
+                .applyQueryNestedPath(filterQuery, indexState, parentNestedPath);
+        filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSetProducer);
+      }
+    }
+    return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
   }
 
   /**
