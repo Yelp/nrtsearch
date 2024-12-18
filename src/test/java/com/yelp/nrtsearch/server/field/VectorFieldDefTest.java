@@ -54,6 +54,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   public static final String VECTOR_SEARCH_INDEX_NAME = "vector_search_index";
+  public static final String NESTED_VECTOR_SEARCH_INDEX_NAME = "nested_vector_search_index";
   private static final String FIELD_NAME = "vector_field";
   private static final String FIELD_TYPE = "VECTOR";
   private static final List<String> VECTOR_FIELD_VALUES =
@@ -61,7 +62,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Override
   protected List<String> getIndices() {
-    return List.of(DEFAULT_TEST_INDEX, VECTOR_SEARCH_INDEX_NAME);
+    return List.of(DEFAULT_TEST_INDEX, VECTOR_SEARCH_INDEX_NAME, NESTED_VECTOR_SEARCH_INDEX_NAME);
   }
 
   private Map<String, MultiValuedField> getFieldsMapForOneDocument(String value) {
@@ -163,6 +164,39 @@ public class VectorFieldDefTest extends ServerTestCase {
     }
   }
 
+  private void indexNestedVectorSearchDocs() throws Exception {
+    List<AddDocumentRequest> docs = new ArrayList<>();
+    docs.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+            .putFields("id", MultiValuedField.newBuilder().addValue("0").build())
+            .putFields("filter_field", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(
+                "nested_object",
+                MultiValuedField.newBuilder()
+                    .addValue(
+                        "{\"float_vector\": \"[0.25, 0.5, 0.1]\", \"byte_vector\": \"[-50, -5, 0]\"}")
+                    .addValue(
+                        "{\"float_vector\": \"[0.2, 0.4, 0.3]\", \"byte_vector\": \"[-8, -10, -1]\"}")
+                    .build())
+            .build());
+    docs.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+            .putFields("id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields("filter_field", MultiValuedField.newBuilder().addValue("2").build())
+            .putFields(
+                "nested_object",
+                MultiValuedField.newBuilder()
+                    .addValue(
+                        "{\"float_vector\": \"[0.75, 0.9, 0.6]\", \"byte_vector\": \"[50, 5, 0]\"}")
+                    .addValue(
+                        "{\"float_vector\": \"[0.7, 0.8, 0.9]\", \"byte_vector\": \"[8, 10, 1]\"}")
+                    .build())
+            .build());
+    addDocuments(docs.stream());
+  }
+
   private String createVectorString(Random random, int size, boolean normalize) {
     List<Float> vector = new ArrayList<>();
     for (int i = 0; i < size; ++i) {
@@ -201,6 +235,8 @@ public class VectorFieldDefTest extends ServerTestCase {
       return getFieldsFromResourceFile("/field/registerFieldsVector.json");
     } else if (VECTOR_SEARCH_INDEX_NAME.equals(name)) {
       return getFieldsFromResourceFile("/field/registerFieldsVectorSearch.json");
+    } else if (NESTED_VECTOR_SEARCH_INDEX_NAME.equals(name)) {
+      return getFieldsFromResourceFile("/field/registerFieldsNestedVectorSearch.json");
     }
     throw new IllegalArgumentException("Unknown index name: " + name);
   }
@@ -212,6 +248,8 @@ public class VectorFieldDefTest extends ServerTestCase {
       addDocuments(documents.stream());
     } else if (VECTOR_SEARCH_INDEX_NAME.equals(name)) {
       indexVectorSearchDocs();
+    } else if (NESTED_VECTOR_SEARCH_INDEX_NAME.equals(name)) {
+      indexNestedVectorSearchDocs();
     } else {
       throw new IllegalArgumentException("Unknown index name: " + name);
     }
@@ -1426,5 +1464,152 @@ public class VectorFieldDefTest extends ServerTestCase {
           "HNSW scalar quantized search type with 4 bits requires vector dimensions to be a multiple of 2",
           e.getMessage());
     }
+  }
+
+  @Test
+  public void testNestedFloatVectorSearch() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("id")
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("nested_object.float_vector")
+                            .addAllQueryVector(List.of(0.6f, 0.5f, 0.75f))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .build())
+                    .build());
+    assertEquals(2, response.getHitsCount());
+    assertEquals("1", response.getHits(0).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(
+            new float[] {0.6f, 0.5f, 0.75f}, new float[] {0.7f, 0.8f, 0.9f}),
+        response.getHits(0).getScore(),
+        0.0001);
+    assertEquals("0", response.getHits(1).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(
+            new float[] {0.6f, 0.5f, 0.75f}, new float[] {0.2f, 0.4f, 0.3f}),
+        response.getHits(1).getScore(),
+        0.0001);
+
+    assertEquals(1, response.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = response.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertEquals(4, vectorDiagnostics.getTotalHits().getValue());
+  }
+
+  @Test
+  public void testNestedFloatVectorSearchWithFilter() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("id")
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("nested_object.float_vector")
+                            .addAllQueryVector(List.of(0.6f, 0.5f, 0.75f))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter_field")
+                                            .setIntValue(1)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(1, response.getHitsCount());
+    assertEquals("0", response.getHits(0).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(
+            new float[] {0.6f, 0.5f, 0.75f}, new float[] {0.2f, 0.4f, 0.3f}),
+        response.getHits(0).getScore(),
+        0.0001);
+  }
+
+  @Test
+  public void testNestedByteVectorSearch() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("id")
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("nested_object.byte_vector")
+                            .setQueryByteVector(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .build())
+                    .build());
+    assertEquals(2, response.getHitsCount());
+    assertEquals("1", response.getHits(0).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(new byte[] {1, 2, 3}, new byte[] {8, 10, 1}),
+        response.getHits(0).getScore(),
+        0.0001);
+    assertEquals("0", response.getHits(1).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(new byte[] {1, 2, 3}, new byte[] {-50, -5, 0}),
+        response.getHits(1).getScore(),
+        0.0001);
+
+    assertEquals(1, response.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = response.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertEquals(4, vectorDiagnostics.getTotalHits().getValue());
+  }
+
+  @Test
+  public void testNestedByteVectorSearchWithFilter() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("id")
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("nested_object.byte_vector")
+                            .setQueryByteVector(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter_field")
+                                            .setIntValue(1)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(1, response.getHitsCount());
+    assertEquals("0", response.getHits(0).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(new byte[] {1, 2, 3}, new byte[] {-50, -5, 0}),
+        response.getHits(0).getScore(),
+        0.0001);
   }
 }
