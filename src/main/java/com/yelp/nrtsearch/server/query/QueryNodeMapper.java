@@ -294,9 +294,9 @@ public class QueryNodeMapper {
     String fieldName = termQuery.getField();
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
-    if (fieldDef instanceof TermQueryable) {
-      validateTermQueryIsSearchable(fieldDef);
-      return ((TermQueryable) fieldDef).getTermQuery(termQuery);
+    if (fieldDef instanceof TermQueryable termQueryable) {
+      termQueryable.checkTermQueriesSupported();
+      return termQueryable.getTermQuery(termQuery);
     }
 
     String message =
@@ -304,24 +304,14 @@ public class QueryNodeMapper {
     throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
   }
 
-  private void validateTermQueryIsSearchable(FieldDef fieldDef) {
-    if (fieldDef instanceof IndexableFieldDef
-        && !((IndexableFieldDef<?>) fieldDef).isSearchable()) {
-      throw new IllegalStateException(
-          "Field "
-              + fieldDef.getName()
-              + " is not searchable, which is required for TermQuery / TermInSetQuery");
-    }
-  }
-
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
-    if (fieldDef instanceof TermQueryable) {
-      validateTermQueryIsSearchable(fieldDef);
-      return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
+    if (fieldDef instanceof TermQueryable termQueryable) {
+      termQueryable.checkTermQueriesSupported();
+      return termQueryable.getTermInSetQuery(termInSetQuery);
     }
 
     String message =
