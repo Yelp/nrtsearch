@@ -275,7 +275,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public void setDocId(int docID) throws IOException {
       if (docValues.advanceExact(docID)) {
-        value = Float.intBitsToFloat((int) docValues.longValue());
+        value = NumericUtils.sortableIntToFloat((int) docValues.longValue());
         isSet = true;
       } else {
         isSet = false;
@@ -324,7 +324,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public void setDocId(int docID) throws IOException {
       if (docValues.advanceExact(docID)) {
-        value = Double.longBitsToDouble(docValues.longValue());
+        value = NumericUtils.sortableLongToDouble(docValues.longValue());
         isSet = true;
       } else {
         isSet = false;

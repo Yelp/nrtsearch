@@ -145,19 +145,21 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to validate the provided
-   * {@link Field}. Field definitions should define a version that checks for incompatible
-   * parameters and any other potential issues. It is recommended to also call the super version of
-   * this method, so that general checks do not need to be repeated everywhere.
+   * Method called by {@link #IndexableFieldDef(String, Field,
+   * FieldDefCreator.FieldDefCreatorContext, Class)} to validate the provided {@link Field}. Field
+   * definitions should define a version that checks for incompatible parameters and any other
+   * potential issues. It is recommended to also call the super version of this method, so that
+   * general checks do not need to be repeated everywhere.
    *
    * @param requestField field properties to validate
    */
   protected void validateRequest(Field requestField) {}
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to determine the doc value
-   * type used by this field. Fields are not necessarily limited to one doc value, but this should
-   * represent the primary value that will be accessible to scripts and search through {@link
+   * Method called by {@link #IndexableFieldDef(String, Field,
+   * FieldDefCreator.FieldDefCreatorContext, Class)} to determine the doc value type used by this
+   * field. Fields are not necessarily limited to one doc value, but this should represent the
+   * primary value that will be accessible to scripts and search through {@link
    * #getDocValues(LeafReaderContext)}. A value of NONE implies that the field does not support doc
    * values.
    *
@@ -169,9 +171,10 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to determine the facet value
-   * type for this field. The result of this method is exposed externally through {@link
-   * #getFacetValueType()}. A value of NO_FACETS implies that the field does not support facets.
+   * Method called by {@link #IndexableFieldDef(String, Field,
+   * FieldDefCreator.FieldDefCreatorContext, Class)} to determine the facet value type for this
+   * field. The result of this method is exposed externally through {@link #getFacetValueType()}. A
+   * value of NO_FACETS implies that the field does not support facets.
    *
    * @param requestField field from request
    * @return field facet value type
@@ -181,12 +184,13 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to set the search properties
-   * on the given {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set
-   * to the value from {@link Field#getStore()}. This method should set any other needed properties,
-   * such as index options, tokenization, term vectors, etc. It likely should not set a doc value
-   * type, as those are usually added separately. The common use of this {@link FieldType} is to add
-   * a {@link FieldWithData} during indexing. This method should not freeze the field type.
+   * Method called by {@link #IndexableFieldDef(String, Field,
+   * FieldDefCreator.FieldDefCreatorContext, Class)} to set the search properties on the given
+   * {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set to the value
+   * from {@link Field#getStore()}. This method should set any other needed properties, such as
+   * index options, tokenization, term vectors, etc. It likely should not set a doc value type, as
+   * those are usually added separately. The common use of this {@link FieldType} is to add a {@link
+   * FieldWithData} during indexing. This method should not freeze the field type.
    *
    * @param fieldType type that needs search properties set
    * @param requestField field from request
@@ -370,5 +374,44 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
    */
   public FieldType getFieldType() {
     return fieldType;
+  }
+
+  /**
+   * Verify that the field is searchable or has doc values.
+   *
+   * @param featureName name of feature that requires searchable or doc values
+   * @throws IllegalStateException if field is not searchable and does not have doc values
+   */
+  protected void verifySearchableOrDocValues(String featureName) {
+    if (!isSearchable() && !hasDocValues()) {
+      throw new IllegalStateException(
+          featureName + " requires field to be searchable or have doc values: " + getName());
+    }
+  }
+
+  /**
+   * Verify that the field is searchable.
+   *
+   * @param featureName name of feature that requires searchable
+   * @throws IllegalStateException if field is not searchable
+   */
+  protected void verifySearchable(String featureName) {
+    if (!isSearchable()) {
+      throw new IllegalStateException(
+          featureName + " requires field to be searchable: " + getName());
+    }
+  }
+
+  /**
+   * Verify that the field has doc values.
+   *
+   * @param featureName name of feature that requires doc values
+   * @throws IllegalStateException if field does not have doc values
+   */
+  protected void verifyDocValues(String featureName) {
+    if (!hasDocValues()) {
+      throw new IllegalStateException(
+          featureName + " requires field to have doc values: " + getName());
+    }
   }
 }

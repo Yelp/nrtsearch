@@ -37,9 +37,6 @@ public class BindingValuesSources {
   // decoders to convert the long value read from doc value fields into a double
   public static LongToDoubleFunction INT_DECODER = value -> (double) value;
   public static LongToDoubleFunction LONG_DECODER = value -> (double) value;
-  public static LongToDoubleFunction FLOAT_DECODER =
-      value -> (double) Float.intBitsToFloat((int) value);
-  public static LongToDoubleFunction DOUBLE_DECODER = Double::longBitsToDouble;
   public static LongToDoubleFunction SORTED_FLOAT_DECODER =
       value -> (double) NumericUtils.sortableIntToFloat((int) value);
   public static LongToDoubleFunction SORTED_DOUBLE_DECODER = NumericUtils::sortableLongToDouble;

@@ -6,7 +6,35 @@
             "type": "DOUBLE",
             "storeDocValues": true,
             "multiValued": false,
-            "search": true
+            "search": true,
+            "childFields": [
+                {
+                    "name": "dv",
+                    "type": "DOUBLE",
+                    "storeDocValues": true
+                },
+                {
+                    "name": "search",
+                    "type": "DOUBLE",
+                    "search": true
+                },
+                {
+                    "name": "none",
+                    "type": "DOUBLE"
+                },
+                {
+                    "name": "mv_dv",
+                    "type": "DOUBLE",
+                    "multiValued": true,
+                    "storeDocValues": true
+                },
+                {
+                    "name": "mv_search",
+                    "type": "DOUBLE",
+                    "multiValued": true,
+                    "search": true
+                }
+            ]
         },
         {
             "name": "single_stored",
