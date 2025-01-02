@@ -156,11 +156,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
       }
     }
     if (hasDocValues()) {
-      if (docValuesType == DocValuesType.SORTED_NUMERIC) {
-        dvQuery = SortedNumericDocValuesField.newSlowExactQuery(getName(), longValue);
-      } else {
-        dvQuery = NumericDocValuesField.newSlowExactQuery(getName(), longValue);
-      }
+      dvQuery = SortedNumericDocValuesField.newSlowExactQuery(getName(), longValue);
       if (!isSearchable()) {
         return dvQuery;
       }
@@ -180,11 +176,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     }
     if (hasDocValues()) {
       long[] longValuesArray = longValues.stream().mapToLong(l -> l).toArray();
-      if (docValuesType == DocValuesType.SORTED_NUMERIC) {
-        dvQuery = SortedNumericDocValuesField.newSlowSetQuery(getName(), longValuesArray);
-      } else {
-        dvQuery = NumericDocValuesField.newSlowSetQuery(getName(), longValuesArray);
-      }
+      dvQuery = SortedNumericDocValuesField.newSlowSetQuery(getName(), longValuesArray);
       if (!isSearchable()) {
         return dvQuery;
       }
