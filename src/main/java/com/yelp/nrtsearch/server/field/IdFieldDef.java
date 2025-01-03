@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.field;
 
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import java.util.List;
@@ -33,10 +35,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for defining '_ID' fields which are used to update documents */
-public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryable {
+public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryable, RangeQueryable {
 
   protected IdFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
@@ -168,5 +171,20 @@ public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryab
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
     return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
+  }
+
+  @Override
+  public Query getRangeQuery(RangeQuery rangeQuery) {
+    // _ID fields are always searchable
+    BytesRef lowerTerm =
+        rangeQuery.getLower().isEmpty() ? null : new BytesRef(rangeQuery.getLower());
+    BytesRef upperTerm =
+        rangeQuery.getUpper().isEmpty() ? null : new BytesRef(rangeQuery.getUpper());
+    return new TermRangeQuery(
+        getName(),
+        lowerTerm,
+        upperTerm,
+        !rangeQuery.getLowerExclusive(),
+        !rangeQuery.getUpperExclusive());
   }
 }
