@@ -221,10 +221,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       long t0 = System.nanoTime();
 
       // hits to be logged also need to have their fields fetched
-      hits = getHitsFromOffset(
+      hits =
+          getHitsFromOffset(
               hits,
               searchContext.getStartHit(),
-              Math.max(searchContext.getTopHits(), searchContext.getHitsToLog()));
+              Math.max(
+                  searchContext.getTopHits(),
+                  searchContext.getHitsToLog() + searchContext.getStartHit()));
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
@@ -235,7 +238,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // if there were extra hits for the logging, the response size needs to be reduced to match
       // the topHits
       if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
-        setResponseTopHits(searchContext, searchContext.getTopHits());
+        setResponseTopHits(searchContext);
       }
 
       SearchState.Builder searchState = SearchState.newBuilder();
@@ -459,7 +462,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    *
    * @param hits all hits
    * @param startHit offset into top docs
-   * @param hitsCount maximum number of hits needed to fetch fields
+   * @param hitsCount maximum number of hits needed for the query
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
@@ -475,6 +478,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       return new TopDocs(hits.totalHits, newScoreDocs);
     }
     return hits;
+  }
+
+  /**
+   * Reduce response size by removing any extra hits used for logging. Final search response should
+   * only return top hits.
+   *
+   * @param context search context
+   */
+  private static void setResponseTopHits(SearchContext context) {
+    while (context.getResponseBuilder().getHitsCount()
+        > context.getTopHits() - context.getStartHit()) {
+      int hitLastIdx = context.getResponseBuilder().getHitsCount() - 1;
+      context.getResponseBuilder().removeHits(hitLastIdx);
+    }
   }
 
   /**
@@ -497,19 +514,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
       context.getCollector().fillHitRanking(hitResponse, hit);
-    }
-  }
-
-  /**
-   * Reduce response size by removing any extra hits used for logging.
-   * Final search response should only return top hits.
-   * @param context search context
-   * @param topHits maximum number of hits needed for search response
-   */
-  private static void setResponseTopHits(SearchContext context, int topHits) {
-    while (context.getResponseBuilder().getHitsCount() > topHits) {
-      int hitLastIdx = context.getResponseBuilder().getHitsCount() - 1;
-      context.getResponseBuilder().removeHits(hitLastIdx);
     }
   }
 
