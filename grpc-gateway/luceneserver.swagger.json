@@ -3018,6 +3018,29 @@
       },
       "title": "Response with no content"
     },
+    "luceneserverExactVectorQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Field in the document to query"
+        },
+        "queryFloatVector": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "title": "Query vector for fields with the float element type"
+        },
+        "queryByteVector": {
+          "type": "string",
+          "format": "byte",
+          "title": "Query vector for fields with the byte element type"
+        }
+      },
+      "title": "A query that does a brute force search for documents with a vector most similar to the query vector"
+    },
     "luceneserverExistsQuery": {
       "type": "object",
       "properties": {
@@ -4309,6 +4332,11 @@
         "params": {
           "type": "object",
           "title": "Optional logging parameters"
+        },
+        "hitsToLog": {
+          "type": "integer",
+          "format": "int32",
+          "description": "number of hits to log. The number of final hits to be logged can be less than this number\nif a query has less hits."
         }
       },
       "title": "Defines logger for search hits"
@@ -4861,6 +4889,9 @@
         },
         "matchAllQuery": {
           "$ref": "#/definitions/luceneserverMatchAllQuery"
+        },
+        "exactVectorQuery": {
+          "$ref": "#/definitions/luceneserverExactVectorQuery"
         }
       },
       "title": "Defines a full query consisting of a QueryNode which may be one of several types"

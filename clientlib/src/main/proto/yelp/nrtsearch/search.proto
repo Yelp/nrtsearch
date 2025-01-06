@@ -632,6 +632,16 @@ message SpanNearQuery {
 message MatchAllQuery {
 }
 
+// A query that does a brute force search for documents with a vector most similar to the query vector
+message ExactVectorQuery {
+    // Field in the document to query
+    string field = 1;
+    // Query vector for fields with the float element type
+    repeated float query_float_vector = 2;
+    // Query vector for fields with the byte element type
+    bytes query_byte_vector = 3;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -693,6 +703,7 @@ message Query {
         GeoPolygonQuery geoPolygonQuery = 24;
         SpanQuery spanQuery = 25;
         MatchAllQuery matchAllQuery = 26;
+        ExactVectorQuery exactVectorQuery = 27;
     }
 }
 

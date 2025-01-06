@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.field.properties;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.grpc.ExactVectorQuery;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -32,4 +33,12 @@ public interface VectorQueryable {
    * @return lucene knn query
    */
   Query getKnnQuery(KnnQuery knnQuery, Query filterQuery, BitSetProducer parentBitSetProducer);
+
+  /**
+   * Build a query ot perform a brute force vector search.
+   *
+   * @param exactVectorQuery exact vector query configuration
+   * @return lucene exact vector query
+   */
+  Query getExactQuery(ExactVectorQuery exactVectorQuery);
 }

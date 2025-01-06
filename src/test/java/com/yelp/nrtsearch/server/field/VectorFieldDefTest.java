@@ -26,24 +26,32 @@ import com.google.common.primitives.Floats;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
+import com.yelp.nrtsearch.server.index.IndexState;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.Set;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
@@ -1769,5 +1777,451 @@ public class VectorFieldDefTest extends ServerTestCase {
         VectorSimilarityFunction.COSINE.compare(new byte[] {1, 2, 3}, new byte[] {-50, -5, 0}),
         response.getHits(0).getScore(),
         0.0001);
+  }
+
+  @Test
+  public void testFloatExactSearch() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_l2_norm";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setExactVectorQuery(
+                                ExactVectorQuery.newBuilder()
+                                    .setField(field)
+                                    .addAllQueryFloatVector(queryVector)
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.EUCLIDEAN, 1.0f, 0.0001);
+    TotalHits totalHits = searchResponse.getTotalHits();
+    assertEquals(10000, totalHits.getValue());
+    List<VectorSearchResult> trueTopHits =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.EUCLIDEAN, null);
+    assertEquals(trueTopHits.size(), searchResponse.getHitsCount());
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.0001);
+    }
+  }
+
+  @Test
+  public void testFloatExactSearch_normCosine() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine.normalized";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .addRetrieveFields("vector_cosine")
+                    .addRetrieveFields("vector_cosine.normalized._magnitude")
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setExactVectorQuery(
+                                ExactVectorQuery.newBuilder()
+                                    .setField(field)
+                                    .addAllQueryFloatVector(queryVector)
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsNormCosine(queryVector, searchResponse, 1.0f, 0.0001);
+    TotalHits totalHits = searchResponse.getTotalHits();
+    assertEquals(10000, totalHits.getValue());
+    List<VectorSearchResult> trueTopHitsCosine =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.COSINE, null);
+    float magnitude2 = queryVector.stream().map(x -> x * x).reduce(0.0f, Float::sum);
+    float magnitude = (float) Math.sqrt(magnitude2);
+    List<Float> normalizedQueryVector = queryVector.stream().map(x -> x / magnitude).toList();
+    List<VectorSearchResult> trueTopHitsDotProduct =
+        getTrueFloatTopHits(
+            field, 5, normalizedQueryVector, VectorSimilarityFunction.DOT_PRODUCT, null);
+    assertEquals(trueTopHitsCosine.size(), searchResponse.getHitsCount());
+    assertEquals(trueTopHitsCosine.size(), trueTopHitsDotProduct.size());
+    for (int i = 0; i < trueTopHitsCosine.size(); ++i) {
+      assertEquals(trueTopHitsCosine.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHitsCosine.get(i).docId, trueTopHitsDotProduct.get(i).docId);
+      assertEquals(trueTopHitsCosine.get(i).score, searchResponse.getHits(i).getScore(), 0.0001);
+      assertEquals(trueTopHitsCosine.get(i).score, trueTopHitsDotProduct.get(i).score, 0.0001);
+    }
+  }
+
+  @Test
+  public void testFloatExactSearchWithFilter() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_l2_norm";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.FILTER)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("filter")
+                                                            .setTextValue("term1")
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setExactVectorQuery(
+                                                        ExactVectorQuery.newBuilder()
+                                                            .setField(field)
+                                                            .addAllQueryFloatVector(queryVector)
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.EUCLIDEAN, 1.0f, 0.0001);
+    TotalHits totalHits = searchResponse.getTotalHits();
+    assertEquals(1000, totalHits.getValue());
+    List<VectorSearchResult> trueTopHits =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.EUCLIDEAN, "term1");
+    assertEquals(trueTopHits.size(), searchResponse.getHitsCount());
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.0001);
+    }
+  }
+
+  @Test
+  public void testByteExactSearch() throws IOException {
+    String field = "byte_vector_cosine";
+    byte[] queryVectorBytes = new byte[] {-50, 5, 100};
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setExactVectorQuery(
+                                ExactVectorQuery.newBuilder()
+                                    .setField(field)
+                                    .setQueryByteVector(ByteString.copyFrom(queryVectorBytes))
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyByteHitsSimilarity(
+        field, queryVectorBytes, searchResponse, VectorSimilarityFunction.COSINE, 1.0f);
+    TotalHits totalHits = searchResponse.getTotalHits();
+    assertEquals(10000, totalHits.getValue());
+    List<VectorSearchResult> trueTopHits =
+        getTrueByteTopHits(field, 5, queryVectorBytes, VectorSimilarityFunction.COSINE, null);
+    assertEquals(trueTopHits.size(), searchResponse.getHitsCount());
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.0001);
+    }
+  }
+
+  @Test
+  public void testByteExactSearchWithFilter() throws IOException {
+    String field = "byte_vector_cosine";
+    byte[] queryVectorBytes = new byte[] {-50, 5, 100};
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.FILTER)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("filter")
+                                                            .setTextValue("term1")
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setExactVectorQuery(
+                                                        ExactVectorQuery.newBuilder()
+                                                            .setField(field)
+                                                            .setQueryByteVector(
+                                                                ByteString.copyFrom(
+                                                                    queryVectorBytes))
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyByteHitsSimilarity(
+        field, queryVectorBytes, searchResponse, VectorSimilarityFunction.COSINE, 1.0f);
+    TotalHits totalHits = searchResponse.getTotalHits();
+    assertEquals(1000, totalHits.getValue());
+    List<VectorSearchResult> trueTopHits =
+        getTrueByteTopHits(field, 5, queryVectorBytes, VectorSimilarityFunction.COSINE, "term1");
+    assertEquals(trueTopHits.size(), searchResponse.getHitsCount());
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.0001);
+    }
+  }
+
+  @Test
+  public void testExactSearch_notVector() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "filter";
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .addRetrieveFields(field)
+                  .setStartHit(0)
+                  .setTopHits(5)
+                  .setQuery(
+                      Query.newBuilder()
+                          .setExactVectorQuery(
+                              ExactVectorQuery.newBuilder()
+                                  .setField(field)
+                                  .addAllQueryFloatVector(queryVector)
+                                  .build())
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Field: filter does not support ExactVectorQuery"));
+    }
+  }
+
+  @Test
+  public void testExactSearch_notSearchable() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_not_search";
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .addRetrieveFields(field)
+                  .setStartHit(0)
+                  .setTopHits(5)
+                  .setQuery(
+                      Query.newBuilder()
+                          .setExactVectorQuery(
+                              ExactVectorQuery.newBuilder()
+                                  .setField(field)
+                                  .addAllQueryFloatVector(queryVector)
+                                  .build())
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Vector field is not searchable: vector_not_search"));
+    }
+  }
+
+  @Test
+  public void testExactSearch_invalidDimensions() {
+    List<Float> queryVector = List.of(0.25f, 0.5f);
+    String field = "vector_cosine";
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .addRetrieveFields(field)
+                  .setStartHit(0)
+                  .setTopHits(5)
+                  .setQuery(
+                      Query.newBuilder()
+                          .setExactVectorQuery(
+                              ExactVectorQuery.newBuilder()
+                                  .setField(field)
+                                  .addAllQueryFloatVector(queryVector)
+                                  .build())
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Invalid query float vector size, expected: 3, found: 2"));
+    }
+  }
+
+  @Test
+  public void testExactSearch_invalidVector() {
+    List<Float> queryVector = List.of(0.0f, 0.0f, 0.0f);
+    String field = "vector_cosine";
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .addRetrieveFields(field)
+                  .setStartHit(0)
+                  .setTopHits(5)
+                  .setQuery(
+                      Query.newBuilder()
+                          .setExactVectorQuery(
+                              ExactVectorQuery.newBuilder()
+                                  .setField(field)
+                                  .addAllQueryFloatVector(queryVector)
+                                  .build())
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage().contains("Vector magnitude cannot be 0 when using cosine similarity"));
+    }
+  }
+
+  record VectorSearchResult(int docId, float score) {}
+
+  private List<VectorSearchResult> getTrueFloatTopHits(
+      String field,
+      int numTopHits,
+      List<Float> queryVector,
+      VectorSimilarityFunction similarityFunction,
+      String filter)
+      throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME);
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy =
+        indexState.getShard(0).acquire();
+    PriorityQueue<VectorSearchResult> topHits =
+        new PriorityQueue<>(5, Comparator.comparing(VectorSearchResult::score).reversed());
+    try {
+      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher.getLeafContexts();
+      IndexableFieldDef<String> filterField =
+          (IndexableFieldDef<String>) indexState.getField("filter");
+      float[] queryVectorArray = floatListToArray(queryVector);
+      for (LeafReaderContext leaf : leaves) {
+        FloatVectorValues vectorValues = leaf.reader().getFloatVectorValues(field);
+        LoadedDocValues<String> filterValues =
+            (LoadedDocValues<String>) filterField.getDocValues(leaf);
+        for (int i = 0; i < leaf.reader().maxDoc(); ++i) {
+          filterValues.setDocId(i);
+          if (vectorValues.advance(i) == i) {
+            if (filter == null || filter.equals(filterValues.getFirst())) {
+              float similarity =
+                  similarityFunction.compare(queryVectorArray, vectorValues.vectorValue());
+              topHits.add(new VectorSearchResult(leaf.docBase + i, similarity));
+            }
+          }
+        }
+      }
+      List<VectorSearchResult> results = new ArrayList<>();
+      for (int i = 0; i < numTopHits; ++i) {
+        if (topHits.isEmpty()) {
+          break;
+        }
+        results.add(topHits.poll());
+      }
+      return results;
+    } finally {
+      getGlobalState()
+          .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+          .getShard(0)
+          .release(searcherAndTaxonomy);
+    }
+  }
+
+  private List<VectorSearchResult> getTrueByteTopHits(
+      String field,
+      int numTopHits,
+      byte[] queryVector,
+      VectorSimilarityFunction similarityFunction,
+      String filter)
+      throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME);
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy =
+        indexState.getShard(0).acquire();
+    PriorityQueue<VectorSearchResult> topHits =
+        new PriorityQueue<>(5, Comparator.comparing(VectorSearchResult::score).reversed());
+    try {
+      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher.getLeafContexts();
+      IndexableFieldDef<String> filterField =
+          (IndexableFieldDef<String>) indexState.getField("filter");
+      for (LeafReaderContext leaf : leaves) {
+        ByteVectorValues vectorValues = leaf.reader().getByteVectorValues(field);
+        LoadedDocValues<String> filterValues =
+            (LoadedDocValues<String>) filterField.getDocValues(leaf);
+        for (int i = 0; i < leaf.reader().maxDoc(); ++i) {
+          filterValues.setDocId(i);
+          if (vectorValues.advance(i) == i) {
+            if (filter == null || filter.equals(filterValues.getFirst())) {
+              float similarity =
+                  similarityFunction.compare(queryVector, vectorValues.vectorValue());
+              topHits.add(new VectorSearchResult(leaf.docBase + i, similarity));
+            }
+          }
+        }
+      }
+      List<VectorSearchResult> results = new ArrayList<>();
+      for (int i = 0; i < numTopHits; ++i) {
+        if (topHits.isEmpty()) {
+          break;
+        }
+        results.add(topHits.poll());
+      }
+      return results;
+    } finally {
+      getGlobalState()
+          .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+          .getShard(0)
+          .release(searcherAndTaxonomy);
+    }
   }
 }

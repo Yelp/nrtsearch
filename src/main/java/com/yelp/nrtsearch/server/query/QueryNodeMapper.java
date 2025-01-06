@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.TermQueryable;
+import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
@@ -172,6 +173,7 @@ public class QueryNodeMapper {
           getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
       case SPANQUERY -> getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
+      case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), state);
       case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
       default ->
           throw new UnsupportedOperationException(
@@ -768,5 +770,17 @@ public class QueryNodeMapper {
         protoTermRangeQuery.getIncludeLower(),
         protoTermRangeQuery.getIncludeUpper(),
         rewriteMethod);
+  }
+
+  private static Query getExactVectorQuery(
+      com.yelp.nrtsearch.server.grpc.ExactVectorQuery exactVectorQuery, IndexState state) {
+    String fieldName = exactVectorQuery.getField();
+    FieldDef field = state.getFieldOrThrow(fieldName);
+
+    if (field instanceof VectorQueryable vectorQueryable) {
+      return vectorQueryable.getExactQuery(exactVectorQuery);
+    }
+    throw new IllegalArgumentException(
+        "Field: " + fieldName + " does not support ExactVectorQuery");
   }
 }
