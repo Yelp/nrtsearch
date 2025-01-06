@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
@@ -50,7 +52,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'DATE_TIME' field type. */
-public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
+public class DateTimeFieldDef extends IndexableFieldDef
+    implements Sortable, RangeQueryable, TermQueryable {
   private static final String EPOCH_MILLIS = "epoch_millis";
   private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
 
@@ -145,6 +148,28 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     return LocalDateTime.parse(dateString, dateTimeFormatter)
         .toInstant(ZoneOffset.UTC)
         .toEpochMilli();
+  }
+
+  @Override
+  public Query getTermQueryFromLongValue(long longValue) {
+    return LongPoint.newExactQuery(getName(), longValue);
+  }
+
+  @Override
+  public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    return LongPoint.newSetQuery(getName(), longValues);
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    return getTermQueryFromLongValue(getTimeToIndex(textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<Long> longTerms = new ArrayList<>(textValues.size());
+    textValues.forEach((s) -> longTerms.add(getTimeToIndex(s)));
+    return getTermInSetQueryFromLongValues(longTerms);
   }
 
   private void ensureUpperIsMoreThanLower(RangeQuery rangeQuery, long lower, long upper) {

@@ -180,7 +180,7 @@ public abstract class DocCollector {
     int terminateAfterMaxRecallCount =
         request.getTerminateAfterMaxRecallCount() > 0
             ? request.getTerminateAfterMaxRecallCount()
-            : 0;
+            : indexState.getDefaultTerminateAfterMaxRecallCount();
     if (terminateAfter > 0) {
       wrapped =
           new TerminateAfterWrapper<>(

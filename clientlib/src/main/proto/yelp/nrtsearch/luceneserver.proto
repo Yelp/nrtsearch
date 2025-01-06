@@ -473,6 +473,8 @@ message LiveSettingsRequest {
     int32 defaultSearchTimeoutCheckEvery = 13;
     //Terminate after value to use when not specified in the search request.
     int32 defaultTerminateAfter = 14;
+    //Terminate after max recall count value to use when not specified in the search request.
+    int32 defaultTerminateAfterMaxRecallCount = 15;
 }
 
 /* Response from Server to liveSettings */
@@ -1101,6 +1103,8 @@ message IndexLiveSettings {
     google.protobuf.UInt64Value maxMergePreCopyDurationSec = 14;
     // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
     google.protobuf.BoolValue verboseMetrics = 15;
+    // Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0
+    google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
 }
 
 message IndexStateInfo {

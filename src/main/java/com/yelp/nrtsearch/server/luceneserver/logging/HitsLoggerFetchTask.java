@@ -21,13 +21,16 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import java.util.List;
+import java.util.concurrent.atomic.DoubleAdder;
 
 /**
  * Implementation of {@link FetchTask} which holds the required context to be able to log hits for a
  * search request.
  */
 public class HitsLoggerFetchTask implements FetchTask {
+  private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final HitsLogger hitsLogger;
+  private final DoubleAdder timeTakenMs = new DoubleAdder();
   private final int hitsToLog;
 
   public HitsLoggerFetchTask(LoggingHits loggingHits) {
@@ -44,7 +47,18 @@ public class HitsLoggerFetchTask implements FetchTask {
    */
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
+    long startTime = System.nanoTime();
     hitsLogger.log(searchContext, hits);
+    timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+  }
+
+  /**
+   * Get the total time taken so far to logging hits.
+   *
+   * @return Total time taken to logging hits in ms.
+   */
+  public double getTimeTakenMs() {
+    return timeTakenMs.doubleValue();
   }
 
   public int getHitsToLog() {
