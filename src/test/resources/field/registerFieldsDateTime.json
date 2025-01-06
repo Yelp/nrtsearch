@@ -90,6 +90,25 @@
       "search": true,
       "multiValued": true,
       "store": true
+    },
+    {
+      "name": "dv_only_single",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "storeDocValues": true
+    },
+    {
+      "name": "dv_only_multi",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "stored_only",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "store": true
     }
   ]
 }
