@@ -24,7 +24,24 @@
       "storeDocValues": true,
       "search": true,
       "vectorDimensions": 3,
-      "vectorSimilarity": "cosine"
+      "vectorSimilarity": "cosine",
+      "childFields": [
+        {
+          "name": "normalized",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "normalized_cosine"
+        },
+        {
+          "name": "normalized_doc_values",
+          "type": "VECTOR",
+          "search": true,
+          "storeDocValues": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "normalized_cosine"
+        }
+      ]
     },
     {
       "name": "vector_dot",
@@ -108,7 +125,20 @@
       "vectorIndexingOptions": {
         "type": "hnsw_scalar_quantized",
         "quantized_bits": 7
-      }
+      },
+      "childFields": [
+        {
+          "name": "normalized",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "normalized_cosine",
+          "vectorIndexingOptions": {
+            "type": "hnsw_scalar_quantized",
+            "quantized_bits": 7
+          }
+        }
+      ]
     },
     {
       "name": "filter",

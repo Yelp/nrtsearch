@@ -6,7 +6,35 @@
             "type": "FLOAT",
             "storeDocValues": true,
             "multiValued": false,
-            "search": true
+            "search": true,
+            "childFields": [
+                {
+                    "name": "dv",
+                    "type": "FLOAT",
+                    "storeDocValues": true
+                },
+                {
+                    "name": "search",
+                    "type": "FLOAT",
+                    "search": true
+                },
+                {
+                    "name": "none",
+                    "type": "FLOAT"
+                },
+                {
+                    "name": "mv_dv",
+                    "type": "FLOAT",
+                    "multiValued": true,
+                    "storeDocValues": true
+                },
+                {
+                    "name": "mv_search",
+                    "type": "FLOAT",
+                    "multiValued": true,
+                    "search": true
+                }
+            ]
         },
         {
             "name": "single_stored",

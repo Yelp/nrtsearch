@@ -107,6 +107,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     long lower =
         rangeQuery.getLower().isEmpty()
             ? Long.MIN_VALUE
@@ -124,14 +125,20 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+    if (hasDocValues()) {
+      dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 
