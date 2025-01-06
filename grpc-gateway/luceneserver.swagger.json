@@ -1387,6 +1387,14 @@
             "format": "int32"
           },
           {
+            "name": "liveSettings.defaultTerminateAfterMaxRecallCount",
+            "description": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "local",
             "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral,\nso will not persist through a restart. Also, the live settings returned in the response will contain the\nlocal overrides only when this flag is true.",
             "in": "query",
@@ -2226,6 +2234,11 @@
           "type": "number",
           "format": "double",
           "title": "Amount of gRPC request deadline remaining at the start of search processing"
+        },
+        "loggingHitsTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Time for logging hits"
         }
       }
     },
@@ -3275,7 +3288,7 @@
         },
         "vectorSimilarity": {
           "type": "string",
-          "title": "Similarity type for search enabled VECTOR fields. This is a required option when search=true.\nAccepts built in types:\n     'l2_norm'          : (1 / (1 + l2_norm(query, vector)^2))\n     'dot_product'      : Float vector: ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length)\n                          Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims))\n                             (all vectors must have the same length)\n     'cosine'           : ((1 + cosine(query, vector)) / 2)\n     'max_inner_product': when \u003c 0 : 1 / (1 + -1 * max_inner_product(query, vector))\n                          when \u003e= 0: max_inner_product(query, vector) + 1"
+          "title": "Similarity type for search enabled VECTOR fields. This is a required option when search=true.\nAccepts built in types:\n     'l2_norm'          : (1 / (1 + l2_norm(query, vector)^2))\n     'dot_product'      : Float vector: ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length)\n                          Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims))\n                             (all vectors must have the same length)\n     'cosine'           : ((1 + cosine(query, vector)) / 2)\n     'normalized_cosine': Identical usage to 'cosine', but indexed and query vectors are automatically normalized\n                          to unit length. Original vector magnitude is available in the \u003cfield\u003e._magnitude field.\n     'max_inner_product': when \u003c 0 : 1 / (1 + -1 * max_inner_product(query, vector))\n                          when \u003e= 0: max_inner_product(query, vector) + 1"
         },
         "vectorIndexingOptions": {
           "$ref": "#/definitions/luceneserverVectorIndexingOptions",
@@ -3899,6 +3912,11 @@
           "type": "integer",
           "format": "int32",
           "title": "The number of documents/fields per parallel fetch task, default: 50"
+        },
+        "defaultTerminateAfterMaxRecallCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0"
         }
       },
       "title": "Index live settings"
@@ -4234,6 +4252,11 @@
           "type": "integer",
           "format": "int32",
           "title": "Terminate after value to use when not specified in the search request"
+        },
+        "defaultTerminateAfterMaxRecallCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Terminate after max recall count value to use when not specified in the search request."
         }
       },
       "title": "Input to liveSettings"

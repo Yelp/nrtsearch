@@ -120,7 +120,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.suggest.document.CompletionPostingsFormatUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -371,8 +370,6 @@ public class NrtsearchServer {
         throws IOException {
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
-      CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
-          configuration.getCompletionCodecLoadMode());
       ExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);

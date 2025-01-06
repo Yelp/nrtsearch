@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVectorQuery;
@@ -33,6 +34,8 @@ import com.yelp.nrtsearch.server.vector.ByteVectorType;
 import com.yelp.nrtsearch.server.vector.FloatVectorType;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +67,8 @@ import org.apache.lucene.util.VectorUtil;
  */
 public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements VectorQueryable {
   static final int NUM_CANDIDATES_LIMIT = 10000;
+  static final String NORMALIZED_COSINE = "normalized_cosine";
+  static final String MAGNITUDE_FIELD_SUFFIX = "._magnitude";
   private static final Map<String, VectorSimilarityFunction> SIMILARITY_FUNCTION_MAP =
       Map.of(
           "l2_norm",
@@ -72,6 +77,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           VectorSimilarityFunction.DOT_PRODUCT,
           "cosine",
           VectorSimilarityFunction.COSINE,
+          NORMALIZED_COSINE,
+          VectorSimilarityFunction.DOT_PRODUCT,
           "max_inner_product",
           VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
   private static final Map<String, VectorSearchType> VECTOR_SEARCH_TYPE_MAP =
@@ -87,6 +94,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   protected final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+
+  protected FloatFieldDef magnitudeField;
+  private Map<String, IndexableFieldDef<?>> childFieldsWithMagnitude;
 
   enum VectorSearchType {
     HNSW,
@@ -246,12 +256,40 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
+      setupNormalizedVectorField(requestField.getVectorSimilarity(), context);
       this.vectorsFormat =
           createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions());
     } else {
       this.similarityFunction = null;
       this.vectorsFormat = null;
+      childFieldsWithMagnitude = super.getChildFields();
     }
+  }
+
+  private void setupNormalizedVectorField(
+      String similarity, FieldDefCreator.FieldDefCreatorContext context) {
+    if (NORMALIZED_COSINE.equals(similarity)) {
+      // add field to store magnitude before normalization
+      magnitudeField =
+          new FloatFieldDef(
+              getName() + MAGNITUDE_FIELD_SUFFIX,
+              Field.newBuilder()
+                  .setName(getName() + MAGNITUDE_FIELD_SUFFIX)
+                  .setType(FieldType.FLOAT)
+                  .setStoreDocValues(true)
+                  .build(),
+              context);
+      Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
+      childFieldsMap.put(magnitudeField.getName(), magnitudeField);
+      childFieldsWithMagnitude = Collections.unmodifiableMap(childFieldsMap);
+    } else {
+      childFieldsWithMagnitude = super.getChildFields();
+    }
+  }
+
+  @Override
+  public Map<String, IndexableFieldDef<?>> getChildFields() {
+    return childFieldsWithMagnitude;
   }
 
   @Override
@@ -392,7 +430,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         if (floatArr == null) {
           floatArr = parseVectorFieldToFloatArr(value);
         }
-        validateVectorForSearch(floatArr);
+        float magnitude2 = validateVectorForSearch(floatArr);
+        if (magnitudeField != null) {
+          float magnitude = (float) Math.sqrt(magnitude2);
+          normalizeVector(floatArr, magnitude);
+          magnitudeField.parseDocumentField(document, List.of(String.valueOf(magnitude)), null);
+        }
         document.add(new KnnFloatVectorField(getName(), floatArr, similarityFunction));
       }
     }
@@ -447,7 +490,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       for (int i = 0; i < knnQuery.getQueryVectorCount(); ++i) {
         queryVector[i] = knnQuery.getQueryVector(i);
       }
-      validateVectorForSearch(queryVector);
+      float magnitude2 = validateVectorForSearch(queryVector);
+      // If using normalized cosine similarity, normalize the query vector
+      if (magnitudeField != null) {
+        float magnitude = (float) Math.sqrt(magnitude2);
+        normalizeVector(queryVector, magnitude);
+      }
       if (parentBitSetProducer != null) {
         return new NrtDiversifyingChildrenFloatKnnVectorQuery(
             getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
@@ -462,28 +510,33 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
      * similarity, vectors must be normalized to unit length.
      *
      * @param vector vector to check
+     * @return magnitude squared of the vector
      * @throws IllegalArgumentException if validation fails
      */
-    public void validateVectorForSearch(float[] vector) {
-      float magnitude2 = 0;
-      for (int i = 0; i < vector.length; ++i) {
-        float v = vector[i];
-        if (Float.isNaN(v)) {
-          throw new IllegalArgumentException("Vector component cannot be NaN");
-        }
-        if (Float.isInfinite(v)) {
-          throw new IllegalArgumentException("Vector component cannot be Infinite");
-        }
-        magnitude2 += v * v;
-      }
-      if (similarityFunction == VectorSimilarityFunction.COSINE && magnitude2 == 0.0f) {
+    public float validateVectorForSearch(float[] vector) {
+      VectorUtil.checkFinite(vector);
+      float magnitude2 = VectorUtil.dotProduct(vector, vector);
+      // cosine or normalized_cosine
+      if ((similarityFunction == VectorSimilarityFunction.COSINE
+              || (similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
+                  && magnitudeField != null))
+          && magnitude2 == 0.0f) {
         throw new IllegalArgumentException(
             "Vector magnitude cannot be 0 when using cosine similarity");
       }
+      // dot_product, but not normalized_cosine
       if (similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
-          && magnitude2 - 1.0f > 0.0001f) {
+          && magnitude2 - 1.0f > 0.0001f
+          && magnitudeField == null) {
         throw new IllegalArgumentException(
             "Vector must be normalized when using dot product similarity");
+      }
+      return magnitude2;
+    }
+
+    private void normalizeVector(float[] vector, float magnitude) {
+      for (int i = 0; i < vector.length; i++) {
+        vector[i] /= magnitude;
       }
     }
   }
@@ -493,6 +546,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     public ByteVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       super(name, requestField, context, ByteVectorType.class);
+      if (NORMALIZED_COSINE.equals(requestField.getVectorSimilarity())) {
+        throw new IllegalArgumentException(
+            "Normalized cosine similarity is not supported for byte vectors");
+      }
     }
 
     @Override

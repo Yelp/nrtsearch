@@ -99,6 +99,7 @@ public class LongFieldDef extends NumberFieldDef<Long> {
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     long lower =
         rangeQuery.getLower().isEmpty() ? Long.MIN_VALUE : Long.parseLong(rangeQuery.getLower());
     long upper =
@@ -112,14 +113,20 @@ public class LongFieldDef extends NumberFieldDef<Long> {
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+    if (hasDocValues()) {
+      dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 

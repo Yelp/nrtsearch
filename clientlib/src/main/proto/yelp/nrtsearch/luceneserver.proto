@@ -653,6 +653,8 @@ message Field {
     //                           Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims))
     //                              (all vectors must have the same length)
     //      'cosine'           : ((1 + cosine(query, vector)) / 2)
+    //      'normalized_cosine': Identical usage to 'cosine', but indexed and query vectors are automatically normalized
+    //                           to unit length. Original vector magnitude is available in the <field>._magnitude field.
     //      'max_inner_product': when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
     //                           when >= 0: max_inner_product(query, vector) + 1
     string vectorSimilarity = 31;
