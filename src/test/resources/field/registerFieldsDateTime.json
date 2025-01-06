@@ -26,6 +26,27 @@
       "dateTimeFormat": "yyyy-MM-dd HH:mm:ss",
       "storeDocValues": true,
       "search": true
+    },
+    {
+      "name": "single_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "multiValued": true,
+      "store": true
+    },
+    {
+      "name": "stored_only",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "store": true
     }
   ]
 }

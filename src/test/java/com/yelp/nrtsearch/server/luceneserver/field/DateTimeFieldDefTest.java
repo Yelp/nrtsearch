@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -24,7 +26,10 @@ import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
+import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,6 +101,14 @@ public class DateTimeFieldDefTest extends ServerTestCase {
         .putFields(
             "timestamp_string_format",
             MultiValuedField.newBuilder().addValue(timestampFormatted).build())
+        .putFields("single_stored", MultiValuedField.newBuilder().addValue(timestampMillis).build())
+        .putFields("stored_only", MultiValuedField.newBuilder().addValue(timestampMillis).build())
+        .putFields(
+            "multi_stored",
+            MultiValuedField.newBuilder()
+                .addValue(timestampMillis)
+                .addValue(String.valueOf(Long.parseLong(timestampMillis) + 2))
+                .build())
         .build();
   }
 
@@ -472,9 +485,223 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     assertRangeQuery(rangeQuery, "3", "4", "6");
   }
 
+  @Test
+  public void testTermQuery() {
+    TermQuery termQuery =
+        TermQuery.newBuilder()
+            .setField("timestamp_epoch_millis")
+            .setTextValue("1611742000")
+            .build();
+    assertTermQuery(termQuery, "1");
+    termQuery =
+        TermQuery.newBuilder().setField("timestamp_epoch_millis").setLongValue(1611742000).build();
+    assertTermQuery(termQuery, "1");
+  }
+
+  @Test
+  public void testTermQuery_stringFormat() {
+    TermQuery termQuery =
+        TermQuery.newBuilder()
+            .setField("timestamp_string_format")
+            .setTextValue("2021-02-15 20:20:00")
+            .build();
+    assertTermQuery(termQuery, "3");
+    termQuery =
+        TermQuery.newBuilder()
+            .setField("timestamp_string_format")
+            .setLongValue(1613420400000L)
+            .build();
+    assertTermQuery(termQuery, "3");
+  }
+
+  @Test
+  public void testTermQuery_single() {
+    TermQuery termQuery =
+        TermQuery.newBuilder().setField("single_stored").setTextValue("1611742000").build();
+    assertTermQuery(termQuery, "1");
+    termQuery = TermQuery.newBuilder().setField("single_stored").setLongValue(1611742000).build();
+    assertTermQuery(termQuery, "1");
+  }
+
+  @Test
+  public void testTermQuery_multi() {
+    TermQuery termQuery =
+        TermQuery.newBuilder().setField("multi_stored").setTextValue("1613742002").build();
+    assertTermQuery(termQuery, "4");
+    termQuery = TermQuery.newBuilder().setField("multi_stored").setLongValue(1613742002).build();
+    assertTermQuery(termQuery, "4");
+  }
+
+  @Test
+  public void testTermQuery_notSearchable() {
+    try {
+      TermQuery termQuery =
+          TermQuery.newBuilder().setField("stored_only").setTextValue("1611742000").build();
+      assertTermQuery(termQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Field stored_only is not searchable, which is required for TermQuery / TermInSetQuery"));
+    }
+  }
+
+  @Test
+  public void testTermInSetQuery() {
+    TermInSetQuery termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("timestamp_epoch_millis")
+            .setTextTerms(
+                TermInSetQuery.TextTerms.newBuilder()
+                    .addTerms("1611742000")
+                    .addTerms("1612742000")
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "1", "3");
+    termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("timestamp_epoch_millis")
+            .setLongTerms(
+                TermInSetQuery.LongTerms.newBuilder()
+                    .addTerms(1611742000)
+                    .addTerms(1612742000)
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "1", "3");
+  }
+
+  @Test
+  public void testTermInSetQuery_stringFormat() {
+    TermInSetQuery termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("timestamp_string_format")
+            .setTextTerms(
+                TermInSetQuery.TextTerms.newBuilder()
+                    .addTerms("2021-02-15 20:20:00")
+                    .addTerms("2021-03-15 20:20:00")
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "3", "4");
+    termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("timestamp_string_format")
+            .setLongTerms(
+                TermInSetQuery.LongTerms.newBuilder()
+                    .addTerms(1613420400000L)
+                    .addTerms(1615839600000L)
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "3", "4");
+  }
+
+  @Test
+  public void testTermInSetQuery_single() {
+    TermInSetQuery termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("single_stored")
+            .setTextTerms(
+                TermInSetQuery.TextTerms.newBuilder()
+                    .addTerms("1611742000")
+                    .addTerms("1612742000")
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "1", "3");
+    termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("single_stored")
+            .setLongTerms(
+                TermInSetQuery.LongTerms.newBuilder()
+                    .addTerms(1611742000)
+                    .addTerms(1612742000)
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "1", "3");
+  }
+
+  @Test
+  public void testTermInSetQuery_multi() {
+    TermInSetQuery termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("multi_stored")
+            .setTextTerms(
+                TermInSetQuery.TextTerms.newBuilder()
+                    .addTerms("1612742002")
+                    .addTerms("1613742002")
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "3", "4");
+    termInSetQuery =
+        TermInSetQuery.newBuilder()
+            .setField("multi_stored")
+            .setLongTerms(
+                TermInSetQuery.LongTerms.newBuilder()
+                    .addTerms(1612742002)
+                    .addTerms(1613742002)
+                    .build())
+            .build();
+    assertTermInSetQuery(termInSetQuery, "3", "4");
+  }
+
+  @Test
+  public void testTermInSetQuery_notSearchable() {
+    try {
+      TermInSetQuery termInSetQuery =
+          TermInSetQuery.newBuilder()
+              .setField("stored_only")
+              .setTextTerms(
+                  TermInSetQuery.TextTerms.newBuilder()
+                      .addTerms("1611742000")
+                      .addTerms("1612742000")
+                      .build())
+              .build();
+      assertTermInSetQuery(termInSetQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Field stored_only is not searchable, which is required for TermQuery / TermInSetQuery"));
+    }
+  }
+
   private void assertRangeQuery(RangeQuery rangeQuery, String... expectedIds) {
     String idFieldName = "doc_id";
     Query query = Query.newBuilder().setRangeQuery(rangeQuery).build();
+    SearchResponse searchResponse = doQuery(query, List.of(idFieldName));
+    assertEquals(expectedIds.length, searchResponse.getHitsCount());
+    List<String> actualValues =
+        searchResponse.getHitsList().stream()
+            .map(
+                hit ->
+                    hit.getFieldsMap().get(idFieldName).getFieldValueList().get(0).getTextValue())
+            .sorted()
+            .collect(Collectors.toList());
+    List<String> expected = Arrays.asList(expectedIds);
+    expected.sort(Comparator.comparing(Function.identity()));
+    assertEquals(expected, actualValues);
+  }
+
+  private void assertTermQuery(TermQuery termQuery, String... expectedIds) {
+    String idFieldName = "doc_id";
+    Query query = Query.newBuilder().setTermQuery(termQuery).build();
+    SearchResponse searchResponse = doQuery(query, List.of(idFieldName));
+    assertEquals(expectedIds.length, searchResponse.getHitsCount());
+    List<String> actualValues =
+        searchResponse.getHitsList().stream()
+            .map(
+                hit ->
+                    hit.getFieldsMap().get(idFieldName).getFieldValueList().get(0).getTextValue())
+            .sorted()
+            .collect(Collectors.toList());
+    List<String> expected = Arrays.asList(expectedIds);
+    expected.sort(Comparator.comparing(Function.identity()));
+    assertEquals(expected, actualValues);
+  }
+
+  private void assertTermInSetQuery(TermInSetQuery termInSetQuery, String... expectedIds) {
+    String idFieldName = "doc_id";
+    Query query = Query.newBuilder().setTermInSetQuery(termInSetQuery).build();
     SearchResponse searchResponse = doQuery(query, List.of(idFieldName));
     assertEquals(expectedIds.length, searchResponse.getHitsCount());
     List<String> actualValues =
