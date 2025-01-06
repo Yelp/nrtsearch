@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
@@ -25,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -413,7 +416,43 @@ public class DateTimeFieldDefTest extends ServerTestCase {
 
   @Test
   public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive() {
-    String dateFieldName = "timestamp_epoch_millis";
+    rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis");
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive_docValues() {
+    rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis.dv");
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive_searchable() {
+    rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis.search");
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive_multiDocValues() {
+    rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis.mv_dv");
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive_multiSearchable() {
+    rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis.mv_search");
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive_unsupported() {
+    try {
+      rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive("timestamp_epoch_millis.none");
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Range query requires field to be searchable or have doc values: timestamp_epoch_millis.none"));
+    }
+  }
+
+  private void rangeQueryWithCombinationOfSpecifiedBoundsAndExclusive(String dateFieldName) {
 
     // Both bounds defined
 

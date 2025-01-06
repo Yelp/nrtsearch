@@ -22,8 +22,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongToDoubleFunction;
-import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
@@ -45,7 +45,7 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
   @Override
   protected org.apache.lucene.document.Field getDocValueField(Number fieldValue) {
     if (docValuesType == DocValuesType.NUMERIC) {
-      return new FloatDocValuesField(getName(), fieldValue.floatValue());
+      return new NumericDocValuesField(getName(), SORTED_FLOAT_ENCODER.applyAsLong(fieldValue));
     } else if (docValuesType == DocValuesType.SORTED_NUMERIC) {
       return new SortedNumericDocValuesField(
           getName(), SORTED_FLOAT_ENCODER.applyAsLong(fieldValue));
@@ -71,11 +71,7 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
 
   @Override
   protected LongToDoubleFunction getBindingDecoder() {
-    if (isMultiValue()) {
-      return BindingValuesSources.SORTED_FLOAT_DECODER;
-    } else {
-      return BindingValuesSources.FLOAT_DECODER;
-    }
+    return BindingValuesSources.SORTED_FLOAT_DECODER;
   }
 
   @Override
@@ -105,6 +101,7 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     float lower =
         rangeQuery.getLower().isEmpty()
             ? Float.NEGATIVE_INFINITY
@@ -122,17 +119,24 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = FloatPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = FloatPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(
-            rangeQuery.getField(),
-            NumericUtils.floatToSortableInt(lower),
-            NumericUtils.floatToSortableInt(upper));
+    if (hasDocValues()) {
+      dvQuery =
+          SortedNumericDocValuesField.newSlowRangeQuery(
+              rangeQuery.getField(),
+              NumericUtils.floatToSortableInt(lower),
+              NumericUtils.floatToSortableInt(upper));
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 

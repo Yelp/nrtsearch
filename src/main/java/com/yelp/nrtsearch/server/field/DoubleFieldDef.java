@@ -22,8 +22,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongToDoubleFunction;
-import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
@@ -45,7 +45,7 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
   @Override
   protected org.apache.lucene.document.Field getDocValueField(Number fieldValue) {
     if (docValuesType == DocValuesType.NUMERIC) {
-      return new DoubleDocValuesField(getName(), fieldValue.doubleValue());
+      return new NumericDocValuesField(getName(), SORTED_DOUBLE_ENCODER.applyAsLong(fieldValue));
     } else if (docValuesType == DocValuesType.SORTED_NUMERIC) {
       return new SortedNumericDocValuesField(
           getName(), SORTED_DOUBLE_ENCODER.applyAsLong(fieldValue));
@@ -71,11 +71,7 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
 
   @Override
   protected LongToDoubleFunction getBindingDecoder() {
-    if (isMultiValue()) {
-      return BindingValuesSources.SORTED_DOUBLE_DECODER;
-    } else {
-      return BindingValuesSources.DOUBLE_DECODER;
-    }
+    return BindingValuesSources.SORTED_DOUBLE_DECODER;
   }
 
   @Override
@@ -107,6 +103,7 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     double lower =
         rangeQuery.getLower().isEmpty()
             ? Double.NEGATIVE_INFINITY
@@ -123,17 +120,24 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = DoublePoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = DoublePoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(
-            rangeQuery.getField(),
-            NumericUtils.doubleToSortableLong(lower),
-            NumericUtils.doubleToSortableLong(upper));
+    if (hasDocValues()) {
+      dvQuery =
+          SortedNumericDocValuesField.newSlowRangeQuery(
+              rangeQuery.getField(),
+              NumericUtils.doubleToSortableLong(lower),
+              NumericUtils.doubleToSortableLong(upper));
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 
