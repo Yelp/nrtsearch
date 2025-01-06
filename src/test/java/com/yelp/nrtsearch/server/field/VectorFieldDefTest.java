@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -45,6 +46,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.VectorUtil;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -393,6 +395,49 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testVectorSearch_normCosine() {
+    singleNormCosineQueryAndVerify(List.of(0.25f, 0.5f, 0.75f), 1.0f);
+  }
+
+  @Test
+  public void testVectorSearch_normCosineDV() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields("vector_cosine")
+                    .addRetrieveFields("vector_cosine.normalized_doc_values")
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("vector_cosine.normalized_doc_values")
+                            .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .build())
+                    .build());
+    assertEquals(5, response.getHitsCount());
+    for (Hit hit : response.getHitsList()) {
+      float[] vector =
+          floatListToArray(
+              hit.getFieldsOrThrow("vector_cosine")
+                  .getFieldValue(0)
+                  .getVectorValue()
+                  .getValueList());
+      float[] vectorDV =
+          floatListToArray(
+              hit.getFieldsOrThrow("vector_cosine.normalized_doc_values")
+                  .getFieldValue(0)
+                  .getVectorValue()
+                  .getValueList());
+      assertArrayEquals(vector, vectorDV, 0.0001f);
+    }
+  }
+
+  @Test
   public void testVectorSearch_dot() {
     singleVectorQueryAndVerify(
         "vector_dot",
@@ -453,6 +498,24 @@ public class VectorFieldDefTest extends ServerTestCase {
         "quantized_vector_7",
         List.of(0.25f, 0.5f, 0.75f),
         VectorSimilarityFunction.COSINE,
+        1.0f,
+        0.001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_7_normCosine() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    singleVectorQueryAndVerify(
+        "quantized_vector_7.normalized", queryVector, VectorSimilarityFunction.COSINE, 1.0f, 0.001);
+    float magnitude = (float) Math.sqrt(0.25f * 0.25f + 0.5f * 0.5f + 0.75f * 0.75f);
+    List<Float> normalizedQueryVector = new ArrayList<>();
+    for (Float v : queryVector) {
+      normalizedQueryVector.add(v / magnitude);
+    }
+    singleVectorQueryAndVerify(
+        "quantized_vector_7.normalized",
+        normalizedQueryVector,
+        VectorSimilarityFunction.DOT_PRODUCT,
         1.0f,
         0.001);
   }
@@ -742,6 +805,10 @@ public class VectorFieldDefTest extends ServerTestCase {
     singleVectorQueryAndVerify(field, queryVector, similarityFunction, boost, 0.0001);
   }
 
+  private void singleNormCosineQueryAndVerify(List<Float> queryVector, float boost) {
+    singleNormCosineQueryAndVerify(queryVector, boost, 0.0001);
+  }
+
   private void singleVectorQueryAndVerify(
       String field,
       List<Float> queryVector,
@@ -774,6 +841,35 @@ public class VectorFieldDefTest extends ServerTestCase {
     verifyHitsSimilarity(field, queryVector, searchResponse, similarityFunction, boost, delta);
   }
 
+  private void singleNormCosineQueryAndVerify(List<Float> queryVector, float boost, double delta) {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields("vector_cosine")
+                    .addRetrieveFields("vector_cosine.normalized")
+                    .addRetrieveFields("vector_cosine.normalized._magnitude")
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("vector_cosine.normalized")
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setBoost(boost)
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
+    verifyHitsNormCosine(queryVector, searchResponse, boost, delta);
+  }
+
   private void verifyHitsSimilarity(
       String field,
       List<Float> queryVector,
@@ -790,6 +886,39 @@ public class VectorFieldDefTest extends ServerTestCase {
                       hit.getFieldsOrThrow(field).getFieldValue(0).getVectorValue().getValueList()))
               * boost;
       assertEquals(similarity, hit.getScore(), delta);
+    }
+  }
+
+  private void verifyHitsNormCosine(
+      List<Float> queryVector, SearchResponse response, float boost, double delta) {
+    float[] queryVectorArray = floatListToArray(queryVector);
+    VectorUtil.l2normalize(queryVectorArray);
+    for (Hit hit : response.getHitsList()) {
+      float[] vector =
+          floatListToArray(
+              hit.getFieldsOrThrow("vector_cosine.normalized")
+                  .getFieldValue(0)
+                  .getVectorValue()
+                  .getValueList());
+      assertTrue(VectorUtil.isUnitVector(vector));
+      float similarity =
+          VectorSimilarityFunction.DOT_PRODUCT.compare(queryVectorArray, vector) * boost;
+      assertEquals(similarity, hit.getScore(), delta);
+
+      float[] nonNormalizedVector =
+          floatListToArray(
+              hit.getFieldsOrThrow("vector_cosine")
+                  .getFieldValue(0)
+                  .getVectorValue()
+                  .getValueList());
+      float magnitude =
+          hit.getFieldsOrThrow("vector_cosine.normalized._magnitude")
+              .getFieldValue(0)
+              .getFloatValue();
+      for (int i = 0; i < vector.length; i++) {
+        vector[i] *= magnitude;
+      }
+      assertArrayEquals(nonNormalizedVector, vector, (float) delta);
     }
   }
 
@@ -997,13 +1126,34 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testVectorFormat_invalidNormCosineByte() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("normalized_cosine")
+            .setVectorElementType(VectorElementType.VECTOR_ELEMENT_BYTE)
+            .build();
+    try {
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "Normalized cosine similarity is not supported for byte vectors", e.getMessage());
+    }
+  }
+
+  @Test
   public void testValidateVector_nan() throws IOException {
     VectorFieldDef.FloatVectorFieldDef vectorFieldDef = getCosineField();
     try {
       vectorFieldDef.validateVectorForSearch(new float[] {1.0f, Float.NaN, 1.0f});
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Vector component cannot be NaN", e.getMessage());
+      assertEquals("non-finite value at vector[1]=NaN", e.getMessage());
     }
   }
 
@@ -1014,7 +1164,7 @@ public class VectorFieldDefTest extends ServerTestCase {
       vectorFieldDef.validateVectorForSearch(new float[] {1.0f, Float.POSITIVE_INFINITY, 1.0f});
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Vector component cannot be Infinite", e.getMessage());
+      assertEquals("non-finite value at vector[1]=Infinity", e.getMessage());
     }
   }
 
@@ -1063,6 +1213,14 @@ public class VectorFieldDefTest extends ServerTestCase {
             .getGlobalState()
             .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
             .getFieldOrThrow("vector_cosine");
+  }
+
+  private VectorFieldDef.FloatVectorFieldDef getNormCosineField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("vector_cosine.normalized");
   }
 
   private VectorFieldDef.FloatVectorFieldDef getL2Field() throws IOException {
