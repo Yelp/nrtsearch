@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.grpc.ExactVectorQuery;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
@@ -135,6 +136,14 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       Query filterQuery,
       int numCandidates,
       BitSetProducer parentBitSetProducer);
+
+  /**
+   * Get the exact search query for this field.
+   *
+   * @param exactVectorQuery exact vector query definition
+   * @return exact search query
+   */
+  abstract Query getTypeExactQuery(ExactVectorQuery exactVectorQuery);
 
   private static VectorSimilarityFunction getSimilarityFunction(String vectorSimilarity) {
     VectorSimilarityFunction similarityFunction = SIMILARITY_FUNCTION_MAP.get(vectorSimilarity);
@@ -375,6 +384,14 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     return getTypeKnnQuery(knnQuery, k, filterQuery, numCandidates, parentBitSetProducer);
   }
 
+  @Override
+  public Query getExactQuery(ExactVectorQuery exactVectorQuery) {
+    if (!isSearchable()) {
+      throw new IllegalArgumentException("Vector field is not searchable: " + getName());
+    }
+    return getTypeExactQuery(exactVectorQuery);
+  }
+
   /** Field class for 'FLOAT' vector field type. */
   public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
     public FloatVectorFieldDef(
@@ -502,6 +519,29 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       } else {
         return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
       }
+    }
+
+    @Override
+    public Query getTypeExactQuery(ExactVectorQuery exactVectorQuery) {
+      if (exactVectorQuery.getQueryFloatVectorCount() != getVectorDimensions()) {
+        throw new IllegalArgumentException(
+            "Invalid query float vector size, expected: "
+                + getVectorDimensions()
+                + ", found: "
+                + exactVectorQuery.getQueryFloatVectorCount());
+      }
+      float[] queryVector = new float[exactVectorQuery.getQueryFloatVectorCount()];
+      for (int i = 0; i < exactVectorQuery.getQueryFloatVectorCount(); ++i) {
+        queryVector[i] = exactVectorQuery.getQueryFloatVector(i);
+      }
+      float magnitude2 = validateVectorForSearch(queryVector);
+      // If using normalized cosine similarity, normalize the query vector
+      if (magnitudeField != null) {
+        float magnitude = (float) Math.sqrt(magnitude2);
+        normalizeVector(queryVector, magnitude);
+      }
+      return new com.yelp.nrtsearch.server.query.vector.ExactVectorQuery.ExactFloatVectorQuery(
+          getName(), queryVector);
     }
 
     /**
@@ -658,6 +698,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       } else {
         return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
       }
+    }
+
+    @Override
+    public Query getTypeExactQuery(ExactVectorQuery exactVectorQuery) {
+      if (exactVectorQuery.getQueryByteVector().size() != getVectorDimensions()) {
+        throw new IllegalArgumentException(
+            "Invalid query byte vector size, expected: "
+                + getVectorDimensions()
+                + ", found: "
+                + exactVectorQuery.getQueryByteVector().size());
+      }
+      byte[] queryVector = exactVectorQuery.getQueryByteVector().toByteArray();
+      validateVectorForSearch(queryVector);
+      return new com.yelp.nrtsearch.server.query.vector.ExactVectorQuery.ExactByteVectorQuery(
+          getName(), queryVector);
     }
 
     /**
