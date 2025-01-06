@@ -1,0 +1,39 @@
+{
+  "indexName": "nested_vector_search_index",
+  "field": [
+    {
+      "name": "id",
+      "type": "_ID",
+      "storeDocValues": true
+    },
+    {
+      "name": "filter_field",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "nested_object",
+      "type": "OBJECT",
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "float_vector",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "cosine"
+        },
+        {
+          "name": "byte_vector",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "cosine",
+          "vectorElementType": "VECTOR_ELEMENT_BYTE"
+        }
+      ]
+    }
+  ]
+}

@@ -26,6 +26,8 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
+import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVectorQuery;
+import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenFloatKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnByteVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnFloatVectorQuery;
 import com.yelp.nrtsearch.server.vector.ByteVectorType;
@@ -54,6 +56,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
@@ -123,9 +126,15 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    * @param k number of nearest neighbors to return
    * @param filterQuery filter query
    * @param numCandidates number of candidates to search per segment
+   * @param parentBitSetProducer parent bit set producer for searching nested fields, or null
    * @return knn query
    */
-  abstract Query getTypeKnnQuery(KnnQuery knnQuery, int k, Query filterQuery, int numCandidates);
+  abstract Query getTypeKnnQuery(
+      KnnQuery knnQuery,
+      int k,
+      Query filterQuery,
+      int numCandidates,
+      BitSetProducer parentBitSetProducer);
 
   private static VectorSimilarityFunction getSimilarityFunction(String vectorSimilarity) {
     VectorSimilarityFunction similarityFunction = SIMILARITY_FUNCTION_MAP.get(vectorSimilarity);
@@ -345,7 +354,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   @Override
-  public Query getKnnQuery(KnnQuery knnQuery, Query filterQuery) {
+  public Query getKnnQuery(
+      KnnQuery knnQuery, Query filterQuery, BitSetProducer parentBitSetProducer) {
     if (!isSearchable()) {
       throw new IllegalArgumentException("Vector field is not searchable: " + getName());
     }
@@ -362,7 +372,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
-    return getTypeKnnQuery(knnQuery, k, filterQuery, numCandidates);
+    return getTypeKnnQuery(knnQuery, k, filterQuery, numCandidates, parentBitSetProducer);
   }
 
   /** Field class for 'FLOAT' vector field type. */
@@ -463,7 +473,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     }
 
     @Override
-    Query getTypeKnnQuery(KnnQuery knnQuery, int k, Query filterQuery, int numCandidates) {
+    Query getTypeKnnQuery(
+        KnnQuery knnQuery,
+        int k,
+        Query filterQuery,
+        int numCandidates,
+        BitSetProducer parentBitSetProducer) {
       if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query vector size, expected: "
@@ -481,7 +496,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         float magnitude = (float) Math.sqrt(magnitude2);
         normalizeVector(queryVector, magnitude);
       }
-      return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+      if (parentBitSetProducer != null) {
+        return new NrtDiversifyingChildrenFloatKnnVectorQuery(
+            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+      } else {
+        return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+      }
     }
 
     /**
@@ -617,7 +637,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     }
 
     @Override
-    Query getTypeKnnQuery(KnnQuery knnQuery, int k, Query filterQuery, int numCandidates) {
+    Query getTypeKnnQuery(
+        KnnQuery knnQuery,
+        int k,
+        Query filterQuery,
+        int numCandidates,
+        BitSetProducer parentBitSetProducer) {
       if (knnQuery.getQueryByteVector().size() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query byte vector size, expected: "
@@ -627,7 +652,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       }
       byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);
-      return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+      if (parentBitSetProducer != null) {
+        return new NrtDiversifyingChildrenByteKnnVectorQuery(
+            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+      } else {
+        return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+      }
     }
 
     /**
