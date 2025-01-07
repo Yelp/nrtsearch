@@ -143,17 +143,8 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
   }
 
   @Override
-  public void checkTermQueriesSupported() {
-    if (!isSearchable() && !hasDocValues()) {
-      throw new IllegalStateException(
-          "Field \""
-              + getName()
-              + "\" is not searchable or does not have doc values, which is required for TermQuery / TermInSetQuery");
-    }
-  }
-
-  @Override
   public Query getTermQueryFromLongValue(long longValue) {
+    verifySearchableOrDocValues("Term query");
     Query pointQuery = null;
     Query dvQuery = null;
     if (isSearchable()) {
@@ -173,6 +164,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
 
   @Override
   public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    verifySearchableOrDocValues("Term in set query");
     Query pointQuery = null;
     Query dvQuery = null;
     if (isSearchable()) {

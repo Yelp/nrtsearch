@@ -297,7 +297,6 @@ public class QueryNodeMapper {
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable termQueryable) {
-      termQueryable.checkTermQueriesSupported();
       return termQueryable.getTermQuery(termQuery);
     }
 
@@ -312,7 +311,6 @@ public class QueryNodeMapper {
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable termQueryable) {
-      termQueryable.checkTermQueriesSupported();
       return termQueryable.getTermInSetQuery(termInSetQuery);
     }
 

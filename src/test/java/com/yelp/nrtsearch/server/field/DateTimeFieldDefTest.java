@@ -658,7 +658,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       assertTrue(
           e.getMessage()
               .contains(
-                  "Field \"stored_only\" is not searchable or does not have doc values, which is required for TermQuery / TermInSetQuery"));
+                  "Term query requires field to be searchable or have doc values: stored_only"));
     }
   }
 
@@ -830,7 +830,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       assertTrue(
           e.getMessage()
               .contains(
-                  "Field \"stored_only\" is not searchable or does not have doc values, which is required for TermQuery / TermInSetQuery"));
+                  "Term in set query requires field to be searchable or have doc values: stored_only"));
     }
   }
 
