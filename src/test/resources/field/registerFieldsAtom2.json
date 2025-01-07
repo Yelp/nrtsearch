@@ -1,0 +1,52 @@
+{
+  "indexName": "test_index_2",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "range_field",
+      "type": "ATOM",
+      "search": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "dv",
+          "type": "ATOM",
+          "storeDocValues": true
+        },
+        {
+          "name": "binary_dv",
+          "type": "ATOM",
+          "textDocValuesType": "TEXT_DOC_VALUES_TYPE_BINARY",
+          "storeDocValues": true
+        },
+        {
+          "name": "search",
+          "type": "ATOM",
+          "search": true
+        },
+        {
+          "name": "none",
+          "type": "ATOM"
+        },
+        {
+          "name": "mv_dv",
+          "type": "ATOM",
+          "multiValued": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "mv_search",
+          "type": "ATOM",
+          "multiValued": true,
+          "search": true
+        }
+      ]
+    }
+  ]
+}
