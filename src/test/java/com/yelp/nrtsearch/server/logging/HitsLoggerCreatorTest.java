@@ -58,14 +58,18 @@ public class HitsLoggerCreatorTest {
       }
 
       @Override
-      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {}
+      public int log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
+        return 0;
+      }
     }
 
     static class CustomHitsLogger2 implements HitsLogger {
       public CustomHitsLogger2(Map<String, Object> params) {}
 
       @Override
-      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {}
+      public int log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
+        return 0;
+      }
     }
 
     @Override

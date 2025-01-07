@@ -30,6 +30,7 @@ public interface HitsLogger {
    *
    * @param context the {@link SearchContext} to keep the contexts for this search request
    * @param hits query hits
+   * @return the size in bytes of the logged data
    */
-  void log(SearchContext context, List<SearchResponse.Hit.Builder> hits);
+  int log(SearchContext context, List<SearchResponse.Hit.Builder> hits);
 }

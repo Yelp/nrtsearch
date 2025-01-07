@@ -315,6 +315,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
         diagnostics.setLoggingHitsTimeMs(
             searchContext.getFetchTasks().getHitsLoggerFetchTask().getTimeTakenMs());
+        diagnostics.setLoggingHitsOutputSizeBytes(
+            searchContext.getFetchTasks().getHitsLoggerFetchTask().getOutputSize());
       }
       if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
         diagnostics.putAllInnerHitsDiagnostics(

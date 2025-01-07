@@ -100,7 +100,7 @@ public class HitsLoggerTest extends ServerTestCase {
       }
 
       @Override
-      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
+      public int log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
         HitsLoggerTest.logMessage = "LOGGED ";
 
         for (SearchResponse.Hit.Builder hit : hits) {
@@ -113,6 +113,8 @@ public class HitsLoggerTest extends ServerTestCase {
         if (!params.isEmpty()) {
           HitsLoggerTest.logMessage += " " + params;
         }
+
+        return HitsLoggerTest.logMessage.length();
       }
     }
 
@@ -124,7 +126,7 @@ public class HitsLoggerTest extends ServerTestCase {
       }
 
       @Override
-      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
+      public int log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
         HitsLoggerTest.logMessage = "LOGGED_2 ";
 
         for (SearchResponse.Hit.Builder hit : hits) {
@@ -137,6 +139,8 @@ public class HitsLoggerTest extends ServerTestCase {
         if (!params.isEmpty()) {
           HitsLoggerTest.logMessage += " " + params;
         }
+
+        return HitsLoggerTest.logMessage.length();
       }
     }
 
@@ -462,5 +466,37 @@ public class HitsLoggerTest extends ServerTestCase {
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
 
     assertTrue(response.getDiagnostics().getLoggingHitsTimeMs() > 0);
+  }
+
+  @Test
+  public void testLoggingHitsOutputByteSize() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(1)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder()
+                    .setName("custom_logger")
+                    .setHitsToLog(1)
+                    .setParams(
+                        Struct.newBuilder()
+                            .putFields(
+                                "external_value", Value.newBuilder().setStringValue("abc").build()))
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(39, response.getDiagnostics().getLoggingHitsOutputSizeBytes());
   }
 }

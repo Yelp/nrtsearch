@@ -988,6 +988,8 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
+        // The size of the data logged in bytes
+        int64 loggingHitsOutputSizeBytes = 16;
     }
 
     // Message for query document hit

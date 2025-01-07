@@ -33,6 +33,8 @@ public class HitsLoggerFetchTask implements FetchTask {
   private final int hitsToLog;
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
+  private int outputSize;
+
   public HitsLoggerFetchTask(LoggingHits loggingHits) {
     this.hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
     this.hitsToLog = loggingHits.getHitsToLog();
@@ -52,12 +54,16 @@ public class HitsLoggerFetchTask implements FetchTask {
     // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits that
     // can be logged
     if (searchContext.getHitsToLog() < hits.size()) {
-      hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
+      outputSize = hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
     } else {
-      hitsLogger.log(searchContext, hits);
+      outputSize = hitsLogger.log(searchContext, hits);
     }
 
     timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+  }
+
+  public int getOutputSize() {
+    return outputSize;
   }
 
   /**
