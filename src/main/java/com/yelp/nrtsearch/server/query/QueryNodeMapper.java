@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.TermQueryable;
+import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
@@ -172,6 +173,7 @@ public class QueryNodeMapper {
           getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
       case SPANQUERY -> getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
+      case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), state);
       case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
       default ->
           throw new UnsupportedOperationException(
@@ -294,9 +296,9 @@ public class QueryNodeMapper {
     String fieldName = termQuery.getField();
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
-    if (fieldDef instanceof TermQueryable) {
-      validateTermQueryIsSearchable(fieldDef);
-      return ((TermQueryable) fieldDef).getTermQuery(termQuery);
+    if (fieldDef instanceof TermQueryable termQueryable) {
+      termQueryable.checkTermQueriesSupported();
+      return termQueryable.getTermQuery(termQuery);
     }
 
     String message =
@@ -304,24 +306,14 @@ public class QueryNodeMapper {
     throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
   }
 
-  private void validateTermQueryIsSearchable(FieldDef fieldDef) {
-    if (fieldDef instanceof IndexableFieldDef
-        && !((IndexableFieldDef<?>) fieldDef).isSearchable()) {
-      throw new IllegalStateException(
-          "Field "
-              + fieldDef.getName()
-              + " is not searchable, which is required for TermQuery / TermInSetQuery");
-    }
-  }
-
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
     FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
-    if (fieldDef instanceof TermQueryable) {
-      validateTermQueryIsSearchable(fieldDef);
-      return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
+    if (fieldDef instanceof TermQueryable termQueryable) {
+      termQueryable.checkTermQueriesSupported();
+      return termQueryable.getTermInSetQuery(termInSetQuery);
     }
 
     String message =
@@ -778,5 +770,17 @@ public class QueryNodeMapper {
         protoTermRangeQuery.getIncludeLower(),
         protoTermRangeQuery.getIncludeUpper(),
         rewriteMethod);
+  }
+
+  private static Query getExactVectorQuery(
+      com.yelp.nrtsearch.server.grpc.ExactVectorQuery exactVectorQuery, IndexState state) {
+    String fieldName = exactVectorQuery.getField();
+    FieldDef field = state.getFieldOrThrow(fieldName);
+
+    if (field instanceof VectorQueryable vectorQueryable) {
+      return vectorQueryable.getExactQuery(exactVectorQuery);
+    }
+    throw new IllegalArgumentException(
+        "Field: " + fieldName + " does not support ExactVectorQuery");
   }
 }

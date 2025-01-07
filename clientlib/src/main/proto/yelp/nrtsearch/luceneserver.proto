@@ -456,6 +456,8 @@ message LiveSettingsRequest {
     int32 defaultSearchTimeoutCheckEvery = 13;
     // Terminate after value to use when not specified in the search request
     int32 defaultTerminateAfter = 14;
+    //Terminate after max recall count value to use when not specified in the search request.
+    int32 defaultTerminateAfterMaxRecallCount = 15;
 }
 
 // Response from Server to liveSettings
@@ -651,6 +653,8 @@ message Field {
     //                           Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims))
     //                              (all vectors must have the same length)
     //      'cosine'           : ((1 + cosine(query, vector)) / 2)
+    //      'normalized_cosine': Identical usage to 'cosine', but indexed and query vectors are automatically normalized
+    //                           to unit length. Original vector magnitude is available in the <field>._magnitude field.
     //      'max_inner_product': when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
     //                           when >= 0: max_inner_product(query, vector) + 1
     string vectorSimilarity = 31;
@@ -1446,6 +1450,8 @@ message IndexLiveSettings {
     google.protobuf.BoolValue parallelFetchByField = 16;
     // The number of documents/fields per parallel fetch task, default: 50
     google.protobuf.Int32Value parallelFetchChunkSize = 17;
+    // Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0
+    google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
 }
 
 // Index state

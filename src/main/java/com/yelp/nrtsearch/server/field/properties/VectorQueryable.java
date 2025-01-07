@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.field.properties;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.grpc.ExactVectorQuery;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 
 /** Trait interface for {@link FieldDef} types that can be queried by a {@link KnnQuery}. */
 public interface VectorQueryable {
@@ -26,7 +28,17 @@ public interface VectorQueryable {
    *
    * @param knnQuery knn query configuration
    * @param filterQuery query to filter knn search, or null
+   * @param parentBitSetProducer bit set producer for parent documents when searching a nested
+   *     field, or null
    * @return lucene knn query
    */
-  Query getKnnQuery(KnnQuery knnQuery, Query filterQuery);
+  Query getKnnQuery(KnnQuery knnQuery, Query filterQuery, BitSetProducer parentBitSetProducer);
+
+  /**
+   * Build a query ot perform a brute force vector search.
+   *
+   * @param exactVectorQuery exact vector query configuration
+   * @return lucene exact vector query
+   */
+  Query getExactQuery(ExactVectorQuery exactVectorQuery);
 }

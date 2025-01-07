@@ -632,6 +632,16 @@ message SpanNearQuery {
 message MatchAllQuery {
 }
 
+// A query that does a brute force search for documents with a vector most similar to the query vector
+message ExactVectorQuery {
+    // Field in the document to query
+    string field = 1;
+    // Query vector for fields with the float element type
+    repeated float query_float_vector = 2;
+    // Query vector for fields with the byte element type
+    bytes query_byte_vector = 3;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -693,6 +703,7 @@ message Query {
         GeoPolygonQuery geoPolygonQuery = 24;
         SpanQuery spanQuery = 25;
         MatchAllQuery matchAllQuery = 26;
+        ExactVectorQuery exactVectorQuery = 27;
     }
 }
 
@@ -975,6 +986,8 @@ message SearchResponse {
         repeated VectorDiagnostics vectorDiagnostics = 13;
         // Amount of gRPC request deadline remaining at the start of search processing
         double initialDeadlineMs = 14;
+        // Time for logging hits
+        double loggingHitsTimeMs = 15;
     }
 
     // Message for query document hit
@@ -1386,6 +1399,9 @@ message LoggingHits {
     string name = 1;
     // Optional logging parameters
     google.protobuf.Struct params = 2;
+    // number of hits to log. The number of final hits to be logged can be less than this number
+    // if a query has less hits.
+    int32 hitsToLog = 3;
 }
 
 // Specify how to highlight matched text in SearchRequest

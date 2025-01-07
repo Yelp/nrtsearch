@@ -146,6 +146,7 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(0).build())
           .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(0).build())
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
+          .setDefaultTerminateAfterMaxRecallCount(Int32Value.newBuilder().setValue(0).build())
           .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
           .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
           .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
@@ -167,6 +168,7 @@ public class ImmutableIndexState extends IndexState {
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
+  private final int defaultTerminateAfterMaxRecallCount;
   private final long maxMergePreCopyDurationSec;
   private final boolean verboseMetrics;
   private final ParallelFetchConfig parallelFetchConfig;
@@ -262,6 +264,8 @@ public class ImmutableIndexState extends IndexState {
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
     defaultTerminateAfter = mergedLiveSettingsWithLocal.getDefaultTerminateAfter().getValue();
+    defaultTerminateAfterMaxRecallCount =
+        mergedLiveSettingsWithLocal.getDefaultTerminateAfterMaxRecallCount().getValue();
     maxMergePreCopyDurationSec =
         mergedLiveSettingsWithLocal.getMaxMergePreCopyDurationSec().getValue();
     verboseMetrics = mergedLiveSettingsWithLocal.getVerboseMetrics().getValue();
@@ -719,6 +723,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public int getDefaultTerminateAfterMaxRecallCount() {
+    return defaultTerminateAfterMaxRecallCount;
+  }
+
+  @Override
   public int getDefaultSearchTimeoutCheckEvery() {
     return defaultSearchTimeoutCheckEvery;
   }
@@ -808,6 +817,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getDefaultTerminateAfter().getValue() < 0) {
       throw new IllegalArgumentException("defaultTerminateAfter must be >= 0");
+    }
+    if (liveSettings.getDefaultTerminateAfterMaxRecallCount().getValue() < 0) {
+      throw new IllegalArgumentException("defaultTerminateAfterMaxRecallCount must be >= 0");
     }
     if (liveSettings.getMaxMergePreCopyDurationSec().getValue() < 0) {
       throw new IllegalArgumentException("maxMergePreCopyDurationSec must be >= 0");

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.NumericUtils;
 import org.junit.Test;
 
 public class SingleDoubleTest {
@@ -58,12 +59,12 @@ public class SingleDoubleTest {
         .thenReturn(true, true, true, true, true, true, false);
     when(mockDocValues.longValue())
         .thenReturn(
-            Double.doubleToRawLongBits(Double.NEGATIVE_INFINITY),
-            Double.doubleToRawLongBits(15.0),
-            Double.doubleToRawLongBits(Double.POSITIVE_INFINITY),
-            Double.doubleToRawLongBits(Double.NaN),
-            Double.doubleToRawLongBits(Double.MAX_VALUE),
-            Double.doubleToRawLongBits(Double.MIN_VALUE));
+            NumericUtils.doubleToSortableLong(Double.NEGATIVE_INFINITY),
+            NumericUtils.doubleToSortableLong(15.0),
+            NumericUtils.doubleToSortableLong(Double.POSITIVE_INFINITY),
+            NumericUtils.doubleToSortableLong(Double.NaN),
+            NumericUtils.doubleToSortableLong(Double.MAX_VALUE),
+            NumericUtils.doubleToSortableLong(Double.MIN_VALUE));
 
     LoadedDocValues.SingleDouble loadedData = new LoadedDocValues.SingleDouble(mockDocValues);
     loadedData.setDocId(0);
@@ -92,7 +93,7 @@ public class SingleDoubleTest {
   public void testSetDocValuesOutOfBounds() throws IOException {
     NumericDocValues mockDocValues = mock(NumericDocValues.class);
     when(mockDocValues.advanceExact(anyInt())).thenReturn(true);
-    when(mockDocValues.longValue()).thenReturn(Double.doubleToRawLongBits(15.0f));
+    when(mockDocValues.longValue()).thenReturn(NumericUtils.doubleToSortableLong(15.0));
 
     LoadedDocValues.SingleDouble loadedData = new LoadedDocValues.SingleDouble(mockDocValues);
     loadedData.setDocId(0);

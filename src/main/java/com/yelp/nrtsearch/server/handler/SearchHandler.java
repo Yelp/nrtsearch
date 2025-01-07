@@ -272,13 +272,25 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       long t0 = System.nanoTime();
 
-      hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
+      hits =
+          getHitsFromOffset(
+              hits,
+              searchContext.getStartHit(),
+              Math.max(
+                  searchContext.getTopHits(),
+                  searchContext.getHitsToLog() + searchContext.getStartHit()));
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
 
       // fill Hit.Builder with requested fields
       fetchFields(searchContext);
+
+      // if there were extra hits for the logging, the response size needs to be reduced to match
+      // the topHits
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        setResponseTopHits(searchContext);
+      }
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -301,6 +313,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       if (searchContext.getFetchTasks().getHighlightFetchTask() != null) {
         diagnostics.setHighlightTimeMs(
             searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
+      }
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        diagnostics.setLoggingHitsTimeMs(
+            searchContext.getFetchTasks().getHitsLoggerFetchTask().getTimeTakenMs());
       }
       if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
         diagnostics.putAllInnerHitsDiagnostics(
@@ -489,17 +505,17 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   /**
    * Given all the top documents, produce a slice of the documents starting from a start offset and
-   * going up to the query needed maximum hits. There may be more top docs than the topHits limit,
+   * going up to the query needed maximum hits. There may be more top docs than the hitsCount limit,
    * if top docs sampling facets are used.
    *
    * @param hits all hits
    * @param startHit offset into top docs
-   * @param topHits maximum number of hits needed for search response
+   * @param hitsCount maximum number of hits needed for the query
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
-    int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
+  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int hitsCount) {
+    int retrieveHits = Math.min(hitsCount, hits.scoreDocs.length);
     if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
       // Slice:
       int count = Math.max(0, retrieveHits - startHit);
@@ -510,6 +526,20 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       return new TopDocs(hits.totalHits, newScoreDocs);
     }
     return hits;
+  }
+
+  /**
+   * Reduce response size by removing any extra hits used for logging. Final search response should
+   * only return top hits.
+   *
+   * @param context search context
+   */
+  private static void setResponseTopHits(SearchContext context) {
+    while (context.getResponseBuilder().getHitsCount()
+        > context.getTopHits() - context.getStartHit()) {
+      int hitLastIdx = context.getResponseBuilder().getHitsCount() - 1;
+      context.getResponseBuilder().removeHits(hitLastIdx);
+    }
   }
 
   /**

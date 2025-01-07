@@ -32,6 +32,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
   private final Analyzer indexAnalyzer;
   private final Analyzer searchAnalyzer;
+  private final PostingsFormat postingsFormat;
 
   /**
    * @param name name of field
@@ -43,6 +44,8 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
     super(name, requestField, context, Void.class);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
+    this.postingsFormat =
+        new Completion101PostingsFormat(context.config().getCompletionCodecLoadMode());
   }
 
   @Override
@@ -117,6 +120,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
 
   @Override
   public PostingsFormat getPostingsFormat() {
-    return new Completion101PostingsFormat();
+    return postingsFormat;
   }
 }

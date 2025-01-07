@@ -99,6 +99,7 @@ public class IntFieldDef extends NumberFieldDef<Integer> {
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     int lower =
         rangeQuery.getLower().isEmpty()
             ? Integer.MIN_VALUE
@@ -116,14 +117,20 @@ public class IntFieldDef extends NumberFieldDef<Integer> {
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = IntPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = IntPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+    if (hasDocValues()) {
+      dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 

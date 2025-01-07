@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
@@ -24,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -172,6 +175,43 @@ public class IntFieldDefTest extends ServerTestCase {
 
   @Test
   public void testRangeQuery() {
+    rangeQuery("int_field");
+  }
+
+  @Test
+  public void testRangeQuery_docValues() {
+    rangeQuery("int_field.dv");
+  }
+
+  @Test
+  public void testRangeQuery_searchable() {
+    rangeQuery("int_field.search");
+  }
+
+  @Test
+  public void testRangeQuery_multiDocValues() {
+    rangeQuery("int_field.mv_dv");
+  }
+
+  @Test
+  public void testRangeQuery_multiSearchable() {
+    rangeQuery("int_field.mv_search");
+  }
+
+  @Test
+  public void testRangeQuery_unsupported() {
+    try {
+      rangeQuery("int_field.none");
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Range query requires field to be searchable or have doc values: int_field.none"));
+    }
+  }
+
+  private void rangeQuery(String fieldName) {
     // Both bounds defined
 
     // Both inclusive

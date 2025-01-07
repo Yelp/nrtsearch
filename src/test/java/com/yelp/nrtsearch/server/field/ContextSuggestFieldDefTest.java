@@ -20,8 +20,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Analyzer;
 import com.yelp.nrtsearch.server.grpc.CompletionQuery;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -30,6 +32,7 @@ import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import io.grpc.testing.GrpcCleanupRule;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -71,8 +74,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .setAnalyzer(analyzer)
             .build();
     ContextSuggestFieldDef contextSuggestFieldDef =
-        new ContextSuggestFieldDef(
-            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+        new ContextSuggestFieldDef("test_field", field, getMockFieldDefCreatorContext());
     assertEquals(
         ClassicAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertEquals(ClassicAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
@@ -88,8 +90,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .setIndexAnalyzer(indexAnalyzer)
             .build();
     ContextSuggestFieldDef contextSuggestFieldDef =
-        new ContextSuggestFieldDef(
-            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+        new ContextSuggestFieldDef("test_field", field, getMockFieldDefCreatorContext());
     assertSame(
         BulgarianAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertSame(EnglishAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
@@ -99,10 +100,18 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   public void validDefaultSearchAndIndexAnalyzerNoAnalyzersAreProvided() {
     Field field = Field.newBuilder().build();
     ContextSuggestFieldDef contextSuggestFieldDef =
-        new ContextSuggestFieldDef(
-            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+        new ContextSuggestFieldDef("test_field", field, getMockFieldDefCreatorContext());
     assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
     assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
+  }
+
+  private FieldDefCreator.FieldDefCreatorContext getMockFieldDefCreatorContext() {
+    FieldDefCreator.FieldDefCreatorContext mockContext =
+        mock(FieldDefCreator.FieldDefCreatorContext.class);
+    NrtsearchConfig config =
+        new NrtsearchConfig(new ByteArrayInputStream("nodeName: node1".getBytes()));
+    when(mockContext.config()).thenReturn(config);
+    return mockContext;
   }
 
   @Test

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.NumericUtils;
 import org.junit.Test;
 
 public class SingleFloatTest {
@@ -58,12 +59,12 @@ public class SingleFloatTest {
         .thenReturn(true, true, true, true, true, true, false);
     when(mockDocValues.longValue())
         .thenReturn(
-            (long) Float.floatToRawIntBits(Float.NEGATIVE_INFINITY),
-            (long) Float.floatToRawIntBits(15.0f),
-            (long) Float.floatToRawIntBits(Float.POSITIVE_INFINITY),
-            (long) Float.floatToRawIntBits(Float.NaN),
-            (long) Float.floatToRawIntBits(Float.MAX_VALUE),
-            (long) Float.floatToRawIntBits(Float.MIN_VALUE));
+            (long) NumericUtils.floatToSortableInt(Float.NEGATIVE_INFINITY),
+            (long) NumericUtils.floatToSortableInt(15.0f),
+            (long) NumericUtils.floatToSortableInt(Float.POSITIVE_INFINITY),
+            (long) NumericUtils.floatToSortableInt(Float.NaN),
+            (long) NumericUtils.floatToSortableInt(Float.MAX_VALUE),
+            (long) NumericUtils.floatToSortableInt(Float.MIN_VALUE));
 
     LoadedDocValues.SingleFloat loadedData = new LoadedDocValues.SingleFloat(mockDocValues);
     loadedData.setDocId(0);
@@ -92,7 +93,7 @@ public class SingleFloatTest {
   public void testSetDocValuesOutOfBounds() throws IOException {
     NumericDocValues mockDocValues = mock(NumericDocValues.class);
     when(mockDocValues.advanceExact(anyInt())).thenReturn(true);
-    when(mockDocValues.longValue()).thenReturn((long) Float.floatToRawIntBits(15.0f));
+    when(mockDocValues.longValue()).thenReturn((long) NumericUtils.floatToSortableInt(15.0f));
 
     LoadedDocValues.SingleFloat loadedData = new LoadedDocValues.SingleFloat(mockDocValues);
     loadedData.setDocId(0);

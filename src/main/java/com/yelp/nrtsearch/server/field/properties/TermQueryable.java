@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.field.properties;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import java.util.List;
@@ -259,5 +260,22 @@ public interface TermQueryable {
    */
   default Query getTermInSetQueryFromTextValues(List<String> textValues) {
     return null;
+  }
+
+  /**
+   * Verify that this field supports term/term in set queries.
+   *
+   * @throws IllegalStateException if term queries are not supported
+   */
+  default void checkTermQueriesSupported() {
+    if (!(this instanceof IndexableFieldDef<?> indexableFieldDef)) {
+      throw new IllegalStateException("Instance is not an IndexableFieldDef");
+    }
+    if (!indexableFieldDef.isSearchable()) {
+      throw new IllegalStateException(
+          "Field "
+              + indexableFieldDef.getName()
+              + " is not searchable, which is required for TermQuery / TermInSetQuery");
+    }
   }
 }

@@ -17,12 +17,14 @@ package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
@@ -38,8 +40,8 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -47,58 +49,109 @@ public class AtomFieldTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
-    return Collections.singletonList(DEFAULT_TEST_INDEX);
+    return List.of(DEFAULT_TEST_INDEX, "test_index_2");
   }
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/field/registerFieldsAtom.json");
+    if (DEFAULT_TEST_INDEX.equals(name)) {
+      return getFieldsFromResourceFile("/field/registerFieldsAtom.json");
+    } else {
+      return getFieldsFromResourceFile("/field/registerFieldsAtom2.json");
+    }
   }
 
   protected void initIndex(String name) throws Exception {
-    List<AddDocumentRequest> docs = new ArrayList<>();
-    MultiValuedField t1Value = MultiValuedField.newBuilder().addValue("term 1").build();
-    MultiValuedField t2Value = MultiValuedField.newBuilder().addValue("term 2").build();
-    MultiValuedField t3Value = MultiValuedField.newBuilder().addValue("term 3").build();
-    MultiValuedField t12Values =
-        MultiValuedField.newBuilder().addValue("term 1").addValue("term 2").build();
-    MultiValuedField t23Values =
-        MultiValuedField.newBuilder().addValue("term 2").addValue("term 3").build();
-    MultiValuedField t31Values =
-        MultiValuedField.newBuilder().addValue("term 3").addValue("term 1").build();
-    AddDocumentRequest request =
-        AddDocumentRequest.newBuilder()
-            .setIndexName(name)
-            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-            .putFields("single", t1Value)
-            .putFields("multi_one", t2Value)
-            .putFields("multi_two", t31Values)
-            .putFields("single_stored", t3Value)
-            .putFields("multi_stored", t12Values)
-            .build();
-    docs.add(request);
-    request =
-        AddDocumentRequest.newBuilder()
-            .setIndexName(name)
-            .putFields("doc_id", MultiValuedField.newBuilder().addValue("2").build())
-            .putFields("single", t2Value)
-            .putFields("multi_one", t3Value)
-            .putFields("multi_two", t12Values)
-            .putFields("single_stored", t2Value)
-            .putFields("multi_stored", t31Values)
-            .build();
-    docs.add(request);
-    request =
-        AddDocumentRequest.newBuilder()
-            .setIndexName(name)
-            .putFields("doc_id", MultiValuedField.newBuilder().addValue("3").build())
-            .putFields("single", t3Value)
-            .putFields("multi_one", t1Value)
-            .putFields("multi_two", t23Values)
-            .putFields("single_stored", t1Value)
-            .putFields("multi_stored", t23Values)
-            .build();
-    docs.add(request);
-    addDocuments(docs.stream());
+    if (DEFAULT_TEST_INDEX.equals(name)) {
+      List<AddDocumentRequest> docs = new ArrayList<>();
+      MultiValuedField t1Value = MultiValuedField.newBuilder().addValue("term 1").build();
+      MultiValuedField t2Value = MultiValuedField.newBuilder().addValue("term 2").build();
+      MultiValuedField t3Value = MultiValuedField.newBuilder().addValue("term 3").build();
+      MultiValuedField t12Values =
+          MultiValuedField.newBuilder().addValue("term 1").addValue("term 2").build();
+      MultiValuedField t23Values =
+          MultiValuedField.newBuilder().addValue("term 2").addValue("term 3").build();
+      MultiValuedField t31Values =
+          MultiValuedField.newBuilder().addValue("term 3").addValue("term 1").build();
+      AddDocumentRequest request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+              .putFields("single", t1Value)
+              .putFields("multi_one", t2Value)
+              .putFields("multi_two", t31Values)
+              .putFields("single_stored", t3Value)
+              .putFields("multi_stored", t12Values)
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("2").build())
+              .putFields("single", t2Value)
+              .putFields("multi_one", t3Value)
+              .putFields("multi_two", t12Values)
+              .putFields("single_stored", t2Value)
+              .putFields("multi_stored", t31Values)
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("3").build())
+              .putFields("single", t3Value)
+              .putFields("multi_one", t1Value)
+              .putFields("multi_two", t23Values)
+              .putFields("single_stored", t1Value)
+              .putFields("multi_stored", t23Values)
+              .build();
+      docs.add(request);
+      addDocuments(docs.stream());
+    } else {
+      List<AddDocumentRequest> docs = new ArrayList<>();
+      AddDocumentRequest request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("a").build())
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("2").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("b").build())
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("3").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("c").build())
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("4").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("d").build())
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("5").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("e").build())
+              .build();
+      docs.add(request);
+      request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(name)
+              .putFields("doc_id", MultiValuedField.newBuilder().addValue("6").build())
+              .putFields("range_field", MultiValuedField.newBuilder().addValue("f").build())
+              .build();
+      docs.add(request);
+      addDocuments(docs.stream());
+    }
   }
 
   @Test
@@ -346,6 +399,143 @@ public class AtomFieldTest extends ServerTestCase {
     TermInSetQuery termInSetQuery = TermInSetQuery.newBuilder().setField("single").build();
 
     queryInSetAndVerifyIds(termInSetQuery);
+  }
+
+  @Test
+  public void testRangeQuery() {
+    rangeQuery("range_field");
+  }
+
+  @Test
+  public void testRangeQuery_docValues() {
+    rangeQuery("range_field.dv");
+  }
+
+  @Test
+  public void testRangeQuery_searchable() {
+    rangeQuery("range_field.search");
+  }
+
+  @Test
+  public void testRangeQuery_multiDocValues() {
+    rangeQuery("range_field.mv_dv");
+  }
+
+  @Test
+  public void testRangeQuery_multiSearchable() {
+    rangeQuery("range_field.mv_search");
+  }
+
+  @Test
+  public void testRangeQuery_unsupported() {
+    try {
+      rangeQuery("range_field.none");
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Range query requires field to be searchable or have doc values: range_field.none"));
+    }
+  }
+
+  @Test
+  public void testRangeQuery_binaryDocValues() {
+    try {
+      rangeQuery("range_field.binary_dv");
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "Only SORTED or SORTED_SET doc values are supported for range queries: range_field.binary_dv"));
+    }
+  }
+
+  private void rangeQuery(String fieldName) {
+    // Both bounds defined
+
+    // Both inclusive
+    RangeQuery rangeQuery =
+        RangeQuery.newBuilder().setField(fieldName).setLower("b").setUpper("e").build();
+    assertRangeQuery(rangeQuery, "b", "c", "d", "e");
+
+    // Lower exclusive, upper inclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(fieldName)
+            .setLower("b")
+            .setUpper("e")
+            .setLowerExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "c", "d", "e");
+
+    // Lower inclusive, upper exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(fieldName)
+            .setLower("b")
+            .setUpper("e")
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "b", "c", "d");
+
+    // Both exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(fieldName)
+            .setLower("b")
+            .setUpper("e")
+            .setLowerExclusive(true)
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "c", "d");
+
+    // Only upper bound defined
+
+    // Both inclusive
+    rangeQuery = RangeQuery.newBuilder().setField(fieldName).setUpper("d").build();
+    assertRangeQuery(rangeQuery, "a", "b", "c", "d");
+
+    // Upper exclusive
+    rangeQuery =
+        RangeQuery.newBuilder().setField(fieldName).setUpper("d").setUpperExclusive(true).build();
+    assertRangeQuery(rangeQuery, "a", "b", "c");
+
+    // Only lower bound defined
+
+    // Both inclusive
+    rangeQuery = RangeQuery.newBuilder().setField(fieldName).setLower("b").build();
+    assertRangeQuery(rangeQuery, "b", "c", "d", "e", "f");
+
+    // Lower exclusive, upper inclusive
+    rangeQuery =
+        RangeQuery.newBuilder().setField(fieldName).setLower("b").setLowerExclusive(true).build();
+    assertRangeQuery(rangeQuery, "c", "d", "e", "f");
+  }
+
+  private void assertRangeQuery(RangeQuery rangeQuery, String... expectedValues) {
+    Query query = Query.newBuilder().setRangeQuery(rangeQuery).build();
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName("test_index_2")
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(query)
+                    .addRetrieveFields("range_field")
+                    .build());
+    assertEquals(expectedValues.length, searchResponse.getHitsCount());
+    List<String> actualValues =
+        searchResponse.getHitsList().stream()
+            .map(
+                hit ->
+                    hit.getFieldsMap().get("range_field").getFieldValueList().get(0).getTextValue())
+            .sorted()
+            .collect(Collectors.toList());
+    assertEquals(Arrays.asList(expectedValues), actualValues);
   }
 
   private TermQuery getTermQuery(String field, String term) {

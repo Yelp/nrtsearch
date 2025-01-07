@@ -12,7 +12,40 @@
       "type": "DATE_TIME",
       "dateTimeFormat": "epoch_millis",
       "storeDocValues": true,
-      "search": true
+      "search": true,
+      "childFields": [
+        {
+          "name": "dv",
+          "type": "DATE_TIME",
+          "dateTimeFormat": "epoch_millis",
+          "storeDocValues": true
+        },
+        {
+          "name": "search",
+          "type": "DATE_TIME",
+          "dateTimeFormat": "epoch_millis",
+          "search": true
+        },
+        {
+          "name": "none",
+          "type": "DATE_TIME",
+          "dateTimeFormat": "epoch_millis"
+        },
+        {
+          "name": "mv_dv",
+          "type": "DATE_TIME",
+          "dateTimeFormat": "epoch_millis",
+          "multiValued": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "mv_search",
+          "type": "DATE_TIME",
+          "dateTimeFormat": "epoch_millis",
+          "multiValued": true,
+          "search": true
+        }
+      ]
     },
     {
       "name": "timestamp_strict_date_optional_time",
@@ -56,6 +89,25 @@
       "dateTimeFormat": "epoch_millis",
       "search": true,
       "multiValued": true,
+      "store": true
+    },
+    {
+      "name": "dv_only_single",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "storeDocValues": true
+    },
+    {
+      "name": "dv_only_multi",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "stored_only",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
       "store": true
     }
   ]

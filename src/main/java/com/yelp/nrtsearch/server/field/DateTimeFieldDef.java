@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.hasAnalyzer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
+import com.yelp.nrtsearch.server.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.Field;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.document.*;
 import org.apache.lucene.facet.FacetField;
@@ -46,7 +48,7 @@ import org.apache.lucene.search.SortField;
 
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef<Instant>
-    implements Sortable, RangeQueryable {
+    implements Sortable, RangeQueryable, TermQueryable {
   private static final String EPOCH_MILLIS = "epoch_millis";
   private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
 
@@ -105,6 +107,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
+    verifySearchableOrDocValues("Range query");
     long lower =
         rangeQuery.getLower().isEmpty()
             ? Long.MIN_VALUE
@@ -122,15 +125,82 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
     }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
-    Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
-
-    if (!hasDocValues()) {
-      return pointQuery;
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
     }
-
-    Query dvQuery =
-        SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+    if (hasDocValues()) {
+      dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+  }
+
+  @Override
+  public void checkTermQueriesSupported() {
+    if (!isSearchable() && !hasDocValues()) {
+      throw new IllegalStateException(
+          "Field \""
+              + getName()
+              + "\" is not searchable or does not have doc values, which is required for TermQuery / TermInSetQuery");
+    }
+  }
+
+  @Override
+  public Query getTermQueryFromLongValue(long longValue) {
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = LongPoint.newExactQuery(getName(), longValue);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
+    }
+    if (hasDocValues()) {
+      dvQuery = SortedNumericDocValuesField.newSlowExactQuery(getName(), longValue);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
+    return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+  }
+
+  @Override
+  public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    Query pointQuery = null;
+    Query dvQuery = null;
+    if (isSearchable()) {
+      pointQuery = LongPoint.newSetQuery(getName(), longValues);
+      if (!hasDocValues()) {
+        return pointQuery;
+      }
+    }
+    if (hasDocValues()) {
+      long[] longValuesArray = longValues.stream().mapToLong(l -> l).toArray();
+      dvQuery = SortedNumericDocValuesField.newSlowSetQuery(getName(), longValuesArray);
+      if (!isSearchable()) {
+        return dvQuery;
+      }
+    }
+    return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    return getTermQueryFromLongValue(getTimeToIndex(textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<Long> longTerms = new ArrayList<>(textValues.size());
+    textValues.forEach((s) -> longTerms.add(getTimeToIndex(s)));
+    return getTermInSetQueryFromLongValues(longTerms);
   }
 
   private long convertDateStringToMillis(String dateString) {

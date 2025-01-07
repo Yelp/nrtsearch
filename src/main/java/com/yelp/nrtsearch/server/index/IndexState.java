@@ -317,6 +317,30 @@ public abstract class IndexState implements Closeable {
     throw new IllegalArgumentException("Nested path is not a nested object field: " + path);
   }
 
+  /**
+   * Get the base path for the nested document containing the field at the given path. For fields in
+   * the base document, this returns _root. The base nested path for _root is null.
+   *
+   * @param path field path
+   * @return nested base path, or null
+   */
+  public static String getFieldBaseNestedPath(String path, IndexState indexState) {
+    Objects.requireNonNull(path, "path cannot be null");
+    if (path.equals(IndexState.ROOT)) {
+      return null;
+    }
+
+    String currentPath = path;
+    while (currentPath.contains(".")) {
+      currentPath = currentPath.substring(0, currentPath.lastIndexOf("."));
+      FieldDef fieldDef = indexState.getFieldOrThrow(currentPath);
+      if (fieldDef instanceof ObjectFieldDef objFieldDef && objFieldDef.isNestedDoc()) {
+        return currentPath;
+      }
+    }
+    return IndexState.ROOT;
+  }
+
   /** Get index state info. */
   public abstract IndexStateInfo getIndexStateInfo();
 
@@ -486,6 +510,9 @@ public abstract class IndexState implements Closeable {
 
   /** Get the default terminate after. */
   public abstract int getDefaultTerminateAfter();
+
+  /** Get the default terminate after max recall count. */
+  public abstract int getDefaultTerminateAfterMaxRecallCount();
 
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();

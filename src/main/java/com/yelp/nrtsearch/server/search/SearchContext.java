@@ -125,6 +125,14 @@ public class SearchContext implements FieldFetchContext {
     return topHits;
   }
 
+  /** Get the number of hits to log */
+  public int getHitsToLog() {
+    if (this.getFetchTasks().getHitsLoggerFetchTask() != null) {
+      return getFetchTasks().getHitsLoggerFetchTask().getHitsToLog();
+    }
+    return 0;
+  }
+
   /**
    * Get map of all fields usable for this query. This includes all fields defined in the index and
    * dynamic fields from the request.
