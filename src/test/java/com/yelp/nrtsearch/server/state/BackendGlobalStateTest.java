@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -1005,7 +1006,7 @@ public class BackendGlobalStateTest {
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
 
     ShardState mockShardState = mock(ShardState.class);
-    IndexReader mockReader = mock(IndexReader.class);
+    IndexReader mockReader = mock(StandardDirectoryReader.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
     when(mockState.getShard(0)).thenReturn(mockShardState);
     when(mockSearcher.getIndexReader()).thenReturn(mockReader);
@@ -1067,7 +1068,7 @@ public class BackendGlobalStateTest {
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
 
     ShardState mockShardState = mock(ShardState.class);
-    IndexReader mockReader = mock(IndexReader.class);
+    IndexReader mockReader = mock(StandardDirectoryReader.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
     when(mockState.getShard(0)).thenReturn(mockShardState);
     when(mockSearcher.getIndexReader()).thenReturn(mockReader);
@@ -1134,7 +1135,7 @@ public class BackendGlobalStateTest {
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
 
     ShardState mockShardState = mock(ShardState.class);
-    IndexReader mockReader = mock(IndexReader.class);
+    IndexReader mockReader = mock(StandardDirectoryReader.class);
     IndexSearcher mockSearcher = mock(IndexSearcher.class);
     when(mockState.getShard(0)).thenReturn(mockShardState);
     when(mockSearcher.getIndexReader()).thenReturn(mockReader);

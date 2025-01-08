@@ -165,8 +165,8 @@ public class TopHitsCollectorManager
 
     TotalHits totalHits =
         TotalHits.newBuilder()
-            .setRelation(TotalHits.Relation.valueOf(topDocs.totalHits.relation.name()))
-            .setValue(topDocs.totalHits.value)
+            .setRelation(TotalHits.Relation.valueOf(topDocs.totalHits.relation().name()))
+            .setValue(topDocs.totalHits.value())
             .build();
     hitsResultBuilder.setTotalHits(totalHits);
     for (int hitIndex = 0; hitIndex < topDocs.scoreDocs.length; hitIndex++) {
@@ -194,7 +194,7 @@ public class TopHitsCollectorManager
               hitBuilder.setExplain(
                   searchContext
                       .getSearcherAndTaxonomy()
-                      .searcher
+                      .searcher()
                       .explain(searchContext.getQuery(), hitBuilder.getLuceneDocId())
                       .toString());
             } catch (IOException ioException) {

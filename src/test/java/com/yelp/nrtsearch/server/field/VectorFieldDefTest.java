@@ -51,6 +51,7 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -2143,20 +2144,22 @@ public class VectorFieldDefTest extends ServerTestCase {
     PriorityQueue<VectorSearchResult> topHits =
         new PriorityQueue<>(5, Comparator.comparing(VectorSearchResult::score).reversed());
     try {
-      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher.getLeafContexts();
+      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher().getLeafContexts();
       IndexableFieldDef<String> filterField =
           (IndexableFieldDef<String>) indexState.getField("filter");
       float[] queryVectorArray = floatListToArray(queryVector);
       for (LeafReaderContext leaf : leaves) {
         FloatVectorValues vectorValues = leaf.reader().getFloatVectorValues(field);
+        KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
         LoadedDocValues<String> filterValues =
             (LoadedDocValues<String>) filterField.getDocValues(leaf);
         for (int i = 0; i < leaf.reader().maxDoc(); ++i) {
           filterValues.setDocId(i);
-          if (vectorValues.advance(i) == i) {
+          if (docIndexIterator.advance(i) == i) {
             if (filter == null || filter.equals(filterValues.getFirst())) {
               float similarity =
-                  similarityFunction.compare(queryVectorArray, vectorValues.vectorValue());
+                  similarityFunction.compare(
+                      queryVectorArray, vectorValues.vectorValue(docIndexIterator.index()));
               topHits.add(new VectorSearchResult(leaf.docBase + i, similarity));
             }
           }
@@ -2191,19 +2194,21 @@ public class VectorFieldDefTest extends ServerTestCase {
     PriorityQueue<VectorSearchResult> topHits =
         new PriorityQueue<>(5, Comparator.comparing(VectorSearchResult::score).reversed());
     try {
-      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher.getLeafContexts();
+      List<LeafReaderContext> leaves = searcherAndTaxonomy.searcher().getLeafContexts();
       IndexableFieldDef<String> filterField =
           (IndexableFieldDef<String>) indexState.getField("filter");
       for (LeafReaderContext leaf : leaves) {
         ByteVectorValues vectorValues = leaf.reader().getByteVectorValues(field);
+        KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
         LoadedDocValues<String> filterValues =
             (LoadedDocValues<String>) filterField.getDocValues(leaf);
         for (int i = 0; i < leaf.reader().maxDoc(); ++i) {
           filterValues.setDocId(i);
-          if (vectorValues.advance(i) == i) {
+          if (docIndexIterator.advance(i) == i) {
             if (filter == null || filter.equals(filterValues.getFirst())) {
               float similarity =
-                  similarityFunction.compare(queryVector, vectorValues.vectorValue());
+                  similarityFunction.compare(
+                      queryVector, vectorValues.vectorValue(docIndexIterator.index()));
               topHits.add(new VectorSearchResult(leaf.docBase + i, similarity));
             }
           }

@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 
@@ -74,35 +75,59 @@ public abstract class ExactVectorQuery extends Query {
 
   @Override
   public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-    return new Weight(this) {
-      @Override
-      public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-        VectorScorer vectorScorer = vectorScorerFunction.get(context.reader());
-        if (vectorScorer == null) {
-          return Explanation.noMatch("No vector found for field: " + field);
-        }
-        DocIdSetIterator iterator = vectorScorer.iterator();
-        if (iterator.advance(doc) == doc) {
-          float score = vectorScorer.score();
-          return Explanation.match(score, "Found vector with similarity: " + score);
-        }
-        return Explanation.noMatch("No document vector for field: " + field);
-      }
+    return new ExactVectorQueryWeight(this, field, boost, vectorScorerFunction);
+  }
 
-      @Override
-      public Scorer scorer(LeafReaderContext context) throws IOException {
-        VectorScorer vectorScorer = vectorScorerFunction.get(context.reader());
-        if (vectorScorer == null) {
-          return null;
-        }
-        return new VectorValuesScorer(this, vectorScorer);
-      }
+  private static class ExactVectorQueryWeight extends Weight {
+    private final String field;
+    private final float boost;
+    private final VectorScorerSupplier vectorScorerFunction;
 
-      @Override
-      public boolean isCacheable(LeafReaderContext ctx) {
-        return true;
+    /**
+     * Sole constructor.
+     *
+     * @param query the parent query
+     * @param field the field to search
+     * @param boost scoring boost
+     * @param vectorScorerFunction function for creating a {@link VectorScorer} for a given {@link
+     *     LeafReader}
+     */
+    protected ExactVectorQueryWeight(
+        Query query, String field, float boost, VectorScorerSupplier vectorScorerFunction) {
+      super(query);
+      this.field = field;
+      this.boost = boost;
+      this.vectorScorerFunction = vectorScorerFunction;
+    }
+
+    @Override
+    public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+      VectorScorer vectorScorer = vectorScorerFunction.get(context.reader());
+      if (vectorScorer == null) {
+        return Explanation.noMatch("No vector found for field: " + field);
       }
-    };
+      DocIdSetIterator iterator = vectorScorer.iterator();
+      if (iterator.advance(doc) == doc) {
+        float score = vectorScorer.score();
+        return Explanation.match(score * boost, "Found vector with similarity: " + score);
+      }
+      return Explanation.noMatch("No document vector for field: " + field);
+    }
+
+    @Override
+    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+      VectorScorer vectorScorer = vectorScorerFunction.get(context.reader());
+      if (vectorScorer == null) {
+        return null;
+      }
+      Scorer vectorValuesScorer = new VectorValuesScorer(vectorScorer, boost);
+      return new DefaultScorerSupplier(vectorValuesScorer);
+    }
+
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+      return true;
+    }
   }
 
   /**
@@ -112,17 +137,18 @@ public abstract class ExactVectorQuery extends Query {
   private static class VectorValuesScorer extends Scorer {
     private final VectorScorer vectorScorer;
     private final DocIdSetIterator iterator;
+    private final float boost;
 
     /**
      * Constructor.
      *
-     * @param weight the weight that created the scorer
      * @param vectorScorer the vector scorer to use
+     * @param boost scoring boost
      */
-    protected VectorValuesScorer(Weight weight, VectorScorer vectorScorer) {
-      super(weight);
+    protected VectorValuesScorer(VectorScorer vectorScorer, float boost) {
       this.vectorScorer = vectorScorer;
       this.iterator = vectorScorer.iterator();
+      this.boost = boost;
     }
 
     @Override
@@ -137,7 +163,7 @@ public abstract class ExactVectorQuery extends Query {
 
     @Override
     public float score() throws IOException {
-      return vectorScorer.score();
+      return vectorScorer.score() * boost;
     }
 
     @Override

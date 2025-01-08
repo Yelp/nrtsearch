@@ -133,7 +133,7 @@ public class SharedDocContextTest extends ServerTestCase {
           SearchContext searchContext, LeafReaderContext hitLeaf, SearchResponse.Hit.Builder hit)
           throws IOException {
         List<LeafReaderContext> leaves =
-            searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+            searchContext.getSearcherAndTaxonomy().searcher().getIndexReader().leaves();
         int leafIndex = ReaderUtil.subIndex(hit.getLuceneDocId(), leaves);
         LeafReaderContext leaf = leaves.get(leafIndex);
         SegmentDocLookup segmentDocLookup =

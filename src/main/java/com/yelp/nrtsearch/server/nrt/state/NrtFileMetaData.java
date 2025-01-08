@@ -29,14 +29,18 @@ import java.util.Objects;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 
 /**
- * Extension of {@link FileMetaData} that includes additional metadata for NRT replication, such as
- * primaryId and timeString.
+ * Replacement for {@link FileMetaData} that includes additional metadata for NRT replication, such
+ * as primaryId and timeString.
  */
 @JsonDeserialize(using = NrtFileMetaDataDeserializer.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class NrtFileMetaData extends FileMetaData {
+public class NrtFileMetaData {
 
+  public byte[] header;
+  public byte[] footer;
+  public long length;
+  public long checksum;
   public String primaryId;
   public String timeString;
 
@@ -57,7 +61,10 @@ public class NrtFileMetaData extends FileMetaData {
       long checksum,
       String primaryId,
       String timeString) {
-    super(header, footer, length, checksum);
+    this.header = header;
+    this.footer = footer;
+    this.length = length;
+    this.checksum = checksum;
     this.primaryId = primaryId;
     this.timeString = timeString;
   }
@@ -70,7 +77,10 @@ public class NrtFileMetaData extends FileMetaData {
    * @param timeString time string
    */
   public NrtFileMetaData(FileMetaData metaData, String primaryId, String timeString) {
-    super(metaData.header, metaData.footer, metaData.length, metaData.checksum);
+    this.header = metaData.header();
+    this.footer = metaData.footer();
+    this.length = metaData.length();
+    this.checksum = metaData.checksum();
     this.primaryId = primaryId;
     this.timeString = timeString;
   }
@@ -86,6 +96,10 @@ public class NrtFileMetaData extends FileMetaData {
           && Arrays.equals(footer, other.footer);
     }
     return false;
+  }
+
+  public FileMetaData toFileMetaData() {
+    return new FileMetaData(header, footer, length, checksum);
   }
 
   /** Custom json deserializer for NrtFileMetaData. */

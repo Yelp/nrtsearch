@@ -736,7 +736,7 @@ public class QueryNodeMapper {
           case REGEXP_ALL -> RegExp.ALL;
           case REGEXP_ANYSTRING -> RegExp.ANYSTRING;
           case REGEXP_AUTOMATON -> RegExp.AUTOMATON;
-          case REGEXP_COMPLEMENT -> RegExp.COMPLEMENT;
+          case REGEXP_COMPLEMENT -> RegExp.DEPRECATED_COMPLEMENT;
           case REGEXP_EMPTY -> RegExp.EMPTY;
           case REGEXP_INTERSECTION -> RegExp.INTERSECTION;
           case REGEXP_INTERVAL -> RegExp.INTERVAL;

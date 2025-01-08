@@ -15,75 +15,48 @@
  */
 package com.yelp.nrtsearch.server.search;
 
-import static org.apache.lucene.facet.DrillSidewaysQueryCheck.isDrillSidewaysQuery;
-
-import java.io.IOException;
+import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.util.Bits;
 
 /**
- * This is sadly necessary because for ToParentBlockJoinQuery we must invoke .scorer not
- * .bulkScorer, yet for DrillSideways we must do exactly the opposite!
+ * Custom IndexSearcher that allows for custom slicing of the index into multiple segments for
+ * parallel search.
  */
 public class MyIndexSearcher extends IndexSearcher {
 
+  public record SlicingParams(int sliceMaxDocs, int sliceMaxSegments, int virtualShards) {}
+
+  private static final Object slicingLock = new Object();
+  private static SlicingParams staticSlicingParams;
+
+  private SlicingParams slicingParams;
+
   /**
-   * Class that uses an Executor implementation to hold the parallel search Executor and any
-   * parameters needed to compute index search slices. This is hacky, but unfortunately necessary
-   * since {@link IndexSearcher#slices(List)} is called directly from the constructor, which happens
-   * before any member variable are set in the child class.
+   * Create a new MyIndexSearcher.
+   *
+   * @param reader index reader
+   * @param executor parallel search task executor
+   * @param slicingParams slicing parameters
+   * @return MyIndexSearcher
    */
-  public static class ExecutorWithParams implements Executor {
-    final Executor wrapped;
-    final int sliceMaxDocs;
-    final int sliceMaxSegments;
-    final int virtualShards;
-
-    /**
-     * Constructor.
-     *
-     * @param wrapped executor to perform parallel search operations
-     * @param sliceMaxDocs max docs per index slice
-     * @param sliceMaxSegments max segments per index slice
-     * @param virtualShards number for virtual shards for index
-     * @throws NullPointerException if wrapped is null
-     */
-    public ExecutorWithParams(
-        Executor wrapped, int sliceMaxDocs, int sliceMaxSegments, int virtualShards) {
-      Objects.requireNonNull(wrapped);
-      this.wrapped = wrapped;
-      this.sliceMaxDocs = sliceMaxDocs;
-      this.sliceMaxSegments = sliceMaxSegments;
-      this.virtualShards = virtualShards;
-    }
-
-    @Override
-    public void execute(Runnable command) {
-      wrapped.execute(command);
-    }
-
-    @Override
-    public String toString() {
-      return String.format(
-          "ExecutorWithParams(sliceMaxDocs=%d, sliceMaxSegments=%d, virtualShards=%d, wrapped=%s)",
-          sliceMaxDocs, sliceMaxSegments, virtualShards, wrapped);
+  public static MyIndexSearcher create(
+      IndexReader reader, Executor executor, SlicingParams slicingParams) {
+    // Use lock to serialize initialization of index searchers. The slicing params can only be
+    // passed in the static
+    // context. To allow for different configuration per index, we use a single static variable to
+    // hold the slicing
+    // params, which is read only during construction of the index searcher.
+    synchronized (slicingLock) {
+      staticSlicingParams = slicingParams;
+      return new MyIndexSearcher(reader, executor);
     }
   }
 
@@ -91,26 +64,31 @@ public class MyIndexSearcher extends IndexSearcher {
    * Constructor.
    *
    * @param reader index reader
-   * @param executorWithParams parameter class that hold search executor and slice config
+   * @param executor parallel search task executor
    */
-  public MyIndexSearcher(IndexReader reader, ExecutorWithParams executorWithParams) {
-    super(reader, executorWithParams);
+  protected MyIndexSearcher(IndexReader reader, Executor executor) {
+    super(reader, executor);
+  }
+
+  @VisibleForTesting
+  SlicingParams getSlicingParams() {
+    return slicingParams;
   }
 
   /** * start segment to thread mapping * */
   protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-    if (!(getExecutor() instanceof ExecutorWithParams)) {
-      throw new IllegalArgumentException("Executor must be an ExecutorWithParams");
+    slicingParams = staticSlicingParams;
+    if (slicingParams == null) {
+      throw new IllegalArgumentException("Slicing params not set");
     }
-    ExecutorWithParams executorWithParams = (ExecutorWithParams) getExecutor();
-    if (executorWithParams.virtualShards > 1) {
+    if (slicingParams.virtualShards > 1) {
       return slicesForShards(
           leaves,
-          executorWithParams.virtualShards,
-          executorWithParams.sliceMaxDocs,
-          executorWithParams.sliceMaxSegments);
+          slicingParams.virtualShards,
+          slicingParams.sliceMaxDocs,
+          slicingParams.sliceMaxSegments);
     } else {
-      return slices(leaves, executorWithParams.sliceMaxDocs, executorWithParams.sliceMaxSegments);
+      return slices(leaves, slicingParams.sliceMaxDocs, slicingParams.sliceMaxSegments);
     }
   }
 
@@ -132,9 +110,7 @@ public class MyIndexSearcher extends IndexSearcher {
 
     SliceAndSize(LeafSlice slice) {
       this.slice = slice;
-      for (int i = 0; i < slice.leaves.length; ++i) {
-        numDocs += slice.leaves[i].reader().numDocs();
-      }
+      numDocs = slice.getMaxDocs();
     }
   }
 
@@ -183,12 +159,6 @@ public class MyIndexSearcher extends IndexSearcher {
     return slices;
   }
 
-  /* Better Segment To Thread Mapping Algorithm: https://issues.apache.org/jira/browse/LUCENE-8757
-  This change is available in 9.0 (master) which is not released yet
-  https://github.com/apache/lucene-solr/blob/master/lucene/core/src/java/org/apache/lucene/search/IndexSearcher.java#L316
-  We can remove this method once luceneVersion is updated to 9.x
-  * */
-
   /** Static method to segregate LeafReaderContexts amongst multiple slices */
   public static LeafSlice[] slices(
       List<LeafReaderContext> leaves, int maxDocsPerSlice, int maxSegmentsPerSlice) {
@@ -199,21 +169,22 @@ public class MyIndexSearcher extends IndexSearcher {
     Collections.sort(
         sortedLeaves, Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
 
-    final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
+    final List<List<LeafReaderContextPartition>> groupedLeaves = new ArrayList<>();
     long docSum = 0;
-    List<LeafReaderContext> group = null;
+    List<LeafReaderContextPartition> group = null;
     for (LeafReaderContext ctx : sortedLeaves) {
       if (ctx.reader().maxDoc() > maxDocsPerSlice) {
         assert group == null;
-        groupedLeaves.add(Collections.singletonList(ctx));
+        groupedLeaves.add(
+            Collections.singletonList(LeafReaderContextPartition.createForEntireSegment(ctx)));
       } else {
         if (group == null) {
           group = new ArrayList<>();
-          group.add(ctx);
+          group.add(LeafReaderContextPartition.createForEntireSegment(ctx));
 
           groupedLeaves.add(group);
         } else {
-          group.add(ctx);
+          group.add(LeafReaderContextPartition.createForEntireSegment(ctx));
         }
 
         docSum += ctx.reader().maxDoc();
@@ -226,66 +197,13 @@ public class MyIndexSearcher extends IndexSearcher {
 
     LeafSlice[] slices = new LeafSlice[groupedLeaves.size()];
     int upto = 0;
-    for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
+    for (List<LeafReaderContextPartition> currentLeaf : groupedLeaves) {
       // LeafSlice constructor has changed in 9.x. This allows to use old constructor.
-      Collections.sort(currentLeaf, Comparator.comparingInt(l -> l.docBase));
+      Collections.sort(currentLeaf, Comparator.comparingInt(l -> l.ctx.docBase));
       slices[upto] = new LeafSlice(currentLeaf);
       ++upto;
     }
 
     return slices;
-  }
-
-  /** * end segment to thread mapping * */
-  @Override
-  protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector)
-      throws IOException {
-    boolean isDrillSidewaysQueryOrCompletionQuery =
-        weight.getQuery() instanceof CompletionQuery || isDrillSidewaysQuery(weight.getQuery());
-    for (LeafReaderContext ctx : leaves) { // search each subreader
-      // we force the use of Scorer (not BulkScorer) to make sure
-      // that the scorer passed to LeafCollector.setScorer supports
-      // Scorer.getChildren
-      final LeafCollector leafCollector;
-      try {
-        leafCollector = collector.getLeafCollector(ctx);
-      } catch (CollectionTerminatedException e) {
-        // there is no doc of interest in this reader context
-        // continue with the following leaf
-        continue;
-      }
-      if (isDrillSidewaysQueryOrCompletionQuery) {
-        BulkScorer scorer = weight.bulkScorer(ctx);
-        if (scorer != null) {
-          try {
-            scorer.score(
-                leafCollector, ctx.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
-          } catch (CollectionTerminatedException e) {
-            // collection was terminated prematurely
-            // continue with the following leaf
-          }
-        }
-      } else {
-        Scorer scorer = weight.scorer(ctx);
-        if (scorer != null) {
-          leafCollector.setScorer(scorer);
-          final Bits liveDocs = ctx.reader().getLiveDocs();
-          final DocIdSetIterator it = scorer.iterator();
-          try {
-            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-              if (liveDocs == null || liveDocs.get(doc)) {
-                leafCollector.collect(doc);
-              }
-            }
-          } catch (CollectionTerminatedException e) {
-            // collection was terminated prematurely
-            // continue with the following leaf
-          }
-        }
-      }
-      // Note: this is called if collection ran successfully, including the above special case of
-      // CollectionTerminatedException, but no other exception.
-      leafCollector.finish();
-    }
   }
 }

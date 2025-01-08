@@ -114,7 +114,7 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
       } else {
         SearcherTaxonomyManager.SearcherAndTaxonomy s = shardState.acquire();
         try {
-          long version = ((DirectoryReader) s.searcher.getIndexReader()).getVersion();
+          long version = ((DirectoryReader) s.searcher().getIndexReader()).getVersion();
           return searchverVersionBuilder.setVersion(version).setDidRefresh(false).build();
         } finally {
           shardState.release(s);

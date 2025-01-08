@@ -107,7 +107,7 @@ public class QueryUtils {
 
     @Override
     public boolean advanceExact(int doc) throws IOException {
-      return scorer != null && scorer.docID() == doc;
+      return scorer != null;
     }
   }
 
