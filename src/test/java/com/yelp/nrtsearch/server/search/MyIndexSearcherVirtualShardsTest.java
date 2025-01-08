@@ -110,7 +110,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
   @Test
   public void testHasVirtualShards() throws Exception {
     setLiveSettings(111, 10000, 2);
-    addSegments(Collections.emptyList());
+    addSegments(List.of(10));
     SearcherAndTaxonomy s = null;
     ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {

@@ -263,17 +263,12 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
   @Override
   public SortField getSortField(SortType type) {
     verifyDocValues("Sort field");
-    SortField sortField;
-    if (isMultiValue()) {
-      sortField =
-          new SortedNumericSortField(
-              getName(),
-              getSortFieldType(),
-              type.getReverse(),
-              NUMERIC_TYPE_PARSER.apply(type.getSelector()));
-    } else {
-      sortField = new SortField(getName(), getSortFieldType(), type.getReverse());
-    }
+    SortField sortField =
+        new SortedNumericSortField(
+            getName(),
+            getSortFieldType(),
+            type.getReverse(),
+            NUMERIC_TYPE_PARSER.apply(type.getSelector()));
 
     boolean missingLast = type.getMissingLast();
     sortField.setMissingValue(getSortMissingValue(missingLast));

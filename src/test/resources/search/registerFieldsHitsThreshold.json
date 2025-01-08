@@ -10,6 +10,7 @@
     {
       "name": "int_field",
       "type": "INT",
+      "multiValued": true,
       "storeDocValues": true
     },
     {
