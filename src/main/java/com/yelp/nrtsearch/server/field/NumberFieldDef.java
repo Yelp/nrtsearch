@@ -262,9 +262,7 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
 
   @Override
   public SortField getSortField(SortType type) {
-    if (!hasDocValues()) {
-      throw new IllegalStateException("Doc values are required for sorted fields");
-    }
+    verifyDocValues("Sort field");
     SortField sortField;
     if (isMultiValue()) {
       sortField =

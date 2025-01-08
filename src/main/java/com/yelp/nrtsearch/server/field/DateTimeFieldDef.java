@@ -45,6 +45,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef<Instant>
@@ -88,13 +89,19 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
 
   @Override
   public SortField getSortField(SortType type) {
-    if (!hasDocValues()) {
-      throw new IllegalStateException("Doc values are required for sorted fields");
-    }
+    verifyDocValues("Sort field");
+    SortField sortField;
     if (isMultiValue()) {
-      throw new IllegalStateException("DATE_TIME does not support sort for multi value field");
+      sortField =
+          new SortedNumericSortField(
+              getName(),
+              SortField.Type.LONG,
+              type.getReverse(),
+              NUMERIC_TYPE_PARSER.apply(type.getSelector()));
+    } else {
+      sortField = new SortField(getName(), SortField.Type.LONG, type.getReverse());
     }
-    SortField sortField = new SortField(getName(), SortField.Type.LONG, type.getReverse());
+
     boolean missingLast = type.getMissingLast();
     sortField.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
     return sortField;

@@ -84,8 +84,10 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable, RangeQue
 
   @Override
   public SortField getSortField(SortType type) {
-    if (!hasDocValues()) {
-      throw new IllegalStateException("Doc values are required for sorted fields");
+    verifyDocValues("Sort field");
+    if (docValuesType != DocValuesType.SORTED && docValuesType != DocValuesType.SORTED_SET) {
+      throw new IllegalStateException(
+          "Sort field requires SORTED or SORTED_SET doc values: " + getName());
     }
     SortField sortField;
     if (isMultiValue()) {

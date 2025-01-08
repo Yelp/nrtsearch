@@ -121,9 +121,7 @@ public class LatLonFieldDef extends IndexableFieldDef<GeoPoint> implements Sorta
 
   @Override
   public SortField getSortField(SortType type) {
-    if (!hasDocValues()) {
-      throw new IllegalStateException("Doc values are required for sorted fields");
-    }
+    verifyDocValues("Sort field");
     Point origin = type.getOrigin();
     return LatLonDocValuesField.newDistanceSort(
         getName(), origin.getLatitude(), origin.getLongitude());
