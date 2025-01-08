@@ -164,11 +164,13 @@ public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryab
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
+    // _ID fields are always searchable
     return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    // _ID fields are always searchable
     List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
     return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }

@@ -143,24 +143,26 @@ public class IntFieldDef extends NumberFieldDef<Integer> {
 
   @Override
   public Query getTermQueryFromIntValue(int intValue) {
+    verifySearchable("Term query");
     return IntPoint.newExactQuery(getName(), intValue);
   }
 
   @Override
   public Query getTermInSetQueryFromIntValues(List<Integer> intValues) {
+    verifySearchable("Term in set query");
     return IntPoint.newSetQuery(getName(), intValues);
   }
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
-    return IntPoint.newExactQuery(getName(), Integer.parseInt(textValue));
+    return getTermQueryFromIntValue(Integer.parseInt(textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Integer> intTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> intTerms.add(Integer.parseInt(s)));
-    return IntPoint.newSetQuery(getName(), intTerms);
+    return getTermInSetQueryFromIntValues(intTerms);
   }
 
   @Override

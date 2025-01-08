@@ -139,24 +139,26 @@ public class LongFieldDef extends NumberFieldDef<Long> {
 
   @Override
   public Query getTermQueryFromLongValue(long longValue) {
+    verifySearchable("Term query");
     return LongPoint.newExactQuery(getName(), longValue);
   }
 
   @Override
   public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    verifySearchable("Term in set query");
     return LongPoint.newSetQuery(getName(), longValues);
   }
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
-    return LongPoint.newExactQuery(getName(), Long.parseLong(textValue));
+    return getTermQueryFromLongValue(Long.parseLong(textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Long> longTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> longTerms.add(Long.parseLong(s)));
-    return LongPoint.newSetQuery(getName(), longTerms);
+    return getTermInSetQueryFromLongValues(longTerms);
   }
 
   protected Number parseNumberString(String numberString) {

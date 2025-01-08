@@ -140,15 +140,14 @@ public class BooleanFieldDef extends IndexableFieldDef<Boolean> implements TermQ
 
   @Override
   public Query getTermQueryFromBooleanValue(boolean booleanValue) {
+    verifySearchable("Term query");
     String indexTermValue = booleanValue ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
-    boolean termValue = parseBooleanOrThrow(textValue);
-    String indexTermValue = termValue ? "1" : "0";
-    return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
+    return getTermQueryFromBooleanValue(parseBooleanOrThrow(textValue));
   }
 
   @Override

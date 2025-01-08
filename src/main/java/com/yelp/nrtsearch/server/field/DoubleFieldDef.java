@@ -150,23 +150,25 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
 
   @Override
   public Query getTermQueryFromDoubleValue(double doubleValue) {
+    verifySearchable("Term query");
     return DoublePoint.newExactQuery(getName(), doubleValue);
   }
 
   @Override
   public Query getTermInSetQueryFromDoubleValues(List<Double> doubleValues) {
+    verifySearchable("Term in set query");
     return DoublePoint.newSetQuery(getName(), doubleValues);
   }
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
-    return DoublePoint.newExactQuery(getName(), Double.parseDouble(textValue));
+    return getTermQueryFromDoubleValue(Double.parseDouble(textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Double> doubleTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
-    return DoublePoint.newSetQuery(getName(), doubleTerms);
+    return getTermInSetQueryFromDoubleValues(doubleTerms);
   }
 }

@@ -287,11 +287,13 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef<String>
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
+    verifySearchable("Term query");
     return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    verifySearchable("Term in set query");
     List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
     return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }

@@ -149,23 +149,25 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
 
   @Override
   public Query getTermQueryFromFloatValue(float floatValue) {
+    verifySearchable("Term query");
     return FloatPoint.newExactQuery(getName(), floatValue);
   }
 
   @Override
   public Query getTermInSetQueryFromFloatValues(List<Float> floatValues) {
+    verifySearchable("Term in set query");
     return FloatPoint.newSetQuery(getName(), floatValues);
   }
 
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
-    return FloatPoint.newExactQuery(getName(), Float.parseFloat(textValue));
+    return getTermQueryFromFloatValue(Float.parseFloat(textValue));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Float> floatTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> floatTerms.add(Float.parseFloat(s)));
-    return FloatPoint.newSetQuery(getName(), floatTerms);
+    return getTermInSetQueryFromFloatValues(floatTerms);
   }
 }

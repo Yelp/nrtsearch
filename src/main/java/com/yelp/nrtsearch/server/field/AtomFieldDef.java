@@ -22,12 +22,15 @@ import com.yelp.nrtsearch.server.field.properties.Sortable;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -80,6 +83,19 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable, RangeQue
   @Override
   protected Analyzer parseSearchAnalyzer(Field requestField) {
     return keywordAnalyzer;
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    verifySearchable("Term query");
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    verifySearchable("Term in set query");
+    List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
+    return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }
 
   @Override
