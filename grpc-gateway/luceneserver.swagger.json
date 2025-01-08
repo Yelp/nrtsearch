@@ -1407,6 +1407,14 @@
             "type": "boolean"
           },
           {
+            "name": "liveSettings.defaultTerminateAfterMaxRecallCount",
+            "description": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "local",
             "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.",
             "in": "query",
@@ -2158,6 +2166,10 @@
           "additionalProperties": {
             "$ref": "#/definitions/SearchResponseDiagnostics"
           }
+        },
+        "loggingHitsTimeMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -3814,6 +3826,11 @@
         "verboseMetrics": {
           "type": "boolean",
           "title": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false"
+        },
+        "defaultTerminateAfterMaxRecallCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0"
         }
       }
     },
@@ -4053,6 +4070,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Terminate after value to use when not specified in the search request."
+        },
+        "defaultTerminateAfterMaxRecallCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Terminate after max recall count value to use when not specified in the search request."
         }
       },
       "title": "Input to liveSettings"
@@ -4102,6 +4124,11 @@
         "params": {
           "type": "object",
           "title": "Optional logging parameters"
+        },
+        "hitsToLog": {
+          "type": "integer",
+          "format": "int32",
+          "description": "number of hits to log. The number of final hits to be logged can be less than this number\nif a query has less hits."
         }
       }
     },
