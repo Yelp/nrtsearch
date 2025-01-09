@@ -46,7 +46,6 @@ import com.yelp.nrtsearch.server.search.sort.SortParser;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,7 +62,6 @@ import org.apache.lucene.index.SimpleMergedSegmentWarmer;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortField.Type;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.slf4j.Logger;
@@ -72,13 +70,6 @@ import org.slf4j.LoggerFactory;
 /** Implementation of index state which is immutable. */
 public class ImmutableIndexState extends IndexState {
   private static final Logger logger = LoggerFactory.getLogger(ImmutableIndexState.class);
-  private static final EnumSet<Type> ALLOWED_INDEX_SORT_TYPES =
-      EnumSet.of(
-          SortField.Type.STRING,
-          SortField.Type.LONG,
-          SortField.Type.INT,
-          SortField.Type.DOUBLE,
-          SortField.Type.FLOAT);
 
   public static final double DEFAULT_NRT_CACHING_MAX_MERGE_SIZE_MB = 5.0;
   public static final double DEFAULT_NRT_CACHING_MAX_SIZE_MB = 60.0;
@@ -831,14 +822,9 @@ public class ImmutableIndexState extends IndexState {
 
   private static void validateIndexSort(Sort sort) {
     for (SortField sortField : sort.getSort()) {
-      if (!ALLOWED_INDEX_SORT_TYPES.contains(sortField.getType())) {
+      if (sortField.getIndexSorter() == null) {
         throw new IllegalArgumentException(
-            "Sort field: "
-                + sortField.getField()
-                + ", type: "
-                + sortField.getType()
-                + " is not in allowed types: "
-                + ALLOWED_INDEX_SORT_TYPES);
+            "Sort field: \"" + sortField.getField() + "\" does not support index sorting");
       }
     }
   }

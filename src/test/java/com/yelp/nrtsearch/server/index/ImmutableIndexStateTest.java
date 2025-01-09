@@ -417,9 +417,7 @@ public class ImmutableIndexStateTest {
                   .build()));
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals(
-          "Sort field: null, type: DOC is not in allowed types: [STRING, INT, FLOAT, LONG, DOUBLE]",
-          e.getMessage());
+      assertEquals("Sort field: \"null\" does not support index sorting", e.getMessage());
     }
   }
 

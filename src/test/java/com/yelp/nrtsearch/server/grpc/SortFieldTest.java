@@ -58,6 +58,10 @@ public class SortFieldTest extends ServerTestCase {
 
     int count = 0;
     for (int i = 0; i < NUM_DOCS; ++i) {
+      int intValue = ((i + 10) % NUM_DOCS) - 10;
+      long longValue = ((i + 66) % NUM_DOCS) * 2 - 10;
+      float floatValue = ((i + 33) % NUM_DOCS) * 1.25f - 10.0f;
+      double doubleValue = ((i + 90) % NUM_DOCS) * 2.75 - 10.0;
       AddDocumentRequest request =
           AddDocumentRequest.newBuilder()
               .setIndexName(name)
@@ -69,22 +73,46 @@ public class SortFieldTest extends ServerTestCase {
               .putFields(
                   "int_field",
                   AddDocumentRequest.MultiValuedField.newBuilder()
-                      .addValue(String.valueOf((i + 10) % NUM_DOCS))
+                      .addValue(String.valueOf(intValue))
+                      .build())
+              .putFields(
+                  "multi_int_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(String.valueOf(intValue))
+                      .addValue(String.valueOf(intValue + 2))
                       .build())
               .putFields(
                   "long_field",
                   AddDocumentRequest.MultiValuedField.newBuilder()
-                      .addValue(String.valueOf(((i + 66) % NUM_DOCS) * 2))
+                      .addValue(String.valueOf(longValue))
+                      .build())
+              .putFields(
+                  "multi_long_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(String.valueOf(longValue))
+                      .addValue(String.valueOf(longValue + 2))
                       .build())
               .putFields(
                   "float_field",
                   AddDocumentRequest.MultiValuedField.newBuilder()
-                      .addValue(String.valueOf(((i + 33) % NUM_DOCS) * 1.25))
+                      .addValue(String.valueOf(floatValue))
+                      .build())
+              .putFields(
+                  "multi_float_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(String.valueOf(floatValue))
+                      .addValue(String.valueOf(floatValue + 2.0f))
                       .build())
               .putFields(
                   "double_field",
                   AddDocumentRequest.MultiValuedField.newBuilder()
-                      .addValue(String.valueOf(((i + 90) % NUM_DOCS) * 2.75))
+                      .addValue(String.valueOf(doubleValue))
+                      .build())
+              .putFields(
+                  "multi_double_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(String.valueOf(doubleValue))
+                      .addValue(String.valueOf(doubleValue + 2.0))
                       .build())
               .putFields(
                   "lat_lon_field",
@@ -114,11 +142,20 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testSortIntField() {
+    sortIntField("int_field");
+  }
+
+  @Test
+  public void testSortMultiIntField() {
+    sortIntField("multi_int_field");
+  }
+
+  private void sortIntField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
-                    .addSortedFields(SortType.newBuilder().setFieldName("int_field").build())
+                    .addSortedFields(SortType.newBuilder().setFieldName(fieldName).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -127,13 +164,45 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("90", "91", "92", "93", "94");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(0, 1, 2, 3, 4);
+    List<Integer> expectedSort = Arrays.asList(-10, -9, -8, -7, -6);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i).intValue(),
-          hit.getSortedFieldsOrThrow("int_field").getFieldValue(0).getIntValue());
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getIntValue());
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortMultiIntField_max() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("multi_int_field")
+                            .setSelector(Selector.MAX)
+                            .build())
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQuery(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("90", "91", "92", "93", "94");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Integer> expectedSort = Arrays.asList(-8, -7, -6, -5, -4);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i).intValue(),
+          hit.getSortedFieldsOrThrow("multi_int_field").getFieldValue(0).getIntValue());
 
       assertEquals(0.0, hit.getScore(), 0);
       assertEquals(6, hit.getFieldsCount());
@@ -142,12 +211,21 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testReverseSortIntField() {
+    reverseSortIntField("int_field");
+  }
+
+  @Test
+  public void testReverseSortMultiIntField() {
+    reverseSortIntField("multi_int_field");
+  }
+
+  private void reverseSortIntField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
                     .addSortedFields(
-                        SortType.newBuilder().setFieldName("int_field").setReverse(true).build())
+                        SortType.newBuilder().setFieldName(fieldName).setReverse(true).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -156,13 +234,13 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("89", "88", "87", "86", "85");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(99, 98, 97, 96, 95);
+    List<Integer> expectedSort = Arrays.asList(89, 88, 87, 86, 85);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i).intValue(),
-          hit.getSortedFieldsOrThrow("int_field").getFieldValue(0).getIntValue());
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getIntValue());
 
       assertEquals(0.0, hit.getScore(), 0);
       assertEquals(6, hit.getFieldsCount());
@@ -171,11 +249,20 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testSortLongField() {
+    sortLongField("long_field");
+  }
+
+  @Test
+  public void testSortMultiLongField() {
+    sortLongField("multi_long_field");
+  }
+
+  private void sortLongField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
-                    .addSortedFields(SortType.newBuilder().setFieldName("long_field").build())
+                    .addSortedFields(SortType.newBuilder().setFieldName(fieldName).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -184,13 +271,45 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("34", "35", "36", "37", "38");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Long> expectedSort = Arrays.asList(0L, 2L, 4L, 6L, 8L);
+    List<Long> expectedSort = Arrays.asList(-10L, -8L, -6L, -4L, -2L);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i).longValue(),
-          hit.getSortedFieldsOrThrow("long_field").getFieldValue(0).getLongValue());
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getLongValue());
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortMultiLongField_max() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("multi_long_field")
+                            .setSelector(Selector.MAX)
+                            .build())
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQuery(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("34", "35", "36", "37", "38");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Long> expectedSort = Arrays.asList(-8L, -6L, -4L, -2L, 0L);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i).longValue(),
+          hit.getSortedFieldsOrThrow("multi_long_field").getFieldValue(0).getLongValue());
 
       assertEquals(0.0, hit.getScore(), 0);
       assertEquals(6, hit.getFieldsCount());
@@ -199,12 +318,21 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testReverseSortLongField() {
+    reverseSortLongField("long_field");
+  }
+
+  @Test
+  public void testReverseSortMultiLongField() {
+    reverseSortLongField("multi_long_field");
+  }
+
+  private void reverseSortLongField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
                     .addSortedFields(
-                        SortType.newBuilder().setFieldName("long_field").setReverse(true).build())
+                        SortType.newBuilder().setFieldName(fieldName).setReverse(true).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -213,13 +341,13 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("33", "32", "31", "30", "29");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Long> expectedSort = Arrays.asList(198L, 196L, 194L, 192L, 190L);
+    List<Long> expectedSort = Arrays.asList(188L, 186L, 184L, 182L, 180L);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i).longValue(),
-          hit.getSortedFieldsOrThrow("long_field").getFieldValue(0).getLongValue());
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getLongValue());
 
       assertEquals(0.0, hit.getScore(), 0);
       assertEquals(6, hit.getFieldsCount());
@@ -228,11 +356,20 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testSortFloatField() {
+    sortFloatField("float_field");
+  }
+
+  @Test
+  public void testSortMultiFloatField() {
+    sortFloatField("multi_float_field");
+  }
+
+  private void sortFloatField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
-                    .addSortedFields(SortType.newBuilder().setFieldName("float_field").build())
+                    .addSortedFields(SortType.newBuilder().setFieldName(fieldName).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -241,13 +378,46 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("67", "68", "69", "70", "71");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Float> expectedSort = Arrays.asList(0.0F, 1.25F, 2.50F, 3.75F, 5.0F);
+    List<Float> expectedSort = Arrays.asList(-10.0F, -8.75F, -7.50F, -6.25F, -5.0F);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i),
-          hit.getSortedFieldsOrThrow("float_field").getFieldValue(0).getFloatValue(),
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getFloatValue(),
+          0.001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortMultiFloatField_max() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("multi_float_field")
+                            .setSelector(Selector.MAX)
+                            .build())
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQuery(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("67", "68", "69", "70", "71");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Float> expectedSort = Arrays.asList(-8.0F, -6.75F, -5.50F, -4.25F, -3.0F);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("multi_float_field").getFieldValue(0).getFloatValue(),
           0.001);
 
       assertEquals(0.0, hit.getScore(), 0);
@@ -257,12 +427,21 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testReverseSortFloatField() {
+    reverseSortFloatField("float_field");
+  }
+
+  @Test
+  public void testReverseSortMultiFloatField() {
+    reverseSortFloatField("multi_float_field");
+  }
+
+  private void reverseSortFloatField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
                     .addSortedFields(
-                        SortType.newBuilder().setFieldName("float_field").setReverse(true).build())
+                        SortType.newBuilder().setFieldName(fieldName).setReverse(true).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -271,13 +450,13 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("66", "65", "64", "63", "62");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Float> expectedSort = Arrays.asList(123.75F, 122.50F, 121.25F, 120.0F, 118.75F);
+    List<Float> expectedSort = Arrays.asList(113.75F, 112.50F, 111.25F, 110.0F, 108.75F);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i),
-          hit.getSortedFieldsOrThrow("float_field").getFieldValue(0).getFloatValue(),
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getFloatValue(),
           0.001);
 
       assertEquals(0.0, hit.getScore(), 0);
@@ -287,11 +466,20 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testSortDoubleField() {
+    sortDoubleField("double_field");
+  }
+
+  @Test
+  public void testSortMultiDoubleField() {
+    sortDoubleField("multi_double_field");
+  }
+
+  private void sortDoubleField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
-                    .addSortedFields(SortType.newBuilder().setFieldName("double_field").build())
+                    .addSortedFields(SortType.newBuilder().setFieldName(fieldName).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -300,13 +488,46 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("10", "11", "12", "13", "14");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(0.0, 2.75, 5.50, 8.25, 11.0);
+    List<Double> expectedSort = Arrays.asList(-10.0, -7.25, -4.50, -1.75, 1.0);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i),
-          hit.getSortedFieldsOrThrow("double_field").getFieldValue(0).getDoubleValue(),
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getDoubleValue(),
+          0.001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortMultiDoubleField_max() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("multi_double_field")
+                            .setSelector(Selector.MAX)
+                            .build())
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQuery(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("10", "11", "12", "13", "14");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort = Arrays.asList(-8.0, -5.25, -2.50, 0.25, 3.0);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("multi_double_field").getFieldValue(0).getDoubleValue(),
           0.001);
 
       assertEquals(0.0, hit.getScore(), 0);
@@ -316,12 +537,21 @@ public class SortFieldTest extends ServerTestCase {
 
   @Test
   public void testReverseSortDoubleField() {
+    reverseSortDoubleField("double_field");
+  }
+
+  @Test
+  public void testReverseSortMultiDoubleField() {
+    reverseSortDoubleField("multi_double_field");
+  }
+
+  private void reverseSortDoubleField(String fieldName) {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
             .setFields(
                 SortFields.newBuilder()
                     .addSortedFields(
-                        SortType.newBuilder().setFieldName("double_field").setReverse(true).build())
+                        SortType.newBuilder().setFieldName(fieldName).setReverse(true).build())
                     .build())
             .build();
     SearchResponse searchResponse = doSortQuery(querySortField);
@@ -330,13 +560,13 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("9", "8", "7", "6", "5");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(272.25, 269.5, 266.75, 264.0, 261.25);
+    List<Double> expectedSort = Arrays.asList(262.25, 259.5, 256.75, 254.0, 251.25);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           expectedSort.get(i),
-          hit.getSortedFieldsOrThrow("double_field").getFieldValue(0).getDoubleValue(),
+          hit.getSortedFieldsOrThrow(fieldName).getFieldValue(0).getDoubleValue(),
           0.001);
 
       assertEquals(0.0, hit.getScore(), 0);
@@ -360,7 +590,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("34", "35", "36", "37", "67");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(167.5, 176.0, 184.5, 193.0, 198.0);
+    List<Double> expectedSort = Arrays.asList(117.5, 126.0, 134.5, 143.0, 148.0);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -393,7 +623,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("33", "32", "31", "30", "29");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(759.0, 750.5, 742.0, 733.5, 725.0);
+    List<Double> expectedSort = Arrays.asList(709.0, 700.5, 692.0, 683.5, 675.0);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -423,7 +653,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("10", "11", "12", "13", "14");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(-40.0, -39.25, -38.5, -37.75, -37.0);
+    List<Double> expectedSort = Arrays.asList(-30.0, -29.25, -28.5, -27.75, -27.0);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -460,7 +690,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("9", "8", "7", "6", "5");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(234.25, 233.5, 232.75, 232.0, 231.25);
+    List<Double> expectedSort = Arrays.asList(244.25, 243.5, 242.75, 242.0, 241.25);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -584,7 +814,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("9", "8", "7", "6", "5");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Float> expectedSort = Arrays.asList(422.25F, 417.5F, 412.75F, 408.0F, 403.25F);
+    List<Float> expectedSort = Arrays.asList(402.25F, 397.5F, 392.75F, 388.0F, 383.25F);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -614,7 +844,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("34", "35", "36", "37", "38");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Float> expectedSort = Arrays.asList(66.0F, 70.75F, 75.5F, 80.25F, 85.0F);
+    List<Float> expectedSort = Arrays.asList(46.0F, 50.75F, 55.5F, 60.25F, 65.0F);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -644,7 +874,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("9", "8", "7", "6", "5");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(-403.25, -399.5, -395.75, -392.0, -388.25);
+    List<Double> expectedSort = Arrays.asList(-393.25, -389.5, -385.75, -382.0, -378.25);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -824,14 +1054,14 @@ public class SortFieldTest extends ServerTestCase {
                     .addSortedFields(SortType.newBuilder().setFieldName("int_field").build())
                     .build())
             .build();
-    LastHitInfo searchAfter = LastHitInfo.newBuilder().addLastFieldValues("1").build();
+    LastHitInfo searchAfter = LastHitInfo.newBuilder().addLastFieldValues("-9").build();
     SearchResponse searchResponse = dosSortQuerySearchAfter(querySortField, searchAfter);
     assertEquals(5, searchResponse.getHitsCount());
 
     List<String> expectedIds = Arrays.asList("91", "92", "93", "94", "95");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(1, 2, 3, 4, 5);
+    List<Integer> expectedSort = Arrays.asList(-9, -8, -7, -6, -5);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -886,7 +1116,7 @@ public class SortFieldTest extends ServerTestCase {
                     .build())
             .build();
     LastHitInfo searchAfter =
-        LastHitInfo.newBuilder().setLastDocId(23).addLastFieldValues("-39.25").build();
+        LastHitInfo.newBuilder().setLastDocId(23).addLastFieldValues("-29.25").build();
     SearchResponse searchResponse =
         doSortQueryWithVirtualWithSearchAfter(querySortField, searchAfter);
     assertEquals(5, searchResponse.getHitsCount());
@@ -894,7 +1124,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("12", "13", "14", "15", "16");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Double> expectedSort = Arrays.asList(-38.5, -37.75, -37.0, -36.25, -35.5);
+    List<Double> expectedSort = Arrays.asList(-28.5, -27.75, -27.0, -26.25, -25.5);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -1204,18 +1434,18 @@ public class SortFieldTest extends ServerTestCase {
       String idStr = hits.get(i).getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue();
       assertEquals(ids.get(i), idStr);
       int id = Integer.parseInt(idStr);
-      int expectedInt = (id + 10) % NUM_DOCS;
+      int expectedInt = ((id + 10) % NUM_DOCS) - 10;
       assertEquals(
           expectedInt, hits.get(i).getFieldsOrThrow("int_field").getFieldValue(0).getIntValue());
-      long expectedLong = ((id + 66) % NUM_DOCS) * 2;
+      long expectedLong = ((id + 66) % NUM_DOCS) * 2 - 10;
       assertEquals(
           expectedLong, hits.get(i).getFieldsOrThrow("long_field").getFieldValue(0).getLongValue());
-      float expectedFloat = ((id + 33) % NUM_DOCS) * 1.25F;
+      float expectedFloat = ((id + 33) % NUM_DOCS) * 1.25F - 10.0F;
       assertEquals(
           expectedFloat,
           hits.get(i).getFieldsOrThrow("float_field").getFieldValue(0).getFloatValue(),
           0.001);
-      double expectedDouble = ((id + 90) % NUM_DOCS) * 2.75;
+      double expectedDouble = ((id + 90) % NUM_DOCS) * 2.75 - 10.0;
       assertEquals(
           expectedDouble,
           hits.get(i).getFieldsOrThrow("double_field").getFieldValue(0).getDoubleValue(),
