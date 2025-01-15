@@ -110,7 +110,25 @@ public abstract class DirectoryFactory {
       return new DirectoryFactory() {
         @Override
         public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          return FSDirectory.open(path);
+          Directory directory = FSDirectory.open(path);
+          if (directory instanceof MMapDirectory){
+            MMapDirectory mMapDirectory = (MMapDirectory) directory;
+            // no preloading
+            if (!preloadConfig.getShouldPreload()) {
+              return mMapDirectory;
+            }
+
+            // all preloading
+            if (preloadConfig.getPreloadAll()) {
+              mMapDirectory.setPreload(true);
+              return mMapDirectory;
+            }
+
+            // some preloading
+            mMapDirectory.setPreload(true);
+            return new SplitMMapDirectory(FSLockFactory.getDefault(), mMapDirectory, preloadConfig.getExtensions());
+          }
+          return directory;
         }
       };
     } else if (dirImpl.equals("MMapDirectory")) {
