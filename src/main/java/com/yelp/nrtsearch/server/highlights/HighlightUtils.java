@@ -42,6 +42,7 @@ public class HighlightUtils {
   private static final boolean DEFAULT_FIELD_MATCH = false;
   private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
   private static final char[] DEFAULT_BOUNDARY_CHARS = SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
+  private static final boolean DEFAULT_TOP_PHRASE_ONCE = false;
   private static final int DEFAULT_BOUNDARY_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
   private static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
@@ -125,6 +126,10 @@ public class HighlightUtils {
                     settings.hasBoundaryScannerLocale()
                         ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
                         : globalSettings.getBoundaryScannerLocale())
+                .withTopBoostOnly(
+                    settings.hasTopBoostOnly()
+                        ? settings.getTopBoostOnly().getValue()
+                        : globalSettings.getTopBoostOnly())
                 .withCustomHighlighterParams(
                     settings.hasCustomHighlighterParams()
                         ? StructValueTransformer.transformStruct(
@@ -200,6 +205,10 @@ public class HighlightUtils {
             settings.hasBoundaryScannerLocale()
                 ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
                 : DEFAULT_BOUNDARY_SCANNER_LOCALE)
+        .withTopBoostOnly(
+            settings.hasTopBoostOnly()
+                ? settings.getTopBoostOnly().getValue()
+                : DEFAULT_TOP_PHRASE_ONCE)
         .withCustomHighlighterParams(
             settings.hasCustomHighlighterParams()
                 ? StructValueTransformer.transformStruct(settings.getCustomHighlighterParams())
