@@ -74,6 +74,8 @@ This is the proto definition for Highlight message which can be specified in Sea
         google.protobuf.UInt32Value  boundary_max_scan = 15;
         // Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
         google.protobuf.StringValue  boundary_scanner_locale = 16;
+        // Only highlight the top matched phrases (with the highest boost value) per fragment. By default, it is false.
+        google.protobuf.BoolValue top_boost_only = 17;
     }
 
     // Highlight settings

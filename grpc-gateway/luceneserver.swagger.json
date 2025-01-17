@@ -1765,6 +1765,10 @@
         "boundaryScannerLocale": {
           "type": "string",
           "description": "Locale used in boundary scanner when using \"word\" or \"sentence\" boundary_scanner. Examples: \"en-US\", \"ch-ZH\"."
+        },
+        "topBoostOnly": {
+          "type": "boolean",
+          "description": "Only highlight the top matched phrases (with the highest boost value) per fragment. By default, it is false."
         }
       }
     },
