@@ -672,6 +672,14 @@ message Field {
     // than ignore_above will not be indexed or stored. This option is useful for protecting against Lucene’s
     // term byte-length limit of 32766
     optional int32 ignoreAbove = 36;
+    // IndexPrefixes when set for TEXT field
+        optional IndexPrefixes indexPrefixes = 37;
+}
+
+// Options for including IndexPrefixes for field
+message IndexPrefixes{
+    optional int32 min_chars = 1;
+    optional int32 max_chars = 2;
 }
 
 // Vector field element type

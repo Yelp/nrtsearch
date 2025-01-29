@@ -15,15 +15,33 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.yelp.nrtsearch.server.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
+import java.util.List;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 
 /** Field class for 'TEXT' field type. */
-public class TextFieldDef extends TextBaseFieldDef {
+public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
+  private PrefixFieldDef prefixFieldDef;
+  private static final String INDEX_PREFIX = "._index_prefix";
+
   public TextFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
     super(name, requestField, context);
+    if (requestField.hasIndexPrefixes()) {
+      if (!requestField.getSearch()) {
+        throw new IllegalArgumentException(
+            "Cannot set index_prefixes on unindexed field [" + name + "]");
+      }
+      this.prefixFieldDef =
+          new PrefixFieldDef(getName(), getName() + INDEX_PREFIX, requestField, context);
+    }
   }
 
   @Override
@@ -50,5 +68,37 @@ public class TextFieldDef extends TextBaseFieldDef {
     }
     fieldType.setTokenized(true);
     fieldType.setOmitNorms(requestField.getOmitNorms());
+  }
+
+  public PrefixFieldDef getPrefixFieldDef() {
+    return prefixFieldDef;
+  }
+
+  public boolean hasPrefix() {
+    return prefixFieldDef != null;
+  }
+
+  @Override
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
+    super.parseDocumentField(document, fieldValues, facetHierarchyPaths);
+
+    if (hasPrefix() && !fieldValues.isEmpty()) {
+      prefixFieldDef.parseDocumentField(document, fieldValues);
+    }
+  }
+
+  @Override
+  public Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod) {
+    if (prefixFieldDef != null && prefixFieldDef.accept(prefixQuery.getPrefix().length())) {
+      Query query = prefixFieldDef.getPrefixQuery(prefixQuery);
+      if (rewriteMethod == null
+          || rewriteMethod == MultiTermQuery.CONSTANT_SCORE_REWRITE
+          || rewriteMethod == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+        return new ConstantScoreQuery(query);
+      }
+      return query;
+    }
+    return null;
   }
 }

@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.field.TextFieldDef;
 import com.yelp.nrtsearch.server.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
@@ -580,9 +581,13 @@ public class QueryNodeMapper {
       throw new IllegalArgumentException(
           "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
     }
-
     MultiTermQuery.RewriteMethod rewriteMethod =
         getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
+
+    if (fieldDef instanceof TextFieldDef && ((TextFieldDef) fieldDef).hasPrefix()) {
+      return ((TextFieldDef) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod);
+    }
+
     return new org.apache.lucene.search.PrefixQuery(
         new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
   }
