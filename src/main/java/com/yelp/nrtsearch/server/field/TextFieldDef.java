@@ -18,18 +18,22 @@ package com.yelp.nrtsearch.server.field;
 import com.yelp.nrtsearch.server.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.PrefixQuery;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 
 /** Field class for 'TEXT' field type. */
 public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
-  private PrefixFieldDef prefixFieldDef;
-  private static final String INDEX_PREFIX = "._index_prefix";
+  protected PrefixFieldDef prefixFieldDef;
+  private Map<String, IndexableFieldDef<?>> childFieldsWithPrefix;
 
   public TextFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
@@ -39,9 +43,19 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
         throw new IllegalArgumentException(
             "Cannot set index_prefixes on unindexed field [" + name + "]");
       }
-      this.prefixFieldDef =
-          new PrefixFieldDef(getName(), getName() + INDEX_PREFIX, requestField, context);
+      this.prefixFieldDef = new PrefixFieldDef(getName(), requestField, context);
+      Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
+      childFieldsMap.put(prefixFieldDef.getName(), prefixFieldDef);
+      childFieldsWithPrefix = Collections.unmodifiableMap(childFieldsMap);
+    } else {
+      this.prefixFieldDef = null;
+      childFieldsWithPrefix = super.getChildFields();
     }
+  }
+
+  @Override
+  public Map<String, IndexableFieldDef<?>> getChildFields() {
+    return childFieldsWithPrefix;
   }
 
   @Override
@@ -99,6 +113,7 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
       }
       return query;
     }
-    return null;
+    return new org.apache.lucene.search.PrefixQuery(
+        new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
   }
 }

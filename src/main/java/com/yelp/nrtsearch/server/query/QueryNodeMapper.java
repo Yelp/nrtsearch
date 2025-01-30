@@ -22,12 +22,7 @@ import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.TextBaseFieldDef;
-import com.yelp.nrtsearch.server.field.TextFieldDef;
-import com.yelp.nrtsearch.server.field.properties.GeoQueryable;
-import com.yelp.nrtsearch.server.field.properties.PolygonQueryable;
-import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
-import com.yelp.nrtsearch.server.field.properties.TermQueryable;
-import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.field.properties.*;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
@@ -583,9 +578,8 @@ public class QueryNodeMapper {
     }
     MultiTermQuery.RewriteMethod rewriteMethod =
         getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
-
-    if (fieldDef instanceof TextFieldDef && ((TextFieldDef) fieldDef).hasPrefix()) {
-      return ((TextFieldDef) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod);
+    if (fieldDef instanceof PrefixQueryable prefixQueryable) {
+      return prefixQueryable.getPrefixQuery(prefixQuery, rewriteMethod);
     }
 
     return new org.apache.lucene.search.PrefixQuery(

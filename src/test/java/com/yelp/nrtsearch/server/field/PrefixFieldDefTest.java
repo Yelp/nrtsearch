@@ -22,12 +22,14 @@ import com.yelp.nrtsearch.server.analysis.PrefixWrappedAnalyzer;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexPrefixes;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
 import java.util.Optional;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,22 +39,22 @@ public class PrefixFieldDefTest {
   public static void init() {
     String configStr = "node: node1";
     NrtsearchConfig configuration =
-        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+            new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     SimilarityCreator.initialize(configuration, Collections.emptyList());
   }
 
   private TextFieldDef createFieldDef(Field field) {
     return new TextFieldDef(
-        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+            "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
   }
 
   @Test
   public void testDefaultConfiguration() {
     Field field =
-        Field.newBuilder()
-            .setSearch(true)
-            .setIndexPrefixes(IndexPrefixes.newBuilder().build())
-            .build();
+            Field.newBuilder()
+                    .setSearch(true)
+                    .setIndexPrefixes(IndexPrefixes.newBuilder().build())
+                    .build();
     TextFieldDef FieldDef = createFieldDef(field);
     PrefixFieldDef prefixFieldDef = FieldDef.getPrefixFieldDef();
     assertEquals(2, FieldDef.getPrefixFieldDef().getMinChars());
@@ -66,10 +68,10 @@ public class PrefixFieldDefTest {
   public void testInvalidMinChars() {
     try {
       Field field =
-          Field.newBuilder()
-              .setSearch(true)
-              .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(1).setMaxChars(5).build())
-              .build();
+              Field.newBuilder()
+                      .setSearch(true)
+                      .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(1).setMaxChars(5).build())
+                      .build();
       createFieldDef(field);
       fail("Should throw IllegalArgumentException for min_chars < 2");
     } catch (IllegalArgumentException e) {
@@ -81,10 +83,10 @@ public class PrefixFieldDefTest {
   public void testInvalidMaxChars() {
     try {
       Field field =
-          Field.newBuilder()
-              .setSearch(true)
-              .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(2).setMaxChars(20).build())
-              .build();
+              Field.newBuilder()
+                      .setSearch(true)
+                      .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(2).setMaxChars(20).build())
+                      .build();
       createFieldDef(field);
       fail("Should throw IllegalArgumentException for max_chars >= 20");
     } catch (IllegalArgumentException e) {
@@ -96,10 +98,10 @@ public class PrefixFieldDefTest {
   public void testInvalidMinMaxChars() {
     try {
       Field field =
-          Field.newBuilder()
-              .setSearch(true)
-              .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(5).setMaxChars(3).build())
-              .build();
+              Field.newBuilder()
+                      .setSearch(true)
+                      .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(5).setMaxChars(3).build())
+                      .build();
       createFieldDef(field);
       fail("Should throw IllegalArgumentException for min_chars > max_chars");
     } catch (IllegalArgumentException e) {
@@ -110,10 +112,10 @@ public class PrefixFieldDefTest {
   @Test
   public void testAcceptLength() {
     Field field =
-        Field.newBuilder()
-            .setSearch(true)
-            .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(3).setMaxChars(5).build())
-            .build();
+            Field.newBuilder()
+                    .setSearch(true)
+                    .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(3).setMaxChars(5).build())
+                    .build();
     TextFieldDef FieldDef = createFieldDef(field);
     PrefixFieldDef prefixFieldDef = FieldDef.getPrefixFieldDef();
     assertEquals(3, FieldDef.getPrefixFieldDef().getMinChars());
@@ -128,14 +130,47 @@ public class PrefixFieldDefTest {
   @Test
   public void testAnalyzer() {
     Field field =
-        Field.newBuilder()
-            .setSearch(true)
-            .setIndexPrefixes(IndexPrefixes.newBuilder().build())
-            .build();
+            Field.newBuilder()
+                    .setSearch(true)
+                    .setIndexPrefixes(IndexPrefixes.newBuilder().build())
+                    .build();
     TextFieldDef FieldDef = createFieldDef(field);
     PrefixFieldDef prefixFieldDef = FieldDef.getPrefixFieldDef();
     Optional<Analyzer> analyzer = prefixFieldDef.getIndexAnalyzer();
     assertTrue(analyzer.isPresent());
     assertTrue(analyzer.get() instanceof PrefixWrappedAnalyzer);
+  }
+
+  @Test
+  public void testPrefixQueryConstantScoreQuery() {
+    Field field = Field.newBuilder()
+            .setSearch(true)
+            .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(2).setMaxChars(5).build())
+            .build();
+    TextFieldDef fieldDef = createFieldDef(field);
+
+    PrefixQuery prefixQuery = PrefixQuery.newBuilder()
+            .setField("test_field")
+            .setPrefix("test")
+            .build();
+    Query query = fieldDef.getPrefixQuery(prefixQuery, null);
+    assertNotNull(query);
+    assertTrue(query instanceof ConstantScoreQuery);
+  }
+
+  @Test
+  public void testPrefixQueryBooleanQuery() {
+    Field field = Field.newBuilder()
+            .setSearch(true)
+            .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(3).setMaxChars(5).build())
+            .build();
+    TextFieldDef FieldDef = createFieldDef(field);
+    PrefixFieldDef prefixFieldDef = FieldDef.getPrefixFieldDef();
+    PrefixQuery prefixQuery = PrefixQuery.newBuilder()
+            .setField("test_field")
+            .setPrefix("te")
+            .build();
+    Query query = prefixFieldDef.getPrefixQuery(prefixQuery);
+    assertTrue(query instanceof BooleanQuery);
   }
 }

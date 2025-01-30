@@ -43,13 +43,11 @@ public class PrefixFieldDef extends TextBaseFieldDef {
   private final String name;
   private static final int DEFAULT_MIN_CHARS = 2;
   private static final int DEFAULT_MAX_CHARS = 5;
+  private static final String INDEX_PREFIX = "._index_prefix";
 
   public PrefixFieldDef(
-      String parentField,
-      String name,
-      Field requestField,
-      FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context);
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    super(name + INDEX_PREFIX, requestField, context);
     int minChars =
         requestField.getIndexPrefixes().hasMinChars()
             ? requestField.getIndexPrefixes().getMinChars()
@@ -59,10 +57,10 @@ public class PrefixFieldDef extends TextBaseFieldDef {
             ? requestField.getIndexPrefixes().getMaxChars()
             : DEFAULT_MAX_CHARS;
     validatePrefix(minChars, maxChars);
-    this.name = name;
+    this.name = name + INDEX_PREFIX;
     this.minChars = minChars;
     this.maxChars = maxChars;
-    this.parentField = parentField;
+    this.parentField = name;
     this.indexAnalyzer = parseIndexAnalyzer(requestField);
   }
 
@@ -91,7 +89,7 @@ public class PrefixFieldDef extends TextBaseFieldDef {
 
   protected void parseDocumentField(Document document, List<String> fieldValues) {
 
-    String value = fieldValues.getFirst();
+    String value = fieldValues.get(0);
     // doubt here. How do I generate tokens or add them directly? Any particular type ?
     try (TokenStream tokenStream = indexAnalyzer.tokenStream(name, value)) {
       CharTermAttribute termAtt = tokenStream.addAttribute(CharTermAttribute.class);
