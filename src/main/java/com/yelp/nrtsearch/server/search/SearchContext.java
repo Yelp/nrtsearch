@@ -58,6 +58,7 @@ public class SearchContext implements FieldFetchContext {
   }
 
   private final boolean explain;
+  private final boolean warming;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -78,6 +79,7 @@ public class SearchContext implements FieldFetchContext {
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
     this.explain = builder.explain;
+    this.warming = builder.warming;
 
     if (validate) {
       validate();
@@ -192,6 +194,10 @@ public class SearchContext implements FieldFetchContext {
     return explain;
   }
 
+  public boolean isWarming() {
+    return warming;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -249,6 +255,7 @@ public class SearchContext implements FieldFetchContext {
     private Map<String, Object> extraContext;
     private String queryNestedPath;
     private boolean explain;
+    private boolean warming;
 
     private Builder() {}
 
@@ -357,6 +364,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setExplain(boolean explain) {
       this.explain = explain;
+      return this;
+    }
+
+    public Builder setWarming(boolean warming) {
+      this.warming = warming;
       return this;
     }
 

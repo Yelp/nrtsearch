@@ -169,7 +169,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       searchContext =
           SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, diagnostics, profileResultBuilder);
+              searchRequest, indexState, shardState, s, diagnostics, profileResultBuilder, warming);
 
       long searchStartTime = System.nanoTime();
 

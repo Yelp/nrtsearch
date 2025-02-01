@@ -453,6 +453,7 @@ public class HitsLoggerTest extends ServerTestCase {
             .setLoggingHits(
                 LoggingHits.newBuilder()
                     .setName("custom_logger")
+                    .setHitsToLog(1)
                     .setParams(
                         Struct.newBuilder()
                             .putFields(
