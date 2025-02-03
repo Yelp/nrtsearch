@@ -469,7 +469,8 @@ public class TimeoutTest extends ServerTestCase {
               shardState,
               s,
               Diagnostics.newBuilder(),
-              ProfileResult.newBuilder());
+              ProfileResult.newBuilder(),
+              false);
       return func.apply(context);
     } finally {
       if (s != null) {
