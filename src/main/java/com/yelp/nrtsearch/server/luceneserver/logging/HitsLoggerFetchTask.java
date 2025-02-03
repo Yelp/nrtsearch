@@ -47,17 +47,20 @@ public class HitsLoggerFetchTask implements FetchTask {
    */
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
-    long startTime = System.nanoTime();
+    if (!searchContext.isWarming() && searchContext.getHitsToLog() > 0) {
+      long startTime = System.nanoTime();
 
-    // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits that
-    // can be logged
-    if (searchContext.getHitsToLog() < hits.size()) {
-      hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
-    } else {
-      hitsLogger.log(searchContext, hits);
+      // hits list can contain extra hits that don't need to be logged, otherwise, pass all hits
+      // that
+      // can be logged
+      if (searchContext.getHitsToLog() < hits.size()) {
+        hitsLogger.log(searchContext, hits.subList(0, searchContext.getHitsToLog()));
+      } else {
+        hitsLogger.log(searchContext, hits);
+      }
+
+      timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
     }
-
-    timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
   }
 
   /**

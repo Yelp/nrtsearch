@@ -125,7 +125,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       searchContext =
           SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, profileResultBuilder);
+              searchRequest, indexState, shardState, s, profileResultBuilder, warming);
 
       long searchStartTime = System.nanoTime();
 

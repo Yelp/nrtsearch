@@ -449,7 +449,7 @@ public class TimeoutTest extends ServerTestCase {
       s = shardState.acquire();
       SearchContext context =
           SearchRequestProcessor.buildContextForRequest(
-              request, indexState, shardState, s, ProfileResult.newBuilder());
+              request, indexState, shardState, s, ProfileResult.newBuilder(), false);
       return func.apply(context);
     } finally {
       if (s != null) {
