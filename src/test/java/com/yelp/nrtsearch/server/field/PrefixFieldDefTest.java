@@ -70,12 +70,12 @@ public class PrefixFieldDefTest {
       Field field =
           Field.newBuilder()
               .setSearch(true)
-              .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(1).setMaxChars(5).build())
+              .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(0).setMaxChars(5).build())
               .build();
       createFieldDef(field);
-      fail("Should throw IllegalArgumentException for min_chars < 2");
+      fail("Should throw IllegalArgumentException for min_chars < 1");
     } catch (IllegalArgumentException e) {
-      assertEquals("min_chars [1] must be greater than zero", e.getMessage());
+      assertEquals("min_chars [0] must be greater than zero", e.getMessage());
     }
   }
 

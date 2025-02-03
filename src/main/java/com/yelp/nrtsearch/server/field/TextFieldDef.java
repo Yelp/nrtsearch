@@ -42,10 +42,7 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
     super(name, requestField, context);
     if (requestField.hasIndexPrefixes()) {
-      if (!requestField.getSearch()) {
-        throw new IllegalArgumentException(
-            "Cannot set index_prefixes on unindexed field [" + name + "]");
-      }
+      verifySearchable("Prefix query");
       int minChars =
           requestField.getIndexPrefixes().hasMinChars()
               ? requestField.getIndexPrefixes().getMinChars()
@@ -61,6 +58,8 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
               getName(),
               Field.newBuilder()
                   .setSearch(true)
+                  .setAnalyzer(requestField.getAnalyzer())
+                  .setIndexAnalyzer(requestField.getIndexAnalyzer())
                   .setIndexPrefixes(
                       IndexPrefixes.newBuilder()
                           .setMinChars(minChars)
@@ -129,7 +128,8 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
 
   @Override
   public Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod) {
-    if (prefixFieldDef != null && prefixFieldDef.accept(prefixQuery.getPrefix().length())) {
+    verifySearchable("Prefix query");
+    if (hasPrefix() && prefixFieldDef.accept(prefixQuery.getPrefix().length())) {
       Query query = prefixFieldDef.getPrefixQuery(prefixQuery);
       if (rewriteMethod == null
           || rewriteMethod == MultiTermQuery.CONSTANT_SCORE_REWRITE
@@ -147,7 +147,7 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
       throw new IllegalArgumentException(
           "min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
     }
-    if (minChars < 2) {
+    if (minChars < 1) {
       throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
     }
     if (maxChars >= 20) {

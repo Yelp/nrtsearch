@@ -153,6 +153,7 @@ public class AtomFieldDef extends TextBaseFieldDef
 
   @Override
   public Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod) {
+    verifySearchable("Prefix query");
     return new org.apache.lucene.search.PrefixQuery(
         new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
   }

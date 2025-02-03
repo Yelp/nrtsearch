@@ -20,7 +20,6 @@ import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.isAnalyzerDefin
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
-import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.field.properties.*;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
@@ -51,7 +50,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -567,22 +565,14 @@ public class QueryNodeMapper {
 
   private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
     FieldDef fieldDef = state.getFieldOrThrow(prefixQuery.getField());
-    if (!(fieldDef instanceof IndexableFieldDef)) {
-      throw new IllegalArgumentException(
-          "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");
-    }
-    IndexOptions indexOptions = ((IndexableFieldDef<?>) fieldDef).getFieldType().indexOptions();
-    if (indexOptions == IndexOptions.NONE) {
-      throw new IllegalArgumentException(
-          "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
-    }
-    MultiTermQuery.RewriteMethod rewriteMethod =
-        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
 
     if (!(fieldDef instanceof PrefixQueryable)) {
       throw new IllegalArgumentException(
-          "Field " + fieldDef.getName() + "does not support PrefixQuery");
+          "Field " + fieldDef.getName() + " does not support PrefixQuery");
     }
+
+    MultiTermQuery.RewriteMethod rewriteMethod =
+        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
 
     return ((PrefixQueryable) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod);
   }

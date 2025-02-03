@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2025 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,19 @@
  */
 package com.yelp.nrtsearch.server.field.properties;
 
+import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 
+/** Trait interface for {@link FieldDef} types that can be queried by prefix queries. */
 public interface PrefixQueryable {
+  /**
+   * Build a prefix query for this field type with the given configuration.
+   *
+   * @param prefixQuery prefix query configuration
+   * @param rewriteMethod method to use for rewriting the prefix query
+   * @return lucene prefix query
+   */
   Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod);
 }
