@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.field;
 
 import com.yelp.nrtsearch.server.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.IndexPrefixes;
 import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,7 +34,9 @@ import org.apache.lucene.search.Query;
 /** Field class for 'TEXT' field type. */
 public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
   protected PrefixFieldDef prefixFieldDef;
-  private Map<String, IndexableFieldDef<?>> childFieldsWithPrefix;
+  private final Map<String, IndexableFieldDef<?>> childFieldsWithPrefix;
+  private static final int DEFAULT_MIN_CHARS = 2;
+  private static final int DEFAULT_MAX_CHARS = 5;
 
   public TextFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
@@ -43,7 +46,29 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
         throw new IllegalArgumentException(
             "Cannot set index_prefixes on unindexed field [" + name + "]");
       }
-      this.prefixFieldDef = new PrefixFieldDef(getName(), requestField, context);
+      int minChars =
+          requestField.getIndexPrefixes().hasMinChars()
+              ? requestField.getIndexPrefixes().getMinChars()
+              : DEFAULT_MIN_CHARS;
+      int maxChars =
+          requestField.getIndexPrefixes().hasMaxChars()
+              ? requestField.getIndexPrefixes().getMaxChars()
+              : DEFAULT_MAX_CHARS;
+      validatePrefix(minChars, maxChars);
+
+      this.prefixFieldDef =
+          new PrefixFieldDef(
+              getName(),
+              Field.newBuilder()
+                  .setSearch(true)
+                  .setIndexPrefixes(
+                      IndexPrefixes.newBuilder()
+                          .setMinChars(minChars)
+                          .setMaxChars(maxChars)
+                          .build())
+                  .build(),
+              context);
+
       Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
       childFieldsMap.put(prefixFieldDef.getName(), prefixFieldDef);
       childFieldsWithPrefix = Collections.unmodifiableMap(childFieldsMap);
@@ -98,7 +123,7 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
     super.parseDocumentField(document, fieldValues, facetHierarchyPaths);
 
     if (hasPrefix() && !fieldValues.isEmpty()) {
-      prefixFieldDef.parseDocumentField(document, fieldValues);
+      prefixFieldDef.parseDocumentField(document, fieldValues, facetHierarchyPaths);
     }
   }
 
@@ -115,5 +140,18 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
     }
     return new org.apache.lucene.search.PrefixQuery(
         new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
+  }
+
+  public void validatePrefix(int minChars, int maxChars) {
+    if (minChars > maxChars) {
+      throw new IllegalArgumentException(
+          "min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
+    }
+    if (minChars < 2) {
+      throw new IllegalArgumentException("min_chars [" + minChars + "] must be greater than zero");
+    }
+    if (maxChars >= 20) {
+      throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
+    }
   }
 }

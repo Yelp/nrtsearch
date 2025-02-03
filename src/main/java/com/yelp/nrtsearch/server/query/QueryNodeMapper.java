@@ -578,12 +578,13 @@ public class QueryNodeMapper {
     }
     MultiTermQuery.RewriteMethod rewriteMethod =
         getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
-    if (fieldDef instanceof PrefixQueryable prefixQueryable) {
-      return prefixQueryable.getPrefixQuery(prefixQuery, rewriteMethod);
+
+    if (!(fieldDef instanceof PrefixQueryable)) {
+      throw new IllegalArgumentException(
+          "Field " + fieldDef.getName() + "does not support PrefixQuery");
     }
 
-    return new org.apache.lucene.search.PrefixQuery(
-        new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
+    return ((PrefixQueryable) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod);
   }
 
   private static MultiTermQuery.RewriteMethod getRewriteMethod(
