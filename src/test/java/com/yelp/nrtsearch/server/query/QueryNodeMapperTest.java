@@ -198,7 +198,7 @@ public class QueryNodeMapperTest extends ServerTestCase {
       s = shardState.acquire();
       SearchContext context =
           SearchRequestProcessor.buildContextForRequest(
-              request, indexState, shardState, s, Diagnostics.newBuilder(), null);
+              request, indexState, shardState, s, Diagnostics.newBuilder(), null, false);
       org.apache.lucene.queries.function.FunctionScoreQuery query =
           (org.apache.lucene.queries.function.FunctionScoreQuery) context.getQuery();
       assertNotNull(query);

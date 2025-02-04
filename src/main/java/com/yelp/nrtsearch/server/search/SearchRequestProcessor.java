@@ -116,7 +116,8 @@ public class SearchRequestProcessor {
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
       SearchResponse.Diagnostics.Builder diagnostics,
-      ProfileResult.Builder profileResult)
+      ProfileResult.Builder profileResult,
+      boolean warming)
       throws IOException {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
@@ -130,7 +131,8 @@ public class SearchRequestProcessor {
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits())
-        .setExplain(searchRequest.getExplain());
+        .setExplain(searchRequest.getExplain())
+        .setWarming(warming);
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
     Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
