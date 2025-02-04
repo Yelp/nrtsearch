@@ -253,7 +253,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
   }
 
   private static boolean isPartialUpdate(AddDocumentRequest addDocumentRequest) {
-    return addDocumentRequest.getFieldsMap().containsKey("ALLOW_PARTIAL_UPDATE");
+    boolean isPartialupdate = addDocumentRequest.getFieldsMap().containsKey("ALLOW_PARTIAL_UPDATE");
+    addDocumentRequest.getFieldsMap().remove("ALLOW_PARTIAL_UPDATE");
+    return isPartialupdate;
   }
 
   /**
@@ -451,6 +453,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             if(partialUpdate) {
               Term term = new Term(idFieldDef.getName(), ad_bid_id);
               //executing the partial update
+              logger.debug("running a partial update for the ad_bid_id: {} and fields {} in the thread {}",
+                  ad_bid_id, fields ,  Thread.currentThread().getName() + Thread.currentThread().threadId());
+
               shardState.writer.updateDocValues(term, fields.toArray(new Field[0]));
             } else {
               documents.add(documentsContext.getRootDocument());
