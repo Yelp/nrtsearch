@@ -52,21 +52,20 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
               ? requestField.getIndexPrefixes().getMaxChars()
               : DEFAULT_MAX_CHARS;
       validatePrefix(minChars, maxChars);
+      Field.Builder prefixFieldBuilder =
+          Field.newBuilder()
+              .setSearch(true)
+              .setIndexPrefixes(
+                  IndexPrefixes.newBuilder().setMinChars(minChars).setMaxChars(maxChars).build());
 
-      this.prefixFieldDef =
-          new PrefixFieldDef(
-              getName(),
-              Field.newBuilder()
-                  .setSearch(true)
-                  .setAnalyzer(requestField.getAnalyzer())
-                  .setIndexAnalyzer(requestField.getIndexAnalyzer())
-                  .setIndexPrefixes(
-                      IndexPrefixes.newBuilder()
-                          .setMinChars(minChars)
-                          .setMaxChars(maxChars)
-                          .build())
-                  .build(),
-              context);
+      if (requestField.hasAnalyzer()) {
+        prefixFieldBuilder.setAnalyzer(requestField.getAnalyzer());
+      }
+      if (requestField.hasIndexAnalyzer()) {
+        prefixFieldBuilder.setIndexAnalyzer(requestField.getIndexAnalyzer());
+      }
+
+      this.prefixFieldDef = new PrefixFieldDef(getName(), prefixFieldBuilder.build(), context);
 
       Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
       childFieldsMap.put(prefixFieldDef.getName(), prefixFieldDef);

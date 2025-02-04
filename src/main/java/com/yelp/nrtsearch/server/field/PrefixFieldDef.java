@@ -48,9 +48,7 @@ public class PrefixFieldDef extends TextBaseFieldDef {
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     fieldType.setOmitNorms(true);
     fieldType.setTokenized(true);
-    if (requestField.getSearch()) {
-      setIndexOptions(requestField.getIndexOptions(), fieldType, IndexOptions.DOCS);
-    }
+    fieldType.setIndexOptions(IndexOptions.DOCS);
   }
 
   @Override
