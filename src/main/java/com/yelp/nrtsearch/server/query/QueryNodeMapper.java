@@ -162,7 +162,7 @@ public class QueryNodeMapper {
           MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
       case MATCHPHRASEPREFIXQUERY ->
           MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
-      case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), state);
+      case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), state, false);
       case CONSTANTSCOREQUERY ->
           getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
       case SPANQUERY -> getSpanQuery(query.getSpanQuery(), state);
@@ -563,7 +563,8 @@ public class QueryNodeMapper {
     return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
   }
 
-  private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
+  private static Query getPrefixQuery(
+      PrefixQuery prefixQuery, IndexState state, boolean spanQuery) {
     FieldDef fieldDef = state.getFieldOrThrow(prefixQuery.getField());
 
     if (!(fieldDef instanceof PrefixQueryable)) {
@@ -574,7 +575,7 @@ public class QueryNodeMapper {
     MultiTermQuery.RewriteMethod rewriteMethod =
         getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
 
-    return ((PrefixQueryable) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod);
+    return ((PrefixQueryable) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod, spanQuery);
   }
 
   private static MultiTermQuery.RewriteMethod getRewriteMethod(
@@ -661,7 +662,7 @@ public class QueryNodeMapper {
         FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
         return new SpanMultiTermQueryWrapper<>(fuzzyQuery);
       case PREFIXQUERY:
-        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state);
+        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state, true);
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
       case REGEXPQUERY:
         RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);

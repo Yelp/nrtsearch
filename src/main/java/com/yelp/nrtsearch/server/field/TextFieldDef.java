@@ -126,10 +126,11 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
   }
 
   @Override
-  public Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod) {
+  public Query getPrefixQuery(
+      PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod, boolean spanQuery) {
     verifySearchable("Prefix query");
-    if (hasPrefix() && prefixFieldDef.accept(prefixQuery.getPrefix().length())) {
-      Query query = prefixFieldDef.getPrefixQuery(prefixQuery);
+    if (hasPrefix() && prefixFieldDef.accept(prefixQuery.getPrefix().length()) && !spanQuery) {
+      Query query = prefixFieldDef.getPrefixQuery(prefixQuery, rewriteMethod);
       if (rewriteMethod == null
           || rewriteMethod == MultiTermQuery.CONSTANT_SCORE_REWRITE
           || rewriteMethod == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {

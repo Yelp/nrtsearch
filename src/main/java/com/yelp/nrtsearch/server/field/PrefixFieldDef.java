@@ -67,7 +67,7 @@ public class PrefixFieldDef extends TextBaseFieldDef {
     return length >= minChars - 1 && length <= maxChars;
   }
 
-  public Query getPrefixQuery(PrefixQuery prefixQuery) {
+  public Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod) {
     String textValue = prefixQuery.getPrefix();
     if (textValue.length() >= minChars) {
       return super.getTermQueryFromTextValue(textValue);
@@ -78,8 +78,8 @@ public class PrefixFieldDef extends TextBaseFieldDef {
       automata.add(Automata.makeAnyChar());
     }
     Automaton automaton = Operations.concatenate(automata);
-    AutomatonQuery query = new AutomatonQuery(new Term(getName(), textValue + "*"), automaton);
-
+    AutomatonQuery query =
+        new AutomatonQuery(new Term(getName(), textValue + "*"), automaton, false, rewriteMethod);
     return new BooleanQuery.Builder()
         .add(query, BooleanClause.Occur.SHOULD)
         .add(new TermQuery(new Term(parentField, textValue)), BooleanClause.Occur.SHOULD)

@@ -151,7 +151,8 @@ public class PrefixFieldDefTest {
     TextFieldDef fieldDef = createFieldDef(field);
     PrefixQuery prefixQuery =
         PrefixQuery.newBuilder().setField("test_field").setPrefix("test").build();
-    Query query = fieldDef.getPrefixQuery(prefixQuery, null);
+    Query query =
+        fieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertNotNull(query);
     assertTrue(query instanceof ConstantScoreQuery);
   }
@@ -167,7 +168,7 @@ public class PrefixFieldDefTest {
     PrefixFieldDef prefixFieldDef = FieldDef.getPrefixFieldDef();
     PrefixQuery prefixQuery =
         PrefixQuery.newBuilder().setField("test_field").setPrefix("te").build();
-    Query query = prefixFieldDef.getPrefixQuery(prefixQuery);
+    Query query = prefixFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE);
     assertTrue(query instanceof BooleanQuery);
   }
 
@@ -181,7 +182,8 @@ public class PrefixFieldDefTest {
     TextFieldDef textFieldDef = createFieldDef(field);
     PrefixQuery prefixQuery =
         PrefixQuery.newBuilder().setField("test_field").setPrefix("ab").build();
-    Query query = textFieldDef.getPrefixQuery(prefixQuery, null);
+    Query query =
+        textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertTrue(query instanceof ConstantScoreQuery);
     Query innerQuery = ((ConstantScoreQuery) query).getQuery();
     assertTrue(innerQuery instanceof BooleanQuery);
@@ -199,7 +201,8 @@ public class PrefixFieldDefTest {
     TextFieldDef textFieldDef = createFieldDef(field);
     PrefixQuery prefixQuery =
         PrefixQuery.newBuilder().setField("text_field").setPrefix("abc").build();
-    Query query = textFieldDef.getPrefixQuery(prefixQuery, null);
+    Query query =
+        textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertTrue(query instanceof ConstantScoreQuery);
     Query innerQuery = ((ConstantScoreQuery) query).getQuery();
     assertTrue(innerQuery instanceof TermQuery);
@@ -214,7 +217,8 @@ public class PrefixFieldDefTest {
             .build();
     TextFieldDef textFieldDef = createFieldDef(field);
     PrefixQuery query = PrefixQuery.newBuilder().setField("text_field").setPrefix("abcd").build();
-    Query prefixQuery = textFieldDef.getPrefixQuery(query, null);
+    Query prefixQuery =
+        textFieldDef.getPrefixQuery(query, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertTrue(prefixQuery instanceof ConstantScoreQuery);
     Query innerQuery = ((ConstantScoreQuery) prefixQuery).getQuery();
     assertTrue(innerQuery instanceof TermQuery);
@@ -230,7 +234,8 @@ public class PrefixFieldDefTest {
             .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(3).setMaxChars(6).build())
             .build();
     TextFieldDef textFieldDef = createFieldDef(field);
-    Query query = textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+    Query query =
+        textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertFalse(query instanceof ConstantScoreQuery);
     assertTrue(query instanceof org.apache.lucene.search.PrefixQuery);
   }
@@ -245,7 +250,8 @@ public class PrefixFieldDefTest {
             .setIndexPrefixes(IndexPrefixes.newBuilder().setMinChars(3).setMaxChars(6).build())
             .build();
     TextFieldDef textFieldDef = createFieldDef(field);
-    Query query = textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+    Query query =
+        textFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.SCORING_BOOLEAN_REWRITE, false);
     assertFalse(query instanceof ConstantScoreQuery);
     assertTrue(query instanceof TermQuery);
   }
@@ -257,7 +263,7 @@ public class PrefixFieldDefTest {
     PrefixQuery prefixQuery =
         PrefixQuery.newBuilder().setField("text_field").setPrefix("abc").build();
     Query query =
-        noPrefixFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        noPrefixFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertTrue(query instanceof org.apache.lucene.search.PrefixQuery);
   }
 }

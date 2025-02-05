@@ -3341,7 +3341,7 @@
         },
         "indexPrefixes": {
           "$ref": "#/definitions/luceneserverIndexPrefixes",
-          "title": "IndexPrefixes when set for TEXT field"
+          "title": "Parameter enables the indexing of term prefixes to speed up prefix searches"
         }
       },
       "title": "Definition of a field in an index"
@@ -3970,11 +3970,13 @@
       "properties": {
         "minChars": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "The minimum prefix length to index. Must be greater than 0, and defaults to 2."
         },
         "maxChars": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "The maximum prefix length to index. Must be less than 20, and defaults to 5."
         }
       },
       "title": "Options for including IndexPrefixes for field"

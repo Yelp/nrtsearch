@@ -27,7 +27,9 @@ public interface PrefixQueryable {
    *
    * @param prefixQuery prefix query configuration
    * @param rewriteMethod method to use for rewriting the prefix query
+   * @param spanQuery boolean to check if the query is a span query or not
    * @return lucene prefix query
    */
-  Query getPrefixQuery(PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod);
+  Query getPrefixQuery(
+      PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod, boolean spanQuery);
 }
