@@ -21,7 +21,9 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -35,6 +37,8 @@ import java.util.List;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,8 +56,18 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
+  private final int maxWarmingLuceneQueryOnlyCount;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
+    this(archiver, service, index, maxWarmingQueries, 0);
+  }
+
+  public Warmer(
+      Archiver archiver,
+      String service,
+      String index,
+      int maxWarmingQueries,
+      int maxWarmingLuceneQueryOnlyCount) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -61,6 +75,7 @@ public class Warmer {
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
+    this.maxWarmingLuceneQueryOnlyCount = maxWarmingLuceneQueryOnlyCount;
   }
 
   public int getNumWarmingRequests() {
@@ -131,7 +146,7 @@ public class Warmer {
 
   @VisibleForTesting
   void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler)
-      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+      throws IOException, InterruptedException {
     if (archiver.getVersionedResource(service, resource).isEmpty()) {
       logger.info(
           "No warming queries found in S3 for service: {} and resource: {}", service, resource);
@@ -152,15 +167,25 @@ public class Warmer {
     }
     Path downloadDir = archiver.download(service, resource);
     Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
+    long startMS = System.currentTimeMillis();
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
       int count = 0;
       while ((line = reader.readLine()) != null) {
-        processLine(indexState, searchHandler, threadPoolExecutor, line);
         count++;
+        processLine(
+            indexState,
+            searchHandler,
+            threadPoolExecutor,
+            line,
+            count < maxWarmingLuceneQueryOnlyCount); // warm up the query cache first
       }
-      logger.info("Warmed index: {} with {} warming queries", index, count);
+      logger.info(
+          "Warmed index: {} with {} warming queries in {}ms",
+          index,
+          count,
+          System.currentTimeMillis() - startMS);
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
@@ -172,19 +197,57 @@ public class Warmer {
     }
   }
 
+  private SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(
+      SearchRequest searchRequest, IndexState indexState) throws IOException, InterruptedException {
+    return SearchHandler.getSearcherAndTaxonomy(
+        searchRequest,
+        indexState,
+        indexState.getShard(0),
+        SearchResponse.Diagnostics.newBuilder(),
+        indexState.getSearchThreadPoolExecutor());
+  }
+
   private void processLine(
       IndexState indexState,
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
-      String line)
-      throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
+      String line,
+      boolean luceneQueryOnly)
+      throws InvalidProtocolBufferException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
     SearchRequest searchRequest = builder.build();
-    if (threadPoolExecutor == null) {
-      searchHandler.handle(indexState, searchRequest);
-    } else {
-      threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
+
+    try {
+      if (luceneQueryOnly) {
+        Query luceneQuery =
+            QueryNodeMapper.getInstance().getQuery(searchRequest.getQuery(), indexState);
+        try {
+          s = getSearcherAndTaxonomy(searchRequest, indexState);
+          if (threadPoolExecutor == null) {
+            s.searcher.search(luceneQuery, 0);
+          } else {
+            SearcherTaxonomyManager.SearcherAndTaxonomy finalS = s;
+            threadPoolExecutor.submit(() -> finalS.searcher.search(luceneQuery, 0));
+          }
+        } finally {
+          if (s != null) {
+            try {
+              indexState.getShard(0).release(s);
+            } catch (IOException e) {
+              logger.error("failed closing the search in warmer.", e);
+              throw e;
+            }
+          }
+        }
+      } else if (threadPoolExecutor == null) {
+        searchHandler.handle(indexState, searchRequest);
+      } else {
+        threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+      }
+    } catch (IOException | InterruptedException | SearchHandler.SearchHandlerException e) {
+      logger.warn("failed a warming querying");
     }
   }
 }
