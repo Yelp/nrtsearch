@@ -17,9 +17,11 @@ package com.yelp.nrtsearch.server.field;
 
 import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.hasAnalyzer;
 
+import com.yelp.nrtsearch.server.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import java.util.List;
@@ -31,14 +33,12 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for 'ATOM' field type. Uses {@link KeywordAnalyzer} for text analysis. */
-public class AtomFieldDef extends TextBaseFieldDef implements Sortable, RangeQueryable {
+public class AtomFieldDef extends TextBaseFieldDef
+    implements Sortable, RangeQueryable, PrefixQueryable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
 
   public AtomFieldDef(
@@ -149,5 +149,13 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable, RangeQue
       throw new IllegalStateException(
           "Only SORTED or SORTED_SET doc values are supported for range queries: " + getName());
     }
+  }
+
+  @Override
+  public Query getPrefixQuery(
+      PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod, boolean spanQuery) {
+    verifySearchable("Prefix query");
+    return new org.apache.lucene.search.PrefixQuery(
+        new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
   }
 }

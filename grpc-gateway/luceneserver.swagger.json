@@ -3338,6 +3338,10 @@
           "type": "integer",
           "format": "int32",
           "title": "For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer\nthan ignore_above will not be indexed or stored. This option is useful for protecting against Lucene’s\nterm byte-length limit of 32766"
+        },
+        "indexPrefixes": {
+          "$ref": "#/definitions/luceneserverIndexPrefixes",
+          "title": "Parameter enables the indexing of term prefixes to speed up prefix searches"
         }
       },
       "title": "Definition of a field in an index"
@@ -3960,6 +3964,22 @@
       "default": "DEFAULT",
       "description": "- DEFAULT: Use field default index options: ATOM=DOCS, TEXT=DOCS_FREQS_POSITIONS\n - DOCS: Index only doc ids\n - DOCS_FREQS: Index doc ids and term frequencies\n - DOCS_FREQS_POSITIONS: Index doc ids, term frequencies and positions\n - DOCS_FREQS_POSITIONS_OFFSETS: Index doc ids, term frequencies, positions and offsets",
       "title": "How text tokens should be indexed"
+    },
+    "luceneserverIndexPrefixes": {
+      "type": "object",
+      "properties": {
+        "minChars": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The minimum prefix length to index. Must be greater than 0, and defaults to 2."
+        },
+        "maxChars": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum prefix length to index. Must be less than 20, and defaults to 5."
+        }
+      },
+      "title": "Options for including IndexPrefixes for field"
     },
     "luceneserverIndexSettings": {
       "type": "object",
