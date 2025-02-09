@@ -3257,6 +3257,10 @@
           "type": "integer",
           "format": "int32",
           "title": "For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.\nThis option is also useful for protecting against Lucene’s term byte-length limit of 32766"
+        },
+        "indexPrefixes": {
+          "$ref": "#/definitions/luceneserverIndexPrefixes",
+          "title": "Parameter enables the indexing of term prefixes to speed up prefix searches"
         }
       }
     },
@@ -3848,6 +3852,22 @@
       ],
       "default": "DOCS_FREQS_POSITIONS",
       "description": "How the tokens should be indexed."
+    },
+    "luceneserverIndexPrefixes": {
+      "type": "object",
+      "properties": {
+        "minChars": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The minimum prefix length to index. Must be greater than 0, and defaults to 2."
+        },
+        "maxChars": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum prefix length to index. Must be less than 20, and defaults to 5."
+        }
+      },
+      "title": "Options for including IndexPrefixes for field"
     },
     "luceneserverIndexSettings": {
       "type": "object",

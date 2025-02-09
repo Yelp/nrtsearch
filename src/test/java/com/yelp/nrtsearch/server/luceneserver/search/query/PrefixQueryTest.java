@@ -125,7 +125,7 @@ public class PrefixQueryTest extends ServerTestCase {
       doQuery("virtual", "prefix");
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(e.getMessage().contains("Field \"prefix\" is not indexable"));
+      assertTrue(e.getMessage().contains("Field virtual does not support PrefixQuery"));
     }
   }
 
@@ -136,7 +136,8 @@ public class PrefixQueryTest extends ServerTestCase {
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(
-          e.getMessage().contains("Field \"text_field.not_searchable\" is not indexed with terms"));
+          e.getMessage()
+              .contains("Prefix query requires field to be searchable: text_field.not_searchable"));
     }
   }
 

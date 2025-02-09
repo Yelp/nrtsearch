@@ -18,19 +18,24 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for 'ATOM' field type. Uses {@link KeywordAnalyzer} for text analysis. */
-public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
+public class AtomFieldDef extends TextBaseFieldDef implements Sortable, PrefixQueryable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
 
   public AtomFieldDef(String name, Field requestField) {
@@ -144,5 +149,23 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
       sortField.setMissingValue(SortField.STRING_FIRST);
     }
     return sortField;
+  }
+
+  @Override
+  public Query getPrefixQuery(
+      PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod, boolean spanQuery) {
+    verifySearchable("Prefix query");
+    org.apache.lucene.search.PrefixQuery query =
+        new org.apache.lucene.search.PrefixQuery(
+            new Term(prefixQuery.getField(), prefixQuery.getPrefix()));
+    query.setRewriteMethod(rewriteMethod);
+    return query;
+  }
+
+  protected void verifySearchable(String featureName) {
+    if (!isSearchable()) {
+      throw new IllegalStateException(
+          featureName + " requires field to be searchable: " + getName());
+    }
   }
 }
