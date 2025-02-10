@@ -1,0 +1,26 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "TEXT",
+      "store": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "indexPrefixes": {
+        "min_chars": 2,
+        "max_chars": 5
+      }
+    },
+    {
+      "name": "description",
+      "type": "TEXT",
+      "search": true,
+      "store": true
+    }
+  ]
+}
