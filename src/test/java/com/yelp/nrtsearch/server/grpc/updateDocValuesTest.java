@@ -123,20 +123,20 @@ public class updateDocValuesTest {
       int f2 = hit.getFieldsOrThrow("ad_bid_floor_USD").getFieldValue(0).getIntValue();
       int f4 = hit.getFieldsOrThrow("non_rtb_field").getFieldValue(0).getIntValue();
 
-      if(id == 1){
+      if (id == 1) {
         assertEquals(101, f2);
-        assertEquals(f1,1);
-        assertEquals(f4,1);
+        assertEquals(f1, 1);
+        assertEquals(f4, 1);
       }
-      if(id == 2){
+      if (id == 2) {
         assertEquals(100, f1);
-        assertEquals(f2,2);
-        assertEquals(f4,2);
+        assertEquals(f2, 2);
+        assertEquals(f4, 2);
       }
-      if(id == 3){
-        assertEquals(f1,3);
-        assertEquals(f2,3);
-        assertEquals(f4,3);
+      if (id == 3) {
+        assertEquals(f1, 3);
+        assertEquals(f2, 3);
+        assertEquals(f4, 3);
       }
     }
   }
@@ -153,8 +153,6 @@ public class updateDocValuesTest {
     primaryServer.commit("test_index");
     Thread.sleep(2000);
     primaryServer.verifySimpleDocs("test_index", 3);
-
-
   }
 
   private List<AddDocumentRequest> buildAddDocRequest(int N) {
