@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -44,7 +45,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -173,7 +173,7 @@ public class QueryNodeMapper {
       case MATCHPHRASEPREFIXQUERY:
         return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
       case PREFIXQUERY:
-        return getPrefixQuery(query.getPrefixQuery(), state);
+        return getPrefixQuery(query.getPrefixQuery(), state, false);
       case CONSTANTSCOREQUERY:
         return getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
       case SPANQUERY:
@@ -597,24 +597,16 @@ public class QueryNodeMapper {
     return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
   }
 
-  private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
+  private static Query getPrefixQuery(
+      PrefixQuery prefixQuery, IndexState state, boolean spanQuery) {
     FieldDef fieldDef = state.getField(prefixQuery.getField());
-    if (!(fieldDef instanceof IndexableFieldDef)) {
+    if (!(fieldDef instanceof PrefixQueryable)) {
       throw new IllegalArgumentException(
-          "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");
+          "Field " + fieldDef.getName() + " does not support PrefixQuery");
     }
-    IndexOptions indexOptions = ((IndexableFieldDef) fieldDef).getFieldType().indexOptions();
-    if (indexOptions == IndexOptions.NONE) {
-      throw new IllegalArgumentException(
-          "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
-    }
-
-    org.apache.lucene.search.PrefixQuery query =
-        new org.apache.lucene.search.PrefixQuery(
-            new Term(prefixQuery.getField(), prefixQuery.getPrefix()));
-    query.setRewriteMethod(
-        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize()));
-    return query;
+    MultiTermQuery.RewriteMethod rewriteMethod =
+        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize());
+    return ((PrefixQueryable) fieldDef).getPrefixQuery(prefixQuery, rewriteMethod, spanQuery);
   }
 
   private static MultiTermQuery.RewriteMethod getRewriteMethod(
@@ -699,7 +691,7 @@ public class QueryNodeMapper {
         FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
         return new SpanMultiTermQueryWrapper<>(fuzzyQuery);
       case PREFIXQUERY:
-        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state);
+        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state, true);
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
       case REGEXPQUERY:
         RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);
