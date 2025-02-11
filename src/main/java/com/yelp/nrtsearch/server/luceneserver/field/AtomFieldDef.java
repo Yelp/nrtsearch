@@ -161,11 +161,4 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable, PrefixQu
     query.setRewriteMethod(rewriteMethod);
     return query;
   }
-
-  protected void verifySearchable(String featureName) {
-    if (!isSearchable()) {
-      throw new IllegalStateException(
-          featureName + " requires field to be searchable: " + getName());
-    }
-  }
 }

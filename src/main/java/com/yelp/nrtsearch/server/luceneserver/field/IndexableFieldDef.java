@@ -354,4 +354,19 @@ public abstract class IndexableFieldDef extends FieldDef {
   public FieldType getFieldType() {
     return fieldType;
   }
+  /**
+   * Verify that the field is searchable.
+   *
+   * @param featureName name of feature that requires searchable
+   * @throws IllegalStateException if field is not searchable
+   */
+  protected void verifySearchable(String featureName) {
+    if (!isSearchable()) {
+      throw new IllegalStateException(
+              featureName + " requires field to be searchable: " + getName());
+    }
+  }
 }
+
+
+

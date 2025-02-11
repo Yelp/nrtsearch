@@ -133,11 +133,4 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
       throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
     }
   }
-
-  protected void verifySearchable(String featureName) {
-    if (!isSearchable()) {
-      throw new IllegalStateException(
-          featureName + " requires field to be searchable: " + getName());
-    }
-  }
 }
