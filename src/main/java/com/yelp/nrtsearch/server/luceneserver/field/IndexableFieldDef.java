@@ -354,6 +354,7 @@ public abstract class IndexableFieldDef extends FieldDef {
   public FieldType getFieldType() {
     return fieldType;
   }
+
   /**
    * Verify that the field is searchable.
    *
@@ -363,10 +364,7 @@ public abstract class IndexableFieldDef extends FieldDef {
   protected void verifySearchable(String featureName) {
     if (!isSearchable()) {
       throw new IllegalStateException(
-              featureName + " requires field to be searchable: " + getName());
+          featureName + " requires field to be searchable: " + getName());
     }
   }
 }
-
-
-
