@@ -196,7 +196,9 @@ public class SortParser {
         break;
       case STRING:
       case STRING_VAL:
-        if (sortValue instanceof BytesRef) {
+        if (sortValue == null) {
+          fieldValue.setTextValue("");
+        } else if (sortValue instanceof BytesRef) {
           fieldValue.setTextValue(((BytesRef) sortValue).utf8ToString());
         } else {
           fieldValue.setTextValue((String) sortValue);
