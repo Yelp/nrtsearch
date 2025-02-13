@@ -57,13 +57,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -387,6 +381,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        searchContext
+            .getFetchTasks()
+            .getHitsLoggerFetchTask()
+            .processAllHits(searchContext, Collections.emptyList());
+      }
       return;
     }
 
