@@ -26,10 +26,12 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.NrtIndexWriter;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
+import io.prometheus.client.Gauge;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -966,8 +968,10 @@ public class ShardState implements Closeable {
       }
 
       if (configuration.getSyncInitialNrtPoint()) {
+        Gauge.Timer timer = BootstrapMetrics.initialNRTTimer.labels(name).startTimer();
         nrtReplicaNode.syncFromCurrentPrimary(
             configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
+        timer.close();
       }
 
       startSearcherPruningThread(indexState.getGlobalState().getShutdownLatch());
