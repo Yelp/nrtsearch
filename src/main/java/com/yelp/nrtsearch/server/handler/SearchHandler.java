@@ -58,6 +58,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -387,6 +388,14 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      // call log even when there is no hits.
+      // HitsLogger implementation should decide what to log or not when there is no hits.
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        searchContext
+            .getFetchTasks()
+            .getHitsLoggerFetchTask()
+            .processAllHits(searchContext, Collections.emptyList());
+      }
       return;
     }
 
