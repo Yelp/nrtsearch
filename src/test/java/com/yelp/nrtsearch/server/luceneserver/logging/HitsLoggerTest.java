@@ -468,6 +468,39 @@ public class HitsLoggerTest extends ServerTestCase {
   }
 
   @Test
+  public void testLoggingWithZeroHits() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(1)
+            .setStartHit(0)
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor_no_hits")
+                            .build())
+                    .build())
+            .setLoggingHits(
+                LoggingHits.newBuilder()
+                    .setName("custom_logger")
+                    .setHitsToLog(1)
+                    .setParams(
+                        Struct.newBuilder()
+                            .putFields(
+                                "external_value", Value.newBuilder().setStringValue("abc").build()))
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertEquals("LOGGED  {external_value=abc}", HitsLoggerTest.logMessage);
+    assertEquals(0, response.getTotalHits().getValue());
+    assertEquals(0, response.getHitsCount());
+  }
+
+  @Test
   public void testLoggingTimeTaken() {
     SearchRequest request =
         SearchRequest.newBuilder()

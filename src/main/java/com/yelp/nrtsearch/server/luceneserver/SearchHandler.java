@@ -52,6 +52,7 @@ import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -335,6 +336,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   private void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      // call log even when there is no hits.
+      // HitsLogger implementation should decide what to log or not when there is no hits.
+      if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
+        searchContext
+            .getFetchTasks()
+            .getHitsLoggerFetchTask()
+            .processAllHits(searchContext, Collections.emptyList());
+      }
       return;
     }
 
