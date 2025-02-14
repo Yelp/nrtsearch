@@ -388,6 +388,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      // call log even when there is no hits.
+      // HitsLogger implementation should decide whether to log or not when there is no hits.
       if (searchContext.getFetchTasks().getHitsLoggerFetchTask() != null) {
         searchContext
             .getFetchTasks()
