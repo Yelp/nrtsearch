@@ -19,10 +19,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
+import io.prometheus.client.Gauge;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -152,6 +155,10 @@ public class Warmer {
     }
     Path downloadDir = archiver.download(service, resource);
     Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
+    Gauge.Timer timer =
+        BootstrapMetrics.warmingQueryTimer
+            .labels(service, resource, index, Version.CURRENT.toString())
+            .startTimer();
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
@@ -162,6 +169,7 @@ public class Warmer {
       }
       logger.info("Warmed index: {} with {} warming queries", index, count);
     } finally {
+      timer.close();
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);

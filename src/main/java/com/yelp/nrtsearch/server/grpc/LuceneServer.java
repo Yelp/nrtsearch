@@ -228,6 +228,8 @@ public class LuceneServer {
     // register thread pool metrics
     new ThreadPoolCollector().register(collectorRegistry);
     collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
+    // register bootstrap metrics
+    BootstrapMetrics.register(collectorRegistry);
     // register nrt metrics
     NrtMetrics.register(collectorRegistry);
     // register index metrics
