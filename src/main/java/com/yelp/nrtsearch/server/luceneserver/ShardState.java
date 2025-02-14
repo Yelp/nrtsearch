@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -968,7 +969,8 @@ public class ShardState implements Closeable {
       }
 
       if (configuration.getSyncInitialNrtPoint()) {
-        Gauge.Timer timer = BootstrapMetrics.initialNRTTimer.labels(name).startTimer();
+        Gauge.Timer timer =
+            BootstrapMetrics.initialNRTTimer.labels(name, Version.CURRENT.toString()).startTimer();
         nrtReplicaNode.syncFromCurrentPrimary(
             configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
         timer.close();

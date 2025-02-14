@@ -19,37 +19,45 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 
 /**
- * Class for collecting the timing of the major components during the bootstrap time. The timers
- * shall only be updated during the bootstrap.
+ * Class for collecting the timing of the overall bootstrap time and the major components. The
+ * timers shall only be updated during the bootstrap.
  */
 public class BootstrapMetrics {
+
+  public static final Gauge nrtsearchBootstrapTimer =
+      Gauge.build()
+          .name("nrtsearch_bootstrap_time_second")
+          .help("timer to record the entire bootstrap time.")
+          .labelNames("nrtsearch_version")
+          .create();
+
   public static final Gauge pluginInitializationTimer =
       Gauge.build()
-          .name("plugin_initialization_timer")
+          .name("plugin_initialization_time_second")
           .help("timer to record the boostrap time spent on plugin initialization.")
-          .labelNames("plugin_name", "plugin_version")
+          .labelNames("plugin_name", "plugin_version", "nrtsearch_version")
           .create();
 
   public static final Gauge dataRestoreTimer =
       Gauge.build()
-          .name("data_restore_timer")
+          .name("data_restore_time_second")
           .help(
               "timer to record the boostrap time spent on restoring the stored data from local or remote source.")
-          .labelNames("index")
+          .labelNames("index", "nrtsearch_version")
           .create();
 
   public static final Gauge initialNRTTimer =
       Gauge.build()
-          .name("initial_nrt_timer")
+          .name("initial_nrt_time_second")
           .help("timer to record the boostrap time spent on initial nrt")
-          .labelNames("index")
+          .labelNames("index", "nrtsearch_version")
           .create();
 
   public static final Gauge warmingQueryTimer =
       Gauge.build()
-          .name("warming_query_timer")
+          .name("warming_query_time_second")
           .help("timer to record the boostrap time spent on plugin initialization.")
-          .labelNames("service", "resource", "index")
+          .labelNames("service", "resource", "index", "nrtsearch_version")
           .create();
 
   /**
@@ -58,6 +66,7 @@ public class BootstrapMetrics {
    * @param registry collector registry
    */
   public static void register(CollectorRegistry registry) {
+    registry.register(nrtsearchBootstrapTimer);
     registry.register(pluginInitializationTimer);
     registry.register(dataRestoreTimer);
     registry.register(initialNRTTimer);

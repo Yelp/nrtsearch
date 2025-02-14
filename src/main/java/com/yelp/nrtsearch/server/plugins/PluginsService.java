@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.plugins;
 import static io.prometheus.client.Collector.MILLISECONDS_PER_SECOND;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import io.prometheus.client.CollectorRegistry;
@@ -79,7 +80,9 @@ public class PluginsService {
       loadedPlugins.add(descriptor.getPlugin());
       BootstrapMetrics.pluginInitializationTimer
           .labels(
-              descriptor.getPluginMetadata().getName(), descriptor.getPluginMetadata().getVersion())
+              descriptor.getPluginMetadata().getName(),
+              descriptor.getPluginMetadata().getVersion(),
+              Version.CURRENT.toString())
           .set((System.currentTimeMillis() - eachStartMs) / MILLISECONDS_PER_SECOND);
     }
     pluginDownloader.close();

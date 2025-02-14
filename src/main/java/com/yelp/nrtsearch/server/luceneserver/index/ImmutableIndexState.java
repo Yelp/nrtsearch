@@ -31,6 +31,7 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -403,12 +404,16 @@ public class ImmutableIndexState extends IndexState {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + getName() + "\" was already started");
     }
-
+    Gauge.Timer timer =
+        BootstrapMetrics.nrtsearchBootstrapTimer.labels(Version.CURRENT.toString()).startTimer();
     // restore data if provided
     if (dataPath != null) {
-      Gauge.Timer timer = BootstrapMetrics.dataRestoreTimer.labels(getName()).startTimer();
+      Gauge.Timer dataRestoreTimer =
+          BootstrapMetrics.dataRestoreTimer
+              .labels(getName(), Version.CURRENT.toString())
+              .startTimer();
       restoreIndexData(dataPath, getRootDir());
-      timer.close();
+      dataRestoreTimer.close();
     }
 
     // only create if the index has not been committed
@@ -434,8 +439,10 @@ public class ImmutableIndexState extends IndexState {
         }
         break;
       default:
+        // we don't have to close the timer as the entire app will be terminated if reaches here
         throw new IllegalArgumentException("Unknown server mode: " + serverMode);
     }
+    timer.close();
   }
 
   static void restoreIndexData(Path restorePath, Path indexDataRoot) throws IOException {
