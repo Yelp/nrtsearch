@@ -135,6 +135,10 @@ public class Warmer {
   @VisibleForTesting
   void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Gauge.Timer timer =
+        BootstrapMetrics.warmingQueryTimer
+            .labels(service, resource, index, Version.CURRENT.toString())
+            .startTimer();
     if (archiver.getVersionedResource(service, resource).isEmpty()) {
       logger.info(
           "No warming queries found in S3 for service: {} and resource: {}", service, resource);
@@ -155,10 +159,6 @@ public class Warmer {
     }
     Path downloadDir = archiver.download(service, resource);
     Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
-    Gauge.Timer timer =
-        BootstrapMetrics.warmingQueryTimer
-            .labels(service, resource, index, Version.CURRENT.toString())
-            .startTimer();
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
@@ -169,7 +169,6 @@ public class Warmer {
       }
       logger.info("Warmed index: {} with {} warming queries", index, count);
     } finally {
-      timer.close();
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);
@@ -177,6 +176,7 @@ public class Warmer {
       // Leave warming files on disk, for use if the index is restarted.
       // If we find these files end up being too large, we could consider adding
       // some kind of local resource cache purging to the Archiver interface.
+      timer.close();
     }
   }
 

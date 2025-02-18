@@ -404,8 +404,6 @@ public class ImmutableIndexState extends IndexState {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + getName() + "\" was already started");
     }
-    Gauge.Timer timer =
-        BootstrapMetrics.nrtsearchBootstrapTimer.labels(Version.CURRENT.toString()).startTimer();
     // restore data if provided
     if (dataPath != null) {
       Gauge.Timer dataRestoreTimer =
@@ -439,10 +437,8 @@ public class ImmutableIndexState extends IndexState {
         }
         break;
       default:
-        // we don't have to close the timer as the entire app will be terminated if reaches here
         throw new IllegalArgumentException("Unknown server mode: " + serverMode);
     }
-    timer.close();
   }
 
   static void restoreIndexData(Path restorePath, Path indexDataRoot) throws IOException {

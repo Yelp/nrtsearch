@@ -26,8 +26,8 @@ public class BootstrapMetrics {
 
   public static final Gauge nrtsearchBootstrapTimer =
       Gauge.build()
-          .name("nrtsearch_bootstrap_time_second")
-          .help("timer to record the entire bootstrap time.")
+          .name("total_bootstrap_time_seconds")
+          .help("timer to record the total bootstrap time.")
           .labelNames("nrtsearch_version")
           .create();
 
@@ -55,7 +55,7 @@ public class BootstrapMetrics {
 
   public static final Gauge warmingQueryTimer =
       Gauge.build()
-          .name("warming_query_time_second")
+          .name("warming_time_seconds")
           .help("timer to record the boostrap time spent on plugin initialization.")
           .labelNames("service", "resource", "index", "nrtsearch_version")
           .create();

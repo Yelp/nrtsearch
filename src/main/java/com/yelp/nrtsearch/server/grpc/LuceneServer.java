@@ -35,6 +35,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
@@ -72,6 +73,7 @@ import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Gauge;
 import io.prometheus.client.hotspot.DefaultExports;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -120,6 +122,8 @@ public class LuceneServer {
 
   @VisibleForTesting
   public void start() throws IOException {
+    Gauge.Timer timer =
+        BootstrapMetrics.nrtsearchBootstrapTimer.labels(Version.CURRENT.toString()).startTimer();
     List<Plugin> plugins = pluginsService.loadPlugins();
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
@@ -196,6 +200,7 @@ public class LuceneServer {
             .start();
     logger.info(
         "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
+    timer.close();
   }
 
   @VisibleForTesting
