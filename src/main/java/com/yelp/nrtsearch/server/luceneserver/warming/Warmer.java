@@ -19,10 +19,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
+import io.prometheus.client.Gauge;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -132,6 +135,10 @@ public class Warmer {
   @VisibleForTesting
   void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Gauge.Timer timer =
+        BootstrapMetrics.warmingQueryTimer
+            .labels(service, resource, index, Version.CURRENT.toString())
+            .startTimer();
     if (archiver.getVersionedResource(service, resource).isEmpty()) {
       logger.info(
           "No warming queries found in S3 for service: {} and resource: {}", service, resource);
@@ -169,6 +176,7 @@ public class Warmer {
       // Leave warming files on disk, for use if the index is restarted.
       // If we find these files end up being too large, we could consider adding
       // some kind of local resource cache purging to the Archiver interface.
+      timer.close();
     }
   }
 
