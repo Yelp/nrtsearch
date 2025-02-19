@@ -17,23 +17,33 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
+import com.yelp.nrtsearch.server.luceneserver.Handler.HandlerException;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.monitoring.CustomIndexingMetrics;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +55,13 @@ public class AddDocumentHandler {
    * context for the AddDocumentRequest including root document and optional child documents if
    * schema contains nested objects
    */
+  /*
+   constants matching elasticpipe , only needed for POC. to be deleted.
+  */
+  private static final String PARTIAL_UPDATE_KEY = "_is_partial_update";
+
+  private static final String PARTIAL_UPDATE_FIELDS = "_partial_update_fields";
+
   public static class DocumentsContext {
     private final Document rootDocument;
     private final Map<String, List<Document>> childDocuments;
@@ -77,8 +94,8 @@ public class AddDocumentHandler {
         AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
       DocumentsContext documentsContext = new DocumentsContext();
-      Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
-      for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
+      Map<String, MultiValuedField> fields = addDocumentRequest.getFieldsMap();
+      for (Entry<String, MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
 
@@ -116,7 +133,7 @@ public class AddDocumentHandler {
     /** Parses a field's value, which is a MultiValuedField in all cases */
     private static void parseOneField(
         String fieldName,
-        AddDocumentRequest.MultiValuedField value,
+        MultiValuedField value,
         DocumentsContext documentsContext,
         IndexState indexState)
         throws AddDocumentHandlerException {
@@ -125,9 +142,7 @@ public class AddDocumentHandler {
 
     /** Parse MultiValuedField for a single field, which is always a List<String>. */
     private static void parseMultiValueField(
-        FieldDef field,
-        AddDocumentRequest.MultiValuedField value,
-        DocumentsContext documentsContext)
+        FieldDef field, MultiValuedField value, DocumentsContext documentsContext)
         throws AddDocumentHandlerException {
       ProtocolStringList fieldValues = value.getValueList();
       List<FacetHierarchyPath> facetHierarchyPaths = value.getFaceHierarchyPathsList();
@@ -153,7 +168,7 @@ public class AddDocumentHandler {
     }
   }
 
-  public static class AddDocumentHandlerException extends Handler.HandlerException {
+  public static class AddDocumentHandlerException extends HandlerException {
     public AddDocumentHandlerException(String errorMessage) {
       super(errorMessage);
     }
@@ -181,6 +196,40 @@ public class AddDocumentHandler {
       this.indexName = indexName;
     }
 
+    private static boolean isPartialUpdate(AddDocumentRequest addDocumentRequest) {
+      return addDocumentRequest.getFieldsMap().containsKey(PARTIAL_UPDATE_KEY)
+          && Boolean.parseBoolean(
+              addDocumentRequest.getFieldsMap().get(PARTIAL_UPDATE_KEY).getValue(0));
+    }
+
+    private static Set<String> getPartialUpdateFields(AddDocumentRequest addDocumentRequest) {
+      Set<String> partialUpdateFields = new HashSet<>();
+      MultiValuedField field = addDocumentRequest.getFieldsMap().get(PARTIAL_UPDATE_FIELDS);
+      if (field != null) {
+        // For some weird reasons, the passed hashset from Elasticpipe like [inactive] , is coming
+        // literally as "[inactive]"
+        // and not as [inactive]. Which means that the beginning [ and ending ] are part of the
+        // string, whereas they should
+        // otherwise represent the hashset/list of items. So, we need to remove the first and last
+        // character from the string
+        List<String> cleansedValues =
+            field.getValueList().stream()
+                .map(value -> value.substring(1, value.length() - 1)) // Remove enclosing brackets
+                .flatMap(
+                    value -> {
+                      if (value.contains(",")) {
+                        return Arrays.stream(value.split(","));
+                      } else {
+                        return Stream.of(value);
+                      }
+                    })
+                .map(String::trim) // Trim each element
+                .collect(Collectors.toList());
+        partialUpdateFields.addAll(cleansedValues);
+      }
+      return partialUpdateFields;
+    }
+
     public long runIndexingJob() throws Exception {
       DeadlineUtils.checkDeadline("DocumentIndexer: runIndexingJob", "INDEXING");
 
@@ -192,15 +241,42 @@ public class AddDocumentHandler {
       IndexState indexState;
       ShardState shardState;
       IdFieldDef idFieldDef;
-
+      String ad_bid_id = "";
       try {
         indexState = globalState.getIndex(this.indexName);
         shardState = indexState.getShard(0);
         idFieldDef = indexState.getIdFieldDef().orElse(null);
         for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
+          boolean partialUpdate = isPartialUpdate(addDocumentRequest);
+          final Set<String> partialUpdateFields;
+          if (partialUpdate) {
+            // removing all fields except rtb fields for the POC , for the actual implementation
+            // we will only be getting the fields that need to be updated
+            partialUpdateFields = getPartialUpdateFields(addDocumentRequest);
+            Map<String, MultiValuedField> docValueFields =
+                getDocValueFieldsForUpdateCall(addDocumentRequest, partialUpdateFields);
+            ad_bid_id = addDocumentRequest.getFieldsMap().get("ad_bid_id").getValue(0);
+            addDocumentRequest =
+                AddDocumentRequest.newBuilder().putAllFields(docValueFields).build();
+          } else {
+            partialUpdateFields = new HashSet<>();
+          }
+
           DocumentsContext documentsContext =
-              AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
-                  addDocumentRequest, indexState);
+              LuceneDocumentBuilder.getDocumentsContext(addDocumentRequest, indexState);
+
+          /*
+          if this is a partial update request, we need the only the partial update docValue fields from
+          documentcontext.
+           */
+          List<IndexableField> partialUpdateDocValueFields = new ArrayList<>();
+          if (partialUpdate) {
+            partialUpdateDocValueFields =
+                documentsContext.getRootDocument().getFields().stream()
+                    .filter(f -> partialUpdateFields.contains(f.name()))
+                    .toList();
+          }
+
           if (documentsContext.hasNested()) {
             try {
               if (idFieldDef != null) {
@@ -222,7 +298,24 @@ public class AddDocumentHandler {
               throw new IOException(e);
             }
           } else {
-            documents.add(documentsContext.getRootDocument());
+            if (partialUpdate) {
+              CustomIndexingMetrics.updateDocValuesRequestsReceived.labels(indexName).inc();
+              Term term = new Term(idFieldDef.getName(), ad_bid_id);
+              // executing the partial update
+              logger.debug(
+                  "running a partial update for the ad_bid_id: {} and fields {} in the thread {}",
+                  ad_bid_id,
+                  partialUpdateDocValueFields,
+                  Thread.currentThread().getName() + Thread.currentThread().threadId());
+              long nanoTime = System.nanoTime();
+              shardState.writer.updateDocValues(
+                  term, partialUpdateDocValueFields.toArray(new Field[0]));
+              CustomIndexingMetrics.updateDocValuesLatency
+                  .labels(indexName)
+                  .set((System.nanoTime() - nanoTime));
+            } else {
+              documents.add(documentsContext.getRootDocument());
+            }
           }
         }
       } catch (Exception e) {
@@ -252,6 +345,15 @@ public class AddDocumentHandler {
       return shardState.writer.getMaxCompletedSequenceNumber();
     }
 
+    private static Map<String, MultiValuedField> getDocValueFieldsForUpdateCall(
+        AddDocumentRequest addDocumentRequest, Set<String> partialUpdateFields) {
+      Map<String, MultiValuedField> docValueFields =
+          addDocumentRequest.getFieldsMap().entrySet().stream()
+              .filter(e -> partialUpdateFields.contains(e.getKey()))
+              .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+      return docValueFields;
+    }
+
     /**
      * update documents with nested objects
      *
@@ -267,7 +369,7 @@ public class AddDocumentHandler {
         ShardState shardState)
         throws IOException {
       List<Document> documents = new ArrayList<>();
-      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+      for (Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
             e.getValue().stream()
                 .map(v -> handleFacets(indexState, shardState, v))
@@ -282,7 +384,12 @@ public class AddDocumentHandler {
       }
 
       documents.add(rootDoc);
+      CustomIndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc();
+      long nanoTime = System.nanoTime();
       shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
+      CustomIndexingMetrics.addDocumentLatency
+          .labels(indexName)
+          .set((System.nanoTime() - nanoTime));
     }
 
     /**
@@ -296,7 +403,7 @@ public class AddDocumentHandler {
         DocumentsContext documentsContext, IndexState indexState, ShardState shardState)
         throws IOException {
       List<Document> documents = new ArrayList<>();
-      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+      for (Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
             e.getValue().stream()
                 .map(v -> handleFacets(indexState, shardState, v))
@@ -304,7 +411,12 @@ public class AddDocumentHandler {
       }
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
+      CustomIndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc();
+      long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(documents);
+      CustomIndexingMetrics.addDocumentLatency
+          .labels(indexName)
+          .set((System.nanoTime() - nanoTime));
     }
 
     private void updateDocuments(
@@ -314,8 +426,13 @@ public class AddDocumentHandler {
         ShardState shardState)
         throws IOException {
       for (Document nextDoc : documents) {
+        CustomIndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc();
+        long nanoTime = System.nanoTime();
         nextDoc = handleFacets(indexState, shardState, nextDoc);
         shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
+        CustomIndexingMetrics.addDocumentLatency
+            .labels(indexName)
+            .set((System.nanoTime() - nanoTime));
       }
     }
 
@@ -326,6 +443,8 @@ public class AddDocumentHandler {
         throw new IllegalStateException(
             "Adding documents to an index on a replica node is not supported");
       }
+      CustomIndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc(documents.size());
+      long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(
           (Iterable<Document>)
               () ->
@@ -349,6 +468,9 @@ public class AddDocumentHandler {
                       return nextDoc;
                     }
                   });
+      CustomIndexingMetrics.addDocumentLatency
+          .labels(indexName)
+          .set((System.nanoTime() - nanoTime));
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
