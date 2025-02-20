@@ -43,11 +43,6 @@ More information about Lucene's support of vector search can be found at:
 
 In the following sections, we will go through different steps to launch and configure an Nrtsearch cluster with vector search support.
 
-What was Already Supported?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Nrtsearch v0 already supports regular vector fields. However, it's not using any kind of graph data structure under the hood to do advanced KNN lookups in the recall/boosting phase. This data can only be used in the scoring phase to find similarity scores using custom functions/painless scripts.
-
 Launching Cluster with Vector Search Support
 ============================================
 
@@ -69,14 +64,8 @@ Note that the above formula is only for vector fields. Other fields in the index
 Configuring Cluster
 -------------------
 
-To create a cluster that supports vector search, you can follow the guide to launch regular Nrtsearch clusters with a few minor changes that are discussed below.
-
-Add the following vector search-specific settings to the index configuration under the datastore schema repo::
-
-    # As a top-level property
-    complex-types:
-      <VECTOR FIELD NAME>: vector
-    ...
+To use vector search, you need to add `VECTOR` type field to your index your create a new index with vector fields.
+Example vector field definition::
 
     # Under field property
     - name: <VECTOR FIELD NAME>
@@ -91,8 +80,9 @@ Add the following vector search-specific settings to the index configuration und
 
 * Lower `hnsw_m` and `hnsw_ef_construction` values can help with lowering latencies and improving indexing throughput. However, they affect search accuracy.
 * Lower values for `vectorDimensions` help with less disk space and indexing throughput. However, it affects search accuracy.
+* The maximum possible value for vectorDimensions in Nrtsearch is 4096
 
-Note that Nrtsearch already supports vector fields, which doesn't generate a graph. For such existing fields, search can be set to False, if it's not needed in filtering.
+Nrtsearch also supports vector fields which don't generate a graph. For such existing fields, search can be set to False, if it's not needed in filtering.
 
 Ingestion
 ---------
