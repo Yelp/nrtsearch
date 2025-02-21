@@ -22,9 +22,11 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.state.StateUtils;
+import io.prometheus.metrics.core.datapoints.Timer;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -104,9 +106,12 @@ public class Warmer {
 
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    SearchHandler searchHandler =
-        new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
-    warmFromS3(indexState, parallelism, searchHandler);
+    try (Timer _timer =
+        BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
+      warmFromS3(indexState, parallelism, searchHandler);
+    }
   }
 
   @VisibleForTesting

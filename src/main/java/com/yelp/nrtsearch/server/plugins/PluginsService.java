@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.remote.PluginDownloader;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
@@ -69,10 +70,15 @@ public class PluginsService {
     logger.debug("Plugin search path: " + pluginSearchPath);
     List<Plugin> loadedPlugins = new ArrayList<>();
     for (String plugin : config.getPlugins()) {
+      long startNs = System.nanoTime();
       logger.info("Loading plugin: " + plugin);
       PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath, pluginDownloader);
       loadedPluginDescriptors.add(descriptor);
       loadedPlugins.add(descriptor.getPlugin());
+      BootstrapMetrics.pluginInitializationTimer
+          .labelValues(
+              descriptor.getPluginMetadata().getName(), descriptor.getPluginMetadata().getVersion())
+          .set((System.nanoTime() - startNs) / 1000000.0);
     }
     return loadedPlugins;
   }

@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.handler.SearchHandler.SearchHandlerException;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
@@ -32,6 +33,7 @@ import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
 import io.grpc.StatusRuntimeException;
+import io.prometheus.metrics.core.datapoints.Timer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
@@ -971,8 +974,13 @@ public class ShardState implements Closeable {
       }
 
       if (configuration.getSyncInitialNrtPoint()) {
-        nrtReplicaNode.syncFromCurrentPrimary(
-            configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
+        try (Timer _timer =
+            BootstrapMetrics.initialNRTTimer
+                .labelValues(StringUtils.substringBefore(name, ":"))
+                .startTimer()) {
+          nrtReplicaNode.syncFromCurrentPrimary(
+              configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
+        }
       }
 
       startSearcherPruningThread(indexState.getGlobalState().getShutdownLatch());

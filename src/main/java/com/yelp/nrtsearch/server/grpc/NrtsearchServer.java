@@ -81,6 +81,7 @@ import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.modules.NrtsearchModule;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
@@ -110,6 +111,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
+import io.prometheus.metrics.core.datapoints.Timer;
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
@@ -148,74 +150,77 @@ public class NrtsearchServer {
 
   @VisibleForTesting
   public void start() throws IOException {
-    List<Plugin> plugins = pluginsService.loadPlugins();
+    try (Timer _timer = BootstrapMetrics.nrtsearchBootstrapTimer.startTimer()) {
+      List<Plugin> plugins = pluginsService.loadPlugins();
 
-    LuceneServerImpl serverImpl =
-        new LuceneServerImpl(configuration, remoteBackend, prometheusRegistry, plugins);
-    GlobalState globalState = serverImpl.getGlobalState();
+      LuceneServerImpl serverImpl =
+          new LuceneServerImpl(configuration, remoteBackend, prometheusRegistry, plugins);
+      GlobalState globalState = serverImpl.getGlobalState();
 
-    registerMetrics(globalState);
+      registerMetrics(globalState);
 
-    if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
-      replicationServer =
-          NettyServerBuilder.forPort(configuration.getReplicationPort())
-              .addService(
-                  new ReplicationServerImpl(
-                      globalState, configuration.getVerifyReplicationIndexId()))
-              .executor(
-                  ExecutorFactory.getInstance()
-                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
+      if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
+        replicationServer =
+            NettyServerBuilder.forPort(configuration.getReplicationPort())
+                .addService(
+                    new ReplicationServerImpl(
+                        globalState, configuration.getVerifyReplicationIndexId()))
+                .executor(
+                    ExecutorFactory.getInstance()
+                        .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
+                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .maxConcurrentCallsPerConnection(
+                    configuration.getMaxConcurrentCallsPerConnectionForReplication())
+                .maxConnectionAge(
+                    configuration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
+                .maxConnectionAgeGrace(
+                    configuration.getMaxConnectionAgeGraceForReplication(), TimeUnit.SECONDS)
+                .build()
+                .start();
+      } else {
+        replicationServer =
+            ServerBuilder.forPort(configuration.getReplicationPort())
+                .addService(
+                    new ReplicationServerImpl(
+                        globalState, configuration.getVerifyReplicationIndexId()))
+                .executor(
+                    ExecutorFactory.getInstance()
+                        .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
+                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .build()
+                .start();
+      }
+      logger.info(
+          "Server started, listening on "
+              + configuration.getReplicationPort()
+              + " for replication messages");
+
+      // Inform global state that the replication server is started, and it is safe to start indices
+      globalState.replicationStarted(replicationServer.getPort());
+
+      NrtsearchMonitoringServerInterceptor monitoringInterceptor =
+          NrtsearchMonitoringServerInterceptor.create(
+              Configuration.allMetrics()
+                  .withLatencyBuckets(configuration.getMetricsBuckets())
+                  .withPrometheusRegistry(prometheusRegistry));
+      /* The port on which the server should run */
+      GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
+      server =
+          ServerBuilder.forPort(configuration.getPort())
+              .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
+              .addService(ProtoReflectionService.newInstance())
+              // Set executor supplier to use different thread pool for metrics method
+              .callExecutor(executorSupplier)
+              // We still need this executor to run tasks before the point when executorSupplier can
+              // be called (https://github.com/grpc/grpc-java/issues/8274)
+              .executor(executorSupplier.getGrpcExecutor())
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-              .maxConcurrentCallsPerConnection(
-                  configuration.getMaxConcurrentCallsPerConnectionForReplication())
-              .maxConnectionAge(configuration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
-              .maxConnectionAgeGrace(
-                  configuration.getMaxConnectionAgeGraceForReplication(), TimeUnit.SECONDS)
+              .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+              .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
               .build()
               .start();
-    } else {
-      replicationServer =
-          ServerBuilder.forPort(configuration.getReplicationPort())
-              .addService(
-                  new ReplicationServerImpl(
-                      globalState, configuration.getVerifyReplicationIndexId()))
-              .executor(
-                  ExecutorFactory.getInstance()
-                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
-              .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-              .build()
-              .start();
+      logger.info("Server started, listening on " + configuration.getPort() + " for messages");
     }
-    logger.info(
-        "Server started, listening on "
-            + configuration.getReplicationPort()
-            + " for replication messages");
-
-    // Inform global state that the replication server is started, and it is safe to start indices
-    globalState.replicationStarted(replicationServer.getPort());
-
-    NrtsearchMonitoringServerInterceptor monitoringInterceptor =
-        NrtsearchMonitoringServerInterceptor.create(
-            Configuration.allMetrics()
-                .withLatencyBuckets(configuration.getMetricsBuckets())
-                .withPrometheusRegistry(prometheusRegistry));
-    /* The port on which the server should run */
-    GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
-    server =
-        ServerBuilder.forPort(configuration.getPort())
-            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
-            .addService(ProtoReflectionService.newInstance())
-            // Set executor supplier to use different thread pool for metrics method
-            .callExecutor(executorSupplier)
-            // We still need this executor to run tasks before the point when executorSupplier can
-            // be called (https://github.com/grpc/grpc-java/issues/8274)
-            .executor(executorSupplier.getGrpcExecutor())
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
-            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
-            .build()
-            .start();
-    logger.info("Server started, listening on " + configuration.getPort() + " for messages");
   }
 
   @VisibleForTesting
@@ -246,6 +251,8 @@ public class NrtsearchServer {
     // register thread pool metrics
     prometheusRegistry.register(new ThreadPoolCollector());
     prometheusRegistry.register(RejectionCounterWrapper.rejectionCounter);
+    // register bootstrap metrics
+    BootstrapMetrics.register(prometheusRegistry);
     // register nrt metrics
     NrtMetrics.register(prometheusRegistry);
     // register index metrics

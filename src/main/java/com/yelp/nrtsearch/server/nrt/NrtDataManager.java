@@ -15,14 +15,18 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
+import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexName;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
+import io.prometheus.metrics.core.datapoints.Timer;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -65,7 +69,7 @@ public class NrtDataManager implements Closeable {
   private Path shardDataDir;
   private UploadManagerThread uploadManagerThread = null;
 
-  // Set during restoreIfNeeded, then only accessed by UploadManagerThread
+  // Set during restoreIfNeeded, then only accessed by UploadManagerThreadindexIdentifier
   private volatile NrtPointState lastPointState = null;
 
   // use synchronized access
@@ -178,27 +182,33 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex.getDeleteExistingData()) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
-
-    if (hasRestoreData()) {
-      logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
-      InputStream pointStateStream = remoteBackend.downloadPointState(serviceName, indexIdentifier);
-      byte[] pointStateBytes = pointStateStream.readAllBytes();
-      NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
-
-      long start = System.nanoTime();
-      try {
-        remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
-        writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
-      } finally {
+    try (Timer _timer =
+        BootstrapMetrics.dataRestoreTimer
+            .labelValues(getBaseIndexName(indexIdentifier), indexIdentifier)
+            .startTimer()) {
+      if (hasRestoreData()) {
         logger.info(
-            "Restored index data for service: {}, index: {} in {}ms",
-            serviceName,
-            indexIdentifier,
-            (System.nanoTime() - start) / 1_000_000.0);
-      }
+            "Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
+        InputStream pointStateStream =
+            remoteBackend.downloadPointState(serviceName, indexIdentifier);
+        byte[] pointStateBytes = pointStateStream.readAllBytes();
+        NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
 
-      lastPointState = pointState;
+        long start = System.nanoTime();
+        try {
+          remoteBackend.downloadIndexFiles(
+              serviceName, indexIdentifier, shardDataDir, pointState.files);
+          writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
+        } finally {
+          logger.info(
+              "Restored index data for service: {}, index: {} in {}ms",
+              serviceName,
+              indexIdentifier,
+              (System.nanoTime() - start) / 1_000_000.0);
+        }
+
+        lastPointState = pointState;
+      }
     }
   }
 
