@@ -98,7 +98,7 @@ public class AddDocumentHandler {
       for (Entry<String, MultiValuedField> entry : fields.entrySet()) {
         if(entry.getKey().equals(PARTIAL_UPDATE_KEY) || entry.getKey().equals(PARTIAL_UPDATE_FIELDS)){
           continue;
-        }g
+        }
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
 
