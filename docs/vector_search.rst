@@ -87,7 +87,29 @@ Nrtsearch also supports vector fields which don't generate a graph. For such exi
 Ingestion
 ---------
 
-You need to add the embeddings using AddDocumentRequests.
+You need to add the embeddings using AddDocumentRequests. The embeddings should be added as a jsonified list of floats in the `value` field. The number of floats should match the number of dimensions specified in the vector field definition.
+Example request in json format::
+
+    {
+      "indexName": "vector_test",
+      "fields": [
+        {
+          "field": "photo_id",
+          "intValue": 1
+        },
+        {
+          "field": "photo_embeddings",
+          "value": "[0.188423157, 0.246743672, ...]"
+        }
+      ]
+    }
+
+You can also use lucene-client to load the documents with vector fields. Example csv input file:
+
+    photo_id,photo_embeddings
+    1,"[0.188423157, 0.246743672, ...]"
+    2,"[0.188423157, 0.246743672, ...]"
+    3,"[0.188423157, 0.246743672, ...]"
 
 Search
 ------
@@ -132,7 +154,7 @@ Example::
 
 Vector Search + Inline Filter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Nrtsearch doesn’t go through the HNSW graph at all. Instead it first filters data using the provided filter. Then it uses a KNN algorithm such as cosine cosine similarity to score returned embeddings. While this option doesn’t traverse through the HNSW graph, it can return very accurate results. It will perform much better when the number of filtered docs to rank is less.
+Nrtsearch doesn’t go through the HNSW graph at all. Instead it first filters data using the provided filter. Then it uses a KNN algorithm such as cosine similarity to score returned embeddings. While this option doesn’t traverse through the HNSW graph, it can return very accurate results. It will perform much better when the number of filtered docs to rank is less.
 Example::
 
     {
@@ -173,14 +195,10 @@ Example::
      ]
     }
 
-Here, Nrtsearch will try to find the best matching documents by traversing through the HNSW graph. At the same time it tries to find all the docs matching the top level query clause as well. Then it combines the results using an OR operator. While this approach is using the graph, it’s only recommended for specific use cases, as it won’t provide accurate results. For instance, if one is looking for the most similar photo in a particular business for the given photo, Nrtsearch will find top N photos that are very similar to the given photo across all businesses. It will try to pick the photos that belong to the given business as well. If some or none of the photos from the latter queries are found in the former one, then those photos will be still included in the final results, even though they may not be similar to the photo we are looking for.
-
-An example where this particular use case may make sense is a scenario where one would want to find burger photos for a particular business. The vector search query can find its top burger photo across all businesses. The text search can apply a filter based on business ID and caption field of the document. If there are photos from the same business in the vector search, their score can be boosted using the boost parameter so that when combined with the regular text search results, they get higher score. In this case even if no photos are found from the vector search, the text search can at least show some photos whose caption matches the keyword "burger".
-
 Vector Search + Top Level Filter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Traverses through HSNW graph + Does an OR with the results from the top level query statement. Can be used for boosting on top of existing lucene score.
-The results are less accurate. Example::
+Here, Nrtsearch will try to find the best matching documents by traversing through the HNSW graph. At the same time it tries to find all the docs matching the top level query clause as well. Then it combines the results using an OR operator. While this approach is using the graph, it’s only recommended for specific use cases, as it won’t provide accurate results. For instance, if one is looking for the most similar photo in a particular business for the given photo, Nrtsearch will find top N photos that are very similar to the given photo across all businesses. It will try to pick the photos that belong to the given business as well. If some or none of the photos from the latter queries are found in the former one, then those photos will be still included in the final results, even though they may not be similar to the photo we are looking for.
+Example::
 
     {
       "indexName": "vector_test",
@@ -221,6 +239,7 @@ The results are less accurate. Example::
      ]
     }
 
+Another example where this particular use case may make sense is a scenario where one would want to find burger photos for a particular business. The vector search query can find its top burger photo across all businesses. The text search can apply a filter based on business ID and caption field of the document. If there are photos from the same business in the vector search, their score can be boosted using the boost parameter so that when combined with the regular text search results, they get higher score. In this case even if no photos are found from the vector search, the text search can at least show some photos whose caption matches the keyword "burger".
 
 Optimizing Search Queries
 =========================
@@ -234,21 +253,21 @@ A summary of trade-offs for each config:
 
   * Lower `num_candidates`
 
-    * Lower vector hits (latency)
+    * Lower vector hits
     * Lower accuracy
 
-  * Lower indexing parameter values
+  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
 
-    * Lower vector hits (latency)
+    * Lower vector hits
     * Lower accuracy
     * Lower indexing work
     * Requires reindexing
 
 * Improve Indexing Throughput
 
-  * Lower indexing parameter values
+  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
 
-    * Lower vector hits (latency)
+    * Lower vector hits
     * Lower accuracy
     * Lower indexing work
     * Requires reindexing
@@ -257,12 +276,12 @@ A summary of trade-offs for each config:
 
   * Higher `num_candidates`
 
-    * Higher vector hits (latency)
+    * Higher vector hits
     * Higher accuracy
 
-  * Higher indexing parameter values
+  * Higher indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
 
-    * Higher vector hits (latency)
+    * Higher vector hits
     * Higher accuracy
     * Higher indexing work
     * Requires reindexing
