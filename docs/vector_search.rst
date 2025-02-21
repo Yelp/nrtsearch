@@ -44,10 +44,10 @@ More information about Lucene's support of vector search can be found at:
 In the following sections, we will go through different steps to launch and configure an Nrtsearch cluster with vector search support.
 
 Launching Cluster with Vector Search Support
-============================================
+--------------------------------------------
 
 Estimate Cluster Size
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 Before launching a cluster, you need to figure out how big the data will be.
 
@@ -62,7 +62,7 @@ For example, if your index will have around 390M docs with embeddings of 512 dim
 Note that the above formula is only for vector fields. Other fields in the index will require additional space.
 
 Configuring Cluster
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 To use vector search, you need to add `VECTOR` type field to your index your create a new index with vector fields.
 Example vector field definition::
@@ -85,7 +85,7 @@ Example vector field definition::
 Nrtsearch also supports vector fields which don't generate a graph. For such existing fields, search can be set to False, if it's not needed in filtering.
 
 Ingestion
----------
+^^^^^^^^^
 
 You need to add the embeddings using AddDocumentRequests. The embeddings should be added as a jsonified list of floats in the `value` field. The number of floats should match the number of dimensions specified in the vector field definition.
 Example request in json format::
@@ -242,7 +242,7 @@ Example::
 Another example where this particular use case may make sense is a scenario where one would want to find burger photos for a particular business. The vector search query can find its top burger photo across all businesses. The text search can apply a filter based on business ID and caption field of the document. If there are photos from the same business in the vector search, their score can be boosted using the boost parameter so that when combined with the regular text search results, they get higher score. In this case even if no photos are found from the vector search, the text search can at least show some photos whose caption matches the keyword "burger".
 
 Optimizing Search Queries
-=========================
+-------------------------
 
 The vector hits value represents the number of documents traversed during the vector search. It is the number of vector comparisons, which is the major factor in query performance. It plays the most important role in terms of search latencies and accuracy.
 Any change that reduces the vector hits number, will decrease the latencies in expense of reducing accuracy.
