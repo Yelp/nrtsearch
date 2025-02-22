@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
+import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 
@@ -48,4 +49,11 @@ public class CustomIndexingMetrics {
           .help("Latency of the add document API")
           .labelNames("index")
           .create();
+
+  public static void register(CollectorRegistry registry) {
+    registry.register(updateDocValuesRequestsReceived);
+    registry.register(addDocumentRequestsReceived);
+    registry.register(updateDocValuesLatency);
+    registry.register(addDocumentLatency);
+  }
 }
