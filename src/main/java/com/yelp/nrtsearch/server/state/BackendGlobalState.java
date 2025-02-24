@@ -106,7 +106,8 @@ public class BackendGlobalState extends GlobalState {
    */
   public static String getBaseIndexName(String uniqueIndexName) {
     Objects.requireNonNull(uniqueIndexName);
-    return StringUtils.substringBefore(uniqueIndexName, "-");
+    // unique identifier doesn't contain "-"
+    return StringUtils.substringBeforeLast(uniqueIndexName, "-");
   }
 
   /**

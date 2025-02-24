@@ -26,7 +26,6 @@ import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
-import io.prometheus.metrics.core.datapoints.Timer;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -182,33 +181,34 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex.getDeleteExistingData()) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
-    try (Timer _timer =
+    if (hasRestoreData()) {
+      logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
+      InputStream pointStateStream = remoteBackend.downloadPointState(serviceName, indexIdentifier);
+      byte[] pointStateBytes = pointStateStream.readAllBytes();
+      NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
+
+      long start = System.nanoTime();
+      try {
+        remoteBackend.downloadIndexFiles(
+            serviceName, indexIdentifier, shardDataDir, pointState.files);
+        writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
+      } finally {
+        double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
+        logger.info(
+            "Restored index data for service: {}, index: {} in {}ms",
+            serviceName,
+            indexIdentifier,
+            timeSpentMs);
+        // Record in seconds, required by prometheus {@link
+        // https://prometheus.io/docs/instrumenting/writing_exporters/#naming}: Metrics must use
+        // base units (e.g. seconds, bytes) and leave converting them to something more readable to
+        // graphing tools.
         BootstrapMetrics.dataRestoreTimer
             .labelValues(getBaseIndexName(indexIdentifier), indexIdentifier)
-            .startTimer()) {
-      if (hasRestoreData()) {
-        logger.info(
-            "Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
-        InputStream pointStateStream =
-            remoteBackend.downloadPointState(serviceName, indexIdentifier);
-        byte[] pointStateBytes = pointStateStream.readAllBytes();
-        NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
-
-        long start = System.nanoTime();
-        try {
-          remoteBackend.downloadIndexFiles(
-              serviceName, indexIdentifier, shardDataDir, pointState.files);
-          writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
-        } finally {
-          logger.info(
-              "Restored index data for service: {}, index: {} in {}ms",
-              serviceName,
-              indexIdentifier,
-              (System.nanoTime() - start) / 1_000_000.0);
-        }
-
-        lastPointState = pointState;
+            .set(timeSpentMs / 1_000);
       }
+
+      lastPointState = pointState;
     }
   }
 
