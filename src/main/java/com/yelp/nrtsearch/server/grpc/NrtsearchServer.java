@@ -218,7 +218,7 @@ public class NrtsearchServer {
             .build()
             .start();
     logger.info("Server started, listening on " + configuration.getPort() + " for messages");
-    BootstrapMetrics.nrtsearchBootstrapTimer.set(System.nanoTime() - startNs);
+    BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000);
   }
 
   @VisibleForTesting
