@@ -68,7 +68,7 @@ public class NrtDataManager implements Closeable {
   private Path shardDataDir;
   private UploadManagerThread uploadManagerThread = null;
 
-  // Set during restoreIfNeeded, then only accessed by UploadManagerThreadindexIdentifier
+  // Set during restoreIfNeeded, then only accessed by UploadManagerThread
   private volatile NrtPointState lastPointState = null;
 
   // use synchronized access

@@ -106,7 +106,8 @@ public class BackendGlobalState extends GlobalState {
    */
   public static String getBaseIndexName(String uniqueIndexName) {
     Objects.requireNonNull(uniqueIndexName);
-    // unique identifier doesn't contain "-"
+    // unique identifier is in yyyyMMddHHmmssSSS time format, and it is safe to do a reverse split
+    // to get the base index name
     return StringUtils.substringBeforeLast(uniqueIndexName, "-");
   }
 
