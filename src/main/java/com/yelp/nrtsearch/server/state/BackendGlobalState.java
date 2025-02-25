@@ -50,6 +50,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,6 +95,20 @@ public class BackendGlobalState extends GlobalState {
     Objects.requireNonNull(indexName);
     Objects.requireNonNull(id);
     return indexName + "-" + id;
+  }
+
+  /**
+   * Return the base index name from the unique index identifier.
+   *
+   * @param uniqueIndexName index identifier
+   * @return indexName index name
+   * @throws NullPointerException if uniqueIndexName is null
+   */
+  public static String getBaseIndexName(String uniqueIndexName) {
+    Objects.requireNonNull(uniqueIndexName);
+    // unique identifier is in yyyyMMddHHmmssSSS time format, and it is safe to do a reverse split
+    // to get the base index name
+    return StringUtils.substringBeforeLast(uniqueIndexName, "-");
   }
 
   /**

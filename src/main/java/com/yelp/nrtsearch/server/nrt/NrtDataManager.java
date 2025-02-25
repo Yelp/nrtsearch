@@ -15,8 +15,11 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
+import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexName;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -178,7 +181,6 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex.getDeleteExistingData()) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
-
     if (hasRestoreData()) {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
       InputStream pointStateStream = remoteBackend.downloadPointState(serviceName, indexIdentifier);
@@ -191,11 +193,19 @@ public class NrtDataManager implements Closeable {
             serviceName, indexIdentifier, shardDataDir, pointState.files);
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
+        double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
         logger.info(
             "Restored index data for service: {}, index: {} in {}ms",
             serviceName,
             indexIdentifier,
-            (System.nanoTime() - start) / 1_000_000.0);
+            timeSpentMs);
+        // Record in seconds, required by prometheus {@link
+        // https://prometheus.io/docs/instrumenting/writing_exporters/#naming}: Metrics must use
+        // base units (e.g. seconds, bytes) and leave converting them to something more readable to
+        // graphing tools.
+        BootstrapMetrics.dataRestoreTimer
+            .labelValues(getBaseIndexName(indexIdentifier), indexIdentifier)
+            .set(timeSpentMs / 1_000);
       }
 
       lastPointState = pointState;
