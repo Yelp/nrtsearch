@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import static io.prometheus.client.Collector.MILLISECONDS_PER_SECOND;
 import static io.prometheus.client.Collector.NANOSECONDS_PER_SECOND;
 
 import com.amazonaws.services.s3.AmazonS3;

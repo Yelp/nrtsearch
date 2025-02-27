@@ -129,10 +129,11 @@ public class Warmer {
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     try (Gauge.Timer _timer =
-                 BootstrapMetrics.warmingQueryTimer
-                         .labels(service, index, Version.CURRENT.toString())
-                         .startTimer();){
-      SearchHandler searchHandler = new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
+        BootstrapMetrics.warmingQueryTimer
+            .labels(service, index, Version.CURRENT.toString())
+            .startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
       warmFromS3(indexState, parallelism, searchHandler);
     }
   }

@@ -31,7 +31,6 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -54,8 +53,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
-import io.prometheus.client.Gauge;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -406,12 +403,7 @@ public class ImmutableIndexState extends IndexState {
     }
     // restore data if provided
     if (dataPath != null) {
-      Gauge.Timer dataRestoreTimer =
-          BootstrapMetrics.dataRestoreTimer
-              .labels(getName(), uniqueName, Version.CURRENT.toString())
-              .startTimer();
       restoreIndexData(dataPath, getRootDir());
-      dataRestoreTimer.close();
     }
 
     // only create if the index has not been committed

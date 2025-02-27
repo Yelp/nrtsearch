@@ -38,12 +38,12 @@ public class BootstrapMetrics {
           .labelNames("plugin_name", "plugin_version", "nrtsearch_version")
           .create();
 
-  public static final Gauge dataRestoreTimer =
+  public static final Gauge indexDataDownloadTimer =
       Gauge.build()
-          .name("data_restore_time_seconds")
+          .name("index_data_download_time_seconds")
           .help(
-              "timer to record the boostrap time spent on restoring the stored data from local or remote source.")
-          .labelNames("index", "unique_index_name", "nrtsearch_version")
+              "timer to record the boostrap time spent on downloading the index data from the remote source for restoring.")
+          .labelNames("service", "index", "nrtsearch_version")
           .create();
 
   public static final Gauge initialNRTTimer =
@@ -68,7 +68,7 @@ public class BootstrapMetrics {
   public static void register(CollectorRegistry registry) {
     registry.register(nrtsearchBootstrapTimer);
     registry.register(pluginInitializationTimer);
-    registry.register(dataRestoreTimer);
+    registry.register(indexDataDownloadTimer);
     registry.register(initialNRTTimer);
     registry.register(warmingQueryTimer);
   }
