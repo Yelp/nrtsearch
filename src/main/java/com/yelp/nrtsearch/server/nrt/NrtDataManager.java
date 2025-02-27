@@ -205,7 +205,7 @@ public class NrtDataManager implements Closeable {
         // graphing tools.
         BootstrapMetrics.dataRestoreTimer
             .labelValues(getBaseIndexName(indexIdentifier), indexIdentifier)
-            .set(timeSpentMs / 1_000);
+            .set(timeSpentMs / 1_000.0);
       }
 
       lastPointState = pointState;

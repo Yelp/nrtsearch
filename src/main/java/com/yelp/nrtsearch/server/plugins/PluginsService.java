@@ -78,7 +78,7 @@ public class PluginsService {
       BootstrapMetrics.pluginInitializationTimer
           .labelValues(
               descriptor.getPluginMetadata().getName(), descriptor.getPluginMetadata().getVersion())
-          .set((System.nanoTime() - startNs) / 1_000_000_000);
+          .set((System.nanoTime() - startNs) / 1_000_000_000.0);
     }
     return loadedPlugins;
   }
