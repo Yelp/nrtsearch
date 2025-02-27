@@ -15,8 +15,12 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
+import static io.prometheus.client.Collector.NANOSECONDS_PER_SECOND;
+
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.net.MalformedURLException;
@@ -69,10 +73,17 @@ public class PluginsService {
     List<Plugin> loadedPlugins = new ArrayList<>();
     PluginDownloader pluginDownloader = new PluginDownloader(amazonS3, config);
     for (String plugin : config.getPlugins()) {
+      long startNs = System.nanoTime();
       logger.info("Loading plugin: " + plugin);
       PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath, pluginDownloader);
       loadedPluginDescriptors.add(descriptor);
       loadedPlugins.add(descriptor.getPlugin());
+      BootstrapMetrics.pluginInitializationTimer
+          .labels(
+              descriptor.getPluginMetadata().getName(),
+              descriptor.getPluginMetadata().getVersion(),
+              Version.CURRENT.toString())
+          .set((System.nanoTime() - startNs) / NANOSECONDS_PER_SECOND);
     }
     pluginDownloader.close();
     return loadedPlugins;

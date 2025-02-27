@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
@@ -23,7 +24,10 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
+import io.prometheus.client.Gauge;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,13 +94,20 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                 Files.createDirectories(indexState.getRootDir());
                 deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
               }
-
-              dataPath =
-                  downloadArtifact(
-                      restoreIndex.getServiceName(),
-                      restoreIndex.getResourceName(),
-                      INDEXED_DATA_TYPE.DATA,
-                      restoreFromIncArchiver);
+              try (Gauge.Timer _timer =
+                  BootstrapMetrics.dataRestoreTimer
+                      .labels(
+                          BackendGlobalState.getBaseIndexName(startIndexRequest.getIndexName()),
+                          startIndexRequest.getIndexName(),
+                          Version.CURRENT.toString())
+                      .startTimer()) {
+                dataPath =
+                    downloadArtifact(
+                        restoreIndex.getServiceName(),
+                        restoreIndex.getResourceName(),
+                        INDEXED_DATA_TYPE.DATA,
+                        restoreFromIncArchiver);
+              }
             } else {
               throw new IllegalStateException(
                   "Index " + indexState.getName() + " already restored");

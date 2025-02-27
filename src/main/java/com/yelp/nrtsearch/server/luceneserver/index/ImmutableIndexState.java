@@ -401,7 +401,6 @@ public class ImmutableIndexState extends IndexState {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + getName() + "\" was already started");
     }
-
     // restore data if provided
     if (dataPath != null) {
       restoreIndexData(dataPath, getRootDir());

@@ -19,10 +19,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
+import io.prometheus.client.Gauge;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -125,8 +129,14 @@ public class Warmer {
 
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    SearchHandler searchHandler = new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
-    warmFromS3(indexState, parallelism, searchHandler);
+    try (Gauge.Timer _timer =
+        BootstrapMetrics.warmingQueryTimer
+            .labels(service, BackendGlobalState.getBaseIndexName(index), Version.CURRENT.toString())
+            .startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
+      warmFromS3(indexState, parallelism, searchHandler);
+    }
   }
 
   @VisibleForTesting
