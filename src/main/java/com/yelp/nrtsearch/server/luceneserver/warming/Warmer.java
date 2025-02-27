@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import io.prometheus.client.Gauge;
 import java.io.BufferedReader;
@@ -130,7 +131,7 @@ public class Warmer {
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     try (Gauge.Timer _timer =
         BootstrapMetrics.warmingQueryTimer
-            .labels(service, index, Version.CURRENT.toString())
+            .labels(service, BackendGlobalState.getBaseIndexName(index), Version.CURRENT.toString())
             .startTimer()) {
       SearchHandler searchHandler =
           new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);

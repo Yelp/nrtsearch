@@ -970,7 +970,9 @@ public class ShardState implements Closeable {
 
       if (configuration.getSyncInitialNrtPoint()) {
         Gauge.Timer timer =
-            BootstrapMetrics.initialNRTTimer.labels(name, Version.CURRENT.toString()).startTimer();
+            BootstrapMetrics.initialNRTTimer
+                .labels(name.split(":")[0], Version.CURRENT.toString())
+                .startTimer();
         nrtReplicaNode.syncFromCurrentPrimary(
             configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
         timer.close();

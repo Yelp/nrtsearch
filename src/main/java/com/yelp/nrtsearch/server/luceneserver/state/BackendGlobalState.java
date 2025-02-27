@@ -98,6 +98,22 @@ public class BackendGlobalState extends GlobalState {
   }
 
   /**
+   * Get the base index name from the unique index identifier
+   *
+   * @param uniqueIndexName unique index identifier
+   * @return index name
+   */
+  public static String getBaseIndexName(String uniqueIndexName) {
+    String[] parts = uniqueIndexName.split("-");
+    // suffix is 32 hexadecimal characters with four hyphens, so if there are additional hyphens,
+    // they belongs to the base index name.
+    if (parts.length > 5) {
+      return String.join("-", java.util.Arrays.copyOf(parts, parts.length - 5));
+    }
+    return uniqueIndexName; // Return original if it doesn't match expected format
+  }
+
+  /**
    * Constructor.
    *
    * @param luceneServerConfiguration server config

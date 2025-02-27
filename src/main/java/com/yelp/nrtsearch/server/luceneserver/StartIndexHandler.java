@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import io.prometheus.client.Gauge;
@@ -94,9 +95,9 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                 deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
               }
               try (Gauge.Timer _timer =
-                  BootstrapMetrics.indexDataDownloadTimer
+                  BootstrapMetrics.dataRestoreTimer
                       .labels(
-                          restoreIndex.getServiceName(),
+                          BackendGlobalState.getBaseIndexName(startIndexRequest.getIndexName()),
                           startIndexRequest.getIndexName(),
                           Version.CURRENT.toString())
                       .startTimer()) {
