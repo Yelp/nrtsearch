@@ -43,7 +43,7 @@ public class BootstrapMetrics {
           .name("data_restore_time_seconds")
           .help(
               "timer to record the boostrap time spent on restoring the stored data from local or remote source.")
-          .labelNames("index", "nrtsearch_version")
+          .labelNames("index", "unique_index_name", "nrtsearch_version")
           .create();
 
   public static final Gauge initialNRTTimer =
@@ -57,7 +57,7 @@ public class BootstrapMetrics {
       Gauge.build()
           .name("warming_time_seconds")
           .help("timer to record the boostrap time spent on plugin initialization.")
-          .labelNames("service", "resource", "index", "nrtsearch_version")
+          .labelNames("service", "index", "nrtsearch_version")
           .create();
 
   /**

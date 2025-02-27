@@ -408,7 +408,7 @@ public class ImmutableIndexState extends IndexState {
     if (dataPath != null) {
       Gauge.Timer dataRestoreTimer =
           BootstrapMetrics.dataRestoreTimer
-              .labels(getName(), Version.CURRENT.toString())
+              .labels(getName(), uniqueName, Version.CURRENT.toString())
               .startTimer();
       restoreIndexData(dataPath, getRootDir());
       dataRestoreTimer.close();

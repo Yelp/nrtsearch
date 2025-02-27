@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import static io.prometheus.client.Collector.MILLISECONDS_PER_SECOND;
+import static io.prometheus.client.Collector.NANOSECONDS_PER_SECOND;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.Version;
@@ -73,8 +74,8 @@ public class PluginsService {
     List<Plugin> loadedPlugins = new ArrayList<>();
     PluginDownloader pluginDownloader = new PluginDownloader(amazonS3, config);
     for (String plugin : config.getPlugins()) {
+      long startNs = System.nanoTime();
       logger.info("Loading plugin: " + plugin);
-      long eachStartMs = System.currentTimeMillis();
       PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath, pluginDownloader);
       loadedPluginDescriptors.add(descriptor);
       loadedPlugins.add(descriptor.getPlugin());
@@ -83,7 +84,7 @@ public class PluginsService {
               descriptor.getPluginMetadata().getName(),
               descriptor.getPluginMetadata().getVersion(),
               Version.CURRENT.toString())
-          .set((System.currentTimeMillis() - eachStartMs) / MILLISECONDS_PER_SECOND);
+          .set((System.nanoTime() - startNs) / NANOSECONDS_PER_SECOND);
     }
     pluginDownloader.close();
     return loadedPlugins;
