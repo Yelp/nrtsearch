@@ -281,6 +281,7 @@ public class AddDocumentHandler {
           }
 
           if (documentsContext.hasNested()) {
+            logger.info("Indexing nested documents for ad_bid_id: {}", ad_bid_id);
             try {
               if (idFieldDef != null) {
                 // update documents in the queue to keep order
@@ -473,7 +474,7 @@ public class AddDocumentHandler {
                   });
       CustomIndexingMetrics.addDocumentLatency
           .labels(indexName)
-          .set((System.nanoTime() - nanoTime));
+          .set((System.nanoTime() - nanoTime)/ documents.size());
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
