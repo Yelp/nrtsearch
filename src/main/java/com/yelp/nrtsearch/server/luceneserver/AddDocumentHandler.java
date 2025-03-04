@@ -96,7 +96,8 @@ public class AddDocumentHandler {
       DocumentsContext documentsContext = new DocumentsContext();
       Map<String, MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Entry<String, MultiValuedField> entry : fields.entrySet()) {
-        if(entry.getKey().equals(PARTIAL_UPDATE_KEY) || entry.getKey().equals(PARTIAL_UPDATE_FIELDS)){
+        if (entry.getKey().equals(PARTIAL_UPDATE_KEY)
+            || entry.getKey().equals(PARTIAL_UPDATE_FIELDS)) {
           continue;
         }
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
@@ -474,7 +475,7 @@ public class AddDocumentHandler {
                   });
       CustomIndexingMetrics.addDocumentLatency
           .labels(indexName)
-          .set((System.nanoTime() - nanoTime)/ documents.size());
+          .set((System.nanoTime() - nanoTime) / documents.size());
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {

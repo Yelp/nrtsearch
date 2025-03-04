@@ -100,8 +100,11 @@ public class UpdateDocValuesTest {
     request.putFields(
         "ad_bid_floor_USD", MultiValuedField.newBuilder().addValue(String.valueOf(101)).build());
     request.putFields(
-        "_is_partial_update", MultiValuedField.newBuilder().addValue(String.valueOf(Boolean.valueOf("true"))).build());
-    request.putFields("_partial_update_fields", MultiValuedField.newBuilder().addValue("[ad_bid_floor_USD]").build());
+        "_is_partial_update",
+        MultiValuedField.newBuilder().addValue(String.valueOf(Boolean.valueOf("true"))).build());
+    request.putFields(
+        "_partial_update_fields",
+        MultiValuedField.newBuilder().addValue("[ad_bid_floor_USD]").build());
 
     primaryServer.addDocs(List.of(request.build()).stream());
     primaryServer.commit(testPartialUpdateIndex);
