@@ -257,7 +257,8 @@ public abstract class IndexState implements Closeable {
               archiver,
               configuration.getServiceName(),
               indexName,
-              warmerConfig.getMaxWarmingQueries());
+              warmerConfig.getMaxWarmingQueries(),
+              warmerConfig.getMaxWarmingLuceneQueryOnlyCount());
     }
   }
 
