@@ -64,25 +64,8 @@ Note that the above formula is only for vector fields. Other fields in the index
 Configuring Cluster
 ^^^^^^^^^^^^^^^^^^^
 
-To use vector search, you need to add `VECTOR` type field to your index your create a new index with vector fields.
-Example vector field definition::
-
-    # Under field property
-    - name: <VECTOR FIELD NAME>
-      type: VECTOR
-      search: true
-      vectorSimilarity: cosine  # You need to reindex data if this value is changed.
-      vectorIndexingOptions:
-        - type: hnsw
-          hnsw_m: 16  # The number of neighbors each node will be connected to in the HNSW graph, default: 16
-          hnsw_ef_construction: 100  # The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100
-      vectorDimensions: 512
-
-* Lower `hnsw_m` and `hnsw_ef_construction` values can help with lowering latencies and improving indexing throughput. However, they affect search accuracy.
-* Lower values for `vectorDimensions` help with less disk space and indexing throughput. However, it affects search accuracy.
-* The maximum possible value for vectorDimensions in Nrtsearch is 4096
-
-Nrtsearch also supports vector fields which don't generate a graph. For such existing fields, search can be set to False, if it's not needed in filtering.
+To use vector search, you need to add `VECTOR` type field to your index or create a new index with vector fields.
+See :doc:`field_types/vector` for more information.
 
 Ingestion
 ^^^^^^^^^
@@ -92,16 +75,14 @@ Example request in json format::
 
     {
       "indexName": "vector_test",
-      "fields": [
+      "fields": {
+        "photo_id": {
+          "value": ["1"]
         {
-          "field": "photo_id",
-          "intValue": 1
-        },
-        {
-          "field": "photo_embeddings",
-          "value": "[0.188423157, 0.246743672, ...]"
+        "photo_embeddings": {
+          "value": ["[0.188423157, 0.246743672, ...]"]
         }
-      ]
+      }
     }
 
 You can also use lucene-client to load the documents with vector fields. Example csv input file:
@@ -154,7 +135,7 @@ Example::
 
 Vector Search + Inline Filter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Nrtsearch doesn’t go through the HNSW graph at all. Instead it first filters data using the provided filter. Then it uses a KNN algorithm such as cosine similarity to score returned embeddings. While this option doesn’t traverse through the HNSW graph, it can return very accurate results. It will perform much better when the number of filtered docs to rank is less.
+This option attempts to use the HNSW graph for searching, while applying the provided filter to the documents. If the graph search visits too many documents (based on the filter cardinality per index segment), it will fall back to a brute force search of all documents that match the filter.
 Example::
 
     {
@@ -256,7 +237,7 @@ A summary of trade-offs for each config:
     * Lower vector hits
     * Lower accuracy
 
-  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
+  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`)
 
     * Lower vector hits
     * Lower accuracy
@@ -265,7 +246,7 @@ A summary of trade-offs for each config:
 
 * Improve Indexing Throughput
 
-  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
+  * Lower indexing parameter values (`hnsw_m`, `hnsw_ef_construction`)
 
     * Lower vector hits
     * Lower accuracy
@@ -279,7 +260,7 @@ A summary of trade-offs for each config:
     * Higher vector hits
     * Higher accuracy
 
-  * Higher indexing parameter values (`hnsw_m`, `hnsw_ef_construction`, `vectorDimensions`)
+  * Higher indexing parameter values (`hnsw_m`, `hnsw_ef_construction`)
 
     * Higher vector hits
     * Higher accuracy
