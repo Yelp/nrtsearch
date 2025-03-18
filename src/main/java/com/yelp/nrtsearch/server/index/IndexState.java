@@ -42,6 +42,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Pattern;
+
+import com.yelp.nrtsearch.server.warming.WarmingQueryStripping;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.facet.FacetsConfig;
@@ -253,12 +255,19 @@ public abstract class IndexState implements Closeable {
     NrtsearchConfig configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
+      WarmingQueryStripping warmingQueryStripping = new WarmingQueryStripping(
+              warmerConfig.getMaxRescorerStrippingPerc(),
+              warmerConfig.getMaxFunctionScoreScriptStrippingPerc(),
+              warmerConfig.getMaxVirtualFieldsStrippingPerc(),
+              warmerConfig.getMaxFacetsStripping()
+      );
       this.warmer =
           new Warmer(
               remoteBackend,
               configuration.getServiceName(),
               indexName,
-              warmerConfig.getMaxWarmingQueries());
+              warmerConfig.getMaxWarmingQueries(),
+              warmingQueryStripping);
     }
   }
 

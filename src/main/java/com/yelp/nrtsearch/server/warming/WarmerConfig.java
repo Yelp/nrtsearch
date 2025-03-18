@@ -19,13 +19,19 @@ import com.yelp.nrtsearch.server.config.YamlConfigReader;
 
 public class WarmerConfig {
   private static final String CONFIG_PREFIX = "warmer.";
+  private static final String WARMING_QUERY_STRIPPING_CONFIG_PREFIX = "warmingQueriesStrippingPercs.";
   private static final int DEFAULT_MAX_WARMING_QUERIES = 0;
   private static final int DEFAULT_WARMING_PARALLELISM = 1;
   private static final boolean DEFAULT_WARM_ON_STARTUP = false;
+  private static final int DEFAULT_MAX_STRIPPING_PERC = 0;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
   private final boolean warmOnStartup;
+  private final int maxRescorerStrippingPerc;
+  private final int maxFunctionScoreScriptStrippingPerc;
+  private final int maxVirtualFieldsStrippingPerc;
+  private final int maxFacetsStripping;
 
   /**
    * Configuration for warmer.
@@ -34,10 +40,21 @@ public class WarmerConfig {
    * @param warmingParallelism number of parallel queries while warming on startup
    * @param warmOnStartup if true will try to download queries from S3 and use them to warm
    */
-  public WarmerConfig(int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+  public WarmerConfig(
+          int maxWarmingQueries,
+          int warmingParallelism,
+          boolean warmOnStartup,
+          int maxRescorerStrippingPerc,
+          int maxFunctionScoreScriptStrippingPerc,
+          int maxVirtualFieldsStrippingPerc,
+          int maxFacetsStripping) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmOnStartup = warmOnStartup;
+    this.maxRescorerStrippingPerc = maxRescorerStrippingPerc;
+    this.maxFunctionScoreScriptStrippingPerc = maxFunctionScoreScriptStrippingPerc;
+    this.maxVirtualFieldsStrippingPerc = maxVirtualFieldsStrippingPerc;
+    this.maxFacetsStripping = maxFacetsStripping;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -48,7 +65,23 @@ public class WarmerConfig {
     boolean warmOnStartup =
         configReader.getBoolean(CONFIG_PREFIX + "warmOnStartup", DEFAULT_WARM_ON_STARTUP);
 
-    return new WarmerConfig(maxWarmingQueries, warmingParallelism, warmOnStartup);
+    int maxRescorerStrippingPerc =
+            configReader.getInteger(CONFIG_PREFIX + WARMING_QUERY_STRIPPING_CONFIG_PREFIX + "maxRescorerStripping", DEFAULT_MAX_STRIPPING_PERC);
+    int maxFunctionScoreScriptStrippingPerc =
+            configReader.getInteger(CONFIG_PREFIX + WARMING_QUERY_STRIPPING_CONFIG_PREFIX + "maxFunctionScoreScriptStripping", DEFAULT_MAX_STRIPPING_PERC);
+    int maxVirtualFieldsStrippingPerc =
+            configReader.getInteger(CONFIG_PREFIX + WARMING_QUERY_STRIPPING_CONFIG_PREFIX + "maxVirtualFieldsStripping", DEFAULT_MAX_STRIPPING_PERC);
+    int maxFacetsStripping =
+            configReader.getInteger(CONFIG_PREFIX + WARMING_QUERY_STRIPPING_CONFIG_PREFIX + "maxFacetsStripping", DEFAULT_MAX_STRIPPING_PERC);
+
+    return new WarmerConfig(
+            maxWarmingQueries,
+            warmingParallelism,
+            warmOnStartup,
+            maxRescorerStrippingPerc,
+            maxFunctionScoreScriptStrippingPerc,
+            maxVirtualFieldsStrippingPerc,
+            maxFacetsStripping);
   }
 
   public int getMaxWarmingQueries() {
@@ -62,4 +95,12 @@ public class WarmerConfig {
   public boolean isWarmOnStartup() {
     return warmOnStartup;
   }
+
+  public int getMaxRescorerStrippingPerc() { return maxRescorerStrippingPerc; }
+
+  public int getMaxFunctionScoreScriptStrippingPerc() { return maxFunctionScoreScriptStrippingPerc; }
+
+  public int getMaxVirtualFieldsStrippingPerc() { return maxVirtualFieldsStrippingPerc; }
+
+  public int getMaxFacetsStripping() { return maxFacetsStripping; }
 }
