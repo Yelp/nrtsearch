@@ -1,6 +1,6 @@
 ID Field
 ========
-This field serves as the primary term for the document. All document are required to have a value for this field. When updating a document, the _ID field is used to atomically replace the previous document with the new version. It is highly recommended for all indies to have an _ID field.
+This field serves as the primary term for the document. All indices are required to have an _ID field, and all documents are required to have a value for this field. When updating a document, the _ID field is used to atomically replace the previous document with the new version.
 
 .. code-block:: protobuf
 

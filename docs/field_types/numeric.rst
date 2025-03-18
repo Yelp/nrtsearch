@@ -1,6 +1,6 @@
 Numeric
 =======
-The field type is used to store numeric values.
+This field type is used to store numeric values.
 
 .. code-block:: protobuf
 
