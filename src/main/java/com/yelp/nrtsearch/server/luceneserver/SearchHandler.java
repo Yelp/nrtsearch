@@ -323,6 +323,47 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return searchResponse;
   }
 
+  public void handleStrippedWarmingQuery(IndexState indexState, SearchRequest searchRequest) {
+    SearchContext searchContext;
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
+    ShardState shardState = indexState.getShard(0);
+
+      try {
+          s = getSearcherAndTaxonomy(
+                  searchRequest,
+                  indexState,
+                  shardState,
+                  SearchResponse.Diagnostics.newBuilder(),
+                  indexState.getSearchThreadPoolExecutor());
+
+        searchContext =
+                SearchRequestProcessor.buildContextForLuceneQueryOnly(
+                        searchRequest, indexState, shardState, s);
+
+        s.searcher.search(searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+      } catch (InterruptedException | IOException e) {
+        logger.warn(e.getMessage(), e);
+        throw new RuntimeException(e);
+      } finally {
+        // NOTE: this is a little iffy, because we may not
+        // have obtained this searcher from the NRTManager
+        // (i.e. sometimes we pulled from
+        // SearcherLifetimeManager, other times (if
+        // snapshot was specified) we opened ourselves,
+        // but under-the-hood all these methods just call
+        // s.getIndexReader().decRef(), which is what release
+        // does:
+        try {
+          if (s != null) {
+            shardState.release(s);
+          }
+        } catch (IOException e) {
+          logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
+          throw new RuntimeException(e);
+        }
+      }
+  }
+
   /**
    * Fetch/compute field values for the top hits. This operation may be done in parallel, based on
    * the setting for the fetch thread pool. In addition to filling hit fields, any query {@link

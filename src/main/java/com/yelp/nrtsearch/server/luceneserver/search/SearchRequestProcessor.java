@@ -233,6 +233,44 @@ public class SearchRequestProcessor {
     return searchContext;
   }
 
+  public static SearchContext buildContextForLuceneQueryOnly(
+          SearchRequest searchRequest,
+          IndexState indexState,
+          ShardState shardState,
+          SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy
+  ) throws IOException {
+    SearchContext.Builder contextBuilder = SearchContext.newBuilder();
+    Map<String, FieldDef> queryFields = new HashMap<>();
+
+    addIndexFields(indexState, queryFields);
+    contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
+
+    Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
+    DocLookup docLookup = new DocLookup(indexState, fieldDefLookup);
+    contextBuilder.setDocLookup(docLookup);
+
+    String rootQueryNestedPath =
+            indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
+    Query query =
+            extractQuery(
+                    indexState,
+                    searchRequest.getQueryText(),
+                    searchRequest.getQuery(),
+                    rootQueryNestedPath,
+                    docLookup);
+    query = searcherAndTaxonomy.searcher.rewrite(query);
+    contextBuilder.setQuery(query);
+
+    CollectorCreatorContext collectorCreatorContext =
+            new CollectorCreatorContext(
+                    searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
+    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
+    contextBuilder.setCollector(docCollector);
+
+    return contextBuilder.build(false);
+  }
+
   /**
    * Parses any virtualFields, which define dynamic (expression) fields for this one request.
    *
