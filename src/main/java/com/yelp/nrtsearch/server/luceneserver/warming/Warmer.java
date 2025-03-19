@@ -52,8 +52,13 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
+  private final int maxWarmingLuceneQueryOnlyCount;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
+    this(archiver, service, index, maxWarmingQueries, 0);
+  }
+
+  public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries, int maxWarmingLuceneQueryOnlyCount) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -61,6 +66,7 @@ public class Warmer {
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
+    this.maxWarmingLuceneQueryOnlyCount = maxWarmingLuceneQueryOnlyCount;
   }
 
   public int getNumWarmingRequests() {
@@ -152,15 +158,20 @@ public class Warmer {
     }
     Path downloadDir = archiver.download(service, resource);
     Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
+    long startMS = System.currentTimeMillis();
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
       int count = 0;
       while ((line = reader.readLine()) != null) {
-        processLine(indexState, searchHandler, threadPoolExecutor, line);
+        processLine(indexState, searchHandler, threadPoolExecutor, line, count < maxWarmingLuceneQueryOnlyCount);
         count++;
       }
-      logger.info("Warmed index: {} with {} warming queries", index, count);
+      logger.info(
+              "Warmed index: {} with {} warming queries in {}ms",
+              index,
+              count,
+              System.currentTimeMillis() - startMS);
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
@@ -176,15 +187,24 @@ public class Warmer {
       IndexState indexState,
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
-      String line)
-      throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
+      String line,
+      boolean warmLuceneQueryOnly)
+          throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
     SearchRequest searchRequest = builder.build();
     if (threadPoolExecutor == null) {
-      searchHandler.handle(indexState, searchRequest);
+      if (warmLuceneQueryOnly) {
+        searchHandler.handleStrippedWarmingQuery(indexState, searchRequest);
+      } else {
+        searchHandler.handle(indexState, searchRequest);
+      }
     } else {
-      threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+      if (warmLuceneQueryOnly) {
+        threadPoolExecutor.submit(() -> searchHandler.handleStrippedWarmingQuery(indexState, searchRequest));
+      } else {
+        threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+      }
     }
   }
 }
