@@ -248,6 +248,8 @@ public class LuceneServer {
     new ProcStatCollector().register(collectorRegistry);
     new MergeSchedulerCollector(globalState).register(collectorRegistry);
     new SearchResponseCollector(globalState).register(collectorRegistry);
+
+    CustomIndexingMetrics.register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
