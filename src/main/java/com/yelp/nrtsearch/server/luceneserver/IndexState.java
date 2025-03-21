@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable
 import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmingQueryStripping;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
@@ -252,12 +253,19 @@ public abstract class IndexState implements Closeable {
     LuceneServerConfiguration configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
+      WarmingQueryStripping warmingQueryStripping = new WarmingQueryStripping(
+              warmerConfig.getMaxRescorerStrippingPerc(),
+              warmerConfig.getMaxScriptQueriesStrippingPerc(),
+              warmerConfig.getMaxVirtualFieldsStrippingPerc(),
+              warmerConfig.getMaxFacetsStripping()
+      );
       this.warmer =
           new Warmer(
               archiver,
               configuration.getServiceName(),
               indexName,
-              warmerConfig.getMaxWarmingQueries());
+              warmerConfig.getMaxWarmingQueries(),
+              warmingQueryStripping);
     }
   }
 

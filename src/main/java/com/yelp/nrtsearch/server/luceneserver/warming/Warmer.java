@@ -56,8 +56,9 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
+  private final WarmingQueryStripping warmingQueryStripping;
 
-  public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
+  public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries, WarmingQueryStripping warmingQueryStripping) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -65,6 +66,7 @@ public class Warmer {
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
+    this.warmingQueryStripping = warmingQueryStripping;
   }
 
   public int getNumWarmingRequests() {
@@ -166,11 +168,18 @@ public class Warmer {
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
       int count = 0;
+      long startMS = System.currentTimeMillis();
       while ((line = reader.readLine()) != null) {
-        processLine(indexState, searchHandler, threadPoolExecutor, line);
+        processLine(indexState, searchHandler, threadPoolExecutor, line, count);
         count++;
       }
-      logger.info("Warmed index: {} with {} warming queries", index, count);
+      logger.info(
+              "Warmed index: {} with {} warming queries ({}% were stripped) in {}ms. Warming Query Stripping Details: {}",
+              index,
+              count,
+              warmingQueryStripping.getStrippedQueryCount()/count * 100,
+              System.currentTimeMillis() - startMS,
+              warmingQueryStripping.getStrippedQueryPercDetails(count));
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
@@ -186,11 +195,12 @@ public class Warmer {
       IndexState indexState,
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
-      String line)
+      String line,
+      int warmingCount)
       throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
-    SearchRequest searchRequest = builder.build();
+    SearchRequest searchRequest = warmingQueryStripping.stripWarmingQuery(builder, warmingCount);
     if (threadPoolExecutor == null) {
       searchHandler.handle(indexState, searchRequest);
     } else {
