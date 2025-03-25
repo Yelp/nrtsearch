@@ -328,7 +328,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                         InnerHitFetchTask::getDiagnostic)));
       }
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
-
+      // TODO: These are the diagnostics I want to publish to prometheus, I'll try to figure out
+      // where other metrics are being published and follow that pattern
       if (profileResultBuilder != null) {
         searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
       }
