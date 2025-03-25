@@ -81,6 +81,7 @@ import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.modules.NrtsearchModule;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
@@ -148,6 +149,7 @@ public class NrtsearchServer {
 
   @VisibleForTesting
   public void start() throws IOException {
+    long startNs = System.nanoTime();
     List<Plugin> plugins = pluginsService.loadPlugins();
 
     LuceneServerImpl serverImpl =
@@ -216,6 +218,7 @@ public class NrtsearchServer {
             .build()
             .start();
     logger.info("Server started, listening on " + configuration.getPort() + " for messages");
+    BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000.0);
   }
 
   @VisibleForTesting
@@ -246,6 +249,8 @@ public class NrtsearchServer {
     // register thread pool metrics
     prometheusRegistry.register(new ThreadPoolCollector());
     prometheusRegistry.register(RejectionCounterWrapper.rejectionCounter);
+    // register bootstrap metrics
+    BootstrapMetrics.register(prometheusRegistry);
     // register nrt metrics
     NrtMetrics.register(prometheusRegistry);
     // register index metrics

@@ -1,67 +1,40 @@
 Mapping
 ==========================
 
-Mapping defines how a document and its fields are stored and indexed. In NRTSearch, every index are required to have a mapping for it documents.
+Mapping defines how a document and its fields are stored and indexed. In NRTSearch, every index is required to have a mapping for it documents.
 
-Field Data Types
----------------------------
+Field Types
+-----------
+.. toctree::
+   :maxdepth: 1
+   :glob:
 
-Every field has a field data type which indicates type of data the field contains.
+   field_types/*
 
-Common types
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Child Fields
+------------
+By default, all field types support the 'childFields' property. The child fields are used to index the same input data in different ways.
+For example, you may want to index the same text with multiple different analyzers. Using child fields allows you to avoid
+duplicating the data in the indexing request. This feature can be used with any field types, as long as the same input data can be
+processed by each of the field types.
 
-* BOOLEAN
-Basic boolean data types
+Object fields do not behave this way. The child fields of an object are used to define the fields within an object. See :doc:`field_types/object`.
 
-* Numbers
-Support different number types like INT, LONG, FLOAT, DOUBLE
+.. code-block:: json
 
-* ATOM
-ATOM is used for structured content like email addresses, hostnames. It is used for exact match. No analyzers supported.
+    {
+        "name": "text_field",
+        "type": "TEXT",
+        "search": true,
+        "childFields": [
+            {
+                "name": "keyword",
+                "type": "ATOM",
+                "search": true,
+                "storeDocValues": true
+            }
+        ]
+    }
 
-* DATE_TIME
-Field data type to store the datetime.
-
-* _ID
-This field would be used for the primary key of a document like business id or user id. _ID field type is stored as string.
-
-
-Text search types
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* TEXT
-The tradition field for full-text content. Text fields are best suited for unstructured but human-readable content. Content of this field will be tokenized and analyzed.
-
-Object types
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* OBJECT
-Object field is used to store Json data. Object fields are not searchable. But it is possible to search the inner fields of object.
-
-Spatial data types
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* LAT_LON
-LAT_LON field is used for geo point field like [latitude, longitude].
-
-* POLYGON
-POLYGON field is used for closed geo polygons with a list of geo points. The first and last geo points must the the same as a closed loop polygon.
-
-Mapping Parameters
----------------------------
-
-* multiValued
-This parameter indicates whether this field should be a single value or array of values.
-
-* search
-This parameter indicates whether this field is indexed so that certain types of queries can be applied to this field.
-
-* storeDocValues
-This parameter indicates whether this field is stored as doc value so that we can retrieve this field in the NRTSearch response.
-
-* indexAnalyzer
-This parameter is only for text. This parameter specifies the analyzer to use for this field during indexing.
-
-* searchAnalyzer
-This parameter is only for text. This parameter specifies the analyzer to use for this field during searching.
+The indexed text is indexed with the standard analyzer, and queryable with the field name 'text_field'. The same text is also indexed
+with the keyword analyzer, and queryable with the field name 'text_field.keyword'. The keyword field is also stored in doc values for retrieval.

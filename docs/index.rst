@@ -19,3 +19,4 @@ A high performance gRPC server, with optional REST APIs on top of `Apache Lucene
    docker_compose
    server_configuration
    development
+   vector_search
