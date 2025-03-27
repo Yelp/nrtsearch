@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.handler;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.ProtocolStringList;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
@@ -428,6 +429,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                       "ThreadId: %s, IndexWriter.addDocuments failed",
                       Thread.currentThread().getName() + Thread.currentThread().threadId()));
               throw new IOException(e);
+            } catch (Exception e) {
+              logger.info("Failed Request: {}", JsonFormat.printer().print(addDocumentRequest));
+              throw e;
             }
           } else {
             documents.add(documentsContext.getRootDocument());
