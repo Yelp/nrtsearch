@@ -21,11 +21,13 @@ public class WarmerConfig {
   private static final String CONFIG_PREFIX = "warmer.";
   private static final int DEFAULT_MAX_WARMING_QUERIES = 0;
   private static final int DEFAULT_WARMING_PARALLELISM = 1;
+  private static final float DEFAULT_STRIPPED_WARMING_QUERY_RATE = 0.f;
   private static final boolean DEFAULT_WARM_ON_STARTUP = false;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
   private final boolean warmOnStartup;
+  private final float strippedWarmingQueryRate;
 
   /**
    * Configuration for warmer.
@@ -34,10 +36,15 @@ public class WarmerConfig {
    * @param warmingParallelism number of parallel queries while warming on startup
    * @param warmOnStartup if true will try to download queries from S3 and use them to warm
    */
-  public WarmerConfig(int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      boolean warmOnStartup,
+      float strippedWarmingQueryRate) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmOnStartup = warmOnStartup;
+    this.strippedWarmingQueryRate = strippedWarmingQueryRate;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -47,8 +54,12 @@ public class WarmerConfig {
         configReader.getInteger(CONFIG_PREFIX + "warmingParallelism", DEFAULT_WARMING_PARALLELISM);
     boolean warmOnStartup =
         configReader.getBoolean(CONFIG_PREFIX + "warmOnStartup", DEFAULT_WARM_ON_STARTUP);
+    float strippedWarmingQueryRate =
+        configReader.getFloat(
+            CONFIG_PREFIX + "strippedWarmingQueryRate", DEFAULT_STRIPPED_WARMING_QUERY_RATE);
 
-    return new WarmerConfig(maxWarmingQueries, warmingParallelism, warmOnStartup);
+    return new WarmerConfig(
+        maxWarmingQueries, warmingParallelism, warmOnStartup, strippedWarmingQueryRate);
   }
 
   public int getMaxWarmingQueries() {
@@ -61,5 +72,9 @@ public class WarmerConfig {
 
   public boolean isWarmOnStartup() {
     return warmOnStartup;
+  }
+
+  public float getStrippedWarmingQueryRate() {
+    return strippedWarmingQueryRate;
   }
 }

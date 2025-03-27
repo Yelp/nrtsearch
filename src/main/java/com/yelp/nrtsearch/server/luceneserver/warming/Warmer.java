@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -56,8 +57,18 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
+  private final float strippedWarmingQueryRate;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
+    this(archiver, service, index, maxWarmingQueries, 0.f);
+  }
+
+  public Warmer(
+      Archiver archiver,
+      String service,
+      String index,
+      int maxWarmingQueries,
+      float strippedWarmingQueryRate) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -65,6 +76,7 @@ public class Warmer {
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
+    this.strippedWarmingQueryRate = strippedWarmingQueryRate;
   }
 
   public int getNumWarmingRequests() {
@@ -162,15 +174,26 @@ public class Warmer {
     }
     Path downloadDir = archiver.download(service, resource);
     Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
+    long startMS = System.currentTimeMillis();
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
-      int count = 0;
+      int count = 0, strippedCount = 0;
+      Random random = new Random();
       while ((line = reader.readLine()) != null) {
-        processLine(indexState, searchHandler, threadPoolExecutor, line);
+        boolean isStripped = random.nextFloat() < strippedWarmingQueryRate;
+        processLine(indexState, searchHandler, threadPoolExecutor, line, isStripped);
         count++;
+        if (isStripped) {
+          strippedCount++;
+        }
       }
-      logger.info("Warmed index: {} with {} warming queries", index, count);
+      logger.info(
+          "Warmed index: {} with {} full and {} stripped warming queries in {} seconds.",
+          index,
+          count - strippedCount,
+          strippedCount,
+          (System.currentTimeMillis() - startMS) / 1000.0);
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
@@ -186,15 +209,25 @@ public class Warmer {
       IndexState indexState,
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
-      String line)
+      String line,
+      boolean warmLuceneQueryOnly)
       throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
     SearchRequest searchRequest = builder.build();
     if (threadPoolExecutor == null) {
-      searchHandler.handle(indexState, searchRequest);
+      if (warmLuceneQueryOnly) {
+        WarmingUtils.handleStrippedWarmingQuery(indexState, searchRequest);
+      } else {
+        searchHandler.handle(indexState, searchRequest);
+      }
     } else {
-      threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+      if (warmLuceneQueryOnly) {
+        threadPoolExecutor.submit(
+            () -> WarmingUtils.handleStrippedWarmingQuery(indexState, searchRequest));
+      } else {
+        threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+      }
     }
   }
 }
