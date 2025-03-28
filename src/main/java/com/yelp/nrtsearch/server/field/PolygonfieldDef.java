@@ -85,7 +85,7 @@ public class PolygonfieldDef extends IndexableFieldDef<Struct> implements Polygo
             new StoredField(this.getName(), ObjectFieldDef.jsonToStruct(fieldValue).toByteArray()));
       }
     }
-    if (hasDocValues()) {
+    if (hasDocValues() && !fieldValues.isEmpty()) {
       document.add(
           new BinaryDocValuesField(
               getName(), new BytesRef(ObjectFieldDef.jsonToStructList(fieldValues).toByteArray())));

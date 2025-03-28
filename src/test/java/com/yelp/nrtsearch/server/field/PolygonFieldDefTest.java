@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.google.gson.Gson;
 import com.google.protobuf.ListValue;
@@ -29,6 +30,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.*;
+import org.apache.lucene.document.Document;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -293,6 +295,18 @@ public class PolygonFieldDefTest extends ServerTestCase {
       Struct struct = hit.getFieldsOrThrow("polygon").getFieldValue(0).getStructValue();
       assertEquals("Polygon", struct.getFieldsOrThrow("type").getStringValue());
     }
+  }
+
+  @Test
+  public void testEmptyIndexing() {
+    PolygonfieldDef polygonfieldDef =
+        new PolygonfieldDef(
+            "polygon",
+            Field.newBuilder().setStore(true).setStoreDocValues(true).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    Document document = new Document();
+    polygonfieldDef.parseDocumentField(document, Collections.emptyList(), Collections.emptyList());
+    assertEquals(0, document.getFields().size());
   }
 
   private SearchResponse doQuery(Query query, String retrieveFields) {
