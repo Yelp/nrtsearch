@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 public class SortParser {
   public static final BiFunction<SortField, Object, CompositeFieldValue>
       DEFAULT_SORT_VALUE_EXTRACTOR = (sortField, value) -> getValueForSortField(sortField, value);
+  public static final String NULL_SORT_VALUE = "NULL_SORT_VALUE";
   private static final String DOCID = "docid";
   private static final String SCORE = "score";
 
@@ -165,7 +166,12 @@ public class SortParser {
       throw new IllegalArgumentException(
           String.format("field: %s does not support sorting", field.getFieldName()));
     }
-    return ((Sortable) fd).parseLastValue(stringValue);
+
+    if (NULL_SORT_VALUE.equals(stringValue)) {
+      return null;
+    } else {
+      return ((Sortable) fd).parseLastValue(stringValue);
+    }
   }
 
   /**
@@ -178,6 +184,10 @@ public class SortParser {
    */
   private static SearchResponse.Hit.CompositeFieldValue getValueForSortField(
       SortField sortField, Object sortValue) {
+    if (sortValue == null) {
+      return SearchResponse.Hit.CompositeFieldValue.newBuilder().build();
+    }
+
     var fieldValue = SearchResponse.Hit.FieldValue.newBuilder();
     switch (sortField.getType()) {
       case DOC:

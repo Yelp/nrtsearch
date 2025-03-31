@@ -91,7 +91,9 @@ public class SortFieldCollector extends DocCollector {
     lastHitBuilder.setLastDocId(lastHit.doc);
     for (Object fv : fd.fields) {
       String fvstr;
-      if (fv instanceof BytesRef) {
+      if (fv == null) {
+        fvstr = SortParser.NULL_SORT_VALUE;
+      } else if (fv instanceof BytesRef) {
         fvstr = ((BytesRef) fv).utf8ToString();
       } else {
         fvstr = fv.toString();

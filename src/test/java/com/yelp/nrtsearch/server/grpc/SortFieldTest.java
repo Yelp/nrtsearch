@@ -16,14 +16,16 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.search.sort.SortParser;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -34,6 +36,7 @@ import org.junit.Test;
 
 public class SortFieldTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
+  private static final String TEST_WITH_MISSING_INDEX = "sort_with_missing";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -42,16 +45,28 @@ public class SortFieldTest extends ServerTestCase {
 
   @Override
   protected List<String> getIndices() {
-    return Collections.singletonList(TEST_INDEX);
+    return List.of(TEST_INDEX, TEST_WITH_MISSING_INDEX);
   }
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/search/SortFieldRegisterFields.json");
+    if (name.equals(TEST_WITH_MISSING_INDEX)) {
+      return getFieldsFromResourceFile("/search/SortWithMissingRegisterFields.json");
+    } else {
+      return getFieldsFromResourceFile("/search/SortFieldRegisterFields.json");
+    }
   }
 
   @Override
   protected void initIndex(String name) throws Exception {
+    if (name.equals(TEST_WITH_MISSING_INDEX)) {
+      initTestIndexWithMissing(name);
+    } else {
+      initTestIndex(name);
+    }
+  }
+
+  private void initTestIndex(String name) throws Exception {
     IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
@@ -138,6 +153,30 @@ public class SortFieldTest extends ServerTestCase {
         writer.commit();
       }
     }
+  }
+
+  private void initTestIndexWithMissing(String name) throws Exception {
+    List<AddDocumentRequest> requests = new ArrayList<>();
+    for (int i = 0; i < 10; ++i) {
+      AddDocumentRequest.Builder requestBuilder =
+          AddDocumentRequest.newBuilder().setIndexName(name);
+      requestBuilder.putFields(
+          "doc_id",
+          AddDocumentRequest.MultiValuedField.newBuilder().addValue(String.valueOf(i)).build());
+      if (i < 5) {
+        requestBuilder.putFields(
+            "int_field",
+            AddDocumentRequest.MultiValuedField.newBuilder().addValue(String.valueOf(i)).build());
+      } else {
+        requestBuilder.putFields(
+            "string_field",
+            AddDocumentRequest.MultiValuedField.newBuilder()
+                .addValue(String.valueOf(9 - i))
+                .build());
+      }
+      requests.add(requestBuilder.build());
+    }
+    addDocuments(requests.stream());
   }
 
   @Test
@@ -1456,5 +1495,246 @@ public class SortFieldTest extends ServerTestCase {
           hits.get(i).getFieldsOrThrow("index_virtual_field").getFieldValue(0).getDoubleValue(),
           0.001);
     }
+  }
+
+  @Test
+  public void testSortWithMissing() {
+    SearchResponse response = doQueryWithMissing(0, 10, false, false);
+
+    assertEquals(10, response.getHitsCount());
+    List<String> expectedIds = Arrays.asList("9", "8", "7", "6", "5", "0", "1", "2", "3", "4");
+    List<Integer> expectedIntSort =
+        Arrays.asList(
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            0,
+            1,
+            2,
+            3,
+            4);
+    List<String> expectedStringSort =
+        Arrays.asList("0", "1", "2", "3", "4", null, null, null, null, null);
+    assertFieldsWithMissing(response, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(response.getSearchState(), 4, "4", SortParser.NULL_SORT_VALUE);
+  }
+
+  @Test
+  public void testSortWithMissing_intReversed() {
+    SearchResponse response = doQueryWithMissing(0, 10, true, false);
+
+    assertEquals(10, response.getHitsCount());
+    List<String> expectedIds = Arrays.asList("4", "3", "2", "1", "0", "9", "8", "7", "6", "5");
+    List<Integer> expectedIntSort =
+        Arrays.asList(
+            4,
+            3,
+            2,
+            1,
+            0,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE);
+    List<String> expectedStringSort =
+        Arrays.asList(null, null, null, null, null, "0", "1", "2", "3", "4");
+    assertFieldsWithMissing(response, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(response.getSearchState(), 5, String.valueOf(Integer.MIN_VALUE), "4");
+  }
+
+  @Test
+  public void testSortWithMissing_stringReversed() {
+    SearchResponse response = doQueryWithMissing(0, 10, false, true);
+
+    assertEquals(10, response.getHitsCount());
+    List<String> expectedIds = Arrays.asList("5", "6", "7", "8", "9", "0", "1", "2", "3", "4");
+    List<Integer> expectedIntSort =
+        Arrays.asList(
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            0,
+            1,
+            2,
+            3,
+            4);
+    List<String> expectedStringSort =
+        Arrays.asList("4", "3", "2", "1", "0", null, null, null, null, null);
+    assertFieldsWithMissing(response, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(response.getSearchState(), 4, "4", SortParser.NULL_SORT_VALUE);
+  }
+
+  @Test
+  public void testSortWithMissing_bothReversed() {
+    SearchResponse response = doQueryWithMissing(0, 10, true, true);
+
+    assertEquals(10, response.getHitsCount());
+    List<String> expectedIds = Arrays.asList("4", "3", "2", "1", "0", "5", "6", "7", "8", "9");
+    List<Integer> expectedIntSort =
+        Arrays.asList(
+            4,
+            3,
+            2,
+            1,
+            0,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE);
+    List<String> expectedStringSort =
+        Arrays.asList(null, null, null, null, null, "4", "3", "2", "1", "0");
+    assertFieldsWithMissing(response, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(response.getSearchState(), 9, String.valueOf(Integer.MIN_VALUE), "0");
+  }
+
+  @Test
+  public void testSearchAfterWithMissingSortValue() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_WITH_MISSING_INDEX)
+            .setStartHit(0)
+            .setTopHits(3)
+            .addRetrieveFields("doc_id")
+            .addRetrieveFields("int_field")
+            .addRetrieveFields("string_field")
+            .setQuery(Query.newBuilder().build())
+            .setQuerySort(
+                QuerySortField.newBuilder()
+                    .setFields(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("string_field")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("int_field")
+                                    .setReverse(true)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertEquals(3, response.getHitsCount());
+    List<String> expectedIds = Arrays.asList("4", "3", "2");
+    List<Integer> expectedIntSort = Arrays.asList(4, 3, 2);
+    List<String> expectedStringSort = Arrays.asList(null, null, null);
+    assertFieldsWithMissing(response, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(response.getSearchState(), 2, SortParser.NULL_SORT_VALUE, "2");
+
+    SearchRequest searchAfterRequest =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_WITH_MISSING_INDEX)
+            .setStartHit(0)
+            .setTopHits(3)
+            .addRetrieveFields("doc_id")
+            .addRetrieveFields("int_field")
+            .addRetrieveFields("string_field")
+            .setQuery(Query.newBuilder().build())
+            .setSearchAfter(response.getSearchState().getLastHitInfo())
+            .setQuerySort(
+                QuerySortField.newBuilder()
+                    .setFields(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("string_field")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("int_field")
+                                    .setReverse(true)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+    SearchResponse searchAfterResponse =
+        getGrpcServer().getBlockingStub().search(searchAfterRequest);
+
+    assertEquals(3, searchAfterResponse.getHitsCount());
+    expectedIds = Arrays.asList("1", "0", "9");
+    expectedIntSort = Arrays.asList(1, 0, Integer.MIN_VALUE);
+    expectedStringSort = Arrays.asList(null, null, "0");
+    assertFieldsWithMissing(searchAfterResponse, expectedIds, expectedIntSort, expectedStringSort);
+    assertSearchState(
+        searchAfterResponse.getSearchState(), 9, "0", String.valueOf(Integer.MIN_VALUE));
+  }
+
+  private void assertFieldsWithMissing(
+      SearchResponse response,
+      List<String> expectedIds,
+      List<Integer> expectedIntSort,
+      List<String> expectedStringSort) {
+    assertEquals(expectedIds.size(), response.getHitsCount());
+    for (int i = 0; i < expectedIds.size(); ++i) {
+      String idStr = response.getHits(i).getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue();
+      assertEquals(expectedIds.get(i), idStr);
+
+      Integer intSortValue =
+          response.getHits(i).getSortedFieldsOrThrow("int_field").getFieldValue(0).getIntValue();
+      assertEquals(expectedIntSort.get(i), intSortValue);
+      SearchResponse.Hit.CompositeFieldValue stringSortValue =
+          response.getHits(i).getSortedFieldsOrThrow("string_field");
+      if (stringSortValue.getFieldValueCount() == 0) {
+        assertNull(expectedStringSort.get(i));
+      } else {
+        assertEquals(expectedStringSort.get(i), stringSortValue.getFieldValue(0).getTextValue());
+      }
+    }
+  }
+
+  private void assertSearchState(
+      SearchResponse.SearchState searchState,
+      int luceneDocId,
+      String intSortString,
+      String stringSortString) {
+    assertEquals(luceneDocId, searchState.getLastDocId());
+    assertEquals(intSortString, searchState.getLastFieldValues(0));
+    assertEquals(stringSortString, searchState.getLastFieldValues(1));
+
+    LastHitInfo lastHitInfo = searchState.getLastHitInfo();
+    assertEquals(luceneDocId, lastHitInfo.getLastDocId());
+    assertEquals(intSortString, lastHitInfo.getLastFieldValues(0));
+    assertEquals(stringSortString, lastHitInfo.getLastFieldValues(1));
+  }
+
+  private SearchResponse doQueryWithMissing(
+      int startHit, int topHits, boolean intReversed, boolean stringReversed) {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_WITH_MISSING_INDEX)
+            .setStartHit(startHit)
+            .setTopHits(topHits)
+            .addRetrieveFields("doc_id")
+            .addRetrieveFields("int_field")
+            .addRetrieveFields("string_field")
+            .setQuery(Query.newBuilder().build())
+            .setQuerySort(
+                QuerySortField.newBuilder()
+                    .setFields(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("int_field")
+                                    .setReverse(intReversed)
+                                    .build())
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("string_field")
+                                    .setReverse(stringReversed)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+    return getGrpcServer().getBlockingStub().search(request);
   }
 }

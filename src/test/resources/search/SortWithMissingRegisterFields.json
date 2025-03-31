@@ -1,0 +1,22 @@
+{
+  "indexName": "sort_with_missing",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "storeDocValues": true
+    },
+    {
+      "name": "int_field",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "string_field",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}
