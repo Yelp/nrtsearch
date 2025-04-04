@@ -39,7 +39,7 @@ import org.apache.lucene.util.BytesRef;
 public class SortParser {
   public static final BiFunction<SortField, Object, CompositeFieldValue>
       DEFAULT_SORT_VALUE_EXTRACTOR = (sortField, value) -> getValueForSortField(sortField, value);
-  public static final String NULL_SORT_VALUE = "NULL_SORT_VALUE";
+  public static final String NULL_SORT_VALUE = "%NULL_SORT_VALUE%";
   private static final String DOCID = "docid";
   private static final String SCORE = "score";
 
