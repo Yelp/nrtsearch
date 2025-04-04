@@ -15,9 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.warming;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.ConstantScoreQuery;
@@ -26,6 +23,8 @@ import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WarmingUtils {
   private static final Logger logger = LoggerFactory.getLogger(WarmingUtils.class);
@@ -69,13 +68,13 @@ public class WarmingUtils {
     switch (query.getQueryNodeCase()) {
       case BOOLEANQUERY -> queryBuilder.setBooleanQuery(stripBooleanQuery(query.getBooleanQuery()));
       case DISJUNCTIONMAXQUERY -> queryBuilder.setDisjunctionMaxQuery(
-            stripDisjunctionMaxQuery(query.getDisjunctionMaxQuery()));
+          stripDisjunctionMaxQuery(query.getDisjunctionMaxQuery()));
       case NESTEDQUERY -> queryBuilder.setNestedQuery(stripNestedQuery(query.getNestedQuery()));
-      case CONSTANTSCOREQUERY -> queryBuilder.setConstantScoreQuery(stripConstantScoreQuery(query.getConstantScoreQuery()));
-      default -> {
-          }
+      case CONSTANTSCOREQUERY -> queryBuilder.setConstantScoreQuery(
+          stripConstantScoreQuery(query.getConstantScoreQuery()));
+      default -> {}
     }
-      // Add other cases as needed
+    // Add other cases as needed
     return queryBuilder.build();
   }
 
