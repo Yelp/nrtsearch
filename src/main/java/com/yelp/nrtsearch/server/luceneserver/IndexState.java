@@ -20,7 +20,10 @@ import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
-import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.FieldType;
+import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -37,7 +40,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
@@ -258,7 +264,7 @@ public abstract class IndexState implements Closeable {
               configuration.getServiceName(),
               indexName,
               warmerConfig.getMaxWarmingQueries(),
-              warmerConfig.getStrippedWarmingQueryRate());
+              warmerConfig.getWarmBasicQueryOnlyPerc());
     }
   }
 

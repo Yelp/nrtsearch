@@ -233,54 +233,6 @@ public class SearchRequestProcessor {
     return searchContext;
   }
 
-  /*
-   * Create a necessary context for warming queries with the given request.
-   * This context ignores the request's virtual fields, facets, fetch tasks, highlighter, rescorer and retrieved fields.
-   */
-  public static SearchContext buildContextForWarmingQuery(
-      SearchRequest searchRequest,
-      IndexState indexState,
-      ShardState shardState,
-      SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy)
-      throws IOException {
-    SearchContext.Builder contextBuilder = SearchContext.newBuilder();
-    // RuntimeFields might be used in query, we cannot skip them
-    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
-
-    Map<String, FieldDef> queryFields = new HashMap<>();
-
-    addToQueryFields(queryFields, queryRuntimeFields);
-    addIndexFields(indexState, queryFields);
-    contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
-
-    contextBuilder.setRetrieveFields(Collections.emptyMap());
-
-    Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
-    DocLookup docLookup = new DocLookup(indexState, fieldDefLookup);
-    contextBuilder.setDocLookup(docLookup);
-
-    String rootQueryNestedPath =
-        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
-    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
-    Query query =
-        extractQuery(
-            indexState,
-            searchRequest.getQueryText(),
-            searchRequest.getQuery(),
-            rootQueryNestedPath,
-            docLookup);
-    query = searcherAndTaxonomy.searcher.rewrite(query);
-    contextBuilder.setQuery(query);
-
-    CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(
-            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
-    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
-    contextBuilder.setCollector(docCollector);
-
-    return contextBuilder.build(false);
-  }
-
   /**
    * Parses any virtualFields, which define dynamic (expression) fields for this one request.
    *

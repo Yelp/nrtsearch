@@ -57,7 +57,7 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
-  private final float strippedWarmingQueryRate;
+  private final float warmBasicQueryOnlyPerc;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
     this(archiver, service, index, maxWarmingQueries, 0.f);
@@ -68,7 +68,7 @@ public class Warmer {
       String service,
       String index,
       int maxWarmingQueries,
-      float strippedWarmingQueryRate) {
+      float warmBasicQueryOnlyPerc) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -76,7 +76,7 @@ public class Warmer {
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
-    this.strippedWarmingQueryRate = strippedWarmingQueryRate;
+    this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
   }
 
   public int getNumWarmingRequests() {
@@ -181,7 +181,7 @@ public class Warmer {
       int count = 0, strippedCount = 0;
       Random random = new Random();
       while ((line = reader.readLine()) != null) {
-        boolean isStripped = random.nextFloat() < strippedWarmingQueryRate;
+        boolean isStripped = random.nextFloat() < warmBasicQueryOnlyPerc;
         processLine(indexState, searchHandler, threadPoolExecutor, line, isStripped);
         count++;
         if (isStripped) {
@@ -210,24 +210,18 @@ public class Warmer {
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
       String line,
-      boolean warmLuceneQueryOnly)
+      boolean warmBasicQuery)
       throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
+    if (warmBasicQuery) {
+      WarmingUtils.simplifySearchRequestForWarming(builder);
+    }
     SearchRequest searchRequest = builder.build();
     if (threadPoolExecutor == null) {
-      if (warmLuceneQueryOnly) {
-        WarmingUtils.handleStrippedWarmingQuery(indexState, searchRequest);
-      } else {
-        searchHandler.handle(indexState, searchRequest);
-      }
+      searchHandler.handle(indexState, searchRequest);
     } else {
-      if (warmLuceneQueryOnly) {
-        threadPoolExecutor.submit(
-            () -> WarmingUtils.handleStrippedWarmingQuery(indexState, searchRequest));
-      } else {
-        threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
-      }
+      threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
     }
   }
 }
