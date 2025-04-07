@@ -21,11 +21,13 @@ public class WarmerConfig {
   private static final String CONFIG_PREFIX = "warmer.";
   private static final int DEFAULT_MAX_WARMING_QUERIES = 0;
   private static final int DEFAULT_WARMING_PARALLELISM = 1;
+  private static final int DEFAULT_WARM_BASIC_QUERY_ONLY_PERC = 0;
   private static final boolean DEFAULT_WARM_ON_STARTUP = false;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
   private final boolean warmOnStartup;
+  private final int warmBasicQueryOnlyPerc;
 
   /**
    * Configuration for warmer.
@@ -33,11 +35,18 @@ public class WarmerConfig {
    * @param maxWarmingQueries maximum queries to store for warming
    * @param warmingParallelism number of parallel queries while warming on startup
    * @param warmOnStartup if true will try to download queries from S3 and use them to warm
+   * @param warmBasicQueryOnlyPerc percentage of warming queries that should be basic queries for
+   *     the fast boostrap
    */
-  public WarmerConfig(int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      boolean warmOnStartup,
+      int warmBasicQueryOnlyPerc) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmOnStartup = warmOnStartup;
+    this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -47,8 +56,12 @@ public class WarmerConfig {
         configReader.getInteger(CONFIG_PREFIX + "warmingParallelism", DEFAULT_WARMING_PARALLELISM);
     boolean warmOnStartup =
         configReader.getBoolean(CONFIG_PREFIX + "warmOnStartup", DEFAULT_WARM_ON_STARTUP);
+    int warmBasicQueryOnlyPerc =
+        configReader.getInteger(
+            CONFIG_PREFIX + "warmBasicQueryOnlyPerc", DEFAULT_WARM_BASIC_QUERY_ONLY_PERC);
 
-    return new WarmerConfig(maxWarmingQueries, warmingParallelism, warmOnStartup);
+    return new WarmerConfig(
+        maxWarmingQueries, warmingParallelism, warmOnStartup, warmBasicQueryOnlyPerc);
   }
 
   public int getMaxWarmingQueries() {
@@ -61,5 +74,9 @@ public class WarmerConfig {
 
   public boolean isWarmOnStartup() {
     return warmOnStartup;
+  }
+
+  public int getWarmBasicQueryOnlyPerc() {
+    return warmBasicQueryOnlyPerc;
   }
 }
