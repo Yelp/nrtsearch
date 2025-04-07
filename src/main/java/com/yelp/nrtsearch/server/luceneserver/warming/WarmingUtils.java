@@ -47,7 +47,7 @@ public class WarmingUtils {
     return searchRequest;
   }
 
-  public static Query stripScriptQuery(Query query) {
+  private static Query stripScriptQuery(Query query) {
     if (query.hasFunctionScoreQuery()) {
       return stripScriptQuery(query.getFunctionScoreQuery().getQuery());
     }

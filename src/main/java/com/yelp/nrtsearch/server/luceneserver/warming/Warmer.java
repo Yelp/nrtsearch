@@ -57,10 +57,11 @@ public class Warmer {
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
-  private final float warmBasicQueryOnlyPerc;
+  private final int warmBasicQueryOnlyPerc;
+  protected final ThreadLocal<Random> randomThreadLocal;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
-    this(archiver, service, index, maxWarmingQueries, 0.f);
+    this(archiver, service, index, maxWarmingQueries, 0);
   }
 
   public Warmer(
@@ -68,7 +69,7 @@ public class Warmer {
       String service,
       String index,
       int maxWarmingQueries,
-      float warmBasicQueryOnlyPerc) {
+      int warmBasicQueryOnlyPerc) {
     this.archiver = archiver;
     this.service = service;
     this.index = index;
@@ -77,6 +78,7 @@ public class Warmer {
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
+    this.randomThreadLocal = ThreadLocal.withInitial(Random::new);
   }
 
   public int getNumWarmingRequests() {
@@ -178,21 +180,20 @@ public class Warmer {
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
-      int count = 0, strippedCount = 0;
-      Random random = new Random();
+      int count = 0, basicCount = 0;
       while ((line = reader.readLine()) != null) {
-        boolean isStripped = random.nextFloat() < warmBasicQueryOnlyPerc;
+        boolean isStripped = randomThreadLocal.get().nextInt(100) < warmBasicQueryOnlyPerc;
         processLine(indexState, searchHandler, threadPoolExecutor, line, isStripped);
         count++;
         if (isStripped) {
-          strippedCount++;
+          basicCount++;
         }
       }
       logger.info(
-          "Warmed index: {} with {} full and {} stripped warming queries in {} seconds.",
+          "Warmed index: {} with {} full and {} basic warming queries in {} seconds.",
           index,
-          count - strippedCount,
-          strippedCount,
+          count - basicCount,
+          basicCount,
           (System.currentTimeMillis() - startMS) / 1000.0);
     } finally {
       if (threadPoolExecutor != null) {
