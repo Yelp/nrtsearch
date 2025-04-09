@@ -320,11 +320,11 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       for (Map.Entry<String, MultiValuedField> entry :
           addDocumentRequest.getFieldsMap().entrySet()) {
         FieldDef field = indexState.getField(entry.getKey());
-        if(field.getName().equals(indexState.getIdFieldDef().get().getName()))
-          continue;
+        if (field.getName().equals(indexState.getIdFieldDef().get().getName())) continue;
         if ((!(field instanceof Updatable updatable) || !updatable.isUpdatable())) {
-          throw new IndexingException (new IllegalArgumentException(
-              String.format("Field: %s is not updatable", field.getName())));
+          throw new IndexingException(
+              new IllegalArgumentException(
+                  String.format("Field: %s is not updatable", field.getName())));
         }
         parseMultiValueField(field, entry.getValue(), documentsContext);
       }
@@ -463,7 +463,8 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             }
           } else {
             if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
-              executeDocValueUpdateRequest(documentsContext, indexState, shardState, addDocumentRequest);
+              executeDocValueUpdateRequest(
+                  documentsContext, indexState, shardState, addDocumentRequest);
             } else {
               documents.add(documentsContext.getRootDocument());
             }
@@ -497,10 +498,14 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     }
 
     private void executeDocValueUpdateRequest(
-        DocumentsContext documentsContext, IndexState indexState, ShardState shardState , AddDocumentRequest addDocumentRequest) {
+        DocumentsContext documentsContext,
+        IndexState indexState,
+        ShardState shardState,
+        AddDocumentRequest addDocumentRequest) {
       try {
         IndexingMetrics.updateDocValuesRequestsReceived.labelValues(indexName).inc();
-        List<IndexableField> updatableDocValueFields = documentsContext.getRootDocument().getFields();
+        List<IndexableField> updatableDocValueFields =
+            documentsContext.getRootDocument().getFields();
 
         String idFieldName = indexState.getIdFieldDef().get().getName();
         String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
@@ -551,9 +556,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
       long nanoTime = System.nanoTime();
       shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
-      IndexingMetrics.addDocumentLatency
-          .labelValues(indexName)
-          .set((System.nanoTime() - nanoTime));
+      IndexingMetrics.addDocumentLatency.labelValues(indexName).set((System.nanoTime() - nanoTime));
     }
 
     /**
@@ -576,9 +579,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
       long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(documents);
-      IndexingMetrics.addDocumentLatency
-          .labelValues(indexName)
-          .set((System.nanoTime() - nanoTime));
+      IndexingMetrics.addDocumentLatency.labelValues(indexName).set((System.nanoTime() - nanoTime));
     }
 
     private void updateDocuments(
@@ -609,9 +610,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         throw new IllegalStateException(
             "Adding documents to an index on a replica node is not supported");
       }
-      IndexingMetrics.addDocumentRequestsReceived
-          .labelValues(indexName)
-          .inc(documents.size());
+      IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc(documents.size());
       long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(
           (Iterable<Document>)
@@ -638,7 +637,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                   });
       IndexingMetrics.addDocumentLatency
           .labelValues(indexName)
-          .set((System.nanoTime() - nanoTime)/documents.size());
+          .set((System.nanoTime() - nanoTime) / documents.size());
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {

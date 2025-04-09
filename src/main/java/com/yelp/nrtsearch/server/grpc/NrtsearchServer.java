@@ -265,7 +265,7 @@ public class NrtsearchServer {
     prometheusRegistry.register(new ProcStatCollector());
     prometheusRegistry.register(new MergeSchedulerCollector(globalState));
     prometheusRegistry.register(new SearchResponseCollector(globalState));
-    //register Indexing metrics such as single addDocument, updateDocValue latencies
+    // register Indexing metrics such as single addDocument, updateDocValue latencies
     IndexingMetrics.register(prometheusRegistry);
   }
 
