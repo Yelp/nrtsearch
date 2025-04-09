@@ -318,11 +318,12 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       for (Map.Entry<String, MultiValuedField> entry :
           addDocumentRequest.getFieldsMap().entrySet()) {
         FieldDef field = indexState.getField(entry.getKey());
-        if (!(field instanceof Updatable updatable) || !updatable.isUpdatable()) {
+        if ((!(field instanceof Updatable updatable) || !updatable.isUpdatable())
+            && !field.getName().equals(indexState.getIdFieldDef().get().getName())) {
           throw new IllegalArgumentException(
               String.format("Field: %s is not updatable", field.getName()));
         }
-        parseMultiValueField(field, entry.getValue(), documentsContext);
+        parseMultiValueField(field, entrygit s.getValue(), documentsContext);
       }
     }
 
@@ -496,7 +497,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         DocumentsContext documentsContext, IndexState indexState, ShardState shardState) {
       try {
         List<IndexableField> updatableDocValueFields =
-            documentsContext.getRootDocument().getFields();
+            documentsContext.getRootDocument().getFields().stream()
+                .filter(f -> !f.name().equals(indexState.getIdFieldDef().get().getName()))
+                .toList();
+
         Term term = indexState.getIdFieldDef().get().getTerm(documentsContext.getRootDocument());
         shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
       } catch (IOException e) {

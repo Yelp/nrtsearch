@@ -278,7 +278,7 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
 
   @Override
   public boolean isUpdatable() {
-    if (isSearchable() || isStored() || isMultiValue() || !hasDocValues()) {
+    if (isSearchable() || isMultiValue() || !hasDocValues()) {
       return false;
     }
     return true;
