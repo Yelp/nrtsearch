@@ -843,6 +843,8 @@ message AddDocumentRequest {
     }
     // Map of field name to a list of string values
     map<string, MultiValuedField> fields = 3;
+    // request type
+    IndexingRequestType requestType = 4;
 }
 
 // Path for hierarchical facets
@@ -1509,4 +1511,11 @@ message CustomRequest {
 // Response from Server for custom
 message CustomResponse {
     map<string, string> response = 1; // Custom response sent by the plugin
+}
+
+enum IndexingRequestType {
+    // Request to add a document
+    ADD_DOCUMENT = 0;
+    // Request to update a document
+    UPDATE_DOCUMENT = 2;
 }

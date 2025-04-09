@@ -21,10 +21,13 @@ import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.properties.Updatable;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
+import com.yelp.nrtsearch.server.grpc.IndexingRequestType;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
@@ -46,7 +49,9 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -284,6 +289,12 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
       DocumentsContext documentsContext = new DocumentsContext();
+
+      if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
+        buildDocumentContextForUpdate(documentsContext, addDocumentRequest, indexState);
+        return documentsContext;
+      }
+
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
@@ -296,6 +307,23 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       // Include all fields and meta-fields in field names
       extractFieldNames(documentsContext);
       return documentsContext;
+    }
+
+    private static void buildDocumentContextForUpdate(
+        DocumentsContext documentsContext,
+        AddDocumentRequest addDocumentRequest,
+        IndexState indexState)
+        throws AddDocumentHandlerException {
+
+      for (Map.Entry<String, MultiValuedField> entry :
+          addDocumentRequest.getFieldsMap().entrySet()) {
+        FieldDef field = indexState.getField(entry.getKey());
+        if (!(field instanceof Updatable updatable) || !updatable.isUpdatable()) {
+          throw new IllegalArgumentException(
+              String.format("Field: %s is not updatable", field.getName()));
+        }
+        parseMultiValueField(field, entry.getValue(), documentsContext);
+      }
     }
 
     /** Extract all field names for each document and stores it into a hidden field */
@@ -430,7 +458,11 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
               throw new IOException(e);
             }
           } else {
-            documents.add(documentsContext.getRootDocument());
+            if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
+              executeDocValueUpdateRequest(documentsContext, indexState, shardState);
+            } else {
+              documents.add(documentsContext.getRootDocument());
+            }
           }
         }
       } catch (Exception e) {
@@ -458,6 +490,22 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
               Thread.currentThread().getName() + Thread.currentThread().threadId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
+    }
+
+    private void executeDocValueUpdateRequest(
+        DocumentsContext documentsContext, IndexState indexState, ShardState shardState) {
+      try {
+        List<IndexableField> updatableDocValueFields =
+            documentsContext.getRootDocument().getFields();
+        Term term = indexState.getIdFieldDef().get().getTerm(documentsContext.getRootDocument());
+        shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
+      } catch (IOException e) {
+        logger.warn(
+            String.format(
+                "ThreadId: %s, IndexWriter.updateDocValues failed",
+                Thread.currentThread().getName() + Thread.currentThread().threadId()));
+        throw new RuntimeException(e);
+      }
     }
 
     /**

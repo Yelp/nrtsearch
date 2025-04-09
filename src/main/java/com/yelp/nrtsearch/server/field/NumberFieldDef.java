@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.field.properties.Bindable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
 import com.yelp.nrtsearch.server.field.properties.TermQueryable;
+import com.yelp.nrtsearch.server.field.properties.Updatable;
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
@@ -49,7 +50,7 @@ import org.apache.lucene.util.NumericUtils;
  * @param <T> doc value object type
  */
 public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
-    implements Bindable, Sortable, RangeQueryable, TermQueryable {
+    implements Bindable, Sortable, RangeQueryable, TermQueryable, Updatable {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
   public static final Function<String, Number> FLOAT_PARSER = Float::valueOf;
@@ -273,5 +274,13 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
     boolean missingLast = type.getMissingLast();
     sortField.setMissingValue(getSortMissingValue(missingLast));
     return sortField;
+  }
+
+  @Override
+  public boolean isUpdatable() {
+    if (isSearchable() || isStored() || isMultiValue() || !hasDocValues()) {
+      return false;
+    }
+    return true;
   }
 }
