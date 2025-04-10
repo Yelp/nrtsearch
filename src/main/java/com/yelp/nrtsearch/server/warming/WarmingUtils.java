@@ -23,11 +23,8 @@ import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class WarmingUtils {
-  private static final Logger logger = LoggerFactory.getLogger(WarmingUtils.class);
 
   public static SearchRequest simplifySearchRequestForWarming(
       SearchRequest.Builder searchRequestBuilder) {
