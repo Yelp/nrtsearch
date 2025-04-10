@@ -626,9 +626,11 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                       return nextDoc;
                     }
                   });
-      IndexingMetrics.addDocumentLatency
-          .labelValues(indexName)
-          .set((System.nanoTime() - nanoTime) / documents.size());
+      if (documents.size() >= 1) {
+        IndexingMetrics.addDocumentLatency
+            .labelValues(indexName)
+            .set((System.nanoTime() - nanoTime) / documents.size());
+      }
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
