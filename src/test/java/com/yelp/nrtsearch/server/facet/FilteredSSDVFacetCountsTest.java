@@ -20,10 +20,14 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
+import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LabelAndValue;
+import com.yelp.nrtsearch.server.grpc.MatchAllQuery;
+import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import io.grpc.testing.GrpcCleanupRule;
@@ -226,6 +230,44 @@ public class FilteredSSDVFacetCountsTest extends ServerTestCase {
             .setTopN(1)
             .build();
     queryAndVerify(facet, 2, LabelAndValue.newBuilder().setLabel("S1").setValue(2).build());
+  }
+
+  @Test
+  public void testFilteredNoHits() {
+    Facet facet =
+        Facet.newBuilder()
+            .setName("test_facet")
+            .setDim("sorted_doc_values_facet_field")
+            .addLabels("M1")
+            .addLabels("M2")
+            .setTopN(3)
+            .build();
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(MULTI_SEGMENT_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addFacets(facet)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST_NOT)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setMatchAllQuery(
+                                                        MatchAllQuery.newBuilder().build())
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertResponse(searchResponse, 0);
   }
 
   private void queryAndVerify(Facet facet, int childCount, LabelAndValue... expectedValues) {

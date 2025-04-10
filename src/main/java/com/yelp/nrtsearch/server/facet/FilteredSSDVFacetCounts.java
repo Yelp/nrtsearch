@@ -370,6 +370,9 @@ public class FilteredSSDVFacetCounts extends Facets {
     if (path.length > 0) {
       throw new IllegalArgumentException("path should be 0 length");
     }
+    if (counts == null) {
+      return null;
+    }
     return getDim(dim, topN);
   }
 
