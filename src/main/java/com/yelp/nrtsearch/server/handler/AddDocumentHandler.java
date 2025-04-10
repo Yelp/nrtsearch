@@ -291,12 +291,8 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
       DocumentsContext documentsContext = new DocumentsContext();
-
-      if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
-        buildDocumentContextForUpdate(documentsContext, addDocumentRequest, indexState);
+      if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT))
         return documentsContext;
-      }
-
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
@@ -504,12 +500,26 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         AddDocumentRequest addDocumentRequest) {
       try {
         IndexingMetrics.updateDocValuesRequestsReceived.labelValues(indexName).inc();
-        List<IndexableField> updatableDocValueFields =
-            documentsContext.getRootDocument().getFields();
+        List<Field> updatableDocValueFields = new ArrayList<>();
+        Term term = null;
+        for (Map.Entry<String, MultiValuedField> entry :
+            addDocumentRequest.getFieldsMap().entrySet()) {
+          FieldDef field = indexState.getField(entry.getKey());
+          if (field.getName().equals(indexState.getIdFieldDef().get().getName())) {
 
-        String idFieldName = indexState.getIdFieldDef().get().getName();
-        String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
-        Term term = new Term(idFieldName, idFieldValue);
+            String idFieldName = indexState.getIdFieldDef().get().getName();
+            String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
+            term = new Term(idFieldName, idFieldValue);
+            continue;
+          }
+          if (!(field instanceof Updatable updatable) || !(updatable.isUpdatable())) {
+            throw new IndexingException(
+                new IllegalArgumentException(
+                    String.format("Field: %s is not updatable", field.getName())));
+          }
+          updatableDocValueFields.add(
+              ((Updatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
+        }
 
         long nanoTime = System.nanoTime();
         shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));

@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.server.field.properties;
 
-public interface Updatable {
+public interface Updatable<T> {
 
   boolean isUpdatable();
+
+  org.apache.lucene.document.Field getUpdatableDocValueField(T value);
 }
