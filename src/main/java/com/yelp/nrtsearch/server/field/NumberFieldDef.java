@@ -19,10 +19,10 @@ import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.hasAnalyzer;
 
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.field.properties.Bindable;
+import com.yelp.nrtsearch.server.field.properties.DocValueUpdatable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
 import com.yelp.nrtsearch.server.field.properties.TermQueryable;
-import com.yelp.nrtsearch.server.field.properties.Updatable;
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
@@ -50,7 +50,7 @@ import org.apache.lucene.util.NumericUtils;
  * @param <T> doc value object type
  */
 public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
-    implements Bindable, Sortable, RangeQueryable, TermQueryable, Updatable<T> {
+    implements Bindable, Sortable, RangeQueryable, TermQueryable, DocValueUpdatable<T> {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
   public static final Function<String, Number> FLOAT_PARSER = Float::valueOf;
@@ -286,6 +286,6 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
 
   @Override
   public org.apache.lucene.document.Field getUpdatableDocValueField(T val) {
-    return getDocValueField(parseNumberString((String)val));
+    return getDocValueField(parseNumberString((String) val));
   }
 }

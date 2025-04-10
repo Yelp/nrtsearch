@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field.properties;
 
-public interface Updatable<T> {
+public interface DocValueUpdatable<T> {
 
   boolean isUpdatable();
 

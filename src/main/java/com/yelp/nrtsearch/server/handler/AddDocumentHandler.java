@@ -22,7 +22,7 @@ import com.yelp.nrtsearch.server.exceptions.IndexingException;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.field.properties.Updatable;
+import com.yelp.nrtsearch.server.field.properties.DocValueUpdatable;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
@@ -493,13 +493,13 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             term = new Term(idFieldName, idFieldValue);
             continue;
           }
-          if (!(field instanceof Updatable updatable) || !(updatable.isUpdatable())) {
+          if (!(field instanceof DocValueUpdatable updatable) || !(updatable.isUpdatable())) {
             throw new IndexingException(
                 new IllegalArgumentException(
                     String.format("Field: %s is not updatable", field.getName())));
           }
           updatableDocValueFields.add(
-              ((Updatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
+              ((DocValueUpdatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
         }
 
         long nanoTime = System.nanoTime();

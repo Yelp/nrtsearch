@@ -21,9 +21,15 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 public class IndexingMetrics {
 
+  public static final String UPDATE_DOC_VALUES_REQUESTS_RECEIVED =
+      "update_doc_values_requests_received";
+  public static final String ADD_DOCUMENT_REQUESTS_RECEIVED = "add_document_requests_received";
+  public static final String UPDATE_DOC_VALUES_LATENCY = "update_doc_values_latency";
+  public static final String ADD_DOCUMENT_LATENCY = "add_document_latency";
+
   public static final Counter updateDocValuesRequestsReceived =
       Counter.builder()
-          .name("update_doc_values_requests_received")
+          .name(UPDATE_DOC_VALUES_REQUESTS_RECEIVED)
           .help("Number of requests received for the update doc values API ")
           .labelNames("index")
           .build();
@@ -31,14 +37,14 @@ public class IndexingMetrics {
   // counter for addDocument requests received for the index with the index name as the label value
   public static final Counter addDocumentRequestsReceived =
       Counter.builder()
-          .name("add_document_requests_received")
+          .name(ADD_DOCUMENT_REQUESTS_RECEIVED)
           .help("Number of requests received for the add document API ")
           .labelNames("index")
           .build();
 
   public static final Gauge updateDocValuesLatency =
       Gauge.builder()
-          .name("update_doc_values_latency")
+          .name(UPDATE_DOC_VALUES_LATENCY)
           .help("Latency of the update doc values API")
           .labelNames("index")
           .build();
@@ -46,7 +52,7 @@ public class IndexingMetrics {
   // gauge for the latency of the addDocument API with the index name as the label value
   public static final Gauge addDocumentLatency =
       Gauge.builder()
-          .name("add_document_latency")
+          .name(ADD_DOCUMENT_LATENCY)
           .help("Latency of the add document API")
           .labelNames("index")
           .build();
