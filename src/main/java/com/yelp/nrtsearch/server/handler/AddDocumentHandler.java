@@ -307,25 +307,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       return documentsContext;
     }
 
-    private static void buildDocumentContextForUpdate(
-        DocumentsContext documentsContext,
-        AddDocumentRequest addDocumentRequest,
-        IndexState indexState)
-        throws AddDocumentHandlerException {
-
-      for (Map.Entry<String, MultiValuedField> entry :
-          addDocumentRequest.getFieldsMap().entrySet()) {
-        FieldDef field = indexState.getField(entry.getKey());
-        if (field.getName().equals(indexState.getIdFieldDef().get().getName())) continue;
-        if ((!(field instanceof Updatable updatable) || !updatable.isUpdatable())) {
-          throw new IndexingException(
-              new IllegalArgumentException(
-                  String.format("Field: %s is not updatable", field.getName())));
-        }
-        parseMultiValueField(field, entry.getValue(), documentsContext);
-      }
-    }
-
     /** Extract all field names for each document and stores it into a hidden field */
     private static void extractFieldNames(DocumentsContext documentsContext) {
       extractFieldNamesForDocument(documentsContext.getRootDocument());
