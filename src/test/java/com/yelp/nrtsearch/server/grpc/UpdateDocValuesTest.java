@@ -17,10 +17,10 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
+import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.After;
@@ -44,23 +44,23 @@ public class UpdateDocValuesTest {
   private final List<Field> fields =
       List.of(
           Field.newBuilder()
-              .setName("ad_bid_id")
+              .setName("primary_key")
               .setType(FieldType._ID)
               .setStoreDocValues(true)
               .setSearch(true)
               .build(),
           Field.newBuilder()
-              .setName("ad_bid_floor")
+              .setName("update_field_one")
               .setStoreDocValues(true)
               .setType(FieldType.INT)
               .build(),
           Field.newBuilder()
-              .setName("ad_bid_floor_USD")
+              .setName("update_field_two")
               .setStoreDocValues(true)
               .setType(FieldType.INT)
               .build(),
           Field.newBuilder()
-              .setName("non_rtb_field")
+              .setName("non_updatable_field")
               .setStoreDocValues(true)
               .setType(FieldType.INT)
               .setSearch(true)
@@ -79,28 +79,78 @@ public class UpdateDocValuesTest {
     primaryServer.startPrimaryIndex(testPartialUpdateIndex, -1, null);
 
     primaryServer.addDocs(buildAddDocRequest(3).stream());
-
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(2000);
-    verifyAddDocsPrenset(3, false, 3);
+    Thread.sleep(1000);
+    verifyAddDocsPresent(3, false, -1);
 
     primaryServer.addDocs(buildUpdateRequest(2).stream());
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(2000);
+    Thread.sleep(1000);
 
-    verifyAddDocsPrenset(3, true, 2);
-
+    verifyAddDocsPresent(3, true, 2);
     // send more updates
+    sendMoreUpdatesAndVerify();
+    // send full doc insert for same docs and verify
+    primaryServer.addDocs(buildAddDocRequest(3).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    Thread.sleep(1000);
+    verifyAddDocsPresent(3, false, -1);
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testUpdateFailsWhenUpdateFieldIsSearchable() throws Throwable {
+    primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+
+    primaryServer.createIndex(testPartialUpdateIndex);
+    primaryServer.registerFields(testPartialUpdateIndex, fields);
+    primaryServer.startPrimaryIndex(testPartialUpdateIndex, -1, null);
+
+    primaryServer.addDocs(buildAddDocRequest(3).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+
+    try {
+      primaryServer.addDocs(buildInvalidUpdateRequest(2).stream());
+    } catch (Throwable t) {
+      throw t.getCause().getCause();
+    }
+  }
+
+  private List<AddDocumentRequest> buildInvalidUpdateRequest(int i) {
+    List<AddDocumentRequest> requests = new ArrayList<>();
+    AddDocumentRequest.Builder request =
+        AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
+    request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+    request.putFields(
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(i)).build());
+    request.putFields(
+        "non_updatable_field", MultiValuedField.newBuilder().addValue(String.valueOf(100)).build());
+    requests.add(request.build());
+    return requests;
+  }
+
+  private void sendMoreUpdatesAndVerify() throws InterruptedException {
     AddDocumentRequest.Builder request =
         AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
 
     request.putFields(
-        "ad_bid_id", MultiValuedField.newBuilder().addValue(String.valueOf(1)).build());
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(1)).build());
     request.putFields(
-        "ad_bid_floor_USD", MultiValuedField.newBuilder().addValue(String.valueOf(101)).build());
+        "update_field_two", MultiValuedField.newBuilder().addValue(String.valueOf(101)).build());
     request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
 
-    primaryServer.addDocs(List.of(request.build()).stream());
+    AddDocumentRequest.Builder request2 =
+        AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
+
+    request2.putFields(
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(3)).build());
+    request2.putFields(
+        "update_field_one", MultiValuedField.newBuilder().addValue(String.valueOf(1001)).build());
+    request2.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+
+    primaryServer.addDocs(List.of(request.build(), request2.build()).stream());
     primaryServer.commit(testPartialUpdateIndex);
     Thread.sleep(1000);
 
@@ -117,10 +167,11 @@ public class UpdateDocValuesTest {
                     .build());
 
     for (Hit hit : response.getHitsList()) {
-      int id = Integer.parseInt(hit.getFieldsOrThrow("ad_bid_id").getFieldValue(0).getTextValue());
-      int f1 = hit.getFieldsOrThrow("ad_bid_floor").getFieldValue(0).getIntValue();
-      int f2 = hit.getFieldsOrThrow("ad_bid_floor_USD").getFieldValue(0).getIntValue();
-      int f4 = hit.getFieldsOrThrow("non_rtb_field").getFieldValue(0).getIntValue();
+      int id =
+          Integer.parseInt(hit.getFieldsOrThrow("primary_key").getFieldValue(0).getTextValue());
+      int f1 = hit.getFieldsOrThrow("update_field_one").getFieldValue(0).getIntValue();
+      int f2 = hit.getFieldsOrThrow("update_field_two").getFieldValue(0).getIntValue();
+      int f4 = hit.getFieldsOrThrow("non_updatable_field").getFieldValue(0).getIntValue();
 
       if (id == 1) {
         assertEquals(101, f2);
@@ -133,30 +184,16 @@ public class UpdateDocValuesTest {
         assertEquals(f4, 2);
       }
       if (id == 3) {
-        assertEquals(f1, 3);
+        assertEquals(f1, 1001);
         assertEquals(f2, 3);
         assertEquals(f4, 3);
       }
     }
   }
 
-  public void simpleTest() throws Exception {
-    primaryServer =
-        TestServer.builder(folder)
-            .withAutoStartConfig(
-                true, Mode.PRIMARY, 0, IndexStartConfig.IndexDataLocationType.LOCAL)
-            .build();
-    primaryServer.createSimpleIndex("test_index");
-    primaryServer.startPrimaryIndex("test_index", -1, null);
-    primaryServer.addSimpleDocs("test_index", 1, 2, 3);
-    primaryServer.commit("test_index");
-    Thread.sleep(2000);
-    primaryServer.verifySimpleDocs("test_index", 3);
-  }
-
-  private List<AddDocumentRequest> buildAddDocRequest(int N) {
+  private List<AddDocumentRequest> buildAddDocRequest(int numberOfDocs) {
     List<AddDocumentRequest> requests = new ArrayList<>();
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < numberOfDocs; i++) {
       AddDocumentRequest.Builder request =
           AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
       for (Field field : fields) {
@@ -168,20 +205,20 @@ public class UpdateDocValuesTest {
     return requests;
   }
 
-  private List<AddDocumentRequest> buildUpdateRequest(int N) {
+  private List<AddDocumentRequest> buildUpdateRequest(int updatedDoc) {
     List<AddDocumentRequest> requests = new ArrayList<>();
     AddDocumentRequest.Builder request =
         AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
     request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
     request.putFields(
-        "ad_bid_id", MultiValuedField.newBuilder().addValue(String.valueOf(N)).build());
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
     request.putFields(
-        "ad_bid_floor", MultiValuedField.newBuilder().addValue(String.valueOf(100)).build());
+        "update_field_one", MultiValuedField.newBuilder().addValue(String.valueOf(100)).build());
     requests.add(request.build());
     return requests;
   }
 
-  private void verifyAddDocsPrenset(int N, boolean extraCheck, int idIn) {
+  private void verifyAddDocsPresent(int numberOfDocs, boolean isUpdate, int updateId) {
     SearchResponse response =
         primaryServer
             .getClient()
@@ -190,25 +227,26 @@ public class UpdateDocValuesTest {
                 SearchRequest.newBuilder()
                     .setIndexName(testPartialUpdateIndex)
                     .addAllRetrieveFields(fields.stream().map(Field::getName).toList())
-                    .setTopHits(N + 1)
+                    .setTopHits(numberOfDocs + 1)
                     .setStartHit(0)
                     .build());
 
-    assertEquals(N, response.getHitsCount());
+    assertEquals(numberOfDocs, response.getHitsCount());
     for (Hit hit : response.getHitsList()) {
-      int id = Integer.parseInt(hit.getFieldsOrThrow("ad_bid_id").getFieldValue(0).getTextValue());
-      int f1 = hit.getFieldsOrThrow("ad_bid_floor").getFieldValue(0).getIntValue();
-      int f2 = hit.getFieldsOrThrow("ad_bid_floor_USD").getFieldValue(0).getIntValue();
-      int f4 = hit.getFieldsOrThrow("non_rtb_field").getFieldValue(0).getIntValue();
+      int id =
+          Integer.parseInt(hit.getFieldsOrThrow("primary_key").getFieldValue(0).getTextValue());
+      int f1 = hit.getFieldsOrThrow("update_field_one").getFieldValue(0).getIntValue();
+      int f2 = hit.getFieldsOrThrow("update_field_two").getFieldValue(0).getIntValue();
+      int f3 = hit.getFieldsOrThrow("non_updatable_field").getFieldValue(0).getIntValue();
 
-      if (id != idIn) {
+      if (!isUpdate || id != updateId) {
         assertEquals(id, f1);
         assertEquals(id, f2);
-        assertEquals(id, f4);
+        assertEquals(id, f3);
       } else {
         assertEquals(100, f1);
         assertEquals(id, f2);
-        assertEquals(id, f4);
+        assertEquals(id, f3);
       }
     }
   }

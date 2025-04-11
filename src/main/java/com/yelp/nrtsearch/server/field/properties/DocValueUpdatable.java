@@ -15,9 +15,23 @@
  */
 package com.yelp.nrtsearch.server.field.properties;
 
+/**  Interface for {@link com.yelp.nrtsearch.server.field.FieldDef} types that can have their
+ *   doc values updated. For now, Lucene supports updating doc values for numeric and binary fields.
+ * */
 public interface DocValueUpdatable<T> {
 
+  /**
+   * determine if this {@link com.yelp.nrtsearch.server.field.FieldDef} can be updated, this will
+   * depend on other factors such as, if the field is searchable or is multivalued etc.
+   *
+   * @return if the field can be updated.
+   */
   boolean isUpdatable();
 
+  /**
+   *
+   * @param value value to be updated
+   * @return get the docValue for this {@link com.yelp.nrtsearch.server.field.FieldDef} to update.
+   */
   org.apache.lucene.document.Field getUpdatableDocValueField(T value);
 }

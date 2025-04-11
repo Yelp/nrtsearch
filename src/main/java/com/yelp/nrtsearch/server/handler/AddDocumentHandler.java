@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.handler;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.ProtocolStringList;
-import com.yelp.nrtsearch.server.exceptions.IndexingException;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
@@ -494,9 +493,8 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             continue;
           }
           if (!(field instanceof DocValueUpdatable updatable) || !(updatable.isUpdatable())) {
-            throw new IndexingException(
-                new IllegalArgumentException(
-                    String.format("Field: %s is not updatable", field.getName())));
+            throw new IllegalArgumentException(
+                String.format("Field: %s is not updatable", field.getName()));
           }
           updatableDocValueFields.add(
               ((DocValueUpdatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
@@ -512,7 +510,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             String.format(
                 "ThreadId: %s, IndexWriter.updateDocValues failed",
                 Thread.currentThread().getName() + Thread.currentThread().threadId()));
-        throw new IndexingException(t);
+        throw new RuntimeException("Error occurred when updating docValues ", t);
       }
     }
 
