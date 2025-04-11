@@ -28,7 +28,11 @@ import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
-import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.FieldType;
+import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
+import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.GlobalState;
@@ -39,7 +43,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
@@ -258,7 +266,8 @@ public abstract class IndexState implements Closeable {
               remoteBackend,
               configuration.getServiceName(),
               indexName,
-              warmerConfig.getMaxWarmingQueries());
+              warmerConfig.getMaxWarmingQueries(),
+              warmerConfig.getWarmBasicQueryOnlyPerc());
     }
   }
 

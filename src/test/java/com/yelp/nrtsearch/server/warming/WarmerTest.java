@@ -22,7 +22,9 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
@@ -64,7 +66,7 @@ public class WarmerTest {
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
     remoteBackend = new S3Backend(config, s3);
-    warmer = new Warmer(remoteBackend, service, index, 2);
+    warmer = new Warmer(remoteBackend, service, index, 4);
   }
 
   @Test
@@ -100,6 +102,29 @@ public class WarmerTest {
     warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
 
     for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromS3_basic()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmerWithBasic = new Warmer(remoteBackend, service, index, 4, 80);
+    // nextInt(100) with seed 98795 will always return 15, 76, 87, 97; If we set the Perc at 80,
+    // first two queries will be stripped while the last two will be kept
+    warmerWithBasic.randomThreadLocal.get().setSeed(98795);
+
+    List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+    byte[] warmingBytes = getWarmingBytes(testSearchRequestsJson);
+    remoteBackend.uploadWarmingQueries(service, "test_index", warmingBytes);
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    warmerWithBasic.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    for (SearchRequest testRequest : getTestBasicSearchRequests()) {
       verify(mockSearchHandler).handle(mockIndexState, testRequest);
     }
     verifyNoMoreInteractions(mockSearchHandler);
@@ -161,23 +186,61 @@ public class WarmerTest {
 
   private List<SearchRequest> getTestSearchRequests() {
     List<SearchRequest> testRequests = new ArrayList<>();
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 4; i++) {
       SearchRequest searchRequest =
           SearchRequest.newBuilder()
               .setIndexName(index)
               .setQuery(
                   Query.newBuilder()
-                      .setTermQuery(TermQuery.newBuilder().setField("field" + i).build())
-                      .build())
+                      .setFunctionScoreQuery(
+                          FunctionScoreQuery.newBuilder()
+                              .setQuery(
+                                  Query.newBuilder()
+                                      .setTermQuery(TermQuery.newBuilder().setField("field" + i)))
+                              .setScript(Script.newBuilder().setLang("js").setSource("3 * 5"))))
               .build();
       testRequests.add(searchRequest);
     }
     return testRequests;
   }
 
+  private List<SearchRequest> getTestBasicSearchRequests() {
+    List<SearchRequest> testRequests = new ArrayList<>();
+    int i = 0;
+    for (; i < 2; i++) {
+      SearchRequest searchRequest =
+          SearchRequest.newBuilder()
+              .setIndexName(index)
+              .setQuery(
+                  Query.newBuilder().setTermQuery(TermQuery.newBuilder().setField("field" + i)))
+              .build();
+      testRequests.add(searchRequest);
+    }
+
+    for (; i < 4; i++) {
+      SearchRequest searchRequest =
+          SearchRequest.newBuilder()
+              .setIndexName(index)
+              .setQuery(
+                  Query.newBuilder()
+                      .setFunctionScoreQuery(
+                          FunctionScoreQuery.newBuilder()
+                              .setQuery(
+                                  Query.newBuilder()
+                                      .setTermQuery(TermQuery.newBuilder().setField("field" + i)))
+                              .setScript(Script.newBuilder().setLang("js").setSource("3 * 5"))))
+              .build();
+      testRequests.add(searchRequest);
+    }
+
+    return testRequests;
+  }
+
   private List<String> getTestSearchRequestsAsJsonStrings() {
     return List.of(
-        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field0\"}}}",
-        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field1\"}}}");
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field0\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field1\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field2\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field3\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
   }
 }
