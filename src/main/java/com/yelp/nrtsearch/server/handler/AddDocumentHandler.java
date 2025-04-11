@@ -485,6 +485,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         for (Map.Entry<String, MultiValuedField> entry :
             addDocumentRequest.getFieldsMap().entrySet()) {
           FieldDef field = indexState.getField(entry.getKey());
+          if (field == null) {
+            throw new IllegalArgumentException(
+                String.format("Field: %s is not registered", entry.getKey()));
+          }
           if (field.getName().equals(indexState.getIdFieldDef().get().getName())) {
 
             String idFieldName = indexState.getIdFieldDef().get().getName();
