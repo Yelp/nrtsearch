@@ -17,11 +17,15 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
+import com.yelp.nrtsearch.server.grpc.IndexingRequestType;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.DocValueUpdatable;
+import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +37,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,6 +83,8 @@ public class AddDocumentHandler {
         AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
       DocumentsContext documentsContext = new DocumentsContext();
+      if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT))
+        return documentsContext;
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
@@ -222,7 +230,12 @@ public class AddDocumentHandler {
               throw new IOException(e);
             }
           } else {
-            documents.add(documentsContext.getRootDocument());
+            if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
+              executeDocValueUpdateRequest(
+                  documentsContext, indexState, shardState, addDocumentRequest);
+            } else {
+              documents.add(documentsContext.getRootDocument());
+            }
           }
         }
       } catch (Exception e) {
@@ -250,6 +263,54 @@ public class AddDocumentHandler {
               Thread.currentThread().getName() + Thread.currentThread().getId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
+    }
+
+    private void executeDocValueUpdateRequest(
+        DocumentsContext documentsContext,
+        IndexState indexState,
+        ShardState shardState,
+        AddDocumentRequest addDocumentRequest) {
+      try {
+        IndexingMetrics.updateDocValuesRequestsReceived.labels(indexName).inc();
+        List<Field> updatableDocValueFields = new ArrayList<>();
+        Term term = null;
+        for (Map.Entry<String, MultiValuedField> entry :
+            addDocumentRequest.getFieldsMap().entrySet()) {
+          FieldDef field = indexState.getField(entry.getKey());
+          if (field.getName().equals(indexState.getIdFieldDef().get().getName())) {
+
+            String idFieldName = indexState.getIdFieldDef().get().getName();
+            String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
+
+            if (idFieldValue == null || idFieldValue.isEmpty()) {
+              throw new IllegalArgumentException(
+                  String.format("the _ID should have a value set to execute update DocValue"));
+            }
+            term = new Term(idFieldName, idFieldValue);
+            continue;
+          }
+          if (!(field instanceof DocValueUpdatable updatable) || !(updatable.isUpdatable())) {
+            throw new IllegalArgumentException(
+                String.format("Field: %s is not updatable", field.getName()));
+          }
+          updatableDocValueFields.add(
+              ((DocValueUpdatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
+        }
+        if (term == null) {
+          throw new RuntimeException("_ ID field should be present for the update request");
+        }
+        long nanoTime = System.nanoTime();
+        shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
+        IndexingMetrics.updateDocValuesLatency
+            .labels(indexName)
+            .set((System.nanoTime() - nanoTime));
+      } catch (Throwable t) {
+        logger.warn(
+            String.format(
+                "ThreadId: %s, IndexWriter.updateDocValues failed",
+                Thread.currentThread().getName() + Thread.currentThread().threadId()));
+        throw new RuntimeException("Error occurred when updating docValues ", t);
+      }
     }
 
     /**
@@ -315,7 +376,10 @@ public class AddDocumentHandler {
         throws IOException {
       for (Document nextDoc : documents) {
         nextDoc = handleFacets(indexState, shardState, nextDoc);
+        IndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc();
+        long nanoTime = System.nanoTime();
         shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
+        IndexingMetrics.addDocumentLatency.labels(indexName).set((System.nanoTime() - nanoTime));
       }
     }
 
@@ -326,6 +390,8 @@ public class AddDocumentHandler {
         throw new IllegalStateException(
             "Adding documents to an index on a replica node is not supported");
       }
+      IndexingMetrics.addDocumentRequestsReceived.labels(indexName).inc(documents.size());
+      long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(
           (Iterable<Document>)
               () ->
@@ -349,6 +415,11 @@ public class AddDocumentHandler {
                       return nextDoc;
                     }
                   });
+      if (documents.size() >= 1) {
+        IndexingMetrics.addDocumentLatency
+            .labels(indexName)
+            .set((System.nanoTime() - nanoTime) / documents.size());
+      }
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
