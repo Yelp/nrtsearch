@@ -489,6 +489,11 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
 
             String idFieldName = indexState.getIdFieldDef().get().getName();
             String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
+
+            if(idFieldValue == null || idFieldValue.isEmpty()) {
+              throw new IllegalArgumentException(
+                  String.format("the _ID should have a value set to execute update DocValue"));
+            }
             term = new Term(idFieldName, idFieldValue);
             continue;
           }
@@ -499,7 +504,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
           updatableDocValueFields.add(
               ((DocValueUpdatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
         }
-
+        if(term == null ) {
+          throw new RuntimeException("_ ID field should be present for the update request");
+        }
         long nanoTime = System.nanoTime();
         shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
         IndexingMetrics.updateDocValuesLatency
