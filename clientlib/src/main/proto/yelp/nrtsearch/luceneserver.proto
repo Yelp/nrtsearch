@@ -1517,5 +1517,5 @@ enum IndexingRequestType {
     // Request to add a document
     ADD_DOCUMENT = 0;
     // Request to update a document
-    UPDATE_DOCUMENT = 2;
+    UPDATE_DOC_VALUES = 1;
 }

@@ -290,8 +290,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
       DocumentsContext documentsContext = new DocumentsContext();
-      if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT))
-        return documentsContext;
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
@@ -414,6 +412,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         shardState = indexState.getShard(0);
         idFieldDef = indexState.getIdFieldDef().orElse(null);
         for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
+          if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOC_VALUES)) {
+            executeDocValueUpdateRequest(indexState, shardState, addDocumentRequest);
+            continue;
+          }
           DocumentsContext documentsContext =
               AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
                   addDocumentRequest, indexState);
@@ -438,12 +440,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
               throw new IOException(e);
             }
           } else {
-            if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOCUMENT)) {
-              executeDocValueUpdateRequest(
-                  documentsContext, indexState, shardState, addDocumentRequest);
-            } else {
-              documents.add(documentsContext.getRootDocument());
-            }
+            documents.add(documentsContext.getRootDocument());
           }
         }
       } catch (Exception e) {
@@ -474,12 +471,13 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     }
 
     private void executeDocValueUpdateRequest(
-        DocumentsContext documentsContext,
-        IndexState indexState,
-        ShardState shardState,
-        AddDocumentRequest addDocumentRequest) {
+        IndexState indexState, ShardState shardState, AddDocumentRequest addDocumentRequest) {
       try {
         IndexingMetrics.updateDocValuesRequestsReceived.labelValues(indexName).inc();
+        if (indexState.getIdFieldDef().isEmpty()) {
+          throw new RuntimeException(
+              " Index needs to have an ID field to execute update DocValue request");
+        }
         List<Field> updatableDocValueFields = new ArrayList<>();
         Term term = null;
         for (Map.Entry<String, MultiValuedField> entry :
@@ -490,23 +488,16 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                 String.format("Field: %s is not registered", entry.getKey()));
           }
           if (field.getName().equals(indexState.getIdFieldDef().get().getName())) {
-
-            String idFieldName = indexState.getIdFieldDef().get().getName();
-            String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
-
-            if (idFieldValue == null || idFieldValue.isEmpty()) {
-              throw new IllegalArgumentException(
-                  String.format("the _ID should have a value set to execute update DocValue"));
-            }
-            term = new Term(idFieldName, idFieldValue);
+            term = buildTermForDocValueUpdate(indexState, addDocumentRequest);
             continue;
           }
-          if (!(field instanceof DocValueUpdatable updatable) || !(updatable.isUpdatable())) {
+          if (!(field instanceof DocValueUpdatable<?> updatable) || !(updatable.isUpdatable())) {
             throw new IllegalArgumentException(
                 String.format("Field: %s is not updatable", field.getName()));
           }
           updatableDocValueFields.add(
-              ((DocValueUpdatable) field).getUpdatableDocValueField(entry.getValue().getValue(0)));
+              ((DocValueUpdatable) field)
+                  .getUpdatableDocValueField(entry.getValue().getValueList()));
         }
         if (term == null) {
           throw new RuntimeException("_ ID field should be present for the update request");
@@ -515,7 +506,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
         IndexingMetrics.updateDocValuesLatency
             .labelValues(indexName)
-            .set((System.nanoTime() - nanoTime));
+            .observe((System.nanoTime() - nanoTime));
       } catch (Throwable t) {
         logger.warn(
             String.format(
@@ -523,6 +514,18 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                 Thread.currentThread().getName() + Thread.currentThread().threadId()));
         throw new RuntimeException("Error occurred when updating docValues ", t);
       }
+    }
+
+    private static Term buildTermForDocValueUpdate(
+        IndexState indexState, AddDocumentRequest addDocumentRequest) {
+      String idFieldName = indexState.getIdFieldDef().get().getName();
+      String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
+
+      if (idFieldValue == null || idFieldValue.isEmpty()) {
+        throw new IllegalArgumentException(
+            String.format("the _ID should have a value set to execute update DocValue"));
+      }
+      return new Term(idFieldName, idFieldValue);
     }
 
     /**
@@ -556,7 +559,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
       long nanoTime = System.nanoTime();
       shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
-      IndexingMetrics.addDocumentLatency.labelValues(indexName).set((System.nanoTime() - nanoTime));
+      IndexingMetrics.addDocumentLatency
+          .labelValues(indexName)
+          .observe((System.nanoTime() - nanoTime));
     }
 
     /**
@@ -579,7 +584,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
       long nanoTime = System.nanoTime();
       shardState.writer.addDocuments(documents);
-      IndexingMetrics.addDocumentLatency.labelValues(indexName).set((System.nanoTime() - nanoTime));
+      IndexingMetrics.addDocumentLatency
+          .labelValues(indexName)
+          .observe((System.nanoTime() - nanoTime));
     }
 
     private void updateDocuments(
@@ -599,7 +606,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
         IndexingMetrics.addDocumentLatency
             .labelValues(indexName)
-            .set((System.nanoTime() - nanoTime));
+            .observe((System.nanoTime() - nanoTime));
       }
     }
 
@@ -638,7 +645,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       if (documents.size() >= 1) {
         IndexingMetrics.addDocumentLatency
             .labelValues(indexName)
-            .set((System.nanoTime() - nanoTime) / documents.size());
+            .observe((System.nanoTime() - nanoTime) / documents.size());
       }
     }
 

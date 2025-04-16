@@ -52,16 +52,19 @@ public class UpdateDocValuesTest {
           Field.newBuilder()
               .setName("update_field_one")
               .setStoreDocValues(true)
+              .setMultiValued(false)
               .setType(FieldType.INT)
               .build(),
           Field.newBuilder()
               .setName("update_field_two")
               .setStoreDocValues(true)
+              .setMultiValued(false)
               .setType(FieldType.INT)
               .build(),
           Field.newBuilder()
               .setName("non_updatable_field")
               .setStoreDocValues(true)
+              .setMultiValued(false)
               .setType(FieldType.INT)
               .setSearch(true)
               .build());
@@ -80,12 +83,12 @@ public class UpdateDocValuesTest {
 
     primaryServer.addDocs(buildAddDocRequest(3).stream());
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(1000);
+    primaryServer.refresh(testPartialUpdateIndex);
     verifyAddDocsPresent(3, false, -1);
 
     primaryServer.addDocs(buildUpdateRequest(2).stream());
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(1000);
+    primaryServer.refresh(testPartialUpdateIndex);
 
     verifyAddDocsPresent(3, true, 2);
     // send more updates
@@ -93,7 +96,7 @@ public class UpdateDocValuesTest {
     // send full doc insert for same docs and verify
     primaryServer.addDocs(buildAddDocRequest(3).stream());
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(1000);
+    primaryServer.refresh(testPartialUpdateIndex);
     verifyAddDocsPresent(3, false, -1);
   }
 
@@ -122,7 +125,7 @@ public class UpdateDocValuesTest {
     List<AddDocumentRequest> requests = new ArrayList<>();
     AddDocumentRequest.Builder request =
         AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
-    request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
     request.putFields(
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(i)).build());
     request.putFields(
@@ -139,7 +142,7 @@ public class UpdateDocValuesTest {
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(1)).build());
     request.putFields(
         "update_field_two", MultiValuedField.newBuilder().addValue(String.valueOf(101)).build());
-    request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
 
     AddDocumentRequest.Builder request2 =
         AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
@@ -148,11 +151,11 @@ public class UpdateDocValuesTest {
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(3)).build());
     request2.putFields(
         "update_field_one", MultiValuedField.newBuilder().addValue(String.valueOf(1001)).build());
-    request2.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+    request2.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
 
     primaryServer.addDocs(List.of(request.build(), request2.build()).stream());
     primaryServer.commit(testPartialUpdateIndex);
-    Thread.sleep(1000);
+    primaryServer.refresh(testPartialUpdateIndex);
 
     SearchResponse response =
         primaryServer
@@ -209,7 +212,7 @@ public class UpdateDocValuesTest {
     List<AddDocumentRequest> requests = new ArrayList<>();
     AddDocumentRequest.Builder request =
         AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
-    request.setRequestType(IndexingRequestType.UPDATE_DOCUMENT).build();
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
     request.putFields(
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
     request.putFields(

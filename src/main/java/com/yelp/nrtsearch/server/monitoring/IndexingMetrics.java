@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import io.prometheus.metrics.core.metrics.Counter;
-import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 public class IndexingMetrics {
@@ -42,19 +42,27 @@ public class IndexingMetrics {
           .labelNames("index")
           .build();
 
-  public static final Gauge updateDocValuesLatency =
-      Gauge.builder()
+  public static final Summary updateDocValuesLatency =
+      Summary.builder()
           .name(UPDATE_DOC_VALUES_LATENCY)
           .help("Latency of the update doc values API")
           .labelNames("index")
+          .quantile(0.25, 0.01)
+          .quantile(0.5, 0.01)
+          .quantile(0.95, 0.01)
+          .quantile(0.99, 0.01)
           .build();
 
   // gauge for the latency of the addDocument API with the index name as the label value
-  public static final Gauge addDocumentLatency =
-      Gauge.builder()
+  public static final Summary addDocumentLatency =
+      Summary.builder()
           .name(ADD_DOCUMENT_LATENCY)
           .help("Latency of the add document API")
           .labelNames("index")
+          .quantile(0.25, 0.01)
+          .quantile(0.5, 0.01)
+          .quantile(0.95, 0.01)
+          .quantile(0.99, 0.01)
           .build();
 
   public static void register(PrometheusRegistry registry) {
