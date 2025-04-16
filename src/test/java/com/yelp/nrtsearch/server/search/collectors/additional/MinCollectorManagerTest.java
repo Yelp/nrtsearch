@@ -18,12 +18,12 @@ package com.yelp.nrtsearch.server.search.collectors.additional;
 import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.grpc.*;
-import com.yelp.nrtsearch.server.utils.MinMaxUtilTest;
+import com.yelp.nrtsearch.server.utils.CollectorUtilTest;
 import io.grpc.StatusRuntimeException;
 import java.util.*;
 import org.junit.Test;
 
-public class MinCollectorManagerTest extends MinMaxUtilTest {
+public class MinCollectorManagerTest extends CollectorUtilTest {
   @Test
   public void testMinCollectorAllDocs() {
     minCollectorAllDocs(MATCH_ALL_QUERY, FIELD_SCRIPT);
