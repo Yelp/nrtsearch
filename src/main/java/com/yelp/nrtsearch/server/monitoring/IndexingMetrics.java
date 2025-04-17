@@ -22,10 +22,10 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
 public class IndexingMetrics {
 
   public static final String UPDATE_DOC_VALUES_REQUESTS_RECEIVED =
-      "update_doc_values_requests_received";
-  public static final String ADD_DOCUMENT_REQUESTS_RECEIVED = "add_document_requests_received";
-  public static final String UPDATE_DOC_VALUES_LATENCY = "update_doc_values_latency";
-  public static final String ADD_DOCUMENT_LATENCY = "add_document_latency";
+      "nrt_update_doc_values_requests_received";
+  public static final String ADD_DOCUMENT_REQUESTS_RECEIVED = "nrt_add_document_requests_received";
+  public static final String UPDATE_DOC_VALUES_LATENCY = "nrt_update_doc_values_latency_ms";
+  public static final String ADD_DOCUMENT_LATENCY = "nrt_add_document_latency_ms";
 
   public static final Counter updateDocValuesRequestsReceived =
       Counter.builder()

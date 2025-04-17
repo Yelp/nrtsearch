@@ -50,7 +50,7 @@ import org.apache.lucene.util.NumericUtils;
  * @param <T> doc value object type
  */
 public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
-    implements Bindable, Sortable, RangeQueryable, TermQueryable, DocValueUpdatable<String> {
+    implements Bindable, Sortable, RangeQueryable, TermQueryable, DocValueUpdatable {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
   public static final Function<String, Number> FLOAT_PARSER = Float::valueOf;
@@ -286,6 +286,10 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
 
   @Override
   public org.apache.lucene.document.Field getUpdatableDocValueField(List<String> val) {
+    if (val.size() > 1) {
+      throw new IllegalArgumentException(
+          "Cannot update multiple value field with docValueUpdate API");
+    }
     return getDocValueField(parseNumberString(val.get(0)));
   }
 }
