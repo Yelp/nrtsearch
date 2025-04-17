@@ -121,6 +121,102 @@ public class UpdateDocValuesTest {
     }
   }
 
+  @Test
+  public void testUpdateDoesntFailWhenEmptyFieldSetInRequest() throws Exception {
+    primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+
+    primaryServer.createIndex(testPartialUpdateIndex);
+    primaryServer.registerFields(testPartialUpdateIndex, fields);
+    primaryServer.startPrimaryIndex(testPartialUpdateIndex, -1, null);
+
+    primaryServer.addDocs(buildAddDocRequest(4).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+    verifyAddDocsPresent(4, false, -1);
+
+    // send update with one of the input fields set to no value.
+    primaryServer.addDocs(buildUpdateRequestWithOneFieldEmpty(3).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+
+    SearchResponse response =
+        primaryServer
+            .getClient()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(testPartialUpdateIndex)
+                    .addAllRetrieveFields(fields.stream().map(Field::getName).toList())
+                    .setTopHits(4 + 1)
+                    .setStartHit(0)
+                    .build());
+
+    assertEquals(4, response.getHitsCount());
+    for (Hit hit : response.getHitsList()) {
+      int id =
+          Integer.parseInt(hit.getFieldsOrThrow("primary_key").getFieldValue(0).getTextValue());
+      int f1 = hit.getFieldsOrThrow("update_field_one").getFieldValue(0).getIntValue();
+      int f2 = hit.getFieldsOrThrow("update_field_two").getFieldValue(0).getIntValue();
+      int f3 = hit.getFieldsOrThrow("non_updatable_field").getFieldValue(0).getIntValue();
+
+      if (id == 3) {
+        assertEquals(105, f2);
+        assertEquals(3, f1);
+      }
+    }
+  }
+
+  @Test
+  public void testUpdateDoesntFailWhenAllUpdateRequestIsEmpty() throws Exception {
+    primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+
+    primaryServer.createIndex(testPartialUpdateIndex);
+    primaryServer.registerFields(testPartialUpdateIndex, fields);
+    primaryServer.startPrimaryIndex(testPartialUpdateIndex, -1, null);
+
+    primaryServer.addDocs(buildAddDocRequest(4).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+    verifyAddDocsPresent(4, false, -1);
+
+    // send update with one of the input fields set to no value.
+    primaryServer.addDocs(buildUpdateRequestAllFieldsEmpty(3).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+
+    SearchResponse response =
+        primaryServer
+            .getClient()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(testPartialUpdateIndex)
+                    .addAllRetrieveFields(fields.stream().map(Field::getName).toList())
+                    .setTopHits(4 + 1)
+                    .setStartHit(0)
+                    .build());
+
+    assertEquals(4, response.getHitsCount());
+    for (Hit hit : response.getHitsList()) {
+      int id =
+          Integer.parseInt(hit.getFieldsOrThrow("primary_key").getFieldValue(0).getTextValue());
+      int f1 = hit.getFieldsOrThrow("update_field_one").getFieldValue(0).getIntValue();
+      int f2 = hit.getFieldsOrThrow("update_field_two").getFieldValue(0).getIntValue();
+      int f3 = hit.getFieldsOrThrow("non_updatable_field").getFieldValue(0).getIntValue();
+
+      if (id == 3) {
+        assertEquals(3, f2);
+        assertEquals(3, f1);
+      }
+    }
+  }
+
   private List<AddDocumentRequest> buildInvalidUpdateRequest(int i) {
     List<AddDocumentRequest> requests = new ArrayList<>();
     AddDocumentRequest.Builder request =
@@ -216,8 +312,43 @@ public class UpdateDocValuesTest {
     request.putFields(
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
     request.putFields(
-        "update_field_one", MultiValuedField.newBuilder().addValue(String.valueOf(100)).build());
+        "update_field_one", MultiValuedField.newBuilder().addValue(String.valueOf("100")).build());
     requests.add(request.build());
+    return requests;
+  }
+
+  private List<AddDocumentRequest> buildUpdateRequestWithOneFieldEmpty(int updatedDoc) {
+    List<AddDocumentRequest> requests = new ArrayList<>();
+    AddDocumentRequest.Builder request =
+        AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
+    request.putFields(
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
+    request.putFields(
+        "update_field_one",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf("100"))*/ build());
+    request.putFields(
+        "update_field_two", MultiValuedField.newBuilder().addValue(String.valueOf("105")).build());
+    requests.add(request.build());
+
+    return requests;
+  }
+
+  private List<AddDocumentRequest> buildUpdateRequestAllFieldsEmpty(int updatedDoc) {
+    List<AddDocumentRequest> requests = new ArrayList<>();
+    AddDocumentRequest.Builder request =
+        AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
+    request.putFields(
+        "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
+    request.putFields(
+        "update_field_one",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf("100"))*/ build());
+    request.putFields(
+        "update_field_two",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf("105"))*/ build());
+    requests.add(request.build());
+
     return requests;
   }
 

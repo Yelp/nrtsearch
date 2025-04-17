@@ -495,18 +495,25 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             throw new IllegalArgumentException(
                 String.format("Field: %s is not updatable", field.getName()));
           }
-          updatableDocValueFields.add(
-              ((DocValueUpdatable) field)
-                  .getUpdatableDocValueField(entry.getValue().getValueList()));
+          if (entry.getValue() != null
+              && entry.getValue().getValueList() != null
+              && entry.getValue().getValueList().size() > 0) {
+            updatableDocValueFields.add(
+                ((DocValueUpdatable) field)
+                    .getUpdatableDocValueField(entry.getValue().getValueList()));
+          }
         }
         if (term == null) {
           throw new RuntimeException("_ ID field should be present for the update request");
         }
-        long nanoTime = System.nanoTime();
-        shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
-        IndexingMetrics.updateDocValuesLatency
-            .labelValues(indexName)
-            .observe((System.nanoTime() - nanoTime));
+
+        if (updatableDocValueFields.size() > 0) {
+          long timeInMillis = System.currentTimeMillis();
+          shardState.writer.updateDocValues(term, updatableDocValueFields.toArray(new Field[0]));
+          IndexingMetrics.updateDocValuesLatency
+              .labelValues(indexName)
+              .observe((System.currentTimeMillis() - timeInMillis));
+        }
       } catch (Throwable t) {
         logger.warn(
             String.format(
