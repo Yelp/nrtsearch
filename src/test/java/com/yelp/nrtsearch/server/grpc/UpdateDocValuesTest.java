@@ -217,6 +217,32 @@ public class UpdateDocValuesTest {
     }
   }
 
+  @Test(expected = StatusRuntimeException.class)
+  public void testUpdateWithEmtpyValueforPkey() throws Throwable {
+    primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+
+    primaryServer.createIndex(testPartialUpdateIndex);
+    primaryServer.registerFields(testPartialUpdateIndex, fields);
+    primaryServer.startPrimaryIndex(testPartialUpdateIndex, -1, null);
+
+    primaryServer.addDocs(buildAddDocRequest(4).stream());
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+    verifyAddDocsPresent(4, false, -1);
+
+    // send update with one of the input fields set to no value.
+    try {
+      primaryServer.addDocs(buildUpdateRequestwithPkeysEmpty(3).stream());
+    } catch (Throwable t) {
+      throw t.getCause().getCause();
+    }
+    primaryServer.commit(testPartialUpdateIndex);
+    primaryServer.refresh(testPartialUpdateIndex);
+  }
+
   private List<AddDocumentRequest> buildInvalidUpdateRequest(int i) {
     List<AddDocumentRequest> requests = new ArrayList<>();
     AddDocumentRequest.Builder request =
@@ -341,6 +367,25 @@ public class UpdateDocValuesTest {
     request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
     request.putFields(
         "primary_key", MultiValuedField.newBuilder().addValue(String.valueOf(updatedDoc)).build());
+    request.putFields(
+        "update_field_one",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf("100"))*/ build());
+    request.putFields(
+        "update_field_two",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf("105"))*/ build());
+    requests.add(request.build());
+
+    return requests;
+  }
+
+  private List<AddDocumentRequest> buildUpdateRequestwithPkeysEmpty(int updatedDoc) {
+    List<AddDocumentRequest> requests = new ArrayList<>();
+    AddDocumentRequest.Builder request =
+        AddDocumentRequest.newBuilder().setIndexName(testPartialUpdateIndex);
+    request.setRequestType(IndexingRequestType.UPDATE_DOC_VALUES).build();
+    request.putFields(
+        "primary_key",
+        MultiValuedField.newBuilder()./*addValue(String.valueOf(updatedDoc))*/ build());
     request.putFields(
         "update_field_one",
         MultiValuedField.newBuilder()./*addValue(String.valueOf("100"))*/ build());

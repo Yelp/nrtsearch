@@ -495,9 +495,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             throw new IllegalArgumentException(
                 String.format("Field: %s is not updatable", field.getName()));
           }
-          if (entry.getValue() != null
-              && entry.getValue().getValueList() != null
-              && entry.getValue().getValueList().size() > 0) {
+          if (entry.getValue().getValueCount() > 0) {
             updatableDocValueFields.add(
                 ((DocValueUpdatable) field)
                     .getUpdatableDocValueField(entry.getValue().getValueList()));
@@ -526,11 +524,14 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     private static Term buildTermForDocValueUpdate(
         IndexState indexState, AddDocumentRequest addDocumentRequest) {
       String idFieldName = indexState.getIdFieldDef().get().getName();
+      if (addDocumentRequest.getFieldsMap().get(idFieldName).getValueCount() == 0) {
+        throw new IllegalArgumentException(
+            String.format("the _ID should have a value set to execute update DocValue"));
+      }
       String idFieldValue = addDocumentRequest.getFieldsMap().get(idFieldName).getValue(0);
 
       if (idFieldValue == null || idFieldValue.isEmpty()) {
-        throw new IllegalArgumentException(
-            String.format("the _ID should have a value set to execute update DocValue"));
+        throw new IllegalArgumentException(String.format("the value of _ID field cannot be emtpy"));
       }
       return new Term(idFieldName, idFieldValue);
     }
