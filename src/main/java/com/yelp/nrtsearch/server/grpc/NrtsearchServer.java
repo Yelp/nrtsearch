@@ -86,6 +86,7 @@ import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
 import com.yelp.nrtsearch.server.monitoring.MergeSchedulerCollector;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
@@ -264,6 +265,8 @@ public class NrtsearchServer {
     prometheusRegistry.register(new ProcStatCollector());
     prometheusRegistry.register(new MergeSchedulerCollector(globalState));
     prometheusRegistry.register(new SearchResponseCollector(globalState));
+    // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
+    IndexingMetrics.register(prometheusRegistry);
   }
 
   /** Main launches the server from the command line. */
