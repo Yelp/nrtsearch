@@ -58,6 +58,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.monitoring.*;
+import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
@@ -248,6 +249,8 @@ public class LuceneServer {
     new ProcStatCollector().register(collectorRegistry);
     new MergeSchedulerCollector(globalState).register(collectorRegistry);
     new SearchResponseCollector(globalState).register(collectorRegistry);
+    // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
+    IndexingMetrics.register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */

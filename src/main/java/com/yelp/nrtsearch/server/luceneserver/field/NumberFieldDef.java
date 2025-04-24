@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedN
 import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedNumericLengthValuesSource;
 import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedNumericMinValuesSource;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Bindable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.DocValueUpdatable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
@@ -53,7 +54,7 @@ import org.apache.lucene.util.NumericUtils;
  * all of number fields and provides abstract functions for type specific operations.
  */
 public abstract class NumberFieldDef extends IndexableFieldDef
-    implements Bindable, Sortable, RangeQueryable, TermQueryable {
+    implements Bindable, Sortable, RangeQueryable, TermQueryable, DocValueUpdatable {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
   public static final Function<String, Number> FLOAT_PARSER = Float::valueOf;
@@ -284,5 +285,22 @@ public abstract class NumberFieldDef extends IndexableFieldDef
     boolean missingLast = type.getMissingLat();
     sortField.setMissingValue(getSortMissingValue(missingLast));
     return sortField;
+  }
+
+  @Override
+  public boolean isUpdatable() {
+    if (isSearchable() || isMultiValue() || !hasDocValues()) {
+      return false;
+    }
+    return true;
+  }
+
+  @Override
+  public org.apache.lucene.document.Field getUpdatableDocValueField(List<String> val) {
+    if (val.size() > 1) {
+      throw new IllegalArgumentException(
+          "Cannot update multiple value field with docValueUpdate API");
+    }
+    return getDocValueField(parseNumberString(val.get(0)));
   }
 }

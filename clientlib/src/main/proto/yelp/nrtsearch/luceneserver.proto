@@ -684,6 +684,8 @@ message AddDocumentRequest {
         repeated FacetHierarchyPath faceHierarchyPaths = 2;
     }
     map<string, MultiValuedField> fields = 3; //map of field name to a list of string values.
+    // request type
+    IndexingRequestType requestType = 4;
 }
 
 message FacetHierarchyPath {
@@ -1155,4 +1157,11 @@ message CustomRequest {
 
 message CustomResponse {
     map<string, string> response = 1; // Custom response sent by the plugin
+}
+
+enum IndexingRequestType {
+    // Request to add a document
+    ADD_DOCUMENT = 0;
+    // Request to update a document
+    UPDATE_DOC_VALUES = 1;
 }
