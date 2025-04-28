@@ -1263,6 +1263,29 @@ public class NrtsearchServerTest {
     assertTrue(queryCache instanceof NrtQueryCache);
   }
 
+  @Test
+  public void testInitMaxClauseCount() {
+    int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
+    try {
+      String defaultConfig = "nodeName: \"test_node\"";
+      NrtsearchConfig defaultConfiguration =
+          new NrtsearchConfig(new ByteArrayInputStream(defaultConfig.getBytes()));
+
+      LuceneServerImpl.initMaxClauseCount(defaultConfiguration);
+      assertEquals(1024, IndexSearcher.getMaxClauseCount()); // Default value
+
+      String customConfig = String.join("\n", "nodeName: \"test_node\"", "maxClauseCount: 2048");
+      NrtsearchConfig customConfiguration =
+          new NrtsearchConfig(new ByteArrayInputStream(customConfig.getBytes()));
+
+      LuceneServerImpl.initMaxClauseCount(customConfiguration);
+      assertEquals(2048, IndexSearcher.getMaxClauseCount());
+
+    } finally {
+      IndexSearcher.setMaxClauseCount(originalMaxClauseCount);
+    }
+  }
+
   public static List<VirtualField> getQueryVirtualFields() {
     List<VirtualField> fields = new ArrayList<>();
     fields.add(

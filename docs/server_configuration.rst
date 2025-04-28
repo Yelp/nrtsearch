@@ -107,6 +107,11 @@ Example server configuration
      - If enabled, the primary will enable keepAlive on the replication channel with keepAliveTime 1 minute and keepAliveTimeout 10 seconds. Replicas ignore this option.
      - true
 
+   * - maxClauseCount
+     - int
+     - Maximum number of clauses in a query
+     - 1024
+
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
    :header-rows: 1
@@ -350,3 +355,4 @@ Example server configuration
      - list
      - List of index file extensions to preload. Including '*' will preload all files.
      - ['*']
+

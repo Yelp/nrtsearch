@@ -65,6 +65,7 @@ public class NrtsearchConfig {
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
   static final long DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   static final long DEFAULT_INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
+  private static final int DEFAULT_MAX_CLAUSE_COUNT = 1024;
   private final int port;
   private final int replicationPort;
   private final int replicaReplicationPortPingInterval;
@@ -93,6 +94,7 @@ public class NrtsearchConfig {
   private final FileCopyConfig fileCopyConfig;
   private final ScriptCacheConfig scriptCacheConfig;
   private final boolean deadlineCancellation;
+  private final int maxClauseCount;
   private final StateConfig stateConfig;
   private final IndexStartConfig indexStartConfig;
   private final int discoveryFileUpdateIntervalMs;
@@ -170,6 +172,7 @@ public class NrtsearchConfig {
     deadlineCancellation = configReader.getBoolean("deadlineCancellation", true);
     stateConfig = StateConfig.fromConfig(configReader);
     indexStartConfig = IndexStartConfig.fromConfig(configReader);
+    maxClauseCount = configReader.getInteger("maxClauseCount", DEFAULT_MAX_CLAUSE_COUNT);
     discoveryFileUpdateIntervalMs =
         configReader.getInteger(
             "discoveryFileUpdateIntervalMs", ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
@@ -329,6 +332,10 @@ public class NrtsearchConfig {
 
   public StateConfig getStateConfig() {
     return stateConfig;
+  }
+
+  public int getMaxClauseCount() {
+    return maxClauseCount;
   }
 
   public IndexStartConfig getIndexStartConfig() {
