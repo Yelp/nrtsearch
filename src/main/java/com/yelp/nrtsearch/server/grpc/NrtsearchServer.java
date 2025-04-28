@@ -381,6 +381,7 @@ public class NrtsearchServer {
       ExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);
+      initMaxClauseCount(configuration);
       initExtendableComponents(configuration, plugins);
 
       this.globalState = GlobalState.createState(configuration, remoteBackend);
@@ -437,6 +438,11 @@ public class NrtsearchServer {
                 cacheConfig.getSkipCacheFactor());
       }
       IndexSearcher.setDefaultQueryCache(queryCache);
+    }
+
+    @VisibleForTesting
+    static void initMaxClauseCount(NrtsearchConfig configuration) {
+      IndexSearcher.setMaxClauseCount(configuration.getMaxClauseCount());
     }
 
     private void initExtendableComponents(NrtsearchConfig configuration, List<Plugin> plugins) {
