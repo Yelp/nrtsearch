@@ -41,7 +41,7 @@ public class ExamplePlugin extends AbstractIngestionPlugin
   private static final Logger logger = LoggerFactory.getLogger(ExamplePlugin.class);
   public static final String INGESTION_TEST_INDEX = "ingestion_test_index";
   private final String availableAnalyzers = String.join(",", getAnalyzers().keySet());
-  private ExecutorService executorService; // No longer final so we can recreate
+  private ExecutorService executorService;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final List<AddDocumentRequest> testDocuments = new ArrayList<>();
 
@@ -63,15 +63,6 @@ public class ExamplePlugin extends AbstractIngestionPlugin
                 "field1",
                 AddDocumentRequest.MultiValuedField.newBuilder().addValue("test doc 2").build())
             .build());
-  }
-
-  private synchronized ExecutorService getOrCreateExecutorService() {
-    if (executorService == null || executorService.isShutdown()) {
-      executorService =
-          Executors.newSingleThreadExecutor(
-              new ThreadFactoryBuilder().setNameFormat("example-ingestion-%d").build());
-    }
-    return executorService;
   }
 
   @Override
@@ -148,10 +139,5 @@ public class ExamplePlugin extends AbstractIngestionPlugin
         executorService = null; // Allow recreation
       }
     }
-  }
-
-  /** Get the test documents that will be ingested. Exposed for test validation. */
-  List<AddDocumentRequest> getTestDocuments() {
-    return testDocuments;
   }
 }
