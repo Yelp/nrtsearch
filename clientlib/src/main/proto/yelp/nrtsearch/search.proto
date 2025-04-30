@@ -1103,6 +1103,15 @@ message NumericRangeType {
     bool maxInclusive = 5;
 }
 
+// Definition of collector to find a sum of double values over documents. Currently only allows for script based
+// value production.
+message SumCollector {
+    oneof ValueSource {
+        // Script to produce a double value
+        Script script = 1;
+    }
+}
+
 // Facet request definition
 message Facet {
     // Dimension (field)
@@ -1258,7 +1267,8 @@ message Collector {
         MaxCollector max = 6;
         // Collector for finding a min double value from collected documents
         MinCollector min = 7;
-
+        // Collector for finding a sum of double values from collected documents
+        SumCollector sum = 8;
     }
     // Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors
     map<string, Collector> nestedCollectors = 3;
