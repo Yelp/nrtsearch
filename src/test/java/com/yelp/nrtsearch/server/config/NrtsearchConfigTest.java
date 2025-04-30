@@ -218,4 +218,18 @@ public class NrtsearchConfigTest {
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(DirectoryFactory.MMapGrouping.NONE, luceneConfig.getMMapGrouping());
   }
+
+  @Test
+  public void testDefaultMaxClauseCount() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(1024, luceneConfig.getMaxClauseCount());
+  }
+
+  @Test
+  public void testCustomMaxClauseCount() {
+    String config = "maxClauseCount: 2048";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(2048, luceneConfig.getMaxClauseCount());
+  }
 }

@@ -86,6 +86,7 @@ import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
 import com.yelp.nrtsearch.server.monitoring.MergeSchedulerCollector;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
@@ -275,6 +276,8 @@ public class NrtsearchServer {
     prometheusRegistry.register(new ProcStatCollector());
     prometheusRegistry.register(new MergeSchedulerCollector(globalState));
     prometheusRegistry.register(new SearchResponseCollector(globalState));
+    // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
+    IndexingMetrics.register(prometheusRegistry);
   }
 
   /** Main launches the server from the command line. */
@@ -389,6 +392,7 @@ public class NrtsearchServer {
       ExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);
+      initMaxClauseCount(configuration);
       initExtendableComponents(configuration, plugins);
 
       this.globalState = GlobalState.createState(configuration, remoteBackend);
@@ -445,6 +449,11 @@ public class NrtsearchServer {
                 cacheConfig.getSkipCacheFactor());
       }
       IndexSearcher.setDefaultQueryCache(queryCache);
+    }
+
+    @VisibleForTesting
+    static void initMaxClauseCount(NrtsearchConfig configuration) {
+      IndexSearcher.setMaxClauseCount(configuration.getMaxClauseCount());
     }
 
     private void initExtendableComponents(NrtsearchConfig configuration, List<Plugin> plugins) {
