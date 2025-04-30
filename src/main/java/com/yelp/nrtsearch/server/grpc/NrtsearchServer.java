@@ -95,6 +95,7 @@ import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
+import com.yelp.nrtsearch.server.plugins.AbstractIngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -158,6 +159,7 @@ public class NrtsearchServer {
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
+    initializeIngestionPluginState(globalState, plugins);
 
     if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
@@ -223,6 +225,15 @@ public class NrtsearchServer {
             .start();
     logger.info("Server started, listening on " + configuration.getPort() + " for messages");
     BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000.0);
+  }
+
+  private void initializeIngestionPluginState(GlobalState globalState, List<Plugin> plugins)
+      throws IOException {
+    for (Plugin plugin : plugins) {
+      if (plugin instanceof AbstractIngestionPlugin abstractIngestionPlugin) {
+        abstractIngestionPlugin.initializeState(globalState);
+      }
+    }
   }
 
   @VisibleForTesting

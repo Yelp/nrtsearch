@@ -8,3 +8,4 @@ pluginManagement {
 }
 include('clientlib')
 rootProject.name = 'nrtsearch'
+include('example-plugin')

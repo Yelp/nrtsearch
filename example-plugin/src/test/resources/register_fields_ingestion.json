@@ -1,0 +1,15 @@
+{
+  "indexName": "ingestion_test_index",
+  "field": [
+    {
+      "name": "field1",
+      "type": "TEXT",
+      "search": true
+    },
+    {
+      "name": "field2",
+      "type": "TEXT",
+      "search": true
+    }
+  ]
+}
