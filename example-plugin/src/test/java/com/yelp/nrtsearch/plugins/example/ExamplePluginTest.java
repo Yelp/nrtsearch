@@ -50,7 +50,6 @@ public class ExamplePluginTest extends ServerTestCase {
   private static final String INGESTION_TEST_INDEX = ExamplePlugin.INGESTION_TEST_INDEX;
 
   private ExamplePlugin examplePlugin;
-  private static final String FIELD_1 = "field1";
 
   @Override
   protected List<String> getIndices() {
