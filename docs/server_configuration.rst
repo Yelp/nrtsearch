@@ -111,6 +111,11 @@ Example server configuration
      - int
      - Maximum number of clauses in a query
      - 1024
+   
+   * - useSeparateCommitExecutor
+     - bool
+     - If enabled, the server will use a separate executor for commit operations instead of using the indexing executor.
+     - false
 
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
@@ -240,6 +245,21 @@ Example server configuration
      - string
      - Name prefix for threads created by vector merge threadpool executor
      - VectorMergeExecutor
+
+   * - commit.maxThreads
+     - int
+     - Size of commit threadpool executor
+     - 5
+
+   * - commit.maxBufferedItems
+     - int
+     - Max tasks that can be queued by commit threadpool executor
+     - 5
+
+   * - commit.threadNamePrefix
+     - string
+     - Name prefix for threads created by commit threadpool executor
+     - CommitExecutor
 
 .. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*.maxThreads.*``)
    :widths: 25 10 50 25

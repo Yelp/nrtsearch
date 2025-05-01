@@ -41,7 +41,8 @@ public class ExecutorFactory {
     FETCH,
     GRPC,
     METRICS,
-    VECTORMERGE
+    VECTORMERGE,
+    COMMIT
   }
 
   private static final Logger logger = LoggerFactory.getLogger(ExecutorFactory.class);

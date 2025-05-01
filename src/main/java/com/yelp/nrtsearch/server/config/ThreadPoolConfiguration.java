@@ -54,6 +54,9 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS =
       Math.max(100, 2 * DEFAULT_VECTOR_MERGE_THREADS);
 
+  public static final int DEFAULT_COMMIT_THREADS = 5;
+  public static final int DEFAULT_COMMIT_BUFFERED_ITEMS = DEFAULT_COMMIT_THREADS;
+
   /**
    * Settings for a {@link ExecutorFactory.ExecutorType}.
    *
@@ -97,7 +100,10 @@ public class ThreadPoolConfiguration {
               new ThreadPoolSettings(
                   DEFAULT_VECTOR_MERGE_THREADS,
                   DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
-                  "VectorMergeExecutor"));
+                  "VectorMergeExecutor"),
+              ExecutorFactory.ExecutorType.COMMIT,
+              new ThreadPoolSettings(
+                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor"));
 
   private final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 

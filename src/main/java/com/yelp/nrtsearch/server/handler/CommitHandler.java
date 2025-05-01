@@ -40,7 +40,7 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
   public void handle(CommitRequest commitRequest, StreamObserver<CommitResponse> responseObserver) {
     try {
       getGlobalState()
-          .submitIndexingTask(
+          .submitCommitTask(
               Context.current()
                   .wrap(
                       () -> {
@@ -82,7 +82,6 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                                     .asRuntimeException());
                           }
                         }
-                        return null;
                       }));
     } catch (RejectedExecutionException e) {
       logger.error(
