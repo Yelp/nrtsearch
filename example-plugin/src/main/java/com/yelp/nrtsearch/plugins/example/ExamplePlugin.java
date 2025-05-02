@@ -66,6 +66,11 @@ public class ExamplePlugin extends AbstractIngestionPlugin
   }
 
   @Override
+  protected ExecutorService getIngestionExecutor() {
+    return null;
+  }
+
+  @Override
   public String id() {
     return "custom_analyzers";
   }

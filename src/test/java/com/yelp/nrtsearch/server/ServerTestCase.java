@@ -33,7 +33,6 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.plugins.AbstractIngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
@@ -236,11 +235,6 @@ public class ServerTestCase {
             null,
             getPlugins(configuration));
     globalState = server.getGlobalState();
-    for (Plugin plugin : getPlugins(configuration)) {
-      if (plugin instanceof AbstractIngestionPlugin abstractIngestionPlugin) {
-        abstractIngestionPlugin.initializeState(globalState);
-      }
-    }
     return server;
   }
 

@@ -165,7 +165,7 @@ public class ExamplePluginTest extends ServerTestCase {
 
   @Test
   public void testPluginIngestion() throws Exception {
-    examplePlugin.startIngestion();
+    examplePlugin.initializeAndStartIngestion(getGlobalState());
 
     await()
         .atMost(5, SECONDS)
