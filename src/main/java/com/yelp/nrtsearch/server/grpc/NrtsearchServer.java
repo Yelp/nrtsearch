@@ -159,7 +159,7 @@ public class NrtsearchServer {
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
-    initializeIngestionPluginState(globalState, plugins);
+    initIngestionPlugin(globalState, plugins);
 
     if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
@@ -227,11 +227,11 @@ public class NrtsearchServer {
     BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000.0);
   }
 
-  private void initializeIngestionPluginState(GlobalState globalState, List<Plugin> plugins)
+  private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
       throws IOException {
     for (Plugin plugin : plugins) {
       if (plugin instanceof AbstractIngestionPlugin abstractIngestionPlugin) {
-        abstractIngestionPlugin.initializeState(globalState);
+        abstractIngestionPlugin.initializeAndStartIngestion(globalState);
       }
     }
   }

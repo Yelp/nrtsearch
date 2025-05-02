@@ -19,10 +19,10 @@ import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.handler.AddDocumentHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
-import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * implementations: 1. Must implement startIngestion/stopIngestion to handle source-specific logic
  * 2. Should use addDocuments/commit methods to index data during ingestion
  */
-public abstract class AbstractIngestionPlugin extends Plugin implements IngestionPlugin {
+public abstract class AbstractIngestionPlugin extends Plugin {
   private static final Logger logger = LoggerFactory.getLogger(AbstractIngestionPlugin.class);
 
   protected final NrtsearchConfig config;
@@ -42,15 +42,40 @@ public abstract class AbstractIngestionPlugin extends Plugin implements Ingestio
   }
 
   /**
-   * Initialize plugin state with index access. Called by NrtSearchServer when index is ready.
+   * Initialize plugin state with index access and start Ingestion. Called by NrtSearchServer when
+   * index is ready.
    *
    * @param globalState The global server state
    */
-  public final void initializeState(GlobalState globalState) throws IOException {
+  public final void initializeAndStartIngestion(GlobalState globalState) throws IOException {
     if (this.globalState != null) {
       throw new IllegalStateException("Plugin already initialized");
     }
     this.globalState = globalState;
+    // Run startIngestion asynchronously
+    getIngestionExecutor()
+        .submit(
+            () -> {
+              try {
+                startIngestion();
+              } catch (IOException e) {
+                logger.error("Error during startIngestion", e);
+                onIngestionStartFailure(e);
+              }
+            });
+  }
+
+  /**
+   * Provide an executor service for running ingestion tasks. Plugin implementations must manage the
+   * lifecycle of this executor.
+   *
+   * @return ExecutorService to run ingestion
+   */
+  protected abstract ExecutorService getIngestionExecutor();
+
+  /** Plugin implementations can handle errors or lifecycle events by extending this method */
+  protected void onIngestionStartFailure(Exception e) {
+    logger.error("Ingestion failed to start", e);
   }
 
   /**
@@ -74,11 +99,7 @@ public abstract class AbstractIngestionPlugin extends Plugin implements Ingestio
   protected final void commit(String indexName) throws IOException {
     verifyInitialized(indexName);
     IndexState indexState = globalState.getIndexOrThrow(indexName);
-    ShardState shard = indexState.getShard(0);
-    if (shard == null) {
-      throw new IllegalStateException("No shard found for index");
-    }
-    shard.commit();
+    indexState.commit();
   }
 
   private void verifyInitialized(String indexName) throws IOException {
@@ -92,4 +113,20 @@ public abstract class AbstractIngestionPlugin extends Plugin implements Ingestio
   public void close() throws IOException {
     stopIngestion();
   }
+
+  /**
+   * Start ingesting documents from the source. Plugin implementations can start source connections
+   * and begin processing. Use the ExecutorService returned by getIngestionExecutor to achieve parallelism
+   *
+   * @throws IOException if there are startup errors
+   */
+  protected abstract void startIngestion() throws IOException;
+
+  /**
+   * Stop ingesting documents from the source. Plugin implementations should cleanup source
+   * connections and stop processing.
+   *
+   * @throws IOException if there are shutdown errors
+   */
+  protected abstract void stopIngestion() throws IOException;
 }

@@ -446,4 +446,25 @@ public class NrtsearchConfig {
     }
     return paths;
   }
+
+  @SuppressWarnings("unchecked")
+  public Map<String, Map<String, Object>> getIngestionPluginConfigs() {
+    try {
+      Object raw = configReader.get("pluginConfigs.ingestion", obj -> obj);
+      if (raw instanceof Map<?, ?> outerMap) {
+        Map<String, Map<String, Object>> result = new HashMap<>();
+        for (Map.Entry<?, ?> entry : outerMap.entrySet()) {
+          if (entry.getKey() instanceof String pluginName
+              && entry.getValue() instanceof Map<?, ?> pluginConfig) {
+            result.put(pluginName, (Map<String, Object>) pluginConfig);
+          }
+        }
+        return result;
+      } else {
+        throw new IllegalStateException("'pluginConfigs.ingestion' must be a map");
+      }
+    } catch (ConfigKeyNotFoundException e) {
+      return Collections.emptyMap();
+    }
+  }
 }
