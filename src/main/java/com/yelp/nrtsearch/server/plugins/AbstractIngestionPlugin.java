@@ -116,7 +116,8 @@ public abstract class AbstractIngestionPlugin extends Plugin {
 
   /**
    * Start ingesting documents from the source. Plugin implementations can start source connections
-   * and begin processing. Use the ExecutorService returned by getIngestionExecutor to achieve parallelism
+   * and begin processing. Use the ExecutorService returned by getIngestionExecutor to achieve
+   * parallelism
    *
    * @throws IOException if there are startup errors
    */

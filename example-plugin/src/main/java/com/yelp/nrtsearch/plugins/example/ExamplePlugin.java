@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Yelp Inc.
+ * Copyright 2025 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,15 +38,22 @@ import org.slf4j.LoggerFactory;
 
 public class ExamplePlugin extends AbstractIngestionPlugin
     implements AnalysisPlugin, CustomRequestPlugin {
+
   private static final Logger logger = LoggerFactory.getLogger(ExamplePlugin.class);
   public static final String INGESTION_TEST_INDEX = "ingestion_test_index";
+
   private final String availableAnalyzers = String.join(",", getAnalyzers().keySet());
-  private ExecutorService executorService;
+  private final ExecutorService executorService;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final List<AddDocumentRequest> testDocuments = new ArrayList<>();
 
   public ExamplePlugin(NrtsearchConfig configuration) {
     super(configuration);
+
+    // Create executor service (single-threaded for this example)
+    this.executorService =
+        Executors.newSingleThreadExecutor(
+            new ThreadFactoryBuilder().setNameFormat("example-ingestion-%d").build());
 
     // Create test documents
     testDocuments.add(
@@ -63,11 +70,6 @@ public class ExamplePlugin extends AbstractIngestionPlugin
                 "field1",
                 AddDocumentRequest.MultiValuedField.newBuilder().addValue("test doc 2").build())
             .build());
-  }
-
-  @Override
-  protected ExecutorService getIngestionExecutor() {
-    return null;
   }
 
   @Override
@@ -95,34 +97,34 @@ public class ExamplePlugin extends AbstractIngestionPlugin
                 .addTokenFilter("lowercase")
                 .build();
           } catch (Exception e) {
+            logger.error("Failed to create analyzer", e);
             return null;
           }
         });
   }
 
   @Override
+  protected ExecutorService getIngestionExecutor() {
+    return executorService;
+  }
+
+  @Override
   public void startIngestion() throws IOException {
     logger.info("Starting example ingestion");
+
     if (!running.compareAndSet(false, true)) {
       logger.warn("Ingestion already running");
       return;
     }
 
-    executorService =
-        Executors.newSingleThreadExecutor(
-            new ThreadFactoryBuilder().setNameFormat("example-ingestion-%d").build());
-
-    executorService.submit(
-        () -> {
-          try {
-            addDocuments(testDocuments, INGESTION_TEST_INDEX);
-            commit(INGESTION_TEST_INDEX);
-          } catch (Exception e) {
-            logger.error("Error during ingestion", e);
-          } finally {
-            running.set(false); // Reset running flag when done
-          }
-        });
+    try {
+      addDocuments(testDocuments, INGESTION_TEST_INDEX);
+      commit(INGESTION_TEST_INDEX);
+    } catch (Exception e) {
+      logger.error("Error during ingestion", e);
+    } finally {
+      running.set(false);
+    }
   }
 
   @Override
@@ -130,19 +132,15 @@ public class ExamplePlugin extends AbstractIngestionPlugin
     logger.info("Stopping example ingestion");
     running.set(false); // Signal stop (not strictly needed for one-shot task)
 
-    if (executorService != null) {
-      executorService.shutdown();
-      try {
-        if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-          logger.warn("Ingestion thread did not complete within timeout");
-          executorService.shutdownNow();
-        }
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IOException("Interrupted while stopping ingestion", e);
-      } finally {
-        executorService = null; // Allow recreation
+    executorService.shutdown();
+    try {
+      if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+        logger.warn("Ingestion thread did not complete within timeout");
+        executorService.shutdownNow();
       }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted while stopping ingestion", e);
     }
   }
 }
