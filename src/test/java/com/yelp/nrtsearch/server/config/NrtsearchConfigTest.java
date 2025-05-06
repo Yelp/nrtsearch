@@ -271,4 +271,24 @@ public class NrtsearchConfigTest {
     assertEquals("my-topic", ingestionConfigs.get("kafka").get("topic"));
     assertEquals("my-bucket", ingestionConfigs.get("s3").get("bucket"));
   }
+
+  @Test
+  public void testMissingIngestionConfigReturnsEmptyMap() {
+    String config = String.join("\n", "nodeName: \"server_foo\"", "plugins:", "  - kafka-plugin");
+
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    Map<String, Map<String, Object>> ingestionConfigs = luceneConfig.getIngestionPluginConfigs();
+
+    assertTrue(ingestionConfigs.isEmpty());
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testInvalidIngestionConfigThrows() {
+    String config =
+        String.join(
+            "\n", "nodeName: \"server_foo\"", "pluginConfigs:", "  ingestion:", "    - kafka");
+
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    luceneConfig.getIngestionPluginConfigs(); // should throw
+  }
 }
