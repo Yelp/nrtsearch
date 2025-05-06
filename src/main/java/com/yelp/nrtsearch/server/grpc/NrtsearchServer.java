@@ -160,7 +160,6 @@ public class NrtsearchServer {
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
-    initIngestionPlugin(globalState, plugins);
 
     if (configuration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
@@ -223,15 +222,6 @@ public class NrtsearchServer {
             .start();
     logger.info("Server started, listening on " + configuration.getPort() + " for messages");
     BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000.0);
-  }
-
-  private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
-      throws IOException {
-    for (Plugin plugin : plugins) {
-      if (plugin instanceof IngestionPlugin ingestionPlugin) {
-        IngestionPluginUtils.initializeAndStart(ingestionPlugin, globalState);
-      }
-    }
   }
 
   @VisibleForTesting
@@ -399,6 +389,7 @@ public class NrtsearchServer {
       this.globalState = GlobalState.createState(configuration, remoteBackend);
 
       // Initialize handlers
+      initIngestionPlugin(globalState, plugins);
       addDocumentHandler = new AddDocumentHandler(globalState);
       backupWarmingQueriesHandler = new BackupWarmingQueriesHandler(globalState);
       commitHandler = new CommitHandler(globalState);
@@ -435,6 +426,15 @@ public class NrtsearchServer {
       statusHandler = new StatusHandler();
       stopIndexHandler = new StopIndexHandler(globalState);
       updateFieldsHandler = new UpdateFieldsHandler(globalState);
+    }
+
+    private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
+        throws IOException {
+      for (Plugin plugin : plugins) {
+        if (plugin instanceof IngestionPlugin ingestionPlugin) {
+          IngestionPluginUtils.initializeAndStart(ingestionPlugin, globalState);
+        }
+      }
     }
 
     @VisibleForTesting
