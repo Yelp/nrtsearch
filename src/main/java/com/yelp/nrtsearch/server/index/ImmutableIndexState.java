@@ -600,6 +600,7 @@ public class ImmutableIndexState extends IndexState {
     mergePolicy.setMaxMergedSegmentMB(maxMergedSegmentMB);
     mergePolicy.setSegmentsPerTier(segmentsPerTier);
     iwc.setMergePolicy(mergePolicy);
+    iwc.setMaxFullFlushMergeWaitMillis(0);
 
     return iwc;
   }
