@@ -65,6 +65,7 @@ public abstract class GlobalState implements Closeable {
   private final ExecutorService indexExecutor;
   private final ExecutorService fetchExecutor;
   private final ExecutorService searchExecutor;
+  private final ExecutorService commitExecutor;
 
   public static GlobalState createState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
       throws IOException {
@@ -95,6 +96,8 @@ public abstract class GlobalState implements Closeable {
         ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SEARCH);
     this.fetchExecutor =
         ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.FETCH);
+    this.commitExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.COMMIT);
     this.configuration = configuration;
   }
 
@@ -284,6 +287,20 @@ public abstract class GlobalState implements Closeable {
 
   public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexExecutor.submit(job);
+  }
+
+  /**
+   * Submit a task to the commit executor.
+   *
+   * @param job task to execute
+   * @return future representing the completion of the task
+   */
+  public Future<?> submitCommitTask(Runnable job) {
+    if (configuration.getUseSeparateCommitExecutor()) {
+      return commitExecutor.submit(job);
+    } else {
+      return indexExecutor.submit(job);
+    }
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {

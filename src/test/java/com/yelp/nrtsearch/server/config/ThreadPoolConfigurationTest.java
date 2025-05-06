@@ -320,6 +320,39 @@ public class ThreadPoolConfigurationTest {
   }
 
   @Test
+  public void testCommitThreadPool_default() {
+    String config = "nodeName: node1";
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.COMMIT);
+    assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_COMMIT_THREADS);
+    assertEquals(
+        threadPoolSettings.maxBufferedItems(),
+        ThreadPoolConfiguration.DEFAULT_COMMIT_BUFFERED_ITEMS);
+    assertEquals("CommitExecutor", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
+  public void testCommitThreadPool_set() {
+    String config =
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  commit:",
+            "    maxThreads: 3",
+            "    maxBufferedItems: 25",
+            "    threadNamePrefix: customCommitExecutor");
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.COMMIT);
+    assertEquals(threadPoolSettings.maxThreads(), 3);
+    assertEquals(threadPoolSettings.maxBufferedItems(), 25);
+    assertEquals("customCommitExecutor", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
   public void partialOverride() {
     String config =
         String.join(

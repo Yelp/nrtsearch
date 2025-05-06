@@ -28,7 +28,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.junit.ClassRule;
 
-public class MinMaxUtilTest extends ServerTestCase {
+public class CollectorUtilTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   protected static final Script FIELD_SCRIPT =
       Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("value_field").build();

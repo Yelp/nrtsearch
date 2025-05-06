@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.search.collectors.additional.FilterCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.additional.MaxCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.additional.MinCollectorManager;
+import com.yelp.nrtsearch.server.search.collectors.additional.SumCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.additional.TermsCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.additional.TopHitsCollectorManager;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
@@ -120,6 +121,11 @@ public class CollectorCreator {
           throw new IllegalArgumentException("MinCollector cannot have nested collectors");
         }
         return () -> new MinCollectorManager(name, collector.getMin(), context);
+      case SUM:
+        if (!nestedCollectorSuppliers.isEmpty()) {
+          throw new IllegalArgumentException("SumCollector cannot have nested collectors");
+        }
+        return () -> new SumCollectorManager(name, collector.getSum(), context);
       default:
         throw new IllegalArgumentException(
             "Unknown Collector type: " + collector.getCollectorsCase());

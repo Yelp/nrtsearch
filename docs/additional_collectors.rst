@@ -19,6 +19,8 @@ The SearchRequest can define a mapping of additional collectors to compute aggre
             MaxCollector max = 6;
             //Collector for finding a min double value from collected documents.
             MinCollector min = 7;
+            //Collector for summing double values from collected documents.
+            SumCollector sum = 8;
         }
         //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
         map<string, Collector> nestedCollectors = 3;
@@ -141,6 +143,22 @@ Collect a minimum double value across all aggregated documents. This value is pr
 
     //Definition of collector to find a min double value over documents. Currently only allows for script based value production.
     message MinCollector {
+        oneof ValueSource {
+            //Script to produce a double value
+            Script script = 1;
+        }
+    }
+
+This aggregation is usable for sorting buckets as a nested collector.
+
+Sum Collector
+-----------------------------
+Collect a sum of double values across all aggregated documents. This value is produced by execution of a score script per document.
+
+.. code-block::
+
+    //Definition of collector to find a sum of double values over documents. Currently only allows for script based value production.
+    message SumCollector {
         oneof ValueSource {
             //Script to produce a double value
             Script script = 1;

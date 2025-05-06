@@ -121,9 +121,10 @@ public class BucketOrder {
     if (nestedCollector == null) {
       throw new IllegalArgumentException("Nested collector not found: " + grpcBucketOrder.getKey());
     }
-    // currently, max and min are the only aggregations that can be used for ordering
+    // collectors that can be used for ordering: max, min, and sum
     if (nestedCollector.getCollectorsCase() == CollectorsCase.MAX
-        || nestedCollector.getCollectorsCase() == CollectorsCase.MIN) {
+        || nestedCollector.getCollectorsCase() == CollectorsCase.MIN
+        || nestedCollector.getCollectorsCase() == CollectorsCase.SUM) {
       return new NestedCollectorOrder(
           ValueType.NESTED_COLLECTOR,
           grpcBucketOrder.getOrder(),

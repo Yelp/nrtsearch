@@ -101,6 +101,7 @@ public class NrtsearchConfig {
   private final FSTLoadMode completionCodecLoadMode;
   private final boolean filterIncompatibleSegmentReaders;
   private final Map<String, IndexLiveSettings> indexLiveSettingsOverrides;
+  private final boolean useSeparateCommitExecutor;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -190,6 +191,7 @@ public class NrtsearchConfig {
             "mmapGrouping",
             o -> DirectoryFactory.parseMMapGrouping(o.toString()),
             DirectoryFactory.MMapGrouping.SEGMENT);
+    useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -381,6 +383,10 @@ public class NrtsearchConfig {
   public IndexLiveSettings getLiveSettingsOverride(String indexName) {
     return indexLiveSettingsOverrides.getOrDefault(
         indexName, IndexLiveSettings.newBuilder().build());
+  }
+
+  public boolean getUseSeparateCommitExecutor() {
+    return useSeparateCommitExecutor;
   }
 
   /**

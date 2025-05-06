@@ -273,4 +273,32 @@ public class ExecutorFactoryTest {
     assertEquals(executor.getCorePoolSize(), 5);
     assertEquals(executor.getQueue().remainingCapacity(), 10);
   }
+
+  @Test
+  public void testCommitThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor)
+            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.COMMIT);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_COMMIT_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_COMMIT_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testCommitThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  commit:",
+            "    maxThreads: 3",
+            "    maxBufferedItems: 25"));
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor)
+            ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.COMMIT);
+    assertEquals(executor.getCorePoolSize(), 3);
+    assertEquals(executor.getQueue().remainingCapacity(), 25);
+  }
 }

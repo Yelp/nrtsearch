@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Yelp Inc.
+ * Copyright 2024 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ import com.yelp.nrtsearch.server.grpc.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.Collector;
-import com.yelp.nrtsearch.server.grpc.MaxCollector;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SumCollector;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.utils.CollectorUtilTest;
@@ -38,42 +38,42 @@ import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 
-public class MaxCollectorManagerTest extends CollectorUtilTest {
+public class SumCollectorManagerTest extends CollectorUtilTest {
   @Test
-  public void testMaxCollectorAllDocs() {
-    maxCollectorAllDocs(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testSumCollectorAllDocs() {
+    sumCollectorAllDocs(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testMaxCollectorAllDocs_score() {
-    maxCollectorAllDocs(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testSumCollectorAllDocs_score() {
+    sumCollectorAllDocs(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void maxCollectorAllDocs(Query query, Script script) {
+  private void sumCollectorAllDocs(Query query, Script script) {
     SearchResponse response =
         doQuery(
             query,
             Collector.newBuilder()
-                .setMax(MaxCollector.newBuilder().setScript(script).build())
+                .setSum(SumCollector.newBuilder().setScript(script).build())
                 .build());
     assertEquals(100, response.getTotalHits().getValue());
     assertEquals(
-        100.0,
+        3150.0,
         response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
         0);
   }
 
   @Test
-  public void testMaxCollectorSomeDocs() {
-    maxCollectorSomeDocs(MATCH_SOME_QUERY, FIELD_SCRIPT);
+  public void testSumCollectorSomeDocs() {
+    sumCollectorSomeDocs(MATCH_SOME_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testMaxCollectorSomeDocs_score() {
-    maxCollectorSomeDocs(MATCH_SOME_SCORE_QUERY, SCORE_SCRIPT);
+  public void testSumCollectorSomeDocs_score() {
+    sumCollectorSomeDocs(MATCH_SOME_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void maxCollectorSomeDocs(Query query, Script script) {
+  private void sumCollectorSomeDocs(Query query, Script script) {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
@@ -85,27 +85,27 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
                     .putCollectors(
                         "test_collector",
                         Collector.newBuilder()
-                            .setMax(MaxCollector.newBuilder().setScript(script).build())
+                            .setSum(SumCollector.newBuilder().setScript(script).build())
                             .build())
                     .build());
     assertEquals(20, response.getTotalHits().getValue());
     assertEquals(
-        60.0,
+        630.0,
         response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
         0);
   }
 
   @Test
-  public void testNestedMaxCollector() {
-    nestedMaxCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testNestedSumCollector() {
+    nestedSumCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testNestedMaxCollector_score() {
-    nestedMaxCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testNestedSumCollector_score() {
+    nestedSumCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void nestedMaxCollector(Query query, Script script) {
+  private void nestedSumCollector(Query query, Script script) {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
@@ -125,7 +125,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
                             .putNestedCollectors(
                                 "nested_collector",
                                 Collector.newBuilder()
-                                    .setMax(MaxCollector.newBuilder().setScript(script).build())
+                                    .setSum(SumCollector.newBuilder().setScript(script).build())
                                     .build())
                             .build())
                     .build());
@@ -142,20 +142,20 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
     }
-    assertEquals(Map.of("1", 20.0, "2", 40.0, "3", 60.0, "4", 80.0, "5", 100.0), bucketValues);
+    assertEquals(Map.of("1", 210.0, "2", 420.0, "3", 630.0, "4", 840.0, "5", 1050.0), bucketValues);
   }
 
   @Test
-  public void testNestedOrderMaxCollector() {
-    nestedOrderMaxCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testNestedOrderSumCollector() {
+    nestedOrderSumCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testNestedOrderMaxCollector_score() {
-    nestedOrderMaxCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testNestedOrderSumCollector_score() {
+    nestedOrderSumCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void nestedOrderMaxCollector(Query query, Script script) {
+  private void nestedOrderSumCollector(Query query, Script script) {
     SearchResponse response = doNestedOrderQuery(OrderType.DESC, query, script);
     assertEquals(100, response.getTotalHits().getValue());
     assertEquals(
@@ -172,7 +172,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
       assertEquals(20, bucket.getCount());
     }
     assertEquals(List.of("5", "4", "3", "2", "1"), keyOrder);
-    assertEquals(List.of(100.0, 80.0, 60.0, 40.0, 20.0), sortValues);
+    assertEquals(List.of(1050.0, 840.0, 630.0, 420.0, 210.0), sortValues);
 
     response = doNestedOrderQuery(OrderType.ASC, query, script);
     assertEquals(100, response.getTotalHits().getValue());
@@ -190,7 +190,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
       assertEquals(20, bucket.getCount());
     }
     assertEquals(List.of("1", "2", "3", "4", "5"), keyOrder);
-    assertEquals(List.of(20.0, 40.0, 60.0, 80.0, 100.0), sortValues);
+    assertEquals(List.of(210.0, 420.0, 630.0, 840.0, 1050.0), sortValues);
   }
 
   private SearchResponse doNestedOrderQuery(OrderType orderType, Query query, Script script) {
@@ -217,7 +217,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
                         .putNestedCollectors(
                             "nested_collector",
                             Collector.newBuilder()
-                                .setMax(MaxCollector.newBuilder().setScript(script).build())
+                                .setSum(SumCollector.newBuilder().setScript(script).build())
                                 .build())
                         .build())
                 .build());
@@ -231,13 +231,11 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
                 .setTermQuery(TermQuery.newBuilder().setField("int_field").setIntValue(10).build())
                 .build(),
             Collector.newBuilder()
-                .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+                .setSum(SumCollector.newBuilder().setScript(FIELD_SCRIPT).build())
                 .build());
     assertEquals(0, response.getTotalHits().getValue());
     assertEquals(
-        MaxCollectorManager.UNSET_VALUE,
-        response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
-        0);
+        0.0, response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(), 0);
   }
 
   @Test
@@ -245,7 +243,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
     try {
       doQuery(
           MATCH_ALL_QUERY,
-          Collector.newBuilder().setMax(MaxCollector.newBuilder().build()).build());
+          Collector.newBuilder().setSum(SumCollector.newBuilder().build()).build());
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("Unknown value source: VALUESOURCE_NOT_SET"));
@@ -258,16 +256,16 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
       doQuery(
           MATCH_ALL_QUERY,
           Collector.newBuilder()
-              .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+              .setSum(SumCollector.newBuilder().setScript(FIELD_SCRIPT).build())
               .putNestedCollectors(
                   "nested_collector",
                   Collector.newBuilder()
-                      .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+                      .setSum(SumCollector.newBuilder().setScript(FIELD_SCRIPT).build())
                       .build())
               .build());
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(e.getMessage().contains("MaxCollector cannot have nested collectors"));
+      assertTrue(e.getMessage().contains("SumCollector cannot have nested collectors"));
     }
   }
 }
