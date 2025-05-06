@@ -34,7 +34,6 @@ dependencies {
     testImplementation libs.grpc.testing
     testImplementation libs.junit
     testImplementation libs.protobuf.java
-    testImplementation libs.awaitility
 }
 
 distributions {
