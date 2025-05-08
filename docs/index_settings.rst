@@ -67,3 +67,10 @@ nrtCachingDirectoryMaxMergeSizeMB
 When both this and nrtCachingDirectoryMaxSizeMB are > 0 and the index directory is not an MMapDirectory, adds an `NRTCachingDirectory <https://lucene.apache.org/core/8_4_0/core/org/apache/lucene/store/NRTCachingDirectory.html>`_ wrapper. Specifies the maximum size of merges that can be cached.
 
 Default: 5.0
+
+maxFullFlushMergeWaitMillis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Maximum time in milliseconds to wait for background merges to complete when performing a full flush. If background merges are still running after this time, the flush will continue without waiting for them to finish, which may result in more segments in the index.
+
+Default: 500

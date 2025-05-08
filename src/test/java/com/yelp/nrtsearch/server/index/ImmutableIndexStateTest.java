@@ -218,6 +218,18 @@ public class ImmutableIndexStateTest {
         getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
   }
 
+  private void verifyLongSetting(
+      long expected,
+      Function<ImmutableIndexState, Long> getFunc,
+      Consumer<IndexSettings.Builder> setMessage)
+      throws IOException {
+    IndexSettings.Builder builder = IndexSettings.newBuilder();
+    setMessage.accept(builder);
+    assertEquals(
+        Long.valueOf(expected),
+        getFunc.apply(getIndexState(getStateWithSettings(builder.build()))));
+  }
+
   private void assertSettingException(
       String expectedMsg, Consumer<IndexSettings.Builder> setMessage) throws IOException {
     IndexSettings.Builder builder = IndexSettings.newBuilder();
@@ -1666,5 +1678,49 @@ public class ImmutableIndexStateTest {
 
     verify(mockShardState, times(1)).isStarted();
     verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testMaxFullFlushMergeWaitMillis_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS,
+        getIndexState(getEmptyState()).getMaxFullFlushMergeWaitMillis());
+  }
+
+  @Test
+  public void testMaxFullFlushMergeWaitMillis_set() throws IOException {
+    verifyLongSetting(
+        1000L,
+        ImmutableIndexState::getMaxFullFlushMergeWaitMillis,
+        b -> b.setMaxFullFlushMergeWaitMillis(wrap(1000L)));
+    verifyLongSetting(
+        0L,
+        ImmutableIndexState::getMaxFullFlushMergeWaitMillis,
+        b -> b.setMaxFullFlushMergeWaitMillis(wrap(0L)));
+  }
+
+  @Test
+  public void testMaxFullFlushMergeWaitMillis_invalid() throws IOException {
+    String expectedMsg = "maxFullFlushMergeWaitMillis must be >= 0";
+    assertSettingException(expectedMsg, b -> b.setMaxFullFlushMergeWaitMillis(wrap(-1L)));
+  }
+
+  @Test
+  public void testMaxFullFlushMergeWaitMillis_inWriterConfig() throws IOException {
+    // Test with default setting
+    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
+    assertEquals(
+        ImmutableIndexState.DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS,
+        iwc.getMaxFullFlushMergeWaitMillis());
+
+    // Test with custom setting
+    long customValue = 10000L;
+    iwc =
+        getWriterConfigForSettings(
+            IndexSettings.newBuilder()
+                .setMaxFullFlushMergeWaitMillis(
+                    UInt64Value.newBuilder().setValue(customValue).build())
+                .build());
+    assertEquals(customValue, iwc.getMaxFullFlushMergeWaitMillis());
   }
 }

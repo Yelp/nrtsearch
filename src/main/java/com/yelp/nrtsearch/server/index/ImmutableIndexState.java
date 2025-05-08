@@ -75,6 +75,8 @@ public class ImmutableIndexState extends IndexState {
   public static final double DEFAULT_NRT_CACHING_MAX_SIZE_MB = 60.0;
   public static final boolean DEFAULT_MERGE_AUTO_THROTTLE = false;
   public static final String DEFAULT_DIRECTORY = "FSDirectory";
+  public static final long DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS =
+      500; // 500 milliseconds default
 
   // default settings as message, so they can be merged with saved settings
   public static final IndexSettings DEFAULT_INDEX_SETTINGS =
@@ -94,6 +96,8 @@ public class ImmutableIndexState extends IndexState {
           .setIndexMergeSchedulerAutoThrottle(
               BoolValue.newBuilder().setValue(DEFAULT_MERGE_AUTO_THROTTLE).build())
           .setDirectory(StringValue.newBuilder().setValue(DEFAULT_DIRECTORY).build())
+          .setMaxFullFlushMergeWaitMillis(
+              UInt64Value.newBuilder().setValue(DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS).build())
           .build();
 
   // Settings
@@ -104,6 +108,7 @@ public class ImmutableIndexState extends IndexState {
   private final Sort indexSort;
   private final boolean indexMergeSchedulerAutoThrottle;
   private final DirectoryFactory directoryFactory;
+  private final long maxFullFlushMergeWaitMillis;
 
   public static final double DEFAULT_MAX_REFRESH_SEC = 1.0;
   public static final double DEFAULT_MIN_REFRESH_SEC = 0.05;
@@ -233,6 +238,7 @@ public class ImmutableIndexState extends IndexState {
     directoryFactory =
         DirectoryFactory.get(
             mergedSettings.getDirectory().getValue(), globalState.getConfiguration());
+    maxFullFlushMergeWaitMillis = mergedSettings.getMaxFullFlushMergeWaitMillis().getValue();
 
     // live settings
     mergedLiveSettings =
@@ -590,6 +596,9 @@ public class ImmutableIndexState extends IndexState {
 
     iwc.setCodec(new ServerCodec(indexStateManager));
 
+    // Set the maximum time in milliseconds to wait for merges when doing a full flush
+    iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
+
     TieredMergePolicy mergePolicy;
     if (getGlobalState().getConfiguration().getVirtualSharding()) {
       mergePolicy =
@@ -734,6 +743,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public long getMaxFullFlushMergeWaitMillis() {
+    return maxFullFlushMergeWaitMillis;
+  }
+
+  @Override
   public void initWarmer(RemoteBackend remoteBackend) {
     initWarmer(remoteBackend, uniqueName);
   }
@@ -751,6 +765,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (settings.getNrtCachingDirectoryMaxMergeSizeMB().getValue() < 0) {
       throw new IllegalArgumentException("nrtCachingDirectoryMaxMergeSizeMB must be >= 0");
+    }
+    if (settings.getMaxFullFlushMergeWaitMillis().getValue() < 0) {
+      throw new IllegalArgumentException("maxFullFlushMergeWaitMillis must be >= 0");
     }
     int maxMergeCount = settings.getConcurrentMergeSchedulerMaxMergeCount().getValue();
     int maxThreadCount = settings.getConcurrentMergeSchedulerMaxThreadCount().getValue();
