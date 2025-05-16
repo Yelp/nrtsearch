@@ -1421,7 +1421,8 @@ message IndexSettings {
     // implementation that has a public constructor taking a single File argument default: FSDirectory.
     // This implementation will be wrapped by NRTCachingDirectory, if enabled and not using MMappedDirectory.
     google.protobuf.StringValue directory = 7;
-
+    // Maximum time in milliseconds to wait for merges when doing a full flush
+    google.protobuf.UInt64Value maxFullFlushMergeWaitMillis = 8;
 }
 
 // Index live settings

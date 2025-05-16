@@ -532,6 +532,9 @@ public abstract class IndexState implements Closeable {
   /** Get if additional index metrics should be collected and published. */
   public abstract boolean getVerboseMetrics();
 
+  /** Maximum time in milliseconds to wait for merges when doing a full flush. */
+  public abstract long getMaxFullFlushMergeWaitMillis();
+
   @Override
   public void close() throws IOException {}
 

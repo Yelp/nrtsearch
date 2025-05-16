@@ -1586,6 +1586,7 @@ public class StateBackendServerTest {
                     .build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+            .setMaxFullFlushMergeWaitMillis(UInt64Value.newBuilder().setValue(500).build())
             .build();
 
     IndexSettings.Builder builder = IndexSettings.newBuilder();
