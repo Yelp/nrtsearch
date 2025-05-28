@@ -220,7 +220,9 @@ public class GrpcServer {
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
             ServerBuilder.forPort(port)
-                .addService(serverImpl.bindService())
+                .addService(
+                    ServerInterceptors.intercept(
+                        serverImpl.bindService(), new NrtsearchHeaderInterceptor()))
                 .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
                 .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
@@ -236,7 +238,9 @@ public class GrpcServer {
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
             ServerBuilder.forPort(port)
-                .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
+                .addService(
+                    ServerInterceptors.intercept(
+                        serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
                 .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
                 .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
