@@ -43,6 +43,7 @@ import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
@@ -164,7 +165,11 @@ public class TestServer {
       writeDiscoveryFile(replicationServer.getPort());
     }
 
-    server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
+    server =
+        ServerBuilder.forPort(0)
+            .addService(ServerInterceptors.intercept(serverImpl, new NrtsearchHeaderInterceptor()))
+            .build()
+            .start();
     client = new NrtsearchClient("localhost", server.getPort());
     replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }

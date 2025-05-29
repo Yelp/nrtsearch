@@ -1544,6 +1544,14 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "settings.maxFullFlushMergeWaitMillis",
+            "description": "Maximum time in milliseconds to wait for merges when doing a full flush",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -2458,6 +2466,10 @@
             "$ref": "#/definitions/AddDocumentRequestMultiValuedField"
           },
           "title": "Map of field name to a list of string values"
+        },
+        "requestType": {
+          "$ref": "#/definitions/luceneserverIndexingRequestType",
+          "title": "request type"
         }
       },
       "title": "Message representing a document to index"
@@ -2622,6 +2634,10 @@
         "min": {
           "$ref": "#/definitions/luceneserverMinCollector",
           "title": "Collector for finding a min double value from collected documents"
+        },
+        "sum": {
+          "$ref": "#/definitions/luceneserverSumCollector",
+          "title": "Collector for finding a sum of double values from collected documents"
         },
         "nestedCollectors": {
           "type": "object",
@@ -4015,6 +4031,11 @@
         "directory": {
           "type": "string",
           "description": "Base Directory implementation to use either one of the core implementations\n(FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory\nimplementation that has a public constructor taking a single File argument default: FSDirectory.\nThis implementation will be wrapped by NRTCachingDirectory, if enabled and not using MMappedDirectory."
+        },
+        "maxFullFlushMergeWaitMillis": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Maximum time in milliseconds to wait for merges when doing a full flush"
         }
       },
       "title": "Index offline settings"
@@ -4086,6 +4107,15 @@
         }
       },
       "title": "Index stats response"
+    },
+    "luceneserverIndexingRequestType": {
+      "type": "string",
+      "enum": [
+        "ADD_DOCUMENT",
+        "UPDATE_DOC_VALUES"
+      ],
+      "default": "ADD_DOCUMENT",
+      "title": "- ADD_DOCUMENT: Request to add a document\n - UPDATE_DOC_VALUES: Request to update a document"
     },
     "luceneserverIndicesResponse": {
       "type": "object",
@@ -5865,6 +5895,16 @@
         }
       },
       "title": "Input to stopIndex"
+    },
+    "luceneserverSumCollector": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Script to produce a double value"
+        }
+      },
+      "description": "Definition of collector to find a sum of double values over documents. Currently only allows for script based\nvalue production."
     },
     "luceneserverTaxonomy": {
       "type": "object",
