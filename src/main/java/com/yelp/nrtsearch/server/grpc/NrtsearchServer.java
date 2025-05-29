@@ -206,7 +206,10 @@ public class NrtsearchServer {
     GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
     server =
         ServerBuilder.forPort(configuration.getPort())
-            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
+            // The last interceptor is invoked first
+            .addService(
+                ServerInterceptors.intercept(
+                    serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
             .addService(ProtoReflectionService.newInstance())
             // Set executor supplier to use different thread pool for metrics method
             .callExecutor(executorSupplier)
