@@ -97,21 +97,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         }
       }
 
-      private long getCount(String indexName) {
-        return countMap.getOrDefault(indexName, 0L);
-      }
-
-      private void incrementCount(String indexName) {
-        if (countMap.containsKey(indexName)) {
-          countMap.put(indexName, countMap.get(indexName) + 1);
-        } else {
-          countMap.put(indexName, 1L);
-        }
-      }
-
-      @Override
-      public void onNext(AddDocumentRequest addDocumentRequest) {
-        String indexName = addDocumentRequest.getIndexName();
+      private void processIndexDocument(AddDocumentRequest request, String indexName) {
         ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue;
         try {
           addDocumentRequestQueue = getAddDocumentRequestQueue(indexName);
@@ -124,7 +110,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                 "onNext, index: %s, addDocumentRequestQueue size: %s",
                 indexName, addDocumentRequestQueue.size()));
         incrementCount(indexName);
-        addDocumentRequestQueue.add(addDocumentRequest);
+        addDocumentRequestQueue.add(request);
         if (addDocumentRequestQueue.remainingCapacity() == 0) {
           logger.debug(
               String.format(
@@ -132,7 +118,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                   addDocumentRequestQueue.size(), getCount(indexName)));
           try {
             DeadlineUtils.checkDeadline("addDocuments: onNext", "INDEXING");
-
             List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
             Future<Long> future =
                 getGlobalState()
@@ -147,6 +132,40 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
           } finally {
             addDocumentRequestQueue.clear();
           }
+        }
+      }
+
+      private long getCount(String indexName) {
+        return countMap.getOrDefault(indexName, 0L);
+      }
+
+      private void incrementCount(String indexName) {
+        if (countMap.containsKey(indexName)) {
+          countMap.put(indexName, countMap.get(indexName) + 1);
+        } else {
+          countMap.put(indexName, 1L);
+        }
+      }
+
+      @Override
+      public void onNext(AddDocumentRequest addDocumentRequest) {
+        List<String> indexNames = new ArrayList<>();
+        int indexNamesLen = addDocumentRequest.getIndexNamesCount();
+        String indexName = addDocumentRequest.getIndexName();
+
+        if (!indexName.isEmpty() && indexNamesLen == 0) {
+          indexNames.add(indexName);
+        } else if (indexNamesLen > 0 && indexName.isEmpty()) {
+          indexNames.addAll(addDocumentRequest.getIndexNamesList());
+        } else {
+          onError(
+              Status.INVALID_ARGUMENT
+                  .withDescription("Must provide either indexName or indexNames.")
+                  .asRuntimeException());
+          return;
+        }
+        for (String currentIndexName : indexNames) {
+          processIndexDocument(addDocumentRequest, currentIndexName);
         }
       }
 

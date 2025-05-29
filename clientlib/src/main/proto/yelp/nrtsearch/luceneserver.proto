@@ -845,6 +845,8 @@ message AddDocumentRequest {
     map<string, MultiValuedField> fields = 3;
     // request type
     IndexingRequestType requestType = 4;
+    // List of indexNames
+    repeated string indexNames = 5;
 }
 
 // Path for hierarchical facets

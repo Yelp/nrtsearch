@@ -25,6 +25,8 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVFormat;
@@ -60,12 +62,13 @@ public class AddDocumentsCommand implements Callable<Integer> {
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "Name of the index to add documents to",
+      description =
+          "List of index names to add documents to. Delimited by a \",\", <indexName1>;<indexName2>;<indexName3>... 4",
       required = true)
-  private String indexName;
+  private String indexNamesStr;
 
-  public String getIndexName() {
-    return indexName;
+  public String getIndexNamesStr() {
+    return indexNamesStr;
   }
 
   @CommandLine.Option(
@@ -83,8 +86,8 @@ public class AddDocumentsCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      String indexName = getIndexName();
       String fileType = getFileType();
+      List<String> indexNames = new ArrayList<>(List.of(getIndexNamesStr().split(",")));
       Stream<AddDocumentRequest> addDocumentRequestStream;
       Path filePath = Paths.get(getFileName());
       if (fileType.equalsIgnoreCase("csv")) {
@@ -93,13 +96,13 @@ public class AddDocumentsCommand implements Callable<Integer> {
             new CSVParser(
                 reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
         addDocumentRequestStream =
-            new NrtsearchClientBuilder.AddDocumentsClientBuilder(indexName, csvParser)
+            new NrtsearchClientBuilder.AddDocumentsClientBuilder(indexNames, csvParser)
                 .buildRequest(filePath);
         client.addDocuments(addDocumentRequestStream);
       } else if (fileType.equalsIgnoreCase("json")) {
         NrtsearchClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder =
             new NrtsearchClientBuilder.AddJsonDocumentsClientBuilder(
-                indexName, new Gson(), filePath, getMaxBufferLen());
+                indexNames, new Gson(), filePath, getMaxBufferLen());
         while (!addJsonDocumentsClientBuilder.isFinished()) {
           addDocumentRequestStream = addJsonDocumentsClientBuilder.buildRequest(filePath);
           client.addDocuments(addDocumentRequestStream);
