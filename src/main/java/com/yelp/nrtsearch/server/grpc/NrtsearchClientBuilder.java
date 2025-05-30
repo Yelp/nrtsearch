@@ -119,11 +119,16 @@ public interface NrtsearchClientBuilder<T> {
   class AddDocumentsClientBuilder implements NrtsearchClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
         LoggerFactory.getLogger(AddDocumentsClientBuilder.class.getName());
-    private final String indexName;
+    private final List<String> indexNames;
     private final CSVParser csvParser;
 
     public AddDocumentsClientBuilder(String indexName, CSVParser csvParser) {
-      this.indexName = indexName;
+      this.indexNames = List.of(indexName);
+      this.csvParser = csvParser;
+    }
+
+    public AddDocumentsClientBuilder(List<String> indexNames, CSVParser csvParser) {
+      this.indexNames = indexNames;
       this.csvParser = csvParser;
     }
 
@@ -132,9 +137,9 @@ public interface NrtsearchClientBuilder<T> {
       Stream.Builder<AddDocumentRequest> builder = Stream.builder();
       AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
       int cnt = 0;
+      addDocumentRequestBuilder.addAllIndexNames(indexNames);
       for (CSVRecord csvRecord : csvParser) {
         { // data rows
-          addDocumentRequestBuilder.setIndexName(indexName);
           for (String fieldName : csvParser.getHeaderNames()) {
             String fieldValues = csvRecord.get(fieldName);
             List<String> fieldVals = Arrays.asList(fieldValues.split(";"));
@@ -156,7 +161,7 @@ public interface NrtsearchClientBuilder<T> {
       implements NrtsearchClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
         LoggerFactory.getLogger(AddJsonDocumentsClientBuilder.class.getName());
-    private final String indexName;
+    private final List<String> indexNames;
     private final Gson gson;
     private final Path filePath;
     private final BufferedReader reader;
@@ -165,7 +170,16 @@ public interface NrtsearchClientBuilder<T> {
 
     public AddJsonDocumentsClientBuilder(
         String indexName, Gson gson, Path filePath, int maxBufferLen) throws IOException {
-      this.indexName = indexName;
+      this.indexNames = List.of(indexName);
+      this.gson = gson;
+      this.filePath = filePath;
+      this.reader = Files.newBufferedReader(filePath);
+      this.maxBufferLen = maxBufferLen;
+    }
+
+    public AddJsonDocumentsClientBuilder(
+        List<String> indexNames, Gson gson, Path filePath, int maxBufferLen) throws IOException {
+      this.indexNames = indexNames;
       this.gson = gson;
       this.filePath = filePath;
       this.reader = Files.newBufferedReader(filePath);
@@ -195,7 +209,7 @@ public interface NrtsearchClientBuilder<T> {
     AddDocumentRequest buildAddDocumentRequest(String lineStr) {
       Map<String, Object> line = gson.fromJson(lineStr, Map.class);
       AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
-      addDocumentRequestBuilder.setIndexName(indexName);
+      addDocumentRequestBuilder.addAllIndexNames(indexNames);
       for (String key : line.keySet()) {
         AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder =
             AddDocumentRequest.MultiValuedField.newBuilder();
