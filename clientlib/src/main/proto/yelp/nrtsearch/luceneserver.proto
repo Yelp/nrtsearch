@@ -832,7 +832,8 @@ message StartIndexResponse {
 
 // Message representing a document to index
 message AddDocumentRequest {
-    // Index name
+    // Index name; use this parameter when you want to add documents to one specific index.
+    // You must exclusively use this parameter or the indexNames parameter, not both.
     string indexName = 1;
     // Wrapper object to represent each field as a multivalued field.
     message MultiValuedField {
@@ -845,7 +846,8 @@ message AddDocumentRequest {
     map<string, MultiValuedField> fields = 3;
     // request type
     IndexingRequestType requestType = 4;
-    // List of indexNames
+    // List of indexNames; use this parameter when you want to add documents to multiple indices at once.
+    // You must exclusively use this parameter or the indexName parameter, not both.
     repeated string indexNames = 5;
 }
 

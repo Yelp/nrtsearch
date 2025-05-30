@@ -25,7 +25,6 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
@@ -63,7 +62,7 @@ public class AddDocumentsCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-i", "--indexName"},
       description =
-          "List of index names to add documents to. Delimited by a \",\", <indexName1>;<indexName2>;<indexName3>... 4",
+          "List of index names to add documents to. Delimited by a \",\" : <indexName1>,<indexName2>,<indexName3>...",
       required = true)
   private String indexNamesStr;
 
@@ -87,7 +86,7 @@ public class AddDocumentsCommand implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       String fileType = getFileType();
-      List<String> indexNames = new ArrayList<>(List.of(getIndexNamesStr().split(",")));
+      List<String> indexNames = List.of(getIndexNamesStr().split(","));
       Stream<AddDocumentRequest> addDocumentRequestStream;
       Path filePath = Paths.get(getFileName());
       if (fileType.equalsIgnoreCase("csv")) {

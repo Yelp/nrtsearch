@@ -22,7 +22,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +123,7 @@ public interface NrtsearchClientBuilder<T> {
     private final CSVParser csvParser;
 
     public AddDocumentsClientBuilder(String indexName, CSVParser csvParser) {
-      this.indexNames = new ArrayList<>(List.of(indexName));
+      this.indexNames = List.of(indexName);
       this.csvParser = csvParser;
     }
 
@@ -171,7 +170,7 @@ public interface NrtsearchClientBuilder<T> {
 
     public AddJsonDocumentsClientBuilder(
         String indexName, Gson gson, Path filePath, int maxBufferLen) throws IOException {
-      this.indexNames = new ArrayList<>(List.of(indexName));
+      this.indexNames = List.of(indexName);
       this.gson = gson;
       this.filePath = filePath;
       this.reader = Files.newBufferedReader(filePath);

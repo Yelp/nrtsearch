@@ -45,11 +45,6 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
   private static final String INDEX_2 = "test_index_2";
   private static final String INDEX_3 = "test_index_3";
 
-  private static final Map<String, String> INDEX_TO_FIELD_DEF =
-      Map.of(
-          INDEX_1, "/registerFieldsMultiIndexIndexing1.json",
-          INDEX_2, "/registerFieldsMultiIndexIndexing2.json");
-
   private static final Map<String, String> INDEX_TO_DOCS =
       Map.of(INDEX_1, "/addDocsMultiIndexIndexing1.csv");
 
@@ -60,16 +55,10 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
     return Arrays.asList(INDEX_1, INDEX_2);
   }
 
-  @Override
-  public FieldDefRequest getIndexDef(String name) throws IOException {
-    String resourceFile = INDEX_TO_FIELD_DEF.getOrDefault(name, "");
-    if (resourceFile.isEmpty()) {
-      throw new IllegalStateException("Unexpected index: " + name);
-    }
-    return getFieldsFromResourceFile(resourceFile);
+  public FieldDefRequest getIndexDef() throws IOException {
+    return getFieldsFromResourceFile("/registerFieldsMultiIndexIndexing1.json");
   }
 
-  @Override
   protected void initIndices() throws Exception {
     for (String indexName : getIndices()) {
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = getGrpcServer().getBlockingStub();
@@ -78,7 +67,7 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
       blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
 
       // Register fields with the same field definition for both indices to ensure compatibility
-      FieldDefRequest fieldDefRequest = getIndexDef(INDEX_1);
+      FieldDefRequest fieldDefRequest = getIndexDef();
       blockingStub.registerFields(
           FieldDefRequest.newBuilder(fieldDefRequest).setIndexName(indexName).build());
 
@@ -93,9 +82,9 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
    * indexName.
    */
   @Test
-  public void testMultiListIndexAddDocuments() throws Exception {
+  public void testMultiIndexSameRequestAddDocuments() throws Exception {
     // Create documents using the list of target indices
-    List<String> targetIndices = Arrays.asList(INDEX_1, INDEX_2);
+    List<String> targetIndices = List.of(INDEX_1, INDEX_2);
     Stream<AddDocumentRequest> requestStream = getDocumentRequests(targetIndices);
 
     // Add documents and refresh indices
@@ -109,7 +98,7 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
   /** Tests that an error occurs when trying to add documents to a non-existent index. */
   @Test
   public void testNonExistentIndexInListThrowsException() throws Exception {
-    List<String> targetIndices = Arrays.asList(INDEX_1, INDEX_3);
+    List<String> targetIndices = List.of(INDEX_1, INDEX_3);
 
     try {
       addDocuments(getDocumentRequests(targetIndices));
@@ -119,6 +108,50 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
           .isEqualTo(
               String.format(
                   "INVALID_ARGUMENT: Index %s does not exist, unable to add documents", INDEX_3));
+    }
+  }
+
+  /** Tests that an error occurs when neither indexName nor indexNames are specified. */
+  @Test
+  public void testNeitherIndexNameNorIndexNamesSpecifiedThrowsException() throws Exception {
+    try {
+      AddDocumentRequest request =
+          AddDocumentRequest.newBuilder()
+              .putFields(
+                  "doc_id", AddDocumentRequest.MultiValuedField.newBuilder().addValue("1").build())
+              .putFields(
+                  "text_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder().addValue("test text").build())
+              .build();
+
+      addDocuments(Stream.of(request));
+      fail("Exception not thrown when neither indexName nor indexNames are specified");
+    } catch (RuntimeException e) {
+      assertThat(e.getCause().getMessage())
+          .contains("Must provide exactly one of indexName or indexNames but neither is set");
+    }
+  }
+
+  /** Tests that an error occurs when both indexName and indexNames are specified. */
+  @Test
+  public void testBothIndexNameAndIndexNamesSpecifiedThrowsException() throws Exception {
+    try {
+      AddDocumentRequest request =
+          AddDocumentRequest.newBuilder()
+              .setIndexName(INDEX_1)
+              .addAllIndexNames(List.of(INDEX_1, INDEX_2))
+              .putFields(
+                  "doc_id", AddDocumentRequest.MultiValuedField.newBuilder().addValue("1").build())
+              .putFields(
+                  "text_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder().addValue("test text").build())
+              .build();
+
+      addDocuments(Stream.of(request));
+      fail("Exception not thrown when both indexName and indexNames are specified");
+    } catch (RuntimeException e) {
+      assertThat(e.getCause().getMessage())
+          .contains("Must provide exactly one of indexName or indexNames but both are set");
     }
   }
 
@@ -159,7 +192,6 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
                       .build());
 
       assertThat(response.getHitsCount()).isEqualTo(3);
-      assertThat(response.getHitsList().size()).isEqualTo(3);
 
       List<String> actualIds =
           response.getHitsList().stream()
@@ -172,6 +204,10 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
     }
   }
 
+  /**
+   * Setting AddDocumentsMaxBufferLen to 2 so that 2 documents are indexed after queue is full and 1
+   * document after there are no more documents but queue is not full.
+   */
   @Override
   protected LiveSettingsRequest getLiveSettings(String name) {
     return LiveSettingsRequest.newBuilder()

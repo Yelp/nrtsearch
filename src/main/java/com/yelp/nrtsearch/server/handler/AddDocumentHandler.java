@@ -149,23 +149,33 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
 
       @Override
       public void onNext(AddDocumentRequest addDocumentRequest) {
-        List<String> indexNames = new ArrayList<>();
-        int indexNamesLen = addDocumentRequest.getIndexNamesCount();
         String indexName = addDocumentRequest.getIndexName();
-
-        if (!indexName.isEmpty() && indexNamesLen == 0) {
-          indexNames.add(indexName);
-        } else if (indexNamesLen > 0 && indexName.isEmpty()) {
-          indexNames.addAll(addDocumentRequest.getIndexNamesList());
-        } else {
+        int indexNamesCount = addDocumentRequest.getIndexNamesCount();
+        if (indexName.isEmpty() && indexNamesCount == 0) {
           onError(
               Status.INVALID_ARGUMENT
-                  .withDescription("Must provide either indexName or indexNames.")
+                  .withDescription(
+                      "Must provide exactly one of indexName or indexNames but neither is set")
                   .asRuntimeException());
-          return;
-        }
-        for (String currentIndexName : indexNames) {
-          processIndexDocument(addDocumentRequest, currentIndexName);
+        } else if (!indexName.isEmpty() && indexNamesCount > 0) {
+          onError(
+              Status.INVALID_ARGUMENT
+                  .withDescription(
+                      "Must provide exactly one of indexName or indexNames but both are set")
+                  .asRuntimeException());
+        } else if (indexNamesCount > 0) {
+          List<String> indexNames = addDocumentRequest.getIndexNamesList();
+          // Alternatively, we could call addDocumentRequest.getIndexNamesList() and iterate on that
+          // directly,
+          // but I am unaware of any performance issues with this approach. Does java make a copy of
+          // the list
+          // to iterate on it in the back end or does it continuously call the getter method on each
+          // iteration?
+          for (String currentIndexName : indexNames) {
+            processIndexDocument(addDocumentRequest, currentIndexName);
+          }
+        } else {
+          processIndexDocument(addDocumentRequest, indexName);
         }
       }
 
