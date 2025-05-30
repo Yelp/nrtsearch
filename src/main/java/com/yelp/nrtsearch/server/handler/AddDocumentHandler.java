@@ -165,12 +165,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
                   .asRuntimeException());
         } else if (indexNamesCount > 0) {
           List<String> indexNames = addDocumentRequest.getIndexNamesList();
-          // Alternatively, we could call addDocumentRequest.getIndexNamesList() and iterate on that
-          // directly,
-          // but I am unaware of any performance issues with this approach. Does java make a copy of
-          // the list
-          // to iterate on it in the back end or does it continuously call the getter method on each
-          // iteration?
           for (String currentIndexName : indexNames) {
             processIndexDocument(addDocumentRequest, currentIndexName);
           }
