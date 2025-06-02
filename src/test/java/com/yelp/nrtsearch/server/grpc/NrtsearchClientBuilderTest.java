@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class NrtsearchClientBuilderTest {
@@ -40,12 +41,12 @@ public class NrtsearchClientBuilderTest {
     List<AddDocumentRequest> addDocumentRequestList =
         addDocumentRequestStream.collect(Collectors.toList());
     AddDocumentRequest firstDoc = addDocumentRequestList.get(0);
-    assertEquals("test_index", firstDoc.getIndexName());
+    Assertions.assertThat(firstDoc.getIndexNamesList()).containsExactly("test_index");
     assertEquals("first vendor", firstDoc.getFieldsMap().get("vendor_name").getValue(0));
     assertEquals("first again", firstDoc.getFieldsMap().get("vendor_name").getValue(1));
     assertEquals("3", firstDoc.getFieldsMap().get("count").getValue(0));
     AddDocumentRequest secondDoc = addDocumentRequestList.get(1);
-    assertEquals("test_index", secondDoc.getIndexName());
+    Assertions.assertThat(secondDoc.getIndexNamesList()).containsExactly("test_index");
     assertEquals("second vendor", secondDoc.getFieldsMap().get("vendor_name").getValue(0));
     assertEquals("second again", secondDoc.getFieldsMap().get("vendor_name").getValue(1));
     assertEquals("7", secondDoc.getFieldsMap().get("count").getValue(0));

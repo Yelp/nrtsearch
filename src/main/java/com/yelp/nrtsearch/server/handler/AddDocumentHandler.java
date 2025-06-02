@@ -97,6 +97,44 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         }
       }
 
+      private void processIndexDocument(AddDocumentRequest request, String indexName) {
+        ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue;
+        try {
+          addDocumentRequestQueue = getAddDocumentRequestQueue(indexName);
+        } catch (Exception e) {
+          onError(e);
+          return;
+        }
+        logger.debug(
+            String.format(
+                "onNext, index: %s, addDocumentRequestQueue size: %s",
+                indexName, addDocumentRequestQueue.size()));
+        incrementCount(indexName);
+        addDocumentRequestQueue.add(request);
+        if (addDocumentRequestQueue.remainingCapacity() == 0) {
+          logger.debug(
+              String.format(
+                  "indexing addDocumentRequestQueue size: %s, total: %s",
+                  addDocumentRequestQueue.size(), getCount(indexName)));
+          try {
+            DeadlineUtils.checkDeadline("addDocuments: onNext", "INDEXING");
+            List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
+            Future<Long> future =
+                getGlobalState()
+                    .submitIndexingTask(
+                        Context.current()
+                            .wrap(
+                                new DocumentIndexer(
+                                    getGlobalState(), addDocRequestList, indexName)));
+            futures.put(indexName, future);
+          } catch (Exception e) {
+            responseObserver.onError(e);
+          } finally {
+            addDocumentRequestQueue.clear();
+          }
+        }
+      }
+
       private long getCount(String indexName) {
         return countMap.getOrDefault(indexName, 0L);
       }
@@ -112,41 +150,26 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       @Override
       public void onNext(AddDocumentRequest addDocumentRequest) {
         String indexName = addDocumentRequest.getIndexName();
-        ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue;
-        try {
-          addDocumentRequestQueue = getAddDocumentRequestQueue(indexName);
-        } catch (Exception e) {
-          onError(e);
-          return;
-        }
-        logger.debug(
-            String.format(
-                "onNext, index: %s, addDocumentRequestQueue size: %s",
-                indexName, addDocumentRequestQueue.size()));
-        incrementCount(indexName);
-        addDocumentRequestQueue.add(addDocumentRequest);
-        if (addDocumentRequestQueue.remainingCapacity() == 0) {
-          logger.debug(
-              String.format(
-                  "indexing addDocumentRequestQueue size: %s, total: %s",
-                  addDocumentRequestQueue.size(), getCount(indexName)));
-          try {
-            DeadlineUtils.checkDeadline("addDocuments: onNext", "INDEXING");
-
-            List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
-            Future<Long> future =
-                getGlobalState()
-                    .submitIndexingTask(
-                        Context.current()
-                            .wrap(
-                                new DocumentIndexer(
-                                    getGlobalState(), addDocRequestList, indexName)));
-            futures.put(indexName, future);
-          } catch (Exception e) {
-            responseObserver.onError(e);
-          } finally {
-            addDocumentRequestQueue.clear();
+        int indexNamesCount = addDocumentRequest.getIndexNamesCount();
+        if (indexName.isEmpty() && indexNamesCount == 0) {
+          onError(
+              Status.INVALID_ARGUMENT
+                  .withDescription(
+                      "Must provide exactly one of indexName or indexNames but neither is set")
+                  .asRuntimeException());
+        } else if (!indexName.isEmpty() && indexNamesCount > 0) {
+          onError(
+              Status.INVALID_ARGUMENT
+                  .withDescription(
+                      "Must provide exactly one of indexName or indexNames but both are set")
+                  .asRuntimeException());
+        } else if (indexNamesCount > 0) {
+          List<String> indexNames = addDocumentRequest.getIndexNamesList();
+          for (String currentIndexName : indexNames) {
+            processIndexDocument(addDocumentRequest, currentIndexName);
           }
+        } else {
+          processIndexDocument(addDocumentRequest, indexName);
         }
       }
 
