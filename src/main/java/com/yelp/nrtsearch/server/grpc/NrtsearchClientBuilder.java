@@ -123,8 +123,7 @@ public interface NrtsearchClientBuilder<T> {
     private final CSVParser csvParser;
 
     public AddDocumentsClientBuilder(String indexName, CSVParser csvParser) {
-      this.indexNames = List.of(indexName);
-      this.csvParser = csvParser;
+      this(List.of(indexName), csvParser);
     }
 
     public AddDocumentsClientBuilder(List<String> indexNames, CSVParser csvParser) {
@@ -170,11 +169,7 @@ public interface NrtsearchClientBuilder<T> {
 
     public AddJsonDocumentsClientBuilder(
         String indexName, Gson gson, Path filePath, int maxBufferLen) throws IOException {
-      this.indexNames = List.of(indexName);
-      this.gson = gson;
-      this.filePath = filePath;
-      this.reader = Files.newBufferedReader(filePath);
-      this.maxBufferLen = maxBufferLen;
+      this(List.of(indexName), gson, filePath, maxBufferLen);
     }
 
     public AddJsonDocumentsClientBuilder(

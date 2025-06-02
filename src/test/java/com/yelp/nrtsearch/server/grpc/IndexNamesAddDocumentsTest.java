@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.io.Reader;
@@ -28,7 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVFormat;
@@ -45,9 +45,6 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
   private static final String INDEX_2 = "test_index_2";
   private static final String INDEX_3 = "test_index_3";
 
-  private static final Map<String, String> INDEX_TO_DOCS =
-      Map.of(INDEX_1, "/addDocsMultiIndexIndexing1.csv");
-
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
@@ -55,26 +52,12 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
     return Arrays.asList(INDEX_1, INDEX_2);
   }
 
-  public FieldDefRequest getIndexDef() throws IOException {
-    return getFieldsFromResourceFile("/registerFieldsMultiIndexIndexing1.json");
-  }
-
-  protected void initIndices() throws Exception {
-    for (String indexName : getIndices()) {
-      LuceneServerGrpc.LuceneServerBlockingStub blockingStub = getGrpcServer().getBlockingStub();
-
-      // create the index
-      blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
-
-      // Register fields with the same field definition for both indices to ensure compatibility
-      FieldDefRequest fieldDefRequest = getIndexDef();
-      blockingStub.registerFields(
-          FieldDefRequest.newBuilder(fieldDefRequest).setIndexName(indexName).build());
-
-      // Apply settings and start the index
-      blockingStub.liveSettings(getLiveSettings(indexName));
-      blockingStub.startIndex(StartIndexRequest.newBuilder().setIndexName(indexName).build());
-    }
+  @Override
+  public FieldDefRequest getIndexDef(String name) throws IOException {
+    return FieldDefRequest.newBuilder(
+            getFieldsFromResourceFile("/registerFieldsMultiIndexIndexing1.json"))
+        .setIndexName(name)
+        .build();
   }
 
   /**
@@ -104,7 +87,9 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
       addDocuments(getDocumentRequests(targetIndices));
       fail("Exception not thrown when adding documents to a non-existent index");
     } catch (RuntimeException e) {
-      assertThat(e.getCause().getMessage())
+      Throwable cause = e.getCause();
+      assertThat(cause).isInstanceOf(StatusRuntimeException.class);
+      assertThat(cause.getMessage())
           .isEqualTo(
               String.format(
                   "INVALID_ARGUMENT: Index %s does not exist, unable to add documents", INDEX_3));
@@ -127,7 +112,9 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
       addDocuments(Stream.of(request));
       fail("Exception not thrown when neither indexName nor indexNames are specified");
     } catch (RuntimeException e) {
-      assertThat(e.getCause().getMessage())
+      Throwable cause = e.getCause();
+      assertThat(cause).isInstanceOf(StatusRuntimeException.class);
+      assertThat(cause.getMessage())
           .contains("Must provide exactly one of indexName or indexNames but neither is set");
     }
   }
@@ -150,7 +137,9 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
       addDocuments(Stream.of(request));
       fail("Exception not thrown when both indexName and indexNames are specified");
     } catch (RuntimeException e) {
-      assertThat(e.getCause().getMessage())
+      Throwable cause = e.getCause();
+      assertThat(cause).isInstanceOf(StatusRuntimeException.class);
+      assertThat(cause.getMessage())
           .contains("Must provide exactly one of indexName or indexNames but both are set");
     }
   }
@@ -158,7 +147,7 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
   /** Creates document requests with multiple index names specified. */
   private Stream<AddDocumentRequest> getDocumentRequests(List<String> indexNames)
       throws URISyntaxException, IOException {
-    String docsResourceFile = INDEX_TO_DOCS.get(INDEX_1);
+    String docsResourceFile = "/addDocsMultiIndexIndexing1.csv";
     Path filePath = Paths.get(ServerTestCase.class.getResource(docsResourceFile).toURI());
     Reader reader = Files.newBufferedReader(filePath);
     CSVParser csvParser =
@@ -206,7 +195,11 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
 
   /**
    * Setting AddDocumentsMaxBufferLen to 2 so that 2 documents are indexed after queue is full and 1
-   * document after there are no more documents but queue is not full.
+   * document after there are no more documents, but queue is not full. This is so that we can test
+   * the entire flow of the add documents handler 1. Tests batch processing when buffer fills (first
+   * 2 docs) - this triggers immediate indexing 2. Tests final processing of remainder docs (3rd
+   * doc) - processed during onCompleted() 3. Ensures both indexing code paths in AddDocumentHandler
+   * are exercised in a single test
    */
   @Override
   protected LiveSettingsRequest getLiveSettings(String name) {
