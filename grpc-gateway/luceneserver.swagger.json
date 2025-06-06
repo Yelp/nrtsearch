@@ -2458,7 +2458,7 @@
       "properties": {
         "indexName": {
           "type": "string",
-          "title": "Index name"
+          "description": "Index name; use this parameter when you want to add documents to one specific index.\nYou must exclusively use this parameter or the indexNames parameter, not both."
         },
         "fields": {
           "type": "object",
@@ -2470,6 +2470,13 @@
         "requestType": {
           "$ref": "#/definitions/luceneserverIndexingRequestType",
           "title": "request type"
+        },
+        "indexNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of indexNames; use this parameter when you want to add documents to multiple indices at once.\nYou must exclusively use this parameter or the indexName parameter, not both."
         }
       },
       "title": "Message representing a document to index"
