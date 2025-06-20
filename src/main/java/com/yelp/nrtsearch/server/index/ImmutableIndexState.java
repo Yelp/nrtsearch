@@ -119,6 +119,7 @@ public class ImmutableIndexState extends IndexState {
   public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
   public static final int DEFAULT_VIRTUAL_SHARDS = 1;
   public static final int DEFAULT_SEGMENTS_PER_TIER = 10;
+  public static final int DEFAULT_DELETE_PCT_ALLOWED = 20;
   public static final int DEFAULT_MAX_MERGED_SEGMENT_MB = 5 * 1024;
   public static final int DEFAULT_PARALLEL_FETCH_CHUNK_SIZE = 50;
 
@@ -136,6 +137,7 @@ public class ImmutableIndexState extends IndexState {
           .setSliceMaxSegments(Int32Value.newBuilder().setValue(DEFAULT_SLICE_MAX_SEGMENTS).build())
           .setVirtualShards(Int32Value.newBuilder().setValue(DEFAULT_VIRTUAL_SHARDS).build())
           .setSegmentsPerTier(Int32Value.newBuilder().setValue(DEFAULT_SEGMENTS_PER_TIER).build())
+          .setDeletePctAllowed(Int32Value.newBuilder().setValue(DEFAULT_DELETE_PCT_ALLOWED).build())
           .setMaxMergedSegmentMB(
               Int32Value.newBuilder().setValue(DEFAULT_MAX_MERGED_SEGMENT_MB).build())
           // default unset
@@ -161,6 +163,7 @@ public class ImmutableIndexState extends IndexState {
   private final int virtualShards;
   private final int maxMergedSegmentMB;
   private final int segmentsPerTier;
+  private final int deletePctAllowed;
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
@@ -257,6 +260,7 @@ public class ImmutableIndexState extends IndexState {
     virtualShards = mergedLiveSettingsWithLocal.getVirtualShards().getValue();
     maxMergedSegmentMB = mergedLiveSettingsWithLocal.getMaxMergedSegmentMB().getValue();
     segmentsPerTier = mergedLiveSettingsWithLocal.getSegmentsPerTier().getValue();
+    deletePctAllowed = mergedLiveSettingsWithLocal.getDeletePctAllowed().getValue();
     defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
@@ -713,6 +717,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public int getDeletePctAllowed() {
+    return deletePctAllowed;
+  }
+
+  @Override
   public double getDefaultSearchTimeoutSec() {
     return defaultSearchTimeoutSec;
   }
@@ -816,6 +825,10 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getSegmentsPerTier().getValue() < 2) {
       throw new IllegalArgumentException("segmentsPerTier must be >= 2");
+    }
+    if (liveSettings.getDeletePctAllowed().getValue() < 20
+        || liveSettings.getDeletePctAllowed().getValue() > 50) {
+      throw new IllegalArgumentException("deletePctAllowed must be between 20 and 50");
     }
     if (liveSettings.getDefaultSearchTimeoutSec().getValue() < 0.0) {
       throw new IllegalArgumentException("defaultSearchTimeoutSec must be >= 0.0");

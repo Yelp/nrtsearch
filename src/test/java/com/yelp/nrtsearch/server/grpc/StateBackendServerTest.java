@@ -1652,6 +1652,7 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutCheckEvery(500)
             .setDefaultTerminateAfter(5000)
             .setDefaultTerminateAfterMaxRecallCount(6000)
+            .setDeletePctAllowed(20)
             .build();
 
     LiveSettingsResponse response = primaryClient.getBlockingStub().liveSettings(request);
@@ -1675,6 +1676,7 @@ public class StateBackendServerTest {
             .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
             .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
             .setParallelFetchChunkSize(Int32Value.newBuilder().setValue(50).build())
+            .setDeletePctAllowed(Int32Value.newBuilder().setValue(20).build())
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

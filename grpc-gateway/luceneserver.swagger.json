@@ -1395,6 +1395,13 @@
             "format": "int32"
           },
           {
+            "name": "liveSettings.deletePctAllowed",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "local",
             "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral,\nso will not persist through a restart. Also, the live settings returned in the response will contain the\nlocal overrides only when this flag is true.",
             "in": "query",
@@ -2458,7 +2465,7 @@
       "properties": {
         "indexName": {
           "type": "string",
-          "title": "Index name"
+          "description": "Index name; use this parameter when you want to add documents to one specific index.\nYou must exclusively use this parameter or the indexNames parameter, not both."
         },
         "fields": {
           "type": "object",
@@ -2470,6 +2477,13 @@
         "requestType": {
           "$ref": "#/definitions/luceneserverIndexingRequestType",
           "title": "request type"
+        },
+        "indexNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of indexNames; use this parameter when you want to add documents to multiple indices at once.\nYou must exclusively use this parameter or the indexName parameter, not both."
         }
       },
       "title": "Message representing a document to index"
@@ -3964,6 +3978,10 @@
           "type": "integer",
           "format": "int32",
           "title": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0"
+        },
+        "deletePctAllowed": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "title": "Index live settings"
@@ -4334,6 +4352,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Terminate after max recall count value to use when not specified in the search request."
+        },
+        "deletePctAllowed": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "title": "Input to liveSettings"

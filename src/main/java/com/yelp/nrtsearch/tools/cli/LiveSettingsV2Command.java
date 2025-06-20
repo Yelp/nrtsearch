@@ -92,6 +92,11 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private Integer segmentsPerTier;
 
   @CommandLine.Option(
+      names = {"--deletePctAllowed"},
+      description = "Maximum percentage of deleted documents that is tolerated in the index")
+  private Integer deletePctAllowed;
+
+  @CommandLine.Option(
       names = {"--defaultSearchTimeoutSec"},
       description = "Search timeout to use when not provided by the request")
   private Double defaultSearchTimeoutSec;
@@ -184,6 +189,10 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (segmentsPerTier != null) {
         liveSettingsBuilder.setSegmentsPerTier(
             Int32Value.newBuilder().setValue(segmentsPerTier).build());
+      }
+      if (deletePctAllowed != null) {
+        liveSettingsBuilder.setDeletePctAllowed(
+            Int32Value.newBuilder().setValue(deletePctAllowed).build());
       }
       if (defaultSearchTimeoutSec != null) {
         liveSettingsBuilder.setDefaultSearchTimeoutSec(
