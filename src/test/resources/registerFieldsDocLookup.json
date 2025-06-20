@@ -27,6 +27,27 @@
       "search": true,
       "facet": "SORTED_SET_DOC_VALUES",
       "facetIndexFieldName" : "$sorted_doc_values_facet_field"
+    },
+    {
+      "name": "pickup_partners",
+      "type": "OBJECT",
+      "search": true,
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
     }
   ]
 }

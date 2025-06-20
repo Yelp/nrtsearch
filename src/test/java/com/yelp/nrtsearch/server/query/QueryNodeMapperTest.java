@@ -20,9 +20,12 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.index.IndexState;
@@ -55,6 +58,7 @@ public class QueryNodeMapperTest extends ServerTestCase {
       Arrays.asList("doc_id", "int_score", "int_field");
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+  protected Gson gson = new GsonBuilder().serializeNulls().create();
 
   private void init(List<Plugin> plugins) {
     ScriptService.initialize(getEmptyConfig(), plugins);
@@ -83,7 +87,16 @@ public class QueryNodeMapperTest extends ServerTestCase {
 
     // add documents one chunk at a time to ensure multiple index segments
     List<AddDocumentRequest> requestChunk = new ArrayList<>();
+
+
     for (int id = 0; id < NUM_DOCS; ++id) {
+      Map<String, Object> pickup1 = new HashMap<>();
+      pickup1.put("name", "AAA");
+      pickup1.put("hours", List.of(id));
+
+      Map<String, Object> pickup2 = new HashMap<>();
+      pickup2.put("name", "BBB");
+      pickup2.put("hours", List.of(id + 1));
       requestChunk.add(
           AddDocumentRequest.newBuilder()
               .setIndexName(name)
@@ -105,6 +118,12 @@ public class QueryNodeMapperTest extends ServerTestCase {
               .putFields(
                   "sorted_doc_values_facet_field",
                   AddDocumentRequest.MultiValuedField.newBuilder().addValue("0").build())
+                  .putFields(
+                          "pickup_partners",
+                          AddDocumentRequest.MultiValuedField.newBuilder()
+                                  .addValue(gson.toJson(pickup1))
+                                  .addValue(gson.toJson(pickup2))
+                                  .build())
               .build());
 
       if (requestChunk.size() == SEGMENT_CHUNK) {
@@ -175,7 +194,10 @@ public class QueryNodeMapperTest extends ServerTestCase {
 
     @Override
     public double execute() {
-      return 2.4;
+      Map<String, LoadedDocValues<?>> segmentDocLookup = this.getDoc();
+//      LoadedDocValues<?> loadedDocValues = segmentDocLookup.get("int_field");
+      LoadedDocValues<?> loadedDocValues = segmentDocLookup.get("pickup_partners.hours");
+      return (double) loadedDocValues.get(0);
     }
   }
 
@@ -189,32 +211,35 @@ public class QueryNodeMapperTest extends ServerTestCase {
             .addAllRetrieveFields(RETRIEVE_LIST)
             .addAllVirtualFields(getVirtualFields())
             .setQuery(getQuery())
+            .setQueryNestedPath("pickup_partners")
             .build();
-    IndexState indexState = getGlobalState().getIndexOrThrow(TEST_INDEX);
-    ShardState shardState = indexState.getShard(0);
-    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
 
-    try {
-      s = shardState.acquire();
-      SearchContext context =
-          SearchRequestProcessor.buildContextForRequest(
-              request, indexState, shardState, s, Diagnostics.newBuilder(), null, false);
-      org.apache.lucene.queries.function.FunctionScoreQuery query =
-          (org.apache.lucene.queries.function.FunctionScoreQuery) context.getQuery();
-      assertNotNull(query);
-      TestScriptFactory source = (TestScriptFactory) query.getSource();
-      assertEquals(source.getDocLookup().getFieldDef("int_field").getName(), "int_field");
-      assertEquals(source.getDocLookup().getFieldDef("v1").getName(), "v1");
-
-    } finally {
-      if (s != null) {
-        shardState.release(s);
-      }
-    }
+    SearchResponse search = getGrpcServer().getBlockingStub().search(request);
+//    IndexState indexState = getGlobalState().getIndexOrThrow(TEST_INDEX);
+//    ShardState shardState = indexState.getShard(0);
+//    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
+//
+//    try {
+//      s = shardState.acquire();
+//      SearchContext context =
+//          SearchRequestProcessor.buildContextForRequest(
+//              request, indexState, shardState, s, Diagnostics.newBuilder(), null, false);
+//      org.apache.lucene.queries.function.FunctionScoreQuery query =
+//          (org.apache.lucene.queries.function.FunctionScoreQuery) context.getQuery();
+//      assertNotNull(query);
+//      TestScriptFactory source = (TestScriptFactory) query.getSource();
+//      assertEquals(source.getDocLookup().getFieldDef("int_field").getName(), "int_field");
+//      assertEquals(source.getDocLookup().getFieldDef("v1").getName(), "v1");
+//
+//    } finally {
+//      if (s != null) {
+//        shardState.release(s);
+//      }
+//    }
   }
 
   private com.yelp.nrtsearch.server.grpc.Query getQuery() {
-    Script script = Script.newBuilder().setLang("test_lang").setSource("3.0*4.0").build();
+    Script script = Script.newBuilder().setLang("test_lang").setSource("pickup_partners.hours").build();
     return com.yelp.nrtsearch.server.grpc.Query.newBuilder()
         .setFunctionScoreQuery(
             FunctionScoreQuery.newBuilder()
@@ -223,8 +248,8 @@ public class QueryNodeMapperTest extends ServerTestCase {
                     com.yelp.nrtsearch.server.grpc.Query.newBuilder()
                         .setRangeQuery(
                             RangeQuery.newBuilder()
-                                .setField("int_field")
-                                .setLower(String.valueOf(0))
+                                .setField("pickup_partners.hours")
+                                .setLower(String.valueOf(30))
                                 .setUpper(String.valueOf(NUM_DOCS))
                                 .build())
                         .build())

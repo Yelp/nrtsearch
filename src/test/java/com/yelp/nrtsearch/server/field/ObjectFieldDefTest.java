@@ -509,6 +509,24 @@ public class ObjectFieldDefTest extends ServerTestCase {
             List.of("pickup_partners.name"),
             "pickup_partners");
     assertDataFields(response, "pickup_partners.name", "AAA", "BBB");
+
+
+    SearchResponse response2 =
+            doQueryWithNestedPath(
+                    Query.newBuilder()
+                            .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
+                                    .setQuery(Query.newBuilder()
+                                            .setTermQuery(TermQuery.newBuilder().setField("real_id").setTextValue("1").build())
+                                            .build())
+                                    .setScript(Script.newBuilder()
+                                            .setLang("js")
+                                            .setSource("pickup_partners.hours")
+                                            .build())
+                                    .build())
+                            .build(),
+                    List.of("pickup_partners.name"),
+                    "pickup_partners");
+    assertFields(response2, "2");
   }
 
   @Test
