@@ -828,9 +828,9 @@ public class ImmutableIndexState extends IndexState {
     if (liveSettings.getSegmentsPerTier().getValue() < 2) {
       throw new IllegalArgumentException("segmentsPerTier must be >= 2");
     }
-    if (liveSettings.getDeletePctAllowed().getValue() <= 5.0
-        || liveSettings.getDeletePctAllowed().getValue() >= 50.0) {
-      throw new IllegalArgumentException("deletePctAllowed must be between 5 and 50");
+    if (liveSettings.getDeletePctAllowed().getValue() < 5.0
+        || liveSettings.getDeletePctAllowed().getValue() > 50.0) {
+      throw new IllegalArgumentException("deletePctAllowed must be between 5.0 and 50.0");
     }
     if (liveSettings.getDefaultSearchTimeoutSec().getValue() < 0.0) {
       throw new IllegalArgumentException("defaultSearchTimeoutSec must be >= 0.0");
