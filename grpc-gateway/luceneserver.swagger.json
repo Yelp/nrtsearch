@@ -1396,10 +1396,11 @@
           },
           {
             "name": "liveSettings.deletePctAllowed",
+            "description": "Controls the maximum percentage of deleted documents that is tolerated in the index, default: 20",
             "in": "query",
             "required": false,
-            "type": "integer",
-            "format": "int32"
+            "type": "number",
+            "format": "double"
           },
           {
             "name": "local",
@@ -3980,8 +3981,9 @@
           "title": "Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0"
         },
         "deletePctAllowed": {
-          "type": "integer",
-          "format": "int32"
+          "type": "number",
+          "format": "double",
+          "title": "Controls the maximum percentage of deleted documents that is tolerated in the index, default: 20"
         }
       },
       "title": "Index live settings"
@@ -4354,8 +4356,9 @@
           "description": "Terminate after max recall count value to use when not specified in the search request."
         },
         "deletePctAllowed": {
-          "type": "integer",
-          "format": "int32"
+          "type": "number",
+          "format": "double",
+          "title": "Controls the maximum percentage of deleted documents that is tolerated in the index"
         }
       },
       "title": "Input to liveSettings"

@@ -117,7 +117,7 @@ public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettin
       }
       if (liveSettingsRequest.getDeletePctAllowed() != 0) {
         settingsBuilder.setDeletePctAllowed(
-            Int32Value.newBuilder().setValue(liveSettingsRequest.getDeletePctAllowed()).build());
+            DoubleValue.newBuilder().setValue(liveSettingsRequest.getDeletePctAllowed()).build());
       }
       if (liveSettingsRequest.getDefaultSearchTimeoutSec() >= 0) {
         settingsBuilder.setDefaultSearchTimeoutSec(

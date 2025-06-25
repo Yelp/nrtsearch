@@ -94,7 +94,7 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   @CommandLine.Option(
       names = {"--deletePctAllowed"},
       description = "Maximum percentage of deleted documents that is tolerated in the index")
-  private Integer deletePctAllowed;
+  private Double deletePctAllowed;
 
   @CommandLine.Option(
       names = {"--defaultSearchTimeoutSec"},
@@ -192,7 +192,7 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       }
       if (deletePctAllowed != null) {
         liveSettingsBuilder.setDeletePctAllowed(
-            Int32Value.newBuilder().setValue(deletePctAllowed).build());
+            DoubleValue.newBuilder().setValue(deletePctAllowed).build());
       }
       if (defaultSearchTimeoutSec != null) {
         liveSettingsBuilder.setDefaultSearchTimeoutSec(

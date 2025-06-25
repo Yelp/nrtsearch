@@ -459,7 +459,7 @@ message LiveSettingsRequest {
     //Terminate after max recall count value to use when not specified in the search request.
     int32 defaultTerminateAfterMaxRecallCount = 15;
     // Controls the maximum percentage of deleted documents that is tolerated in the index
-    int32 deletePctAllowed = 16;
+    double deletePctAllowed = 16;
 }
 
 // Response from Server to liveSettings
@@ -1472,7 +1472,7 @@ message IndexLiveSettings {
     // Terminate after max recall count value to use when not specified in the search request, or 0 for none, default: 0
     google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
     // Controls the maximum percentage of deleted documents that is tolerated in the index, default: 20
-    google.protobuf.Int32Value deletePctAllowed = 19;
+    google.protobuf.DoubleValue deletePctAllowed = 19;
 }
 
 // Index state

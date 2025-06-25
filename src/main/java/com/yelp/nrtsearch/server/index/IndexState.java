@@ -514,7 +514,8 @@ public abstract class IndexState implements Closeable {
   /** Get the number of segments per tier used by merge policy, or 0 if using policy default. */
   public abstract int getSegmentsPerTier();
 
-  public abstract int getDeletePctAllowed();
+  /** Get the maximum percentage of deleted documents that is tolerated in the index. */
+  public abstract double getDeletePctAllowed();
 
   /** Get the default search timeout. */
   public abstract double getDefaultSearchTimeoutSec();
