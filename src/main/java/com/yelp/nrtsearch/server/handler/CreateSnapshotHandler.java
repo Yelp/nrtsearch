@@ -44,7 +44,7 @@ public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, Create
       throws Exception {
     IndexState indexState = getIndexState(createSnapshotRequest.getIndexName());
     CreateSnapshotResponse reply = createSnapshot(indexState, createSnapshotRequest);
-    logger.info(String.format("CreateSnapshotHandler returned results %s", reply));
+    logger.info("CreateSnapshotHandler returned results {}", reply);
     return reply;
   }
 

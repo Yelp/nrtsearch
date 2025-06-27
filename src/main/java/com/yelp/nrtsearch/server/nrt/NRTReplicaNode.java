@@ -227,7 +227,7 @@ public class NRTReplicaNode extends ReplicaNode {
   /* called once start(primaryGen) is invoked on this object (see constructor) */
   @Override
   protected void sendNewReplica() throws IOException {
-    logger.info(String.format("send new_replica to primary: %s", primaryAddress));
+    logger.info("send new_replica to primary: {}", primaryAddress);
     primaryAddress.addReplicas(
         indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
   }

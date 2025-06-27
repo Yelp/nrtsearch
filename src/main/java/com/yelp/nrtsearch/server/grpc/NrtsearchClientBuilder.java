@@ -35,49 +35,14 @@ public interface NrtsearchClientBuilder<T> {
 
   T buildRequest(Path filePath) throws IOException;
 
-  class SettingsClientBuilder implements NrtsearchClientBuilder<SettingsRequest> {
-    private static final Logger logger =
-        LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
-
-    @Override
-    public SettingsRequest buildRequest(Path filePath) throws IOException {
-      String jsonStr = Files.readString(filePath);
-      logger.info(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
-      SettingsRequest.Builder settingsRequestBuilder = SettingsRequest.newBuilder();
-      try {
-        JsonFormat.parser().merge(jsonStr, settingsRequestBuilder);
-      } catch (InvalidProtocolBufferException e) {
-        throw new RuntimeException(e);
-      }
-      // set defaults
-      if (settingsRequestBuilder.getNrtCachingDirectoryMaxMergeSizeMB() == 0) {
-        settingsRequestBuilder.setNrtCachingDirectoryMaxMergeSizeMB(5.0);
-      }
-      if (settingsRequestBuilder.getNrtCachingDirectoryMaxSizeMB() == 0) {
-        settingsRequestBuilder.setNrtCachingDirectoryMaxSizeMB(60.0);
-      }
-      if (settingsRequestBuilder.getDirectory().isEmpty()) {
-        settingsRequestBuilder.setDirectory("FSDirectory");
-      }
-      if (settingsRequestBuilder.getNormsFormat().isEmpty()) {
-        settingsRequestBuilder.setNormsFormat("Lucene80");
-      }
-      SettingsRequest settingsRequest = settingsRequestBuilder.build();
-      logger.info(
-          String.format(
-              "jsonStr converted to proto SettingsRequest: \n%s", settingsRequest.toString()));
-      return settingsRequest;
-    }
-  }
-
   class SettingsV2ClientBuilder implements NrtsearchClientBuilder<SettingsV2Request> {
     private static final Logger logger =
-        LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
+        LoggerFactory.getLogger(SettingsV2ClientBuilder.class.getName());
 
     @Override
     public SettingsV2Request buildRequest(Path filePath) throws IOException {
       String jsonStr = Files.readString(filePath);
-      logger.info(String.format("Converting fields %s to proto IndexSettings", jsonStr));
+      logger.info("Converting fields {} to proto IndexSettings", jsonStr);
       IndexSettings.Builder indexSettingsBuilder = IndexSettings.newBuilder();
       try {
         JsonFormat.parser().merge(jsonStr, indexSettingsBuilder);
@@ -86,10 +51,7 @@ public interface NrtsearchClientBuilder<T> {
       }
       SettingsV2Request settingsRequest =
           SettingsV2Request.newBuilder().setSettings(indexSettingsBuilder.build()).build();
-      logger.info(
-          String.format(
-              "jsonStr converted to proto SettingsRequestV2: \n%s",
-              JsonFormat.printer().print(settingsRequest)));
+      logger.info("jsonStr converted to proto SettingsRequestV2: \n{}", JsonFormat.printer().print(settingsRequest));
       return settingsRequest;
     }
   }
@@ -101,7 +63,7 @@ public interface NrtsearchClientBuilder<T> {
     @Override
     public StartIndexRequest buildRequest(Path filePath) throws IOException {
       String jsonStr = Files.readString(filePath);
-      logger.info(String.format("Converting fields %s to proto StartIndexRequest", jsonStr));
+      logger.info("Converting fields {} to proto StartIndexRequest", jsonStr);
       StartIndexRequest.Builder startIndexRequestBuilder = StartIndexRequest.newBuilder();
       try {
         JsonFormat.parser().merge(jsonStr, startIndexRequestBuilder);
@@ -109,9 +71,7 @@ public interface NrtsearchClientBuilder<T> {
         throw new RuntimeException(e);
       }
       StartIndexRequest startIndexRequest = startIndexRequestBuilder.build();
-      logger.info(
-          String.format(
-              "jsonStr converted to proto StartIndexRequest: \n%s", startIndexRequest.toString()));
+      logger.info("jsonStr converted to proto StartIndexRequest: \n{}", startIndexRequest);
       return startIndexRequest;
     }
   }
@@ -149,7 +109,7 @@ public interface NrtsearchClientBuilder<T> {
           }
           builder.add(addDocumentRequestBuilder.build());
         }
-        logger.info(String.format("Read row %s", cnt));
+        logger.info("Read row {}", cnt);
         cnt++;
       }
       return builder.build();
@@ -158,11 +118,8 @@ public interface NrtsearchClientBuilder<T> {
 
   class AddJsonDocumentsClientBuilder
       implements NrtsearchClientBuilder<Stream<AddDocumentRequest>> {
-    private static final Logger logger =
-        LoggerFactory.getLogger(AddJsonDocumentsClientBuilder.class.getName());
-    private final List<String> indexNames;
+      private final List<String> indexNames;
     private final Gson gson;
-    private final Path filePath;
     private final BufferedReader reader;
     private final int maxBufferLen;
     private boolean finished;
@@ -176,16 +133,15 @@ public interface NrtsearchClientBuilder<T> {
         List<String> indexNames, Gson gson, Path filePath, int maxBufferLen) throws IOException {
       this.indexNames = indexNames;
       this.gson = gson;
-      this.filePath = filePath;
       this.reader = Files.newBufferedReader(filePath);
       this.maxBufferLen = maxBufferLen;
     }
 
-    private void updateMultiValuedFielduilder(
+    private void updateMultiValuedFieldBuilder(
         AddDocumentRequest.MultiValuedField.Builder builder, Object value) {
       if (value instanceof List) {
         for (Object eachValue : (List) value) {
-          updateMultiValuedFielduilder(builder, eachValue);
+          updateMultiValuedFieldBuilder(builder, eachValue);
         }
       } else if (value instanceof Double) {
         Double doubleValue = (Double) value;
@@ -210,7 +166,7 @@ public interface NrtsearchClientBuilder<T> {
             AddDocumentRequest.MultiValuedField.newBuilder();
         Object value = line.get(key);
         if (value != null) {
-          updateMultiValuedFielduilder(multiValuedFieldsBuilder, value);
+          updateMultiValuedFieldBuilder(multiValuedFieldsBuilder, value);
           addDocumentRequestBuilder.putFields(key, multiValuedFieldsBuilder.build());
         }
       }
@@ -247,7 +203,7 @@ public interface NrtsearchClientBuilder<T> {
     @Override
     public SearchRequest buildRequest(Path filePath) throws IOException {
       String jsonStr = Files.readString(filePath);
-      logger.info(String.format("Converting fields %s to proto SearchRequest", jsonStr));
+      logger.info("Converting fields {} to proto SearchRequest", jsonStr);
       SearchRequest.Builder searchRequestBuilder = SearchRequest.newBuilder();
       try {
         JsonFormat.parser().merge(jsonStr, searchRequestBuilder);
@@ -255,9 +211,7 @@ public interface NrtsearchClientBuilder<T> {
         throw new RuntimeException(e);
       }
       SearchRequest searchRequest = searchRequestBuilder.build();
-      logger.info(
-          String.format(
-              "jsonStr converted to proto SearchRequest: \n%s", searchRequest.toString()));
+      logger.info("jsonStr converted to proto SearchRequest: \n{}", searchRequest);
       return searchRequest;
     }
   }
@@ -269,7 +223,7 @@ public interface NrtsearchClientBuilder<T> {
     @Override
     public AddDocumentRequest buildRequest(Path filePath) throws IOException {
       String jsonStr = Files.readString(filePath);
-      logger.info(String.format("Converting fields %s to proto AddDocumentRequest", jsonStr));
+      logger.info("Converting fields {} to proto AddDocumentRequest", jsonStr);
       AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
       try {
         JsonFormat.parser().merge(jsonStr, addDocumentRequestBuilder);
@@ -277,10 +231,7 @@ public interface NrtsearchClientBuilder<T> {
         throw new RuntimeException(e);
       }
       AddDocumentRequest addDocumentRequest = addDocumentRequestBuilder.build();
-      logger.info(
-          String.format(
-              "jsonStr converted to proto AddDocumentRequest: \n%s",
-              addDocumentRequest.toString()));
+      logger.info("jsonStr converted to proto AddDocumentRequest: \n{}", addDocumentRequest);
       return addDocumentRequest;
     }
   }

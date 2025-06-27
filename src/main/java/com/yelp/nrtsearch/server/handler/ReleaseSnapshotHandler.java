@@ -37,7 +37,7 @@ public class ReleaseSnapshotHandler
       throws Exception {
     IndexState indexState = getIndexState(releaseSnapshotRequest.getIndexName());
     ReleaseSnapshotResponse reply = handle(indexState, releaseSnapshotRequest);
-    logger.info(String.format("CreateSnapshotHandler returned results %s", reply));
+    logger.info("CreateSnapshotHandler returned results {}", reply);
     return reply;
   }
 

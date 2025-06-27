@@ -303,7 +303,7 @@ public class ShardState implements Closeable {
 
   @Override
   public synchronized void close() throws IOException {
-    logger.info(String.format("ShardState.close name= %s", name));
+    logger.info("ShardState.close name= {}", name);
 
     started = false;
     List<Closeable> closeables = new ArrayList<>();

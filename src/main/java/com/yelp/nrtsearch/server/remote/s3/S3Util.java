@@ -78,14 +78,10 @@ public class S3Util {
         region = "us-east-1";
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
-      logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
+      logger.info("S3 ServiceEndpoint: {}", serviceEndpoint);
       clientBuilder.withEndpointConfiguration(new EndpointConfiguration(serviceEndpoint, region));
     } catch (SdkClientException sdkClientException) {
-      logger.warn(
-          "failed to get the location of S3 bucket: "
-              + configuration.getBucketName()
-              + ". This could be caused by missing credentials and/or regions, or wrong bucket name.",
-          sdkClientException);
+      logger.warn("failed to get the location of S3 bucket: {}. This could be caused by missing credentials and/or regions, or wrong bucket name.", configuration.getBucketName(), sdkClientException);
       logger.info("return a dummy AmazonS3.");
       return AmazonS3ClientBuilder.standard()
           .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))

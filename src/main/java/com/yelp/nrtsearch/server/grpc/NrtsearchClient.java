@@ -116,7 +116,7 @@ public class NrtsearchClient implements Closeable {
       logger.error("Unable to create index {}", indexName);
       throw e;
     }
-    logger.info("Server returned : " + response.getResponse());
+    logger.info("Server returned : {}", response.getResponse());
   }
 
   public void liveSettingsV2(LiveSettingsV2Request liveSettingsV2Request) {
@@ -128,7 +128,7 @@ public class NrtsearchClient implements Closeable {
       throw e;
     }
     try {
-      logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
+      logger.info("Server returned : {}", JsonFormat.printer().print(response.getLiveSettings()));
     } catch (Exception e) {
       logger.info("Error printing response message: {}", response, e);
     }
@@ -218,7 +218,7 @@ public class NrtsearchClient implements Closeable {
             // which is when it is done with indexing the entire stream), which means this method
             // should be
             // called only once.
-            logger.info(String.format("Received response for genId: %s", value));
+            logger.info("Received response for genId: {}", value);
           }
 
           @Override
@@ -409,7 +409,7 @@ public class NrtsearchClient implements Closeable {
   }
 
   private FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.info("Converting fields {} to proto FieldDefRequest", jsonStr);
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -417,35 +417,7 @@ public class NrtsearchClient implements Closeable {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.info(
-        String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
+    logger.info("jsonStr converted to proto FieldDefRequest {}", fieldDefRequest.toString());
     return fieldDefRequest;
-  }
-
-  private SettingsRequest getSettingsRequest(String jsonStr) {
-    logger.info(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
-    SettingsRequest.Builder settingsRequestBuilder = SettingsRequest.newBuilder();
-    try {
-      JsonFormat.parser().merge(jsonStr, settingsRequestBuilder);
-    } catch (InvalidProtocolBufferException e) {
-      throw new RuntimeException(e);
-    }
-    // set defaults
-    if (settingsRequestBuilder.getNrtCachingDirectoryMaxMergeSizeMB() == 0) {
-      settingsRequestBuilder.setNrtCachingDirectoryMaxMergeSizeMB(5.0);
-    }
-    if (settingsRequestBuilder.getNrtCachingDirectoryMaxSizeMB() == 0) {
-      settingsRequestBuilder.setNrtCachingDirectoryMaxSizeMB(60.0);
-    }
-    if (settingsRequestBuilder.getDirectory().isEmpty()) {
-      settingsRequestBuilder.setDirectory("FSDirectory");
-    }
-    if (settingsRequestBuilder.getNormsFormat().isEmpty()) {
-      settingsRequestBuilder.setNormsFormat("Lucene80");
-    }
-    SettingsRequest settingsRequest = settingsRequestBuilder.build();
-    logger.info(
-        String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
-    return settingsRequest;
   }
 }

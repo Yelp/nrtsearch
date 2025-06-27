@@ -162,7 +162,7 @@ public class S3Backend implements RemoteBackend {
         new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
     try {
       ObjectMetadata fullMetadata = s3.getObjectMetadata(metadataRequest);
-      logger.info("Full object size: " + fullMetadata.getContentLength());
+        logger.info("Full object size: {}", fullMetadata.getContentLength());
     } catch (AmazonS3Exception e) {
       if (isNotFoundException(e)) {
         String error =
@@ -175,7 +175,7 @@ public class S3Backend implements RemoteBackend {
     // get metadata for the 1st file part, needed to find the total number of parts
     ObjectMetadata partMetadata = s3.getObjectMetadata(metadataRequest.withPartNumber(1));
     int numParts = partMetadata.getPartCount() != null ? partMetadata.getPartCount() : 1;
-    logger.info("Object parts: " + numParts);
+    logger.info("Object parts: {}", numParts);
     s3InputStream = getObjectStream(bucketName, absoluteResourcePath, numParts);
     logger.info("Object streaming started...");
     return s3InputStream;
