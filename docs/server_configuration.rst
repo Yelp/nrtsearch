@@ -22,7 +22,7 @@ Example server configuration
     search:
       maxThreads: 4
     index:
-      maxThreads: 18
+      useVirtualThreads: true
   botoCfgPath: "/user/app/boto.cfg"
   bucketName: "nrtsearch-bucket"
   serviceName: "nrtsearch-service-test"
@@ -141,6 +141,11 @@ Example server configuration
      - Name prefix for threads created by searcher threadpool executor
      - LuceneSearchExecutor
 
+   * - search.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for search operations
+     - false
+
    * - index.maxThreads
      - int
      - Size of indexing threadpool executor
@@ -155,6 +160,11 @@ Example server configuration
      - string
      - Name prefix for threads created by indexing threadpool executor
      - LuceneIndexingExecutor
+
+   * - index.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for indexing operations
+     - false
 
    * - server.maxThreads
      - int
@@ -171,6 +181,11 @@ Example server configuration
      - Name prefix for threads created by NrtsearchServer threadpool executor
      - GrpcServerExecutor
 
+   * - server.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for server operations
+     - false
+
    * - replicationserver.maxThreads
      - int
      - Size of ReplicationServer threadpool executor
@@ -185,6 +200,11 @@ Example server configuration
      - string
      - Name prefix for threads created by ReplicationServer threadpool executor
      - GrpcReplicationServerExecutor
+
+   * - replicationserver.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for replication server operations
+     - false
 
    * - fetch.maxThreads
      - int
@@ -201,6 +221,11 @@ Example server configuration
      - Name prefix for threads created by fetch threadpool executor
      - LuceneFetchExecutor
 
+   * - fetch.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for fetch operations
+     - false
+
    * - grpc.maxThreads
      - int
      - Size of gRPC threadpool executor
@@ -215,6 +240,11 @@ Example server configuration
      - string
      - Name prefix for threads created by gRPC threadpool executor
      - GrpcExecutor
+
+   * - grpc.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for gRPC operations
+     - false
 
    * - metrics.maxThreads
      - int
@@ -231,6 +261,11 @@ Example server configuration
      - Name prefix for threads created by metrics threadpool executor
      - MetricsExecutor
 
+   * - metrics.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for metrics operations
+     - false
+
    * - vectormerge.maxThreads
      - int
      - Size of vector merge threadpool executor
@@ -246,6 +281,11 @@ Example server configuration
      - Name prefix for threads created by vector merge threadpool executor
      - VectorMergeExecutor
 
+   * - vectormerge.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for vector merge operations
+     - false
+
    * - commit.maxThreads
      - int
      - Size of commit threadpool executor
@@ -260,6 +300,11 @@ Example server configuration
      - string
      - Name prefix for threads created by commit threadpool executor
      - CommitExecutor
+
+   * - commit.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for commit operations
+     - false
 
 .. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*.maxThreads.*``)
    :widths: 25 10 50 25
