@@ -320,15 +320,16 @@ public class SimpleCopyJob extends CopyJob {
 
     @Override
     public void onCompleted() {
+      logger.info("File streaming onCompleted");
       // add terminal chunk to signal end of file
       pendingChunks.add(TERMINAL_CHUNK);
       synchronized (this) {
         if (!observerDone) {
+          logger.info("Called observer onCompleted");
           observerDone = true;
           observer.onCompleted();
         }
       }
-      logger.debug("File streaming onCompleted");
     }
 
     @Override
