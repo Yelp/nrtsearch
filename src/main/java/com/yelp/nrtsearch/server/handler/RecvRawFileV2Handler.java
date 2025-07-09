@@ -43,6 +43,7 @@ public class RecvRawFileV2Handler extends Handler<FileInfo, RawFileChunk> {
     return new StreamObserver<>() {
       private IndexState indexState;
       private IndexInput luceneFile;
+      private volatile String fileName;
       private byte[] buffer;
       private final int ackEvery =
           getGlobalState().getConfiguration().getFileCopyConfig().getAckEvery();
@@ -76,6 +77,8 @@ public class RecvRawFileV2Handler extends Handler<FileInfo, RawFileChunk> {
             fileLength = luceneFile.length();
             buffer =
                 new byte[getGlobalState().getConfiguration().getFileCopyConfig().getChunkSize()];
+            fileName = fileInfoRequest.getFileName();
+            logger.info("Opening index file: {}, {}", fileName, luceneFile);
           } else {
             // ack existing transfer
             lastAckedSeq = fileInfoRequest.getAckSeqNum();
@@ -123,9 +126,11 @@ public class RecvRawFileV2Handler extends Handler<FileInfo, RawFileChunk> {
       }
 
       private void maybeCloseFile() {
+        logger.info("Attempting to close index file: {}, {}", fileName, luceneFile);
         if (luceneFile != null) {
           try {
             luceneFile.close();
+            logger.info("Closed index file: {}, {}", fileName, luceneFile);
           } catch (IOException e) {
             logger.warn("Error closing index file", e);
           }
