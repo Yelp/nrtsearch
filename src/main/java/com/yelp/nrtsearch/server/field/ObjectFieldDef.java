@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
@@ -74,10 +73,15 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
       List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
       fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(fieldValueMaps::add);
 
-      List<Document> childDocuments =
-          fieldValueMaps.stream()
-              .map(e -> createChildDocument(e, facetHierarchyPaths))
-              .collect(Collectors.toList());
+      int totalDocs = fieldValueMaps.size();
+      List<Document> childDocuments = new ArrayList<>(totalDocs);
+
+      for (int i = 0; i < totalDocs; i++) {
+        // Calculate offset as n-i (total docs minus current index)
+        int offset = totalDocs - i;
+        childDocuments.add(createChildDocument(fieldValueMaps.get(i), facetHierarchyPaths, offset));
+      }
+
       documentsContext.addChildDocuments(this.getName(), childDocuments);
     }
   }
@@ -85,16 +89,20 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
   /**
    * create a new lucene document for each nested object
    *
-   * @param fieldValue
-   * @param facetHierarchyPaths
+   * @param fieldValue the field value to include in the document
+   * @param facetHierarchyPaths facet hierarchy paths
+   * @param offset the offset value to set for this document (n-i)
    * @return lucene document
    */
   private Document createChildDocument(
-      Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
+      Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths, int offset) {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
     ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_PATH)))
         .parseDocumentField(document, List.of(this.getName()), List.of());
+
+    ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET)))
+        .parseDocumentField(document, List.of(String.valueOf(offset)), List.of());
     return document;
   }
 

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -96,6 +97,9 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * Get the {@link LoadedDocValues} for a given field. Creates a new instance or uses one from the
    * cache. The data is loaded for the current set document id.
    *
+   * <p>If the field is not found in the current document and it is a nested document, it will
+   * attempt to find the field in the parent document using the NESTED_DOCUMENT_OFFSET field.
+   *
    * @param key field name
    * @return {@link LoadedDocValues} implementation for the given field
    * @throws IllegalArgumentException if the field does not support doc values, if there is a
@@ -128,7 +132,91 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       throw new IllegalArgumentException(
           "Could not set doc: " + docId + ", field: " + fieldName, e);
     }
+    if (docValues.isEmpty()) {
+      LoadedDocValues<?> parentDocValues = tryGetFromParentDocument(fieldName);
+      if (parentDocValues != null) {
+        return parentDocValues;
+      }
+    }
     return docValues;
+  }
+
+  /**
+   * Attempt to retrieve the field from the parent document using NESTED_DOCUMENT_OFFSET.
+   *
+   * @param fieldName the name of the field to retrieve
+   * @return LoadedDocValues from parent document, or null if not found or not a nested document
+   * @throws IllegalArgumentException if there are issues accessing the offset field or parent
+   *     document
+   */
+  private LoadedDocValues<?> tryGetFromParentDocument(String fieldName) {
+    FieldDef offsetFieldDef;
+    try {
+      offsetFieldDef = IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
+    } catch (IllegalArgumentException e) {
+      // This can happen if the meta field doesn't exist, which means the caller was not a nested
+      // document
+      return null;
+    }
+
+    if (!(offsetFieldDef instanceof IndexableFieldDef<?> offsetIndexableFieldDef)) {
+      throw new IllegalArgumentException("NESTED_DOCUMENT_OFFSET field cannot have doc values");
+    }
+
+    LoadedDocValues<?> offsetDocValues;
+    try {
+      offsetDocValues = offsetIndexableFieldDef.getDocValues(context);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Could not get doc values for NESTED_DOCUMENT_OFFSET field", e);
+    }
+
+    try {
+      offsetDocValues.setDocId(docId);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Could not set doc: " + docId + " for NESTED_DOCUMENT_OFFSET field", e);
+    }
+
+    // If there's no offset value, this is not a nested document and therefore we should terminate
+    if (offsetDocValues.isEmpty()) {
+      return null;
+    }
+
+    Object offsetValue = offsetDocValues.getFirst();
+    int offset = ((Number) offsetValue).intValue();
+
+    // The offset represents the exact number of documents to jump forward to reach the parent
+    int parentDocId = docId + offset;
+
+    FieldDef fieldDef = fieldDefLookup.apply(fieldName);
+    if (fieldDef == null) {
+      throw new IllegalArgumentException("Field does not exist: " + fieldName);
+    }
+    if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
+      throw new IllegalArgumentException("Field cannot have doc values: " + fieldName);
+    }
+
+    LoadedDocValues<?> parentDocValues;
+    try {
+      parentDocValues = indexableFieldDef.getDocValues(context);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Could not get doc values for parent field: " + fieldName, e);
+    }
+
+    try {
+      parentDocValues.setDocId(parentDocId);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Could not set parent doc: " + parentDocId + ", field: " + fieldName, e);
+    }
+
+    if (!parentDocValues.isEmpty()) {
+      return parentDocValues;
+    }
+
+    return null;
   }
 
   @Override
