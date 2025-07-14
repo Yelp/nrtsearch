@@ -97,6 +97,7 @@ public class RecvRawFileV2Handler extends Handler<FileInfo, RawFileChunk> {
             responseObserver.onNext(rawFileChunk);
             fileOffset += chunkSize;
             if (fileOffset == fileLength) {
+              maybeCloseFile();
               responseObserver.onCompleted();
             }
           }

@@ -735,6 +735,28 @@ public class ImmutableIndexStateTest {
   }
 
   @Test
+  public void testDeletePctAllowed_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_DELETE_PCT_ALLOWED,
+        getIndexState(getEmptyState()).getDeletePctAllowed(),
+        0.0);
+  }
+
+  @Test
+  public void testDeletePctAllowed_set() throws IOException {
+    verifyDoubleLiveSetting(
+        50.0, ImmutableIndexState::getDeletePctAllowed, b -> b.setDeletePctAllowed(wrap(50.0)));
+    verifyDoubleLiveSetting(
+        25.0, ImmutableIndexState::getDeletePctAllowed, b -> b.setDeletePctAllowed(wrap(25.0)));
+  }
+
+  @Test
+  public void testDeletePctAllowed_invalid() throws IOException {
+    String expectedMsg = "deletePctAllowed must be between 5.0 and 50.0";
+    assertLiveSettingException(expectedMsg, b -> b.setDeletePctAllowed(wrap(1.0)));
+  }
+
+  @Test
   public void testDefaultSearchTimeoutSec_default() throws IOException {
     assertEquals(0.0, getIndexState(getEmptyState()).getDefaultSearchTimeoutSec(), 0.0);
   }

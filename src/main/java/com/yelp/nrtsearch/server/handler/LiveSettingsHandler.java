@@ -115,6 +115,10 @@ public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettin
         settingsBuilder.setSegmentsPerTier(
             Int32Value.newBuilder().setValue(liveSettingsRequest.getSegmentsPerTier()).build());
       }
+      if (liveSettingsRequest.getDeletePctAllowed() != 0) {
+        settingsBuilder.setDeletePctAllowed(
+            DoubleValue.newBuilder().setValue(liveSettingsRequest.getDeletePctAllowed()).build());
+      }
       if (liveSettingsRequest.getDefaultSearchTimeoutSec() >= 0) {
         settingsBuilder.setDefaultSearchTimeoutSec(
             DoubleValue.newBuilder()
