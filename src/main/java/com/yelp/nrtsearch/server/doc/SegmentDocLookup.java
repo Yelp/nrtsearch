@@ -97,7 +97,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * Get the {@link LoadedDocValues} for a given field. Creates a new instance or uses one from the
    * cache. The data is loaded for the current set document id.
    *
-   * If the field is not found in the current document and it is a nested document, it will
+   * <p>If the field is not found in the current document and it is a nested document, it will
    * attempt to find the field in the parent document using the NESTED_DOCUMENT_OFFSET field.
    *
    * @param key field name

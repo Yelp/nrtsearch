@@ -218,8 +218,7 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
             .setTopHits(NUM_DOCS)
             .addAllRetrieveFields(RETRIEVE_LIST)
             .setQuery(functionScoreQuery)
-            .setQueryNestedPath(
-                "pickup_partners")
+            .setQueryNestedPath("pickup_partners")
             .build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
