@@ -65,14 +65,11 @@ public class NestedDocumentOffsetFieldTest {
 
   @Test
   public void testNestedDocumentOffsetFieldCalculation() throws Exception {
-    // Create nested documents with multiple child documents
     List<Map<String, Object>> nestedObjects = createTestNestedObjects();
 
-    // Create the parent document
     Document parentDoc = new Document();
     parentDoc.add(new StringField("id", "parent1", Field.Store.YES));
 
-    // Create child documents with offset fields
     List<Document> childDocuments = new ArrayList<>();
     int totalDocs = nestedObjects.size();
 
@@ -80,7 +77,6 @@ public class NestedDocumentOffsetFieldTest {
       Document childDoc = new Document();
       Map<String, Object> nestedObj = nestedObjects.get(i);
 
-      // Add child document fields
       childDoc.add(new StringField("name", (String) nestedObj.get("name"), Field.Store.YES));
       childDoc.add(
           new NumericDocValuesField("hours", ((Number) nestedObj.get("hours")).longValue()));
@@ -88,28 +84,23 @@ public class NestedDocumentOffsetFieldTest {
       // Calculate offset as n-i (total docs minus current index)
       int expectedOffset = totalDocs - i;
 
-      // Add the offset field (this simulates what ObjectFieldDef.createChildDocument does)
       childDoc.add(new NumericDocValuesField(IndexState.NESTED_DOCUMENT_OFFSET, expectedOffset));
 
-      // Add the nested path field
       childDoc.add(new StringField(IndexState.NESTED_PATH, "pickup_partners", Field.Store.YES));
 
       childDocuments.add(childDoc);
     }
 
-    // Add documents to index - child documents first, then parent
     for (Document childDoc : childDocuments) {
       indexWriter.addDocument(childDoc);
     }
     indexWriter.addDocument(parentDoc);
     indexWriter.commit();
 
-    // Open reader and verify offset fields
     directoryReader = DirectoryReader.open(directory);
     assertEquals(
         "Should have correct number of documents", totalDocs + 1, directoryReader.numDocs());
 
-    // Verify offset fields in child documents
     for (int leafIndex = 0; leafIndex < directoryReader.leaves().size(); leafIndex++) {
       LeafReaderContext leafContext = directoryReader.leaves().get(leafIndex);
       verifyOffsetFieldsInLeaf(leafContext, totalDocs);
@@ -118,7 +109,6 @@ public class NestedDocumentOffsetFieldTest {
 
   @Test
   public void testSingleNestedDocumentOffset() throws Exception {
-    // Test with a single nested document
     Document parentDoc = new Document();
     parentDoc.add(new StringField("id", "parent1", Field.Store.YES));
 
@@ -134,28 +124,24 @@ public class NestedDocumentOffsetFieldTest {
 
     directoryReader = DirectoryReader.open(directory);
 
-    // Verify the single child document has correct offset
     LeafReaderContext leafContext = directoryReader.leaves().get(0);
     NumericDocValues offsetDocValues =
         leafContext.reader().getNumericDocValues(IndexState.NESTED_DOCUMENT_OFFSET);
 
     assertNotNull("Offset field should exist", offsetDocValues);
 
-    // Check first document (child)
     assertTrue("Should advance to first document", offsetDocValues.advanceExact(0));
     assertEquals("Single child document should have offset of 1", 1L, offsetDocValues.longValue());
   }
 
   @Test
   public void testMultipleNestedDocumentsOffsetOrder() throws Exception {
-    // Test that offsets are calculated correctly for multiple nested documents
     List<String> childNames = List.of("Child1", "Child2", "Child3", "Child4");
     int totalChildren = childNames.size();
 
     Document parentDoc = new Document();
     parentDoc.add(new StringField("id", "parent1", Field.Store.YES));
 
-    // Create child documents in order
     for (int i = 0; i < totalChildren; i++) {
       Document childDoc = new Document();
       childDoc.add(new StringField("name", childNames.get(i), Field.Store.YES));
@@ -173,14 +159,12 @@ public class NestedDocumentOffsetFieldTest {
 
     directoryReader = DirectoryReader.open(directory);
 
-    // Verify offset values
     LeafReaderContext leafContext = directoryReader.leaves().get(0);
     NumericDocValues offsetDocValues =
         leafContext.reader().getNumericDocValues(IndexState.NESTED_DOCUMENT_OFFSET);
 
     assertNotNull("Offset field should exist", offsetDocValues);
 
-    // Verify each child document has the correct offset
     for (int docId = 0; docId < totalChildren; docId++) {
       assertTrue("Should advance to document " + docId, offsetDocValues.advanceExact(docId));
       int expectedOffset = totalChildren - docId;
@@ -193,14 +177,12 @@ public class NestedDocumentOffsetFieldTest {
 
   @Test
   public void testOffsetFieldExistsInAllChildDocuments() throws Exception {
-    // Test that all child documents have the offset field
     List<Map<String, Object>> nestedObjects = createTestNestedObjects();
     int totalDocs = nestedObjects.size();
 
     Document parentDoc = new Document();
     parentDoc.add(new StringField("id", "parent1", Field.Store.YES));
 
-    // Create child documents
     for (int i = 0; i < totalDocs; i++) {
       Document childDoc = new Document();
       Map<String, Object> nestedObj = nestedObjects.get(i);
@@ -221,13 +203,11 @@ public class NestedDocumentOffsetFieldTest {
 
     directoryReader = DirectoryReader.open(directory);
 
-    // Verify that all child documents have offset field
     for (LeafReaderContext leafContext : directoryReader.leaves()) {
       NumericDocValues offsetDocValues =
           leafContext.reader().getNumericDocValues(IndexState.NESTED_DOCUMENT_OFFSET);
 
       if (offsetDocValues != null) {
-        // Count documents with offset field
         int docsWithOffset = 0;
         for (int docId = 0; docId < leafContext.reader().maxDoc(); docId++) {
           if (offsetDocValues.advanceExact(docId)) {
@@ -267,13 +247,11 @@ public class NestedDocumentOffsetFieldTest {
       indexWriter.addDocument(childDoc);
     }
 
-    // Add parent document WITHOUT offset field
     indexWriter.addDocument(parentDoc);
     indexWriter.commit();
 
     directoryReader = DirectoryReader.open(directory);
 
-    // Verify parent document does not have offset field
     for (LeafReaderContext leafContext : directoryReader.leaves()) {
       NumericDocValues offsetDocValues =
           leafContext.reader().getNumericDocValues(IndexState.NESTED_DOCUMENT_OFFSET);
@@ -303,9 +281,7 @@ public class NestedDocumentOffsetFieldTest {
 
   @Test
   public void testOnlyChildDocumentsHaveOffsetField() throws Exception {
-    // Create a mixed scenario with multiple parent-child pairs
 
-    // First parent-child group
     Document parent1 = new Document();
     parent1.add(new StringField("id", "parent1", Field.Store.YES));
     parent1.add(new StringField("doc_type", "parent", Field.Store.YES));
@@ -316,7 +292,6 @@ public class NestedDocumentOffsetFieldTest {
     child1.add(new NumericDocValuesField(IndexState.NESTED_DOCUMENT_OFFSET, 1));
     child1.add(new StringField(IndexState.NESTED_PATH, "pickup_partners", Field.Store.YES));
 
-    // Second parent-child group
     Document parent2 = new Document();
     parent2.add(new StringField("id", "parent2", Field.Store.YES));
     parent2.add(new StringField("doc_type", "parent", Field.Store.YES));
@@ -333,7 +308,6 @@ public class NestedDocumentOffsetFieldTest {
     child2b.add(new NumericDocValuesField(IndexState.NESTED_DOCUMENT_OFFSET, 1));
     child2b.add(new StringField(IndexState.NESTED_PATH, "pickup_partners", Field.Store.YES));
 
-    // Add documents in proper order: children first, then parent
     indexWriter.addDocument(child1);
     indexWriter.addDocument(parent1);
     indexWriter.addDocument(child2a);
@@ -343,7 +317,6 @@ public class NestedDocumentOffsetFieldTest {
 
     directoryReader = DirectoryReader.open(directory);
 
-    // Count documents with and without offset fields
     int parentDocsWithOffset = 0;
     int parentDocsWithoutOffset = 0;
     int childDocsWithOffset = 0;
@@ -375,19 +348,16 @@ public class NestedDocumentOffsetFieldTest {
         }
       }
     }
-
-    // Verify the counts
     assertEquals("No parent documents should have offset field", 0, parentDocsWithOffset);
     assertEquals("All parent documents should be without offset field", 2, parentDocsWithoutOffset);
     assertEquals("All child documents should have offset field", 3, childDocsWithOffset);
     assertEquals("No child documents should be without offset field", 0, childDocsWithoutOffset);
   }
 
+  // This test simulates the scenario where tryGetFromParentDocument is called
+  // and verifies that parent documents themselves don't have offset values
   @Test
   public void testOffsetFieldAccessFromParentDocument() throws Exception {
-    // This test simulates the scenario where tryGetFromParentDocument is called
-    // and verifies that parent documents themselves don't have offset values
-
     Document parentDoc = new Document();
     parentDoc.add(new StringField("id", "parent1", Field.Store.YES));
     parentDoc.add(new StringField("some_field", "parent_value", Field.Store.YES));
@@ -454,7 +424,6 @@ public class NestedDocumentOffsetFieldTest {
         }
       }
 
-      // Verify we found offset fields (should be equal to number of child documents)
       if (docCount > 0) {
         assertEquals("Should have offset for all child documents", expectedTotalDocs, docCount);
       }

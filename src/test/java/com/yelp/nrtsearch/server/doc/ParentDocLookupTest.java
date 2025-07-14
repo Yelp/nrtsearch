@@ -106,13 +106,12 @@ public class ParentDocLookupTest extends ServerTestCase {
       tryGetMethod.setAccessible(true);
 
       // Test 1: Child document should be able to access parent field
-      docLookup.setDocId(0); // First child document
+      docLookup.setDocId(0);
       LoadedDocValues<?> parentField =
           (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id");
 
       if (parentField != null && !parentField.isEmpty()) {
         assertNotNull("Should find parent field from child document", parentField);
-        // Parent doc_id should be accessible
         Object parentValue = parentField.getFirst();
         assertNotNull("Parent field should have a value", parentValue);
       }

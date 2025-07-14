@@ -73,10 +73,7 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
   @Override
   public void initIndex(String name) throws Exception {
     IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
-    // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
-
-    // add documents one chunk at a time to ensure multiple index segments
     List<AddDocumentRequest> requestChunk = new ArrayList<>();
 
     for (int id = 0; id < NUM_DOCS; ++id) {
@@ -165,7 +162,6 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
 
     @Override
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
-      // Choose the script implementation based on the script source
       if ("parent_access_test".equals(scriptId)) {
         return new ParentAccessDoubleScoreScript(params, docLookup, ctx, scores);
       } else {
@@ -192,7 +188,6 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
       Map<String, LoadedDocValues<?>> segmentDocLookup = this.getDoc();
       LoadedDocValues<?> loadedDocValues = segmentDocLookup.get("pickup_partners.hours");
       Object value = loadedDocValues.get(0);
-      // Explicitly cast Integer to double to avoid ClassCastException
       return value instanceof Integer ? ((Integer) value).doubleValue() : (double) value;
     }
   }
@@ -217,7 +212,6 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
                     .build())
             .build();
 
-    // Create a basic search request
     SearchRequest request =
         SearchRequest.newBuilder()
             .setIndexName(TEST_INDEX)
@@ -225,7 +219,7 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
             .addAllRetrieveFields(RETRIEVE_LIST)
             .setQuery(functionScoreQuery)
             .setQueryNestedPath(
-                "pickup_partners") // Add the nested path to enable access to nested fields
+                "pickup_partners")
             .build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
