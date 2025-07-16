@@ -71,6 +71,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * Check if a given field name is capable of having doc values. This does not mean there is data
    * present, just that there can be.
    *
+   * <p>For "_PARENT." notation, this checks if the underlying parent field can have doc values.
+   *
    * @param key field name
    * @return if this field may have stored doc values
    */
@@ -80,6 +82,17 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       return false;
     }
     String fieldName = key.toString();
+
+    if (fieldName.startsWith("_PARENT.")) {
+      String parentFieldName = fieldName.substring("_PARENT.".length());
+      try {
+        FieldDef field = fieldDefLookup.apply(parentFieldName);
+        return field instanceof IndexableFieldDef && ((IndexableFieldDef<?>) field).hasDocValues();
+      } catch (Exception ignored) {
+        return false;
+      }
+    }
+
     try {
       FieldDef field = fieldDefLookup.apply(fieldName);
       return field instanceof IndexableFieldDef && ((IndexableFieldDef<?>) field).hasDocValues();
@@ -100,6 +113,10 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * <p>If the field is not found in the current document and it is a nested document, it will
    * attempt to find the field in the parent document using the NESTED_DOCUMENT_OFFSET field.
    *
+   * <p>Clients can explicitly access parent fields using the "_PARENT." notation. For example,
+   * "_PARENT.biz_feature_a" will directly access the "biz_feature_a" field from the parent
+   * document.
+   *
    * @param key field name
    * @return {@link LoadedDocValues} implementation for the given field
    * @throws IllegalArgumentException if the field does not support doc values, if there is a
@@ -110,6 +127,24 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   public LoadedDocValues<?> get(Object key) {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
+
+    if (fieldName.startsWith("_PARENT.")) {
+      String parentFieldName = fieldName.substring("_PARENT.".length());
+      FieldDef parentFieldDef = fieldDefLookup.apply(parentFieldName);
+      if (parentFieldDef == null) {
+        throw new IllegalArgumentException("Parent field does not exist: " + parentFieldName);
+      }
+      LoadedDocValues<?> parentDocValues =
+          tryGetFromParentDocument(parentFieldName, parentFieldDef);
+      if (parentDocValues == null) {
+        throw new IllegalArgumentException(
+            "Could not access parent field: "
+                + parentFieldName
+                + " (document may not be nested or parent field may not exist)");
+      }
+      return parentDocValues;
+    }
+
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
     FieldDef fieldDef = null;
     if (docValues == null) {
@@ -133,6 +168,9 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       throw new IllegalArgumentException(
           "Could not set doc: " + docId + ", field: " + fieldName, e);
     }
+
+    // TEMPORARY - I believe that this should be removed if we are sure about using the other
+    // notation to retrieve parent fields
     if (docValues.isEmpty()) {
       if (fieldDef == null) {
         fieldDef = fieldDefLookup.apply(fieldName);

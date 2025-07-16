@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.doc;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -248,6 +249,65 @@ public class ParentDocLookupTest extends ServerTestCase {
           }
         }
       }
+    } finally {
+      if (s != null) {
+        shardState.release(s);
+      }
+    }
+  }
+
+  @Test
+  public void testExplicitParentFieldAccess() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(TEST_INDEX);
+    ShardState shardState = indexState.getShard(0);
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
+    try {
+      s = shardState.acquire();
+      DirectoryReader reader = (DirectoryReader) s.searcher().getIndexReader();
+      LeafReaderContext leafContext = reader.leaves().get(0);
+
+      SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
+
+      // Test 1: Access parent field using _PARENT. notation from child document
+      docLookup.setDocId(0); // Child document
+      LoadedDocValues<?> parentField = docLookup.get("_PARENT.doc_id");
+
+      assertNotNull("Should be able to access parent field using _PARENT. notation", parentField);
+      assertFalse("Parent field should have a value", parentField.isEmpty());
+      Object parentValue = parentField.getFirst();
+      assertNotNull("Parent field value should not be null", parentValue);
+
+      // Test 2: containsKey should work with _PARENT. notation
+      assertTrue(
+          "containsKey should return true for _PARENT.doc_id",
+          docLookup.containsKey("_PARENT.doc_id"));
+
+      // Test 3: Try to access non-existent parent field
+      try {
+        docLookup.get("_PARENT.non_existent_field");
+        assertTrue("Should throw exception for non-existent parent field", false);
+      } catch (IllegalArgumentException e) {
+        assertTrue(
+            "Exception message should mention parent field",
+            e.getMessage().contains("Parent field does not exist"));
+      }
+
+      // Test 4: Try to access parent field from parent document (should fail)
+      docLookup.setDocId(2); // Parent document
+      try {
+        docLookup.get("_PARENT.doc_id");
+        assertTrue(
+            "Should throw exception when accessing parent field from parent document", false);
+      } catch (IllegalArgumentException e) {
+        assertTrue(
+            "Exception message should mention that document may not be nested",
+            e.getMessage().contains("document may not be nested"));
+      }
+
+      // Test 5: containsKey should work for non-existent parent fields
+      assertFalse(
+          "containsKey should return false for non-existent parent field",
+          docLookup.containsKey("_PARENT.non_existent_field"));
     } finally {
       if (s != null) {
         shardState.release(s);

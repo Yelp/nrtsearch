@@ -242,6 +242,11 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
         throw new AssertionError("Parent field value is not an Integer");
       } else if (score == -5.0) {
         throw new AssertionError("Exception occurred during parent field access");
+      } else if (score == -6.0) {
+        throw new AssertionError("Failed to access parent field 'int_score' via _PARENT. notation");
+      } else if (score == -7.0) {
+        throw new AssertionError(
+            "Parent field values accessed by int_score and _PARENT.int_score do not match");
       }
 
       // If we get here, the score should be positive (successful parent access, and child access)
@@ -280,12 +285,25 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
 
         Object nestedValue = nestedField.getFirst();
 
+        // Test both automatic parent field access and explicit _PARENT. notation
         LoadedDocValues<?> parentField = segmentDocLookup.get("int_score");
+        LoadedDocValues<?> explicitParentField = segmentDocLookup.get("_PARENT.int_score");
+
         if (parentField == null) {
           return -2.0; // Different negative score for different failure type
         }
 
+        if (explicitParentField == null) {
+          return -6.0; // Failure to access via _PARENT. notation
+        }
+
         Object parentValue = parentField.getFirst();
+        Object explicitParentValue = explicitParentField.getFirst();
+
+        // Verify both methods return the same value
+        if (!parentValue.equals(explicitParentValue)) {
+          return -7.0; // Values don't match
+        }
 
         // Combine the values to show we can access both
         return (nestedValue instanceof Integer ? ((Integer) nestedValue).doubleValue() : -3.0)
