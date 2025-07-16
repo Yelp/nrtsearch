@@ -84,13 +84,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
 
     if (fieldName.startsWith("_PARENT.")) {
-      String parentFieldName = fieldName.substring("_PARENT.".length());
-      try {
-        FieldDef field = fieldDefLookup.apply(parentFieldName);
-        return field instanceof IndexableFieldDef && ((IndexableFieldDef<?>) field).hasDocValues();
-      } catch (Exception ignored) {
-        return false;
-      }
+      fieldName = fieldName.substring("_PARENT.".length());
     }
 
     try {
@@ -109,9 +103,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   /**
    * Get the {@link LoadedDocValues} for a given field. Creates a new instance or uses one from the
    * cache. The data is loaded for the current set document id.
-   *
-   * <p>If the field is not found in the current document and it is a nested document, it will
-   * attempt to find the field in the parent document using the NESTED_DOCUMENT_OFFSET field.
    *
    * <p>Clients can explicitly access parent fields using the "_PARENT." notation. For example,
    * "_PARENT.biz_feature_a" will directly access the "biz_feature_a" field from the parent
@@ -146,9 +137,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
 
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
-    FieldDef fieldDef = null;
     if (docValues == null) {
-      fieldDef = fieldDefLookup.apply(fieldName);
+      FieldDef fieldDef = fieldDefLookup.apply(fieldName);
       if (fieldDef == null) {
         throw new IllegalArgumentException("Field does not exist: " + fieldName);
       }
@@ -169,17 +159,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
           "Could not set doc: " + docId + ", field: " + fieldName, e);
     }
 
-    // TEMPORARY - I believe that this should be removed if we are sure about using the other
-    // notation to retrieve parent fields
-    if (docValues.isEmpty()) {
-      if (fieldDef == null) {
-        fieldDef = fieldDefLookup.apply(fieldName);
-      }
-      LoadedDocValues<?> parentDocValues = tryGetFromParentDocument(fieldName, fieldDef);
-      if (parentDocValues != null) {
-        return parentDocValues;
-      }
-    }
     return docValues;
   }
 

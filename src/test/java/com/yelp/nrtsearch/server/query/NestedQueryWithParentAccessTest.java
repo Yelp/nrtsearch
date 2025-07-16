@@ -235,18 +235,13 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
       if (score == -1.0) {
         throw new AssertionError("Failed to access nested field 'pickup_partners.hours'");
       } else if (score == -2.0) {
-        throw new AssertionError("Failed to access parent field 'int_score'");
+        throw new AssertionError("Failed to access parent field 'int_score' via _PARENT. notation");
       } else if (score == -3.0) {
         throw new AssertionError("Nested field value is not an Integer");
       } else if (score == -4.0) {
         throw new AssertionError("Parent field value is not an Integer");
       } else if (score == -5.0) {
         throw new AssertionError("Exception occurred during parent field access");
-      } else if (score == -6.0) {
-        throw new AssertionError("Failed to access parent field 'int_score' via _PARENT. notation");
-      } else if (score == -7.0) {
-        throw new AssertionError(
-            "Parent field values accessed by int_score and _PARENT.int_score do not match");
       }
 
       // If we get here, the score should be positive (successful parent access, and child access)
@@ -280,36 +275,31 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
       try {
         LoadedDocValues<?> nestedField = segmentDocLookup.get("pickup_partners.hours");
         if (nestedField == null) {
-          return -1.0; // Negative score indicates failure
+          return -1.0; // Failed to access nested field
         }
 
         Object nestedValue = nestedField.getFirst();
 
-        // Test both automatic parent field access and explicit _PARENT. notation
-        LoadedDocValues<?> parentField = segmentDocLookup.get("int_score");
-        LoadedDocValues<?> explicitParentField = segmentDocLookup.get("_PARENT.int_score");
+        LoadedDocValues<?> parentField = segmentDocLookup.get("_PARENT.int_score");
 
         if (parentField == null) {
-          return -2.0; // Different negative score for different failure type
-        }
-
-        if (explicitParentField == null) {
-          return -6.0; // Failure to access via _PARENT. notation
+          return -2.0; // Failed to access parent field via _PARENT. notation
         }
 
         Object parentValue = parentField.getFirst();
-        Object explicitParentValue = explicitParentField.getFirst();
 
-        // Verify both methods return the same value
-        if (!parentValue.equals(explicitParentValue)) {
-          return -7.0; // Values don't match
+        if (!(nestedValue instanceof Integer)) {
+          return -3.0; // Nested field value is not an Integer
+        }
+
+        if (!(parentValue instanceof Integer)) {
+          return -4.0; // Parent field value is not an Integer
         }
 
         // Combine the values to show we can access both
-        return (nestedValue instanceof Integer ? ((Integer) nestedValue).doubleValue() : -3.0)
-            + (parentValue instanceof Integer ? ((Integer) parentValue).doubleValue() : -4.0);
+        return ((Integer) nestedValue).doubleValue() + ((Integer) parentValue).doubleValue();
       } catch (Exception e) {
-        return -5.0; // Negative score on error to fail the test
+        return -5.0; // Exception occurred during field access
       }
     }
 
