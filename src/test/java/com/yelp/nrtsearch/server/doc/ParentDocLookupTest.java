@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
@@ -102,13 +103,15 @@ public class ParentDocLookupTest extends ServerTestCase {
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
       Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod("tryGetFromParentDocument", String.class);
+          SegmentDocLookup.class.getDeclaredMethod(
+              "tryGetFromParentDocument", String.class, FieldDef.class);
       tryGetMethod.setAccessible(true);
 
       // Test 1: Child document should be able to access parent field
       docLookup.setDocId(0);
+      FieldDef docIdFieldDef = indexState.getField("doc_id");
       LoadedDocValues<?> parentField =
-          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id");
+          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
 
       if (parentField != null && !parentField.isEmpty()) {
         assertNotNull("Should find parent field from child document", parentField);
@@ -119,8 +122,10 @@ public class ParentDocLookupTest extends ServerTestCase {
       // Test 2: Non-existent field should return null
       LoadedDocValues<?> nonExistentField = null;
       try {
+        FieldDef nonExistentFieldDef = indexState.getField("non_existent_field");
         nonExistentField =
-            (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "non_existent_field");
+            (LoadedDocValues<?>)
+                tryGetMethod.invoke(docLookup, "non_existent_field", nonExistentFieldDef);
       } catch (Exception e) {
         if (e.getCause() instanceof IllegalArgumentException) {
           nonExistentField = null;
@@ -133,7 +138,7 @@ public class ParentDocLookupTest extends ServerTestCase {
       // Test 3: Parent document (no offset field) should return null
       docLookup.setDocId(2);
       LoadedDocValues<?> fromParentDoc =
-          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id");
+          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
       assertNull("Parent document should return null (no offset field)", fromParentDoc);
     } finally {
       if (s != null) {
@@ -155,7 +160,8 @@ public class ParentDocLookupTest extends ServerTestCase {
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
       Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod("tryGetFromParentDocument", String.class);
+          SegmentDocLookup.class.getDeclaredMethod(
+              "tryGetFromParentDocument", String.class, FieldDef.class);
       tryGetMethod.setAccessible(true);
 
       docLookup.setDocId(0);
@@ -164,8 +170,9 @@ public class ParentDocLookupTest extends ServerTestCase {
 
       for (String fieldName : fieldsToTest) {
         try {
+          FieldDef fieldDef = indexState.getField(fieldName);
           LoadedDocValues<?> result =
-              (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, fieldName);
+              (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, fieldName, fieldDef);
           assertTrue("Field access should not throw unexpected exceptions: " + fieldName, true);
         } catch (Exception e) {
           assertTrue(
@@ -193,14 +200,17 @@ public class ParentDocLookupTest extends ServerTestCase {
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
       Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod("tryGetFromParentDocument", String.class);
+          SegmentDocLookup.class.getDeclaredMethod(
+              "tryGetFromParentDocument", String.class, FieldDef.class);
       tryGetMethod.setAccessible(true);
 
       int maxDoc = leafContext.reader().maxDoc();
       if (maxDoc > 1) {
         docLookup.setDocId(maxDoc - 1);
 
-        LoadedDocValues<?> result = (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id");
+        FieldDef docIdFieldDef = indexState.getField("doc_id");
+        LoadedDocValues<?> result =
+            (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
         assertNull("Document without nested structure should return null", result);
       }
     } finally {

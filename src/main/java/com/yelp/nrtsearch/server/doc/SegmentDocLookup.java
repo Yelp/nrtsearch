@@ -111,8 +111,9 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
+    FieldDef fieldDef = null;
     if (docValues == null) {
-      FieldDef fieldDef = fieldDefLookup.apply(fieldName);
+      fieldDef = fieldDefLookup.apply(fieldName);
       if (fieldDef == null) {
         throw new IllegalArgumentException("Field does not exist: " + fieldName);
       }
@@ -133,7 +134,10 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
           "Could not set doc: " + docId + ", field: " + fieldName, e);
     }
     if (docValues.isEmpty()) {
-      LoadedDocValues<?> parentDocValues = tryGetFromParentDocument(fieldName);
+      if (fieldDef == null) {
+        fieldDef = fieldDefLookup.apply(fieldName);
+      }
+      LoadedDocValues<?> parentDocValues = tryGetFromParentDocument(fieldName, fieldDef);
       if (parentDocValues != null) {
         return parentDocValues;
       }
@@ -145,11 +149,12 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * Attempt to retrieve the field from the parent document using NESTED_DOCUMENT_OFFSET.
    *
    * @param fieldName the name of the field to retrieve
+   * @param fieldDef the definition of the field to retrieve
    * @return LoadedDocValues from parent document, or null if not found or not a nested document
    * @throws IllegalArgumentException if there are issues accessing the offset field or parent
    *     document
    */
-  private LoadedDocValues<?> tryGetFromParentDocument(String fieldName) {
+  private LoadedDocValues<?> tryGetFromParentDocument(String fieldName, FieldDef fieldDef) {
     FieldDef offsetFieldDef;
     try {
       offsetFieldDef = IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
@@ -178,6 +183,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
           "Could not set doc: " + docId + " for NESTED_DOCUMENT_OFFSET field", e);
     }
 
+    // If there's no offset value, this is not a nested document and therefore we should terminate
     if (offsetDocValues.isEmpty()) {
       return null;
     }
@@ -187,11 +193,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
 
     // The offset represents the exact number of documents to jump forward to reach the parent
     int parentDocId = docId + offset;
-
-    FieldDef fieldDef = fieldDefLookup.apply(fieldName);
-    if (fieldDef == null) {
-      throw new IllegalArgumentException("Field does not exist: " + fieldName);
-    }
     if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
       throw new IllegalArgumentException("Field cannot have doc values: " + fieldName);
     }
