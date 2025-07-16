@@ -63,47 +63,62 @@ public class ThreadPoolConfiguration {
    * @param maxThreads max number of threads
    * @param maxBufferedItems max number of buffered items
    * @param threadNamePrefix prefix for thread names
+   * @param useVirtualThreads whether to use virtual threads, instead of a thread pool
    */
-  public record ThreadPoolSettings(int maxThreads, int maxBufferedItems, String threadNamePrefix) {}
+  public record ThreadPoolSettings(
+      int maxThreads, int maxBufferedItems, String threadNamePrefix, boolean useVirtualThreads) {}
 
   private static final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings>
       defaultThreadPoolSettings =
           Map.of(
               ExecutorFactory.ExecutorType.SEARCH,
               new ThreadPoolSettings(
-                  DEFAULT_SEARCHING_THREADS, DEFAULT_SEARCH_BUFFERED_ITEMS, "LuceneSearchExecutor"),
+                  DEFAULT_SEARCHING_THREADS,
+                  DEFAULT_SEARCH_BUFFERED_ITEMS,
+                  "LuceneSearchExecutor",
+                  false),
               ExecutorFactory.ExecutorType.INDEX,
               new ThreadPoolSettings(
                   DEFAULT_INDEXING_THREADS,
                   DEFAULT_INDEXING_BUFFERED_ITEMS,
-                  "LuceneIndexingExecutor"),
+                  "LuceneIndexingExecutor",
+                  false),
               ExecutorFactory.ExecutorType.SERVER,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_SERVER_THREADS,
                   DEFAULT_GRPC_SERVER_BUFFERED_ITEMS,
-                  "GrpcServerExecutor"),
+                  "GrpcServerExecutor",
+                  false),
               ExecutorFactory.ExecutorType.REPLICATIONSERVER,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
                   DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS,
-                  "GrpcReplicationServerExecutor"),
+                  "GrpcReplicationServerExecutor",
+                  false),
               ExecutorFactory.ExecutorType.FETCH,
               new ThreadPoolSettings(
-                  DEFAULT_FETCH_THREADS, DEFAULT_FETCH_BUFFERED_ITEMS, "LuceneFetchExecutor"),
+                  DEFAULT_FETCH_THREADS,
+                  DEFAULT_FETCH_BUFFERED_ITEMS,
+                  "LuceneFetchExecutor",
+                  false),
               ExecutorFactory.ExecutorType.GRPC,
               new ThreadPoolSettings(
-                  DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor"),
+                  DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor", false),
               ExecutorFactory.ExecutorType.METRICS,
               new ThreadPoolSettings(
-                  DEFAULT_METRICS_THREADS, DEFAULT_METRICS_BUFFERED_ITEMS, "MetricsExecutor"),
+                  DEFAULT_METRICS_THREADS,
+                  DEFAULT_METRICS_BUFFERED_ITEMS,
+                  "MetricsExecutor",
+                  false),
               ExecutorFactory.ExecutorType.VECTORMERGE,
               new ThreadPoolSettings(
                   DEFAULT_VECTOR_MERGE_THREADS,
                   DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
-                  "VectorMergeExecutor"),
+                  "VectorMergeExecutor",
+                  false),
               ExecutorFactory.ExecutorType.COMMIT,
               new ThreadPoolSettings(
-                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor"));
+                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor", false));
 
   private final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 
@@ -121,8 +136,13 @@ public class ThreadPoolConfiguration {
       String threadNamePrefix =
           configReader.getString(
               poolConfigPrefix + "threadNamePrefix", defaultSettings.threadNamePrefix());
+      boolean useVirtualThreads =
+          configReader.getBoolean(
+              poolConfigPrefix + "useVirtualThreads", defaultSettings.useVirtualThreads());
       threadPoolSettings.put(
-          executorType, new ThreadPoolSettings(maxThreads, maxBufferedItems, threadNamePrefix));
+          executorType,
+          new ThreadPoolSettings(
+              maxThreads, maxBufferedItems, threadNamePrefix, useVirtualThreads));
     }
   }
 
