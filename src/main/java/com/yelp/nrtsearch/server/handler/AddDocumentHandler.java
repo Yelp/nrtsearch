@@ -575,6 +575,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         documents.addAll(
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
+
+      // Add global offset calculation for all nested documents
+      // addGlobalNestedDocumentOffsets(documents);
+
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
       for (Document doc : documents) {
@@ -607,6 +611,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         documents.addAll(
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
+
+      // Add global offset calculation for all nested documents
+      // addGlobalNestedDocumentOffsets(documents);
+
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
@@ -689,6 +697,22 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         }
       }
       return nextDoc;
+    }
+
+    /**
+     * Add global offset calculation for all nested documents This ensures unique offset values
+     * across all nested fields in a document
+     */
+    private void addGlobalNestedDocumentOffsets(List<Document> nestedDocuments) {
+      int totalNestedDocs = nestedDocuments.size();
+      for (int i = 0; i < totalNestedDocs; i++) {
+        int globalOffset = totalNestedDocs - i;
+        nestedDocuments
+            .get(i)
+            .add(
+                new org.apache.lucene.document.NumericDocValuesField(
+                    IndexState.NESTED_DOCUMENT_OFFSET, globalOffset));
+      }
     }
 
     @Override
