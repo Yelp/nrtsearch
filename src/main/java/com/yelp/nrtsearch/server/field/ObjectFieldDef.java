@@ -76,10 +76,8 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
       int totalDocs = fieldValueMaps.size();
       List<Document> childDocuments = new ArrayList<>(totalDocs);
 
-      for (int i = 0; i < totalDocs; i++) {
-        // Calculate offset as n-i (total docs minus current index)
-        int offset = totalDocs - i;
-        childDocuments.add(createChildDocument(fieldValueMaps.get(i), facetHierarchyPaths, offset));
+      for (Map<String, Object> fieldValueMap : fieldValueMaps) {
+        childDocuments.add(createChildDocument(fieldValueMap, facetHierarchyPaths));
       }
 
       documentsContext.addChildDocuments(this.getName(), childDocuments);
@@ -91,18 +89,15 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
    *
    * @param fieldValue the field value to include in the document
    * @param facetHierarchyPaths facet hierarchy paths
-   * @param offset the offset value to set for this document (n-i)
    * @return lucene document
    */
   private Document createChildDocument(
-      Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths, int offset) {
+      Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
     ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_PATH)))
         .parseDocumentField(document, List.of(this.getName()), List.of());
 
-    ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET)))
-        .parseDocumentField(document, List.of(String.valueOf(offset)), List.of());
     return document;
   }
 

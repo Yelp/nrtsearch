@@ -576,8 +576,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
 
-      // Add global offset calculation for all nested documents
-      // addGlobalNestedDocumentOffsets(documents);
+      addGlobalNestedDocumentOffsets(documents);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
@@ -612,8 +611,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
 
-      // Add global offset calculation for all nested documents
-      // addGlobalNestedDocumentOffsets(documents);
+      addGlobalNestedDocumentOffsets(documents);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
@@ -700,8 +698,13 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     }
 
     /**
-     * Add global offset calculation for all nested documents This ensures unique offset values
-     * across all nested fields in a document
+     * Adds global offset values to nested documents for proper ordering and retrieval.
+     *
+     * <p>This method calculates and assigns a global offset to each nested document within a parent
+     * document. The offset calculation uses reverse ordering (totalNestedDocs - currentIndex)
+     *
+     * @param nestedDocuments the list of nested documents to process; must not be null or empty
+     * @throws IllegalArgumentException if nestedDocuments is null
      */
     private void addGlobalNestedDocumentOffsets(List<Document> nestedDocuments) {
       int totalNestedDocs = nestedDocuments.size();
