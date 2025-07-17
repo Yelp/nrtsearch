@@ -235,7 +235,8 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
       if (score == -1.0) {
         throw new AssertionError("Failed to access nested field 'pickup_partners.hours'");
       } else if (score == -2.0) {
-        throw new AssertionError("Failed to access parent field 'int_score' via _PARENT. notation");
+        throw new AssertionError(
+            "Failed to access parent field 'int_score' via automatic resolution");
       } else if (score == -3.0) {
         throw new AssertionError("Nested field value is not an Integer");
       } else if (score == -4.0) {
@@ -280,10 +281,11 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
 
         Object nestedValue = nestedField.getFirst();
 
-        LoadedDocValues<?> parentField = segmentDocLookup.get("_PARENT.int_score");
+        // Use automatic parent field resolution instead of _PARENT. notation
+        LoadedDocValues<?> parentField = segmentDocLookup.get("int_score");
 
         if (parentField == null) {
-          return -2.0; // Failed to access parent field via _PARENT. notation
+          return -2.0; // Failed to access parent field via automatic resolution
         }
 
         Object parentValue = parentField.getFirst();
