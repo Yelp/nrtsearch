@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.doc;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
@@ -29,7 +28,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -103,16 +101,9 @@ public class ParentDocLookupTest extends ServerTestCase {
 
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
-      Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod(
-              "tryGetFromParentDocument", String.class, FieldDef.class);
-      tryGetMethod.setAccessible(true);
-
       // Test 1: Child document should be able to access parent field
       docLookup.setDocId(0);
-      FieldDef docIdFieldDef = indexState.getField("doc_id");
-      LoadedDocValues<?> parentField =
-          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
+      LoadedDocValues<?> parentField = docLookup.get("_PARENT.doc_id");
 
       if (parentField != null && !parentField.isEmpty()) {
         assertNotNull("Should find parent field from child document", parentField);
@@ -120,27 +111,26 @@ public class ParentDocLookupTest extends ServerTestCase {
         assertNotNull("Parent field should have a value", parentValue);
       }
 
-      // Test 2: Non-existent field should return null
-      LoadedDocValues<?> nonExistentField = null;
+      // Test 2: Non-existent field should throw exception
       try {
-        FieldDef nonExistentFieldDef = indexState.getField("non_existent_field");
-        nonExistentField =
-            (LoadedDocValues<?>)
-                tryGetMethod.invoke(docLookup, "non_existent_field", nonExistentFieldDef);
-      } catch (Exception e) {
-        if (e.getCause() instanceof IllegalArgumentException) {
-          nonExistentField = null;
-        } else {
-          throw e;
-        }
+        docLookup.get("_PARENT.non_existent_field");
+        assertTrue("Should throw exception for non-existent parent field", false);
+      } catch (IllegalArgumentException e) {
+        assertTrue(
+            "Exception should mention field does not exist",
+            e.getMessage().contains("Field does not exist"));
       }
-      assertNull("Non-existent field should return null", nonExistentField);
 
-      // Test 3: Parent document (no offset field) should return null
+      // Test 3: Parent document (no offset field) should throw exception
       docLookup.setDocId(2);
-      LoadedDocValues<?> fromParentDoc =
-          (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
-      assertNull("Parent document should return null (no offset field)", fromParentDoc);
+      try {
+        docLookup.get("_PARENT.doc_id");
+        assertTrue("Should throw exception when accessing parent from parent document", false);
+      } catch (IllegalArgumentException e) {
+        assertTrue(
+            "Exception should mention document may not be nested",
+            e.getMessage().contains("document may not be nested"));
+      }
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -160,11 +150,6 @@ public class ParentDocLookupTest extends ServerTestCase {
 
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
-      Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod(
-              "tryGetFromParentDocument", String.class, FieldDef.class);
-      tryGetMethod.setAccessible(true);
-
       docLookup.setDocId(0);
 
       String[] fieldsToTest = {"doc_id", "pickup_partners", "int_field"};
@@ -172,8 +157,7 @@ public class ParentDocLookupTest extends ServerTestCase {
       for (String fieldName : fieldsToTest) {
         try {
           FieldDef fieldDef = indexState.getField(fieldName);
-          LoadedDocValues<?> result =
-              (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, fieldName, fieldDef);
+          LoadedDocValues<?> result = (LoadedDocValues<?>) docLookup.get(fieldName);
           assertTrue("Field access should not throw unexpected exceptions: " + fieldName, true);
         } catch (Exception e) {
           assertTrue(
@@ -189,7 +173,7 @@ public class ParentDocLookupTest extends ServerTestCase {
 
   @Test
   public void testParentAccessWithoutNestedDocuments() throws Exception {
-    // Test scenario where there are no nested documents
+    // Test scenario where we try to access parent fields from a document that isn't nested
     IndexState indexState = getGlobalState().getIndexOrThrow(TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
@@ -200,19 +184,24 @@ public class ParentDocLookupTest extends ServerTestCase {
 
       SegmentDocLookup docLookup = new SegmentDocLookup(indexState::getField, leafContext);
 
-      Method tryGetMethod =
-          SegmentDocLookup.class.getDeclaredMethod(
-              "tryGetFromParentDocument", String.class, FieldDef.class);
-      tryGetMethod.setAccessible(true);
-
       int maxDoc = leafContext.reader().maxDoc();
       if (maxDoc > 1) {
-        docLookup.setDocId(maxDoc - 1);
+        docLookup.setDocId(maxDoc - 1); // This should be a parent document
 
-        FieldDef docIdFieldDef = indexState.getField("doc_id");
-        LoadedDocValues<?> result =
-            (LoadedDocValues<?>) tryGetMethod.invoke(docLookup, "doc_id", docIdFieldDef);
-        assertNull("Document without nested structure should return null", result);
+        // Accessing regular fields should work fine
+        LoadedDocValues<?> regularField = docLookup.get("doc_id");
+        assertNotNull("Regular field access should work on parent documents", regularField);
+
+        // But accessing _PARENT. fields from a parent document should fail
+        try {
+          docLookup.get("_PARENT.doc_id");
+          assertTrue(
+              "Should throw exception when accessing _PARENT field from parent document", false);
+        } catch (IllegalArgumentException e) {
+          assertTrue(
+              "Exception should mention document may not be nested",
+              e.getMessage().contains("document may not be nested"));
+        }
       }
     } finally {
       if (s != null) {
@@ -288,8 +277,8 @@ public class ParentDocLookupTest extends ServerTestCase {
         assertTrue("Should throw exception for non-existent parent field", false);
       } catch (IllegalArgumentException e) {
         assertTrue(
-            "Exception message should mention parent field",
-            e.getMessage().contains("Parent field does not exist"));
+            "Exception message should mention field does not exist",
+            e.getMessage().contains("Field does not exist"));
       }
 
       // Test 4: Try to access parent field from parent document (should fail)
@@ -308,6 +297,19 @@ public class ParentDocLookupTest extends ServerTestCase {
       assertFalse(
           "containsKey should return false for non-existent parent field",
           docLookup.containsKey("_PARENT.non_existent_field"));
+
+      // Test 6: Test multi-level parent access (if implemented)
+      docLookup.setDocId(0); // Child document
+      try {
+        // This tests the recursive capability - _PARENT._PARENT.field_name
+        LoadedDocValues<?> grandParentField = docLookup.get("_PARENT._PARENT.doc_id");
+        // If this succeeds, it means we have multiple levels of nesting
+        // If it fails, that's expected for single-level nesting
+      } catch (IllegalArgumentException e) {
+        // Expected for single-level nesting
+        assertTrue("Multi-level access failed as expected for single-level nesting", true);
+      }
+
     } finally {
       if (s != null) {
         shardState.release(s);

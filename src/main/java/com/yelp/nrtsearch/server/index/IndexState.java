@@ -83,7 +83,7 @@ public abstract class IndexState implements Closeable {
   public static final String NESTED_PATH = "_nested_path";
   public static final String ROOT = "_root";
   public static final String FIELD_NAMES = "_field_names";
-  public static final String NESTED_DOCUMENT_OFFSET = "_offset";
+  public static final String NESTED_DOCUMENT_OFFSET = "_parent_offset";
 
   private static final Logger logger = LoggerFactory.getLogger(IndexState.class);
   private final GlobalState globalState;
@@ -573,7 +573,6 @@ public abstract class IndexState implements Closeable {
                 Field.newBuilder()
                     .setName(NESTED_DOCUMENT_OFFSET)
                     .setType(FieldType.INT)
-                    .setSearch(true)
                     .setStoreDocValues(true)
                     .build(),
                 FieldDefCreator.createContext(globalState)));

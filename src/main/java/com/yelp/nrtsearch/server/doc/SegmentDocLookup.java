@@ -41,6 +41,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
 
   private int docId = -1;
+  private SegmentDocLookup parentLookup = null; // Lazy initialized
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
     this.fieldDefLookup = fieldDefLookup;
@@ -55,6 +56,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    */
   public void setDocId(int docId) {
     this.docId = docId;
+    // Reset parent lookup when document changes
+    this.parentLookup = null;
   }
 
   @Override
@@ -106,7 +109,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    *
    * <p>Clients can explicitly access parent fields using the "_PARENT." notation. For example,
    * "_PARENT.biz_feature_a" will directly access the "biz_feature_a" field from the parent
-   * document.
+   * document. Multiple levels are supported like "_PARENT._PARENT.field_name".
    *
    * @param key field name
    * @return {@link LoadedDocValues} implementation for the given field
@@ -120,20 +123,15 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
 
     if (fieldName.startsWith("_PARENT.")) {
-      String parentFieldName = fieldName.substring("_PARENT.".length());
-      FieldDef parentFieldDef = fieldDefLookup.apply(parentFieldName);
-      if (parentFieldDef == null) {
-        throw new IllegalArgumentException("Parent field does not exist: " + parentFieldName);
-      }
-      LoadedDocValues<?> parentDocValues =
-          tryGetFromParentDocument(parentFieldName, parentFieldDef);
-      if (parentDocValues == null) {
+      String remainingFieldName = fieldName.substring("_PARENT.".length());
+      SegmentDocLookup parentLookup = getParentLookup();
+      if (parentLookup == null) {
         throw new IllegalArgumentException(
             "Could not access parent field: "
-                + parentFieldName
+                + remainingFieldName
                 + " (document may not be nested or parent field may not exist)");
       }
-      return parentDocValues;
+      return parentLookup.get(remainingFieldName);
     }
 
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
@@ -163,77 +161,56 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   }
 
   /**
-   * Attempt to retrieve the field from the parent document using NESTED_DOCUMENT_OFFSET.
+   * Lazily initializes and returns the parent document lookup. Returns null if this document is not
+   * nested or if parent document cannot be accessed.
    *
-   * @param fieldName the name of the field to retrieve
-   * @param fieldDef the definition of the field to retrieve
-   * @return LoadedDocValues from parent document, or null if not found or not a nested document
-   * @throws IllegalArgumentException if there are issues accessing the offset field or parent
-   *     document
+   * @return SegmentDocLookup for parent document, or null if not nested
    */
-  private LoadedDocValues<?> tryGetFromParentDocument(String fieldName, FieldDef fieldDef) {
+  private SegmentDocLookup getParentLookup() {
+    if (parentLookup == null) {
+      int parentDocId = getParentDocId();
+      if (parentDocId == -1) {
+        return null; // Not a nested document or parent not found
+      }
+      parentLookup = new SegmentDocLookup(fieldDefLookup, context);
+      parentLookup.setDocId(parentDocId);
+    }
+    return parentLookup;
+  }
+
+  /**
+   * Calculates the parent document ID using NESTED_DOCUMENT_OFFSET.
+   *
+   * @return parent document ID, or -1 if not found or not a nested document
+   */
+  private int getParentDocId() {
     FieldDef offsetFieldDef;
     try {
       offsetFieldDef = IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
     } catch (IllegalArgumentException e) {
-      // This can happen if the meta field doesn't exist, which means the caller was not a nested
-      // document
-      return null;
+      return -1;
     }
 
     if (!(offsetFieldDef instanceof IndexableFieldDef<?> offsetIndexableFieldDef)) {
-      throw new IllegalArgumentException("NESTED_DOCUMENT_OFFSET field cannot have doc values");
+      return -1;
     }
 
     LoadedDocValues<?> offsetDocValues;
     try {
       offsetDocValues = offsetIndexableFieldDef.getDocValues(context);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(
-          "Could not get doc values for NESTED_DOCUMENT_OFFSET field", e);
-    }
-
-    try {
       offsetDocValues.setDocId(docId);
     } catch (IOException e) {
-      throw new IllegalArgumentException(
-          "Could not set doc: " + docId + " for NESTED_DOCUMENT_OFFSET field", e);
+      return -1;
     }
 
-    // If there's no offset value, this is not a nested document and therefore we should terminate
     if (offsetDocValues.isEmpty()) {
-      return null;
+      return -1;
     }
 
     Object offsetValue = offsetDocValues.getFirst();
     int offset = ((Number) offsetValue).intValue();
-
     // The offset represents the exact number of documents to jump forward to reach the parent
-    int parentDocId = docId + offset;
-    if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
-      throw new IllegalArgumentException("Field cannot have doc values: " + fieldName);
-    }
-
-    LoadedDocValues<?> parentDocValues;
-    try {
-      parentDocValues = indexableFieldDef.getDocValues(context);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(
-          "Could not get doc values for parent field: " + fieldName, e);
-    }
-
-    try {
-      parentDocValues.setDocId(parentDocId);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(
-          "Could not set parent doc: " + parentDocId + ", field: " + fieldName, e);
-    }
-
-    if (!parentDocValues.isEmpty()) {
-      return parentDocValues;
-    }
-
-    return null;
+    return docId + offset;
   }
 
   @Override
