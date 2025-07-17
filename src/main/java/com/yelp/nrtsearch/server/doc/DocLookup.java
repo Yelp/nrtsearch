@@ -25,9 +25,15 @@ import org.apache.lucene.index.LeafReaderContext;
  */
 public class DocLookup {
   private final Function<String, FieldDef> fieldDefLookup;
+  private final String queryNestedPath;
 
   public DocLookup(Function<String, FieldDef> fieldDefLookup) {
+    this(fieldDefLookup, null);
+  }
+
+  public DocLookup(Function<String, FieldDef> fieldDefLookup, String queryNestedPath) {
     this.fieldDefLookup = fieldDefLookup;
+    this.queryNestedPath = queryNestedPath;
   }
 
   /**
@@ -37,7 +43,7 @@ public class DocLookup {
    * @return lookup accessor for given segment context
    */
   public SegmentDocLookup getSegmentLookup(LeafReaderContext context) {
-    return new SegmentDocLookup(fieldDefLookup, context);
+    return new SegmentDocLookup(fieldDefLookup, context, queryNestedPath);
   }
 
   /**
