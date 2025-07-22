@@ -42,7 +42,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final String queryNestedPath;
 
   private int docId = -1;
-  private SegmentDocLookup parentLookup = null; // Lazy initialized
+  private int parentDocId = -1;
+  private SegmentDocLookup parentLookup = null;
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
     this(fieldDefLookup, context, null);
@@ -65,7 +66,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    */
   public void setDocId(int docId) {
     this.docId = docId;
-    // Reset parent lookup when document changes
+    this.parentDocId = -1;
     this.parentLookup = null;
   }
 
@@ -124,8 +125,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
 
-    if (queryNestedPath != null && !queryNestedPath.isEmpty() && !"_root".equals(queryNestedPath)) {
-      int parentLevels = resolveParentLevels(queryNestedPath, fieldName);
+    if ((!IndexState.ROOT.equals(queryNestedPath))) {
+      int parentLevels = computeParentLevels(queryNestedPath, fieldName);
       if (parentLevels > 0) {
         SegmentDocLookup currentLookup = getParentLookup();
         if (currentLookup == null) {
@@ -134,15 +135,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
                   + fieldName
                   + " (document may not be nested or parent field may not exist)");
         }
-
-        for (int i = 1; i < parentLevels; i++) {
-          currentLookup = currentLookup.getParentLookup();
-          if (currentLookup == null) {
-            throw new IllegalArgumentException(
-                "Could not access field: " + fieldName + " (required parent level not accessible)");
-          }
-        }
-
         return currentLookup.get(fieldName);
       }
     }
@@ -180,14 +172,18 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * @return SegmentDocLookup for parent document, or null if not nested
    */
   private SegmentDocLookup getParentLookup() {
-    if (parentLookup == null) {
-      int parentDocId = getParentDocId();
+    if (parentDocId == -1) {
+      parentDocId = getParentDocId();
       if (parentDocId == -1) {
         return null; // Not a nested document or parent not found
       }
-      parentLookup = new SegmentDocLookup(fieldDefLookup, context);
-      parentLookup.setDocId(parentDocId);
     }
+
+    if (parentLookup == null) {
+      parentLookup = new SegmentDocLookup(fieldDefLookup, context);
+    }
+
+    parentLookup.setDocId(parentDocId);
     return parentLookup;
   }
 
@@ -226,18 +222,11 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     return docId + offset;
   }
 
-  /**
-   * Utility method to resolve the relative path from current nested location to target field.
-   * Returns the number of parent levels to traverse to access the field.
-   *
-   * @param currentNestedPath current nested document path (e.g., "reviews.generation")
-   * @param targetFieldPath absolute field path (e.g., "biz_name" or "reviews.rating")
-   * @return number of parent levels to traverse, or -1 if field is in current or child level
-   */
-  private static int resolveParentLevels(String currentNestedPath, String targetFieldPath) {
+  /** Computes the number of parent levels to traverse to access a field. */
+  private static int computeParentLevels(String currentNestedPath, String targetFieldPath) {
     if (currentNestedPath == null
         || currentNestedPath.isEmpty()
-        || "_root".equals(currentNestedPath)) {
+        || IndexState.ROOT.equals(currentNestedPath)) {
       return -1; // Field is at current level or below
     }
 
@@ -261,6 +250,18 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
 
     int levelsUp = currentPathParts.length - commonPrefixLength;
+
+    // TODO - Enable support for more than one level of nesting
+    if (levelsUp > 1) {
+      throw new IllegalArgumentException(
+          "Field access requires "
+              + levelsUp
+              + " parent levels, but only 1 level of nesting is supported. "
+              + "Field: "
+              + targetFieldPath
+              + ", Current path: "
+              + currentNestedPath);
+    }
 
     // If we need to go up to access the field, return the number of levels
     // If levelsUp is 0, it means the field is at the same level or below
