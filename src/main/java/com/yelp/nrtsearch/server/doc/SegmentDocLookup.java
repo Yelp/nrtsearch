@@ -36,6 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
  */
 public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
 
+  private static final String PARENT_FIELD_PREFIX = "_PARENT.";
   private final Function<String, FieldDef> fieldDefLookup;
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
@@ -58,7 +59,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   public void setDocId(int docId) {
     this.docId = docId;
     this.parentDocId = -1;
-    this.parentLookup = null;
+    // Don't reset parentLookup to null - reuse the existing instance
   }
 
   @Override
@@ -85,8 +86,8 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
     String fieldName = key.toString();
 
-    if (fieldName.startsWith("_PARENT.")) {
-      fieldName = fieldName.substring("_PARENT.".length());
+    if (fieldName.startsWith(PARENT_FIELD_PREFIX)) {
+      fieldName = fieldName.substring(PARENT_FIELD_PREFIX.length());
     }
 
     try {
@@ -120,16 +121,15 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
 
-    if (fieldName.startsWith("_PARENT.")) {
-      String actualFieldName = fieldName.substring("_PARENT.".length());
-      SegmentDocLookup parentLookup = getParentLookup();
-      if (parentLookup == null) {
+    if (fieldName.startsWith(PARENT_FIELD_PREFIX)) {
+      String actualFieldName = fieldName.substring(PARENT_FIELD_PREFIX.length());
+      try {
+        SegmentDocLookup parentLookup = getParentLookup();
+        return parentLookup.get(actualFieldName);
+      } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(
-            "Could not access parent field: "
-                + fieldName
-                + " (document may not be nested or parent field may not exist)");
+            "Could not access parent field: " + fieldName + " - " + e.getMessage(), e);
       }
-      return parentLookup.get(actualFieldName);
     }
 
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
@@ -159,17 +159,15 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   }
 
   /**
-   * Lazily initializes and returns the parent document lookup. Returns null if this document is not
-   * nested or if parent document cannot be accessed.
+   * Lazily initializes and returns the parent document lookup.
    *
-   * @return SegmentDocLookup for parent document, or null if not nested
+   * @return SegmentDocLookup for parent document
+   * @throws IllegalArgumentException if this document is not nested or parent document cannot be
+   *     accessed
    */
   private SegmentDocLookup getParentLookup() {
     if (parentDocId == -1) {
       parentDocId = getParentDocId();
-      if (parentDocId == -1) {
-        return null; // Not a nested document or parent not found
-      }
     }
 
     if (parentLookup == null) {
@@ -183,18 +181,20 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   /**
    * Calculates the parent document ID using NESTED_DOCUMENT_OFFSET.
    *
-   * @return parent document ID, or -1 if not found or not a nested document
+   * @return parent document ID
+   * @throws IllegalArgumentException if a parent docId cannot be found or does not exist
    */
   private int getParentDocId() {
     FieldDef offsetFieldDef;
     try {
       offsetFieldDef = IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
     } catch (IllegalArgumentException e) {
-      return -1;
+      throw new IllegalArgumentException(
+          "Document is not a nested document - no parent document available", e);
     }
 
     if (!(offsetFieldDef instanceof IndexableFieldDef<?> offsetIndexableFieldDef)) {
-      return -1;
+      throw new IllegalArgumentException("NESTED_DOCUMENT_OFFSET field is not indexable");
     }
 
     LoadedDocValues<?> offsetDocValues;
@@ -202,11 +202,12 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       offsetDocValues = offsetIndexableFieldDef.getDocValues(context);
       offsetDocValues.setDocId(docId);
     } catch (IOException e) {
-      return -1;
+      throw new IllegalArgumentException("Could not load nested document offset values", e);
     }
 
     if (offsetDocValues.isEmpty()) {
-      return -1;
+      throw new IllegalArgumentException(
+          "Document has no nested document offset - not a nested document");
     }
 
     Object offsetValue = offsetDocValues.getFirst();
