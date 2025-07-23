@@ -185,21 +185,11 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * @throws IllegalArgumentException if a parent docId cannot be found or does not exist
    */
   private int getParentDocId() {
-    FieldDef offsetFieldDef;
-    try {
-      offsetFieldDef = IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException(
-          "Document is not a nested document - no parent document available", e);
-    }
-
-    if (!(offsetFieldDef instanceof IndexableFieldDef<?> offsetIndexableFieldDef)) {
-      throw new IllegalArgumentException("NESTED_DOCUMENT_OFFSET field is not indexable");
-    }
-
+    IndexableFieldDef<?> offsetFieldDef =
+        (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.NESTED_DOCUMENT_OFFSET);
     LoadedDocValues<?> offsetDocValues;
     try {
-      offsetDocValues = offsetIndexableFieldDef.getDocValues(context);
+      offsetDocValues = offsetFieldDef.getDocValues(context);
       offsetDocValues.setDocId(docId);
     } catch (IOException e) {
       throw new IllegalArgumentException("Could not load nested document offset values", e);
