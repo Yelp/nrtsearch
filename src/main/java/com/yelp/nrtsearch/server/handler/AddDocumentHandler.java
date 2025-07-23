@@ -575,6 +575,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         documents.addAll(
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
+
+      addGlobalNestedDocumentOffsets(documents);
+
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
       for (Document doc : documents) {
@@ -607,6 +610,9 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         documents.addAll(
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
+
+      addGlobalNestedDocumentOffsets(documents);
+
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
@@ -689,6 +695,27 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         }
       }
       return nextDoc;
+    }
+
+    /**
+     * Adds global offset values to nested documents for proper ordering and retrieval.
+     *
+     * <p>This method calculates and assigns a global offset to each nested document within a parent
+     * document. The offset calculation uses reverse ordering (totalNestedDocs - currentIndex)
+     *
+     * @param nestedDocuments the list of nested documents to process; must not be null or empty
+     * @throws IllegalArgumentException if nestedDocuments is null
+     */
+    private void addGlobalNestedDocumentOffsets(List<Document> nestedDocuments) {
+      int totalNestedDocs = nestedDocuments.size();
+      for (int i = 0; i < totalNestedDocs; i++) {
+        int globalOffset = totalNestedDocs - i;
+        nestedDocuments
+            .get(i)
+            .add(
+                new org.apache.lucene.document.NumericDocValuesField(
+                    IndexState.NESTED_DOCUMENT_OFFSET, globalOffset));
+      }
     }
 
     @Override
