@@ -134,36 +134,32 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain())
         .setWarming(warming);
 
-    String rootQueryNestedPath =
-        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
-    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
+    Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
+    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
 
-    // First, create a basic queryFields map with index fields only
-    Map<String, FieldDef> queryFields = new HashMap<>();
-    addIndexFields(indexState, queryFields);
+    Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
 
-    // Create DocLookup with nested path for use by virtual/runtime fields
-    DocLookup docLookup = new DocLookup(queryFields::get, rootQueryNestedPath);
-    contextBuilder.setDocLookup(docLookup);
-
-    // Now add virtual and runtime fields that can use the nested-path-aware DocLookup
-    Map<String, FieldDef> queryVirtualFields =
-        getVirtualFields(indexState, searchRequest, docLookup);
-    Map<String, FieldDef> queryRuntimeFields =
-        getRuntimeFields(indexState, searchRequest, docLookup);
-
-    addToQueryFields(queryFields, queryVirtualFields);
     addToQueryFields(queryFields, queryRuntimeFields);
+    addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
     Map<String, FieldDef> retrieveFields =
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    String queryText = searchRequest.getQueryText();
+    DocLookup docLookup = new DocLookup(queryFields::get);
+    contextBuilder.setDocLookup(docLookup);
+
+    String rootQueryNestedPath =
+        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
     Query query =
         extractQuery(
-            indexState, queryText, searchRequest.getQuery(), rootQueryNestedPath, docLookup);
+            indexState,
+            searchRequest.getQueryText(),
+            searchRequest.getQuery(),
+            rootQueryNestedPath,
+            docLookup);
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -356,7 +352,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      IndexState indexState, SearchRequest searchRequest, DocLookup docLookup) {
+      IndexState indexState, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
@@ -371,7 +367,7 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
+          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -383,7 +379,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple runtime fields with the same name
    */
   private static Map<String, FieldDef> getRuntimeFields(
-      IndexState indexState, SearchRequest searchRequest, DocLookup docLookup) {
+      IndexState indexState, SearchRequest searchRequest) {
     if (searchRequest.getRuntimeFieldsList().isEmpty()) {
       return Map.of();
     }
@@ -397,7 +393,8 @@ public class SearchRequestProcessor {
       RuntimeScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
-      RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, docLookup);
+      RuntimeScript.SegmentFactory segmentFactory =
+          factory.newFactory(params, indexState.docLookup);
       FieldDef runtimeField = new RuntimeFieldDef(vf.getName(), segmentFactory);
       runtimeFields.put(vf.getName(), runtimeField);
     }

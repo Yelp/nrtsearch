@@ -39,23 +39,14 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final Function<String, FieldDef> fieldDefLookup;
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
-  private final String queryNestedPath;
 
   private int docId = -1;
   private int parentDocId = -1;
   private SegmentDocLookup parentLookup = null;
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
-    this(fieldDefLookup, context, null);
-  }
-
-  public SegmentDocLookup(
-      Function<String, FieldDef> fieldDefLookup,
-      LeafReaderContext context,
-      String queryNestedPath) {
     this.fieldDefLookup = fieldDefLookup;
     this.context = context;
-    this.queryNestedPath = queryNestedPath;
   }
 
   /**
@@ -82,7 +73,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
 
   /**
    * Check if a given field name is capable of having doc values. This does not mean there is data
-   * present, just that there can be.
+   * present, just that there can be. Handles "_PARENT." prefix for parent field access.
    *
    * @param key field name
    * @return if this field may have stored doc values
@@ -93,6 +84,10 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       return false;
     }
     String fieldName = key.toString();
+
+    if (fieldName.startsWith("_PARENT.")) {
+      fieldName = fieldName.substring("_PARENT.".length());
+    }
 
     try {
       FieldDef field = fieldDefLookup.apply(fieldName);
@@ -112,7 +107,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    * cache. The data is loaded for the current set document id.
    *
    * <p>The system automatically determines if a field requires parent document access based on the
-   * current nested path. Fields are resolved automatically without requiring explicit notation.
+   * "_PARENT." prefix in the field name. Fields with this prefix will access the parent document.
    *
    * @param key field name
    * @return {@link LoadedDocValues} implementation for the given field
@@ -125,18 +120,16 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
 
-    if ((!IndexState.ROOT.equals(queryNestedPath))) {
-      int parentLevels = computeParentLevels(queryNestedPath, fieldName);
-      if (parentLevels > 0) {
-        SegmentDocLookup currentLookup = getParentLookup();
-        if (currentLookup == null) {
-          throw new IllegalArgumentException(
-              "Could not access parent field: "
-                  + fieldName
-                  + " (document may not be nested or parent field may not exist)");
-        }
-        return currentLookup.get(fieldName);
+    if (fieldName.startsWith("_PARENT.")) {
+      String actualFieldName = fieldName.substring("_PARENT.".length());
+      SegmentDocLookup parentLookup = getParentLookup();
+      if (parentLookup == null) {
+        throw new IllegalArgumentException(
+            "Could not access parent field: "
+                + fieldName
+                + " (document may not be nested or parent field may not exist)");
       }
+      return parentLookup.get(actualFieldName);
     }
 
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
@@ -220,52 +213,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     int offset = ((Number) offsetValue).intValue();
     // The offset represents the exact number of documents to jump forward to reach the parent
     return docId + offset;
-  }
-
-  /** Computes the number of parent levels to traverse to access a field. */
-  private static int computeParentLevels(String currentNestedPath, String targetFieldPath) {
-    if (currentNestedPath == null
-        || currentNestedPath.isEmpty()
-        || IndexState.ROOT.equals(currentNestedPath)) {
-      return -1; // Field is at current level or below
-    }
-
-    if (targetFieldPath.startsWith(currentNestedPath + ".")
-        || targetFieldPath.equals(currentNestedPath)) {
-      return -1; // Field is at current level or below
-    }
-
-    String[] currentPathParts = currentNestedPath.split("\\.");
-    String[] targetPathParts = targetFieldPath.split("\\.");
-
-    // Find common prefix
-    int commonPrefixLength = 0;
-    int minLength = Math.min(currentPathParts.length, targetPathParts.length);
-    for (int i = 0; i < minLength; i++) {
-      if (currentPathParts[i].equals(targetPathParts[i])) {
-        commonPrefixLength++;
-      } else {
-        break;
-      }
-    }
-
-    int levelsUp = currentPathParts.length - commonPrefixLength;
-
-    // TODO - Enable support for more than one level of nesting
-    if (levelsUp > 1) {
-      throw new IllegalArgumentException(
-          "Field access requires "
-              + levelsUp
-              + " parent levels, but only 1 level of nesting is supported. "
-              + "Field: "
-              + targetFieldPath
-              + ", Current path: "
-              + currentNestedPath);
-    }
-
-    // If we need to go up to access the field, return the number of levels
-    // If levelsUp is 0, it means the field is at the same level or below
-    return levelsUp > 0 ? levelsUp : -1;
   }
 
   @Override
