@@ -35,6 +35,11 @@ import org.junit.Test;
 
 public class PrefixFieldDefTest {
 
+  private PrefixFieldDef createPrefixFieldDef(Field field) {
+    return new PrefixFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
+
   @BeforeClass
   public static void init() {
     String configStr = "node: node1";
@@ -265,5 +270,24 @@ public class PrefixFieldDefTest {
     Query query =
         noPrefixFieldDef.getPrefixQuery(prefixQuery, MultiTermQuery.CONSTANT_SCORE_REWRITE, false);
     assertTrue(query instanceof org.apache.lucene.search.PrefixQuery);
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    PrefixFieldDef fieldDef =
+        createPrefixFieldDef(
+            Field.newBuilder().setName("field").setSearch(true).setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).setSearch(true).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof PrefixFieldDef);
+    PrefixFieldDef updatedFieldDef = (PrefixFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field._index_prefix", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 }

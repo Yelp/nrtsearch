@@ -254,18 +254,20 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    * @param requestField field definition from grpc request
    * @param context creation context
    * @param docValuesClass class of doc values object
+   * @param previousField previous instance of this field definition, or null if there is none
    */
   protected VectorFieldDef(
       String name,
       Field requestField,
       FieldDefCreator.FieldDefCreatorContext context,
-      Class<T> docValuesClass) {
-    super(name, requestField, context, docValuesClass);
+      Class<T> docValuesClass,
+      VectorFieldDef<?> previousField) {
+    super(name, requestField, context, docValuesClass, previousField);
     this.vectorDimensions = requestField.getVectorDimensions();
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
-      setupNormalizedVectorField(requestField.getVectorSimilarity(), context);
+      setupNormalizedVectorField(requestField.getVectorSimilarity(), context, previousField);
       this.vectorsFormat =
           createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions());
     } else {
@@ -276,9 +278,13 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   private void setupNormalizedVectorField(
-      String similarity, FieldDefCreator.FieldDefCreatorContext context) {
+      String similarity,
+      FieldDefCreator.FieldDefCreatorContext context,
+      VectorFieldDef<?> previousField) {
     if (NORMALIZED_COSINE.equals(similarity)) {
       // add field to store magnitude before normalization
+      FloatFieldDef previousMagnitudeField =
+          previousField != null ? previousField.magnitudeField : null;
       magnitudeField =
           new FloatFieldDef(
               getName() + MAGNITUDE_FIELD_SUFFIX,
@@ -287,7 +293,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                   .setType(FieldType.FLOAT)
                   .setStoreDocValues(true)
                   .build(),
-              context);
+              context,
+              previousMagnitudeField);
       Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
       childFieldsMap.put(magnitudeField.getName(), magnitudeField);
       childFieldsWithMagnitude = Collections.unmodifiableMap(childFieldsMap);
@@ -396,7 +403,24 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
     public FloatVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-      super(name, requestField, context, FloatVectorType.class);
+      this(name, requestField, context, null);
+    }
+
+    /**
+     * Constructor for creating an instance of this field based on a previous instance. This is used
+     * when updating field properties.
+     *
+     * @param name name of the field
+     * @param requestField the field definition from the request
+     * @param context context for creating the field definition
+     * @param previousField the previous instance of this field definition, or null if there is none
+     */
+    protected FloatVectorFieldDef(
+        String name,
+        Field requestField,
+        FieldDefCreator.FieldDefCreatorContext context,
+        FloatVectorFieldDef previousField) {
+      super(name, requestField, context, FloatVectorType.class, previousField);
     }
 
     @Override
@@ -579,13 +603,36 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         vector[i] /= magnitude;
       }
     }
+
+    @Override
+    public FieldDef createUpdatedFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      return new FloatVectorFieldDef(name, requestField, context, this);
+    }
   }
 
   /** Field class for 'BYTE' vector field type. */
   public static class ByteVectorFieldDef extends VectorFieldDef<ByteVectorType> {
     public ByteVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-      super(name, requestField, context, ByteVectorType.class);
+      this(name, requestField, context, null);
+    }
+
+    /**
+     * Constructor for creating an instance of this field based on a previous instance. This is used
+     * when updating field properties.
+     *
+     * @param name name of the field
+     * @param requestField the field definition from the request
+     * @param context context for creating the field definition
+     * @param previousField the previous instance of this field definition, or null if there is none
+     */
+    protected ByteVectorFieldDef(
+        String name,
+        Field requestField,
+        FieldDefCreator.FieldDefCreatorContext context,
+        ByteVectorFieldDef previousField) {
+      super(name, requestField, context, ByteVectorType.class, previousField);
       if (NORMALIZED_COSINE.equals(requestField.getVectorSimilarity())) {
         throw new IllegalArgumentException(
             "Normalized cosine similarity is not supported for byte vectors");
@@ -730,6 +777,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
               "Vector magnitude cannot be 0 when using cosine similarity");
         }
       }
+    }
+
+    @Override
+    public FieldDef createUpdatedFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      return new ByteVectorFieldDef(name, requestField, context, this);
     }
   }
 }

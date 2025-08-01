@@ -16,6 +16,10 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
@@ -141,5 +145,25 @@ public class AtomFieldDefTest {
                 .setTextDocValuesType(TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY)
                 .build());
     assertEquals(DocValuesType.BINARY, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    AtomFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof AtomFieldDef);
+    AtomFieldDef updatedFieldDef = (AtomFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
+    assertSame(fieldDef.ordinalLookupCache, updatedFieldDef.ordinalLookupCache);
+    assertSame(fieldDef.ordinalBuilderLock, updatedFieldDef.ordinalBuilderLock);
   }
 }

@@ -39,7 +39,24 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
 
   public DoubleFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, DOUBLE_PARSER, context, Double.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected DoubleFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      DoubleFieldDef previousField) {
+    super(name, requestField, DOUBLE_PARSER, context, Double.class, previousField);
   }
 
   @Override
@@ -99,6 +116,12 @@ public class DoubleFieldDef extends NumberFieldDef<Double> {
   @Override
   public String getType() {
     return "DOUBLE";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new DoubleFieldDef(name, requestField, context, this);
   }
 
   @Override

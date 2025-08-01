@@ -43,7 +43,24 @@ public class AtomFieldDef extends TextBaseFieldDef
 
   public AtomFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected AtomFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      AtomFieldDef previousField) {
+    super(name, requestField, context, previousField);
   }
 
   @Override
@@ -57,6 +74,12 @@ public class AtomFieldDef extends TextBaseFieldDef
   @Override
   public String getType() {
     return "ATOM";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new AtomFieldDef(name, requestField, context, this);
   }
 
   @Override

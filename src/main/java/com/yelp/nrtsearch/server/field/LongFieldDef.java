@@ -38,7 +38,24 @@ public class LongFieldDef extends NumberFieldDef<Long> {
 
   public LongFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, LONG_PARSER, context, Long.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected LongFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      LongFieldDef previousField) {
+    super(name, requestField, LONG_PARSER, context, Long.class, previousField);
   }
 
   @Override
@@ -95,6 +112,12 @@ public class LongFieldDef extends NumberFieldDef<Long> {
   @Override
   public String getType() {
     return "LONG";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new LongFieldDef(name, requestField, context, this);
   }
 
   @Override
