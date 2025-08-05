@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
+import com.yelp.nrtsearch.server.concurrent.ExecutorServiceStatsWrapper;
 import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.model.registry.MultiCollector;
@@ -96,11 +97,17 @@ public class ThreadPoolCollector implements MultiCollector {
   }
 
   private static final Map<String, ThreadPoolExecutor> pools = new ConcurrentHashMap<>();
+  private static final Map<String, ExecutorServiceStatsWrapper> virtualPools =
+      new ConcurrentHashMap<>();
 
   public static void addPool(String name, ThreadPoolExecutor threadPoolExecutor) {
     pools.put(name, threadPoolExecutor);
     RejectedExecutionHandler handler = threadPoolExecutor.getRejectedExecutionHandler();
     threadPoolExecutor.setRejectedExecutionHandler(new RejectionCounterWrapper(handler, name));
+  }
+
+  public static void addVirtualPool(String name, ExecutorServiceStatsWrapper executorStatsWrapper) {
+    virtualPools.put(name, executorStatsWrapper);
   }
 
   @Override
@@ -117,6 +124,11 @@ public class ThreadPoolCollector implements MultiCollector {
       poolQueueRemaining
           .labelValues(poolLabel)
           .set(entry.getValue().getQueue().remainingCapacity());
+    }
+
+    for (Map.Entry<String, ExecutorServiceStatsWrapper> entry : virtualPools.entrySet()) {
+      String poolLabel = entry.getKey();
+      poolTasks.labelValues(poolLabel).set(entry.getValue().getTotalTasks());
     }
 
     metrics.add(poolSize.collect());

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.concurrent;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
@@ -300,5 +301,13 @@ public class ExecutorFactoryTest {
             ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.COMMIT);
     assertEquals(executor.getCorePoolSize(), 3);
     assertEquals(executor.getQueue().remainingCapacity(), 25);
+  }
+
+  @Test
+  public void testVirtualThreadExecutor() {
+    init(String.join("\n", "threadPoolConfiguration:", "  search:", "    useVirtualThreads: true"));
+    ExecutorService executor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SEARCH);
+    assertTrue(executor instanceof ExecutorServiceStatsWrapper);
   }
 }

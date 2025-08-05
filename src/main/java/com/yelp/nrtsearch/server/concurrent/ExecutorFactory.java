@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -97,21 +98,30 @@ public class ExecutorFactory {
   private ExecutorService createExecutor(ExecutorType executorType) {
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(executorType);
-    logger.info(
-        "Creating {} of size {}",
-        threadPoolSettings.threadNamePrefix(),
-        threadPoolSettings.maxThreads());
-    BlockingQueue<Runnable> queue =
-        new LinkedBlockingQueue<>(threadPoolSettings.maxBufferedItems());
-    ThreadPoolExecutor threadPoolExecutor =
-        new ThreadPoolExecutor(
-            threadPoolSettings.maxThreads(),
-            threadPoolSettings.maxThreads(),
-            0L,
-            TimeUnit.SECONDS,
-            queue,
-            new NamedThreadFactory(threadPoolSettings.threadNamePrefix()));
-    ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
-    return threadPoolExecutor;
+    if (threadPoolSettings.useVirtualThreads()) {
+      logger.info("Creating virtual thread executor for {}", threadPoolSettings.threadNamePrefix());
+      ExecutorService virtualThreadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+      ExecutorServiceStatsWrapper executorServiceStatsWrapper =
+          new ExecutorServiceStatsWrapper(virtualThreadExecutor);
+      ThreadPoolCollector.addVirtualPool(executorType.name(), executorServiceStatsWrapper);
+      return executorServiceStatsWrapper;
+    } else {
+      logger.info(
+          "Creating {} of size {}",
+          threadPoolSettings.threadNamePrefix(),
+          threadPoolSettings.maxThreads());
+      BlockingQueue<Runnable> queue =
+          new LinkedBlockingQueue<>(threadPoolSettings.maxBufferedItems());
+      ThreadPoolExecutor threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolSettings.maxThreads(),
+              threadPoolSettings.maxThreads(),
+              0L,
+              TimeUnit.SECONDS,
+              queue,
+              new NamedThreadFactory(threadPoolSettings.threadNamePrefix()));
+      ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
+      return threadPoolExecutor;
+    }
   }
 }
