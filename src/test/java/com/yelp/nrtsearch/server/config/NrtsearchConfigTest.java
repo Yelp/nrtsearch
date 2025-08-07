@@ -232,4 +232,18 @@ public class NrtsearchConfigTest {
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(2048, luceneConfig.getMaxClauseCount());
   }
+
+  @Test
+  public void testRequireIdField_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getRequireIdField());
+  }
+
+  @Test
+  public void testRequireIdField_set() {
+    String config = "requireIdField: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getRequireIdField());
+  }
 }

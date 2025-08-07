@@ -450,7 +450,8 @@ public class BackendGlobalState extends GlobalState {
                 .getIndexStartConfig()
                 .getDataLocationType()
                 .equals(IndexDataLocationType.REMOTE),
-            getConfiguration().getDiscoveryFileUpdateIntervalMs());
+            getConfiguration().getDiscoveryFileUpdateIntervalMs(),
+            getConfiguration().getRequireIdField());
     try {
       return startIndexHandler.process(indexStateManager.getCurrent(), startIndexRequest);
     } catch (StartIndexProcessorException e) {
