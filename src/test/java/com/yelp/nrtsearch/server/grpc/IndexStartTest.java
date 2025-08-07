@@ -29,6 +29,7 @@ import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.junit.After;
 import org.junit.Rule;
@@ -886,6 +887,43 @@ public class IndexStartTest {
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("index \"test_index:0\" was not started"));
+    }
+  }
+
+  @Test
+  public void testNoIdWhenNotRequired() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withAdditionalConfig("requireIdField: false")
+            .build();
+    server.createIndex("test_index");
+    server.registerFields(
+        "test_index",
+        List.of(Field.newBuilder().setName("field1").setType(FieldType.ATOM).build()));
+    assertFalse(server.isStarted("test_index"));
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+    assertTrue(server.isStarted("test_index"));
+  }
+
+  @Test
+  public void testNoIdWhenRequired() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withAdditionalConfig("requireIdField: true")
+            .build();
+    server.createIndex("test_index");
+    server.registerFields(
+        "test_index",
+        List.of(Field.newBuilder().setName("field1").setType(FieldType.ATOM).build()));
+    assertFalse(server.isStarted("test_index"));
+    try {
+      server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage().contains("Index test_index must have an _ID field defined to be started"));
     }
   }
 }

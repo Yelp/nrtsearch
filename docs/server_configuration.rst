@@ -117,6 +117,11 @@ Example server configuration
      - If enabled, the server will use a separate executor for commit operations instead of using the indexing executor.
      - false
 
+   * - requireIdField
+     - bool
+     - If enabled, all indices must contain an _ID field to be started.
+     - false
+
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
    :header-rows: 1
