@@ -56,6 +56,12 @@ public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
               + "\" is not a replica or was not started yet");
     }
 
+    if (!shardState.nrtReplicaNode.hasPrimaryConnection()) {
+      throw new IllegalStateException(
+          "Replica does not have a primary connection for index "
+              + newNRTPointRequest.getIndexName());
+    }
+
     long version = newNRTPointRequest.getVersion();
     long newPrimaryGen = newNRTPointRequest.getPrimaryGen();
     try {

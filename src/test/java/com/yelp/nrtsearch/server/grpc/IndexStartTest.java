@@ -926,4 +926,92 @@ public class IndexStartTest {
           e.getMessage().contains("Index test_index must have an _ID field defined to be started"));
     }
   }
+
+  @Test
+  public void testNoPrimaryConnection_getsLatestData() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withLocalStateBackend()
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withoutPrimary()
+            .withLocalStateBackend()
+            .build();
+    replica.verifySimpleDocs("test_index", 3);
+  }
+
+  @Test
+  public void testNoPrimaryConnection_replicaDoesNotRegister() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withLocalStateBackend()
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withoutPrimary()
+            .withLocalStateBackend()
+            .build();
+
+    List<NodeInfo> connectedNodes =
+        server
+            .getReplicationClient()
+            .getBlockingStub()
+            .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName("test_index").build())
+            .getNodesList();
+    System.out.println(connectedNodes);
+    assertTrue(connectedNodes.isEmpty());
+  }
+
+  @Test
+  public void testNoPrimaryConnection_externalNrtPointFails() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withLocalStateBackend()
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withoutPrimary()
+            .withLocalStateBackend()
+            .build();
+    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    try {
+      replica.getReplicationClient().newNRTPoint("test_index", indexId, -1, 0);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains("Replica does not have a primary connection for index test_index"));
+    }
+  }
 }

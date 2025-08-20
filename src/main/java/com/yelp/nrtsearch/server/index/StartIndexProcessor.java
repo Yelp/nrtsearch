@@ -180,8 +180,9 @@ public class StartIndexProcessor {
           new DiscoveryFileAndPort(request.getPrimaryDiscoveryFile(), request.getPort()),
           discoveryFileUpdateIntervalMs);
     } else {
-      throw new IllegalArgumentException(
-          "Unable to initialize primary replication client for start request: " + request);
+      logger.info(
+          "No primary address or discovery file provided for index {}", request.getIndexName());
+      return null;
     }
   }
 
