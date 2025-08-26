@@ -19,8 +19,11 @@ import com.yelp.nrtsearch.server.plugins.IngestionPlugin;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IngestionPluginUtils {
+  private static final Logger logger = LoggerFactory.getLogger(IngestionPluginUtils.class);
   public static void initializeAndStart(IngestionPlugin plugin, GlobalState globalState)
       throws IOException {
     Ingestor ingestor = plugin.getIngestor();
@@ -34,7 +37,7 @@ public class IngestionPluginUtils {
           try {
             ingestor.start();
           } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Failed to start ingestor", e);
           }
         });
   }
