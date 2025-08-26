@@ -29,6 +29,7 @@ import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.junit.After;
@@ -1007,6 +1008,42 @@ public class IndexStartTest {
     String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
     try {
       replica.getReplicationClient().newNRTPoint("test_index", indexId, -1, 0);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains("Replica does not have a primary connection for index test_index"));
+    }
+  }
+
+  @Test
+  public void testNoPrimaryConnection_externalCopyFilesFails() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withLocalStateBackend()
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withoutPrimary()
+            .withLocalStateBackend()
+            .build();
+    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    try {
+      Iterator<TransferStatus> iterator =
+          replica
+              .getReplicationClient()
+              .copyFiles("test_index", indexId, -1, FilesMetadata.newBuilder().build(), null);
+      iterator.next();
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(
