@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 public class IngestionPluginUtils {
   private static final Logger logger = LoggerFactory.getLogger(IngestionPluginUtils.class);
+
   public static void initializeAndStart(IngestionPlugin plugin, GlobalState globalState)
       throws IOException {
     Ingestor ingestor = plugin.getIngestor();
