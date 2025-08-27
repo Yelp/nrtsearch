@@ -79,6 +79,7 @@ import com.yelp.nrtsearch.server.handler.StopIndexHandler;
 import com.yelp.nrtsearch.server.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
+import com.yelp.nrtsearch.server.ingestion.IngestionPluginUtils;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.modules.NrtsearchModule;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
@@ -95,6 +96,7 @@ import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
+import com.yelp.nrtsearch.server.plugins.IngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -390,6 +392,7 @@ public class NrtsearchServer {
       this.globalState = GlobalState.createState(configuration, remoteBackend);
 
       // Initialize handlers
+      initIngestionPlugin(globalState, plugins);
       addDocumentHandler = new AddDocumentHandler(globalState);
       backupWarmingQueriesHandler = new BackupWarmingQueriesHandler(globalState);
       commitHandler = new CommitHandler(globalState);
@@ -426,6 +429,15 @@ public class NrtsearchServer {
       statusHandler = new StatusHandler();
       stopIndexHandler = new StopIndexHandler(globalState);
       updateFieldsHandler = new UpdateFieldsHandler(globalState);
+    }
+
+    private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
+        throws IOException {
+      for (Plugin plugin : plugins) {
+        if (plugin instanceof IngestionPlugin ingestionPlugin) {
+          IngestionPluginUtils.initializeAndStart(ingestionPlugin, globalState);
+        }
+      }
     }
 
     @VisibleForTesting

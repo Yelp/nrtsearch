@@ -446,4 +446,14 @@ public class NrtsearchConfig {
     }
     return paths;
   }
+
+  public Map<String, Map<String, Object>> getIngestionPluginConfigs() {
+    try {
+      return configReader.get(
+          "pluginConfigs.ingestion",
+          obj -> JsonUtils.convertValue(obj, IngestionPluginConfigs.class).getPluginConfigs());
+    } catch (ConfigKeyNotFoundException e) {
+      return Collections.emptyMap();
+    }
+  }
 }
