@@ -980,7 +980,6 @@ public class IndexStartTest {
             .getBlockingStub()
             .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName("test_index").build())
             .getNodesList();
-    System.out.println(connectedNodes);
     assertTrue(connectedNodes.isEmpty());
   }
 
