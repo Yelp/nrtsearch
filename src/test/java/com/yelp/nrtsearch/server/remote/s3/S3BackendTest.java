@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,7 @@ public class S3BackendTest {
 
   @Test
   public void testDownloadFromS3Path() throws IOException {
-    InputStream inputStream = s3Backend.downloadFromS3Path(BUCKET_NAME, KEY);
+    InputStream inputStream = s3Backend.downloadFromS3Path(BUCKET_NAME, KEY, true);
     String contentFromS3 = convertToString(inputStream);
     assertEquals(CONTENT, contentFromS3);
 
@@ -110,7 +111,7 @@ public class S3BackendTest {
     }
 
     try {
-      s3Backend.downloadFromS3Path("bucket_not_exist", KEY);
+      s3Backend.downloadFromS3Path("bucket_not_exist", KEY, true);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -769,12 +770,15 @@ public class S3BackendTest {
     s3.putObject(BUCKET_NAME, keyPrefix + fileName, getPointStateJson());
     s3.putObject(BUCKET_NAME, keyPrefix + S3Backend.CURRENT_VERSION, fileName);
 
-    byte[] downloadedData =
-        s3Backend
-            .downloadPointState("download_point_service", "download_point_index")
-            .readAllBytes();
+    RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
+        s3Backend.downloadPointState("download_point_service", "download_point_index");
+    byte[] downloadedData = inputStreamWithTimestamp.inputStream().readAllBytes();
     NrtPointState downloadedPointState = RemoteUtils.pointStateFromUtf8(downloadedData);
     assertEquals(pointState, downloadedPointState);
+
+    Instant pointStateTimestamp =
+        TimeStringUtils.parseTimeStringSec(S3Backend.getTimeStringFromPointStateFileName(fileName));
+    assertEquals(pointStateTimestamp, inputStreamWithTimestamp.timestamp());
   }
 
   @Test
@@ -860,6 +864,119 @@ public class S3BackendTest {
     s3.putObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION, "current_version_name");
     assertTrue(s3Backend.currentResourceExists(prefix));
   }
+
+  @Test
+  public void testDownloadIndexFile() throws IOException {
+    String service = "test_service";
+    String indexIdentifier = "test_index";
+    String fileName = "test_file.dat";
+    String testContent = "test file content for download";
+
+    NrtFileMetaData fileMetaData =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "test_primary_id", "20240827120000");
+
+    // Set up the S3 object with the expected backend file name and path
+    String backendFileName = S3Backend.getIndexBackendFileName(fileName, fileMetaData);
+    String backendPrefix = S3Backend.getIndexDataPrefix(service, indexIdentifier);
+    String backendKey = backendPrefix + backendFileName;
+
+    // Put the test content in S3
+    s3.putObject(BUCKET_NAME, backendKey, testContent);
+
+    // Download the file using the method under test
+    InputStream downloadStream =
+        s3Backend.downloadIndexFile(service, indexIdentifier, fileName, fileMetaData);
+    String downloadedContent = convertToString(downloadStream);
+
+    assertEquals(testContent, downloadedContent);
+  }
+
+  @Test
+  public void testDownloadIndexFile_notFound() throws IOException {
+    String service = "test_service_not_found";
+    String indexIdentifier = "test_index_not_found";
+    String fileName = "non_existent_file.dat";
+
+    NrtFileMetaData fileMetaData =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "test_primary_id", "20240827120000");
+
+    try {
+      s3Backend.downloadIndexFile(service, indexIdentifier, fileName, fileMetaData);
+      fail("Expected IllegalArgumentException for non-existent file");
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().contains("not found"));
+    }
+  }
+
+  @Test
+  public void testGetTimeStringFromPointStateFileName() {
+    // Test valid point state file names with different formats
+    String timeString1 = "20240827120000";
+    String primaryId1 = "primary123";
+    String gen1 = "1";
+    String fileName1 = timeString1 + "-" + primaryId1 + "-" + gen1;
+
+    assertEquals(timeString1, S3Backend.getTimeStringFromPointStateFileName(fileName1));
+
+    // Test with different time string
+    String timeString2 = "20241225153045";
+    String primaryId2 = "anotherPrimary";
+    String gen2 = "5";
+    String fileName2 = timeString2 + "-" + primaryId2 + "-" + gen2;
+
+    assertEquals(timeString2, S3Backend.getTimeStringFromPointStateFileName(fileName2));
+
+    // Test with longer file name (more parts)
+    String fileName3 = timeString1 + "-" + primaryId1 + "-" + gen1 + "-extra-parts";
+    assertEquals(timeString1, S3Backend.getTimeStringFromPointStateFileName(fileName3));
+  }
+
+  @Test
+  public void testGetTimeStringFromPointStateFileName_invalidFormat() {
+    // Test with insufficient parts (less than 3)
+    try {
+      S3Backend.getTimeStringFromPointStateFileName("onlyonepart");
+      fail("Expected IllegalArgumentException for file name with insufficient parts");
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid point state file name: onlyonepart", e.getMessage());
+    }
+
+    try {
+      S3Backend.getTimeStringFromPointStateFileName("only-two");
+      fail("Expected IllegalArgumentException for file name with insufficient parts");
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid point state file name: only-two", e.getMessage());
+    }
+
+    // Test with empty string
+    try {
+      S3Backend.getTimeStringFromPointStateFileName("");
+      fail("Expected IllegalArgumentException for empty file name");
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid point state file name: ", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGetTimeStringFromPointStateFileName_realWorldExample() {
+    // Test with actual point state file name from getPointState method
+    NrtPointState pointState = getPointState();
+    String fileName = S3Backend.getPointStateFileName(pointState);
+
+    // Extract time string and verify it's valid
+    String extractedTimeString = S3Backend.getTimeStringFromPointStateFileName(fileName);
+
+    // Verify the extracted time string is a valid time string format
+    assertTrue(
+        "Extracted time string should be valid",
+        TimeStringUtils.isTimeStringSec(extractedTimeString));
+
+    // Verify the filename starts with the extracted time string
+    assertTrue(
+        "Filename should start with time string", fileName.startsWith(extractedTimeString + "-"));
+  }
+
+  // ...existing helper methods...
 
   private void putMultiPart(String key, List<String> partsData) {
     InitiateMultipartUploadRequest initRequest =

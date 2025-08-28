@@ -373,7 +373,7 @@ public class SnapshotRestoreCommandTest {
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, s3Client);
     NrtPointState pointState =
         RemoteUtils.pointStateFromUtf8(
-            s3Backend.downloadPointState(SERVICE_NAME, indexResource).readAllBytes());
+            s3Backend.downloadPointState(SERVICE_NAME, indexResource).inputStream().readAllBytes());
     assertEquals(Set.of("_0.cfe", "_0.si", "_0.cfs"), pointState.files.keySet());
     Set<String> pointBackendFiles =
         pointState.files.entrySet().stream()
@@ -414,7 +414,7 @@ public class SnapshotRestoreCommandTest {
 
     NrtPointState pointState =
         RemoteUtils.pointStateFromUtf8(
-            s3Backend.downloadPointState(serviceName, indexResource).readAllBytes());
+            s3Backend.downloadPointState(serviceName, indexResource).inputStream().readAllBytes());
     assertEquals(expectedIndexFiles, pointState.files.keySet());
     Set<String> localPointFiles =
         pointState.files.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toSet());
