@@ -94,6 +94,12 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
           "index \"" + indexName + "\" is not a replica or was not started yet");
     }
 
+    if (!shardState.nrtReplicaNode.hasPrimaryConnection()) {
+      throw new IllegalStateException(
+          "Replica does not have a primary connection for index "
+              + copyFilesRequest.getIndexName());
+    }
+
     if (!isValidMagicHeader(copyFilesRequest.getMagicNumber())) {
       throw new RuntimeException("RecvCopyStateHandler invoked with Invalid Magic Number");
     }

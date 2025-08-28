@@ -1979,27 +1979,22 @@ public class StateBackendServerTest {
   }
 
   @Test
-  public void testStartIndexNoDiscovery() throws IOException {
-    initPrimary();
+  public void testStartIndexNoDiscovery() throws Exception {
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    restartReplica();
-    try {
-      replicaClient
-          .getBlockingStub()
-          .startIndex(
-              StartIndexRequest.newBuilder()
-                  .setIndexName("test_index")
-                  .setMode(Mode.REPLICA)
-                  .setPrimaryGen(0)
-                  .build());
-      fail();
-    } catch (StatusRuntimeException e) {
-      assertTrue(
-          e.getMessage()
-              .contains("Unable to initialize primary replication client for start request:"));
-    }
+    restartReplicaWithRemote();
+    replicaClient
+        .getBlockingStub()
+        .startIndex(
+            StartIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setMode(Mode.REPLICA)
+                .setPrimaryGen(0)
+                .build());
+    assertEquals(List.of("test_index"), replicaClient.getIndices());
   }
 }

@@ -973,7 +973,7 @@ public class ShardState implements Closeable {
         nrtReplicaNode.startWithLastPrimaryGen();
       }
 
-      if (configuration.getSyncInitialNrtPoint()) {
+      if (nrtReplicaNode.hasPrimaryConnection() && configuration.getSyncInitialNrtPoint()) {
         try (Timer _timer =
             BootstrapMetrics.initialNRTTimer
                 .labelValues(StringUtils.substringBefore(name, ":"))
@@ -1002,8 +1002,12 @@ public class ShardState implements Closeable {
               }
             }
           });
-      keepAlive = new KeepAlive(this);
-      new Thread(keepAlive, "KeepAlive").start();
+
+      // If this node is isolated from the primary, we don't want it to reconnect
+      if (nrtReplicaNode.hasPrimaryConnection()) {
+        keepAlive = new KeepAlive(this);
+        new Thread(keepAlive, "KeepAlive").start();
+      }
 
       WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {

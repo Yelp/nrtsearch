@@ -606,6 +606,7 @@ public class TestServer {
     private int port = 0;
     private IndexDataLocationType locationType = IndexDataLocationType.LOCAL;
     private boolean fileDiscovery = false;
+    private boolean withoutPrimary = false;
 
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
@@ -635,6 +636,11 @@ public class TestServer {
       this.port = port;
       this.locationType = locationType;
       this.fileDiscovery = mode == Mode.REPLICA && port <= 0;
+      return this;
+    }
+
+    public Builder withoutPrimary() {
+      this.withoutPrimary = true;
       return this;
     }
 
@@ -715,13 +721,17 @@ public class TestServer {
               "indexStartConfig:",
               "  autoStart: " + autoStart,
               "  dataLocationType: " + locationType,
-              "  mode: " + mode,
-              "  primaryDiscovery:");
-      if (fileDiscovery) {
-        return String.join(
-            "\n", config, "    file: " + Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
+              "  mode: " + mode);
+      if (!withoutPrimary) {
+        config = String.join("\n", config, "  primaryDiscovery:");
+        if (fileDiscovery) {
+          return String.join(
+              "\n", config, "    file: " + Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
+        } else {
+          return String.join("\n", config, "    host: localhost", "    port: " + port);
+        }
       } else {
-        return String.join("\n", config, "    host: localhost", "    port: " + port);
+        return config;
       }
     }
 

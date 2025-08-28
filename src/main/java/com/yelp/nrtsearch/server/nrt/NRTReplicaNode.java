@@ -114,6 +114,15 @@ public class NRTReplicaNode extends ReplicaNode {
   }
 
   /**
+   * Get if this replica has a primary connection configured.
+   *
+   * @return true if this replica has a primary connection, false otherwise
+   */
+  public boolean hasPrimaryConnection() {
+    return primaryAddress != null;
+  }
+
+  /**
    * Start this replica node using the last known primary generation, as detected from the last
    * index commit. Ensures a live primary is not needed to start node.
    *
@@ -147,6 +156,10 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean highPriority,
       CopyJob.OnceDone onceDone)
       throws IOException {
+    if (!hasPrimaryConnection()) {
+      throw new IllegalStateException(
+          "Cannot create new copy job, primary connection not available");
+    }
     CopyState copyState;
 
     // sendMeFiles(?) (we dont need this, just send Index,replica, and request for copy State)
@@ -224,12 +237,17 @@ public class NRTReplicaNode extends ReplicaNode {
     nrtCopyThread.launch(job);
   }
 
-  /* called once start(primaryGen) is invoked on this object (see constructor) */
+  /**
+   * Called once start(primaryGen) is invoked on this object (see constructor). If no primary
+   * connection is configured, this is a noop.
+   */
   @Override
   protected void sendNewReplica() throws IOException {
-    logger.info(String.format("send new_replica to primary: %s", primaryAddress));
-    primaryAddress.addReplicas(
-        indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
+    if (hasPrimaryConnection()) {
+      logger.info(String.format("send new_replica to primary: %s", primaryAddress));
+      primaryAddress.addReplicas(
+          indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
+    }
   }
 
   public CopyJob launchPreCopyFiles(
@@ -265,7 +283,9 @@ public class NRTReplicaNode extends ReplicaNode {
         job.cancel("jobs closing", null);
       }
     }
-    primaryAddress.close();
+    if (hasPrimaryConnection()) {
+      primaryAddress.close();
+    }
     super.close();
   }
 
@@ -286,9 +306,15 @@ public class NRTReplicaNode extends ReplicaNode {
     return hostPort;
   }
 
-  /* returns true if present in primary's current list of known replicas else false.
-  Throws StatusRuntimeException if cannot reach Primary */
+  /**
+   * Returns true if present in primary's current list of known replicas else false.
+   *
+   * <p>Throws StatusRuntimeException if cannot reach Primary
+   */
   public boolean isKnownToPrimary() {
+    if (!hasPrimaryConnection()) {
+      return false;
+    }
     GetNodesResponse getNodesResponse = primaryAddress.getConnectedNodes(indexName);
     for (NodeInfo nodeInfo : getNodesResponse.getNodesList()) {
       if (nodeName.equals(nodeInfo.getNodeName())
@@ -305,11 +331,17 @@ public class NRTReplicaNode extends ReplicaNode {
    * when either the index version has updated to at least the initial primary version, there is a
    * failure to start a new copy job, or the specified max time elapses.
    *
+   * <p>If this node is not connected to a primary, this method will return immediately
+   *
    * @param primaryWaitMs how long to wait for primary to be available
    * @param maxTimeMs max time to attempt initial point sync
    * @throws IOException on issue getting searcher version
    */
   public void syncFromCurrentPrimary(long primaryWaitMs, long maxTimeMs) throws IOException {
+    if (!hasPrimaryConnection()) {
+      logger.info("Skipping primary sync, no primary connection available");
+      return;
+    }
     logger.info("Starting sync of next nrt point from current primary");
     long startMS = System.currentTimeMillis();
     long primaryIndexVersion = -1;
