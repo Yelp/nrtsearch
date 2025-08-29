@@ -21,7 +21,10 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
+import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
 import java.util.Map;
@@ -51,6 +54,27 @@ public class NrtReplicaNodeTest {
         "testNode",
         mock(Directory.class),
         null,
+        mock(IsolatedReplicaConfig.class),
+        null,
+        null,
+        false,
+        false,
+        true,
+        0);
+  }
+
+  private NRTReplicaNode getNrtReplicaNodeWithIRConfig(
+      IsolatedReplicaConfig isolatedReplicaConfig, boolean withPrimary) throws IOException {
+    return new NRTReplicaNode(
+        "test_index",
+        "id",
+        withPrimary ? mock(ReplicationServerClient.class) : null,
+        new HostPort("host", 0),
+        "testNode",
+        mock(Directory.class),
+        null,
+        isolatedReplicaConfig,
+        null,
         null,
         false,
         false,
@@ -68,6 +92,8 @@ public class NrtReplicaNodeTest {
             new HostPort("host", 0),
             "testNode",
             mock(Directory.class),
+            null,
+            mock(IsolatedReplicaConfig.class),
             null,
             null,
             false,
@@ -104,5 +130,30 @@ public class NrtReplicaNodeTest {
   public void testNoPrimaryConnection_syncFromCurrentPrimaryNoop() throws IOException {
     NRTReplicaNode replicaNode = getNrtReplicaNodeWithoutPrimary();
     replicaNode.syncFromCurrentPrimary(0, 0);
+  }
+
+  @Test
+  public void testIsolatedReplicaConfig_disabled() throws IOException {
+    NRTReplicaNode replicaNode =
+        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(false, 1), false);
+    assertTrue(replicaNode.getCopyJobManager() instanceof GrpcCopyJobManager);
+  }
+
+  @Test
+  public void testIsolatedReplicaConfig_enabled() throws IOException {
+    NRTReplicaNode replicaNode =
+        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5), false);
+    assertTrue(replicaNode.getCopyJobManager() instanceof RemoteCopyJobManager);
+  }
+
+  @Test
+  public void testIsolatedReplicaConfig_enabledWithPrimary() throws IOException {
+    try {
+      getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5), true);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "Cannot have both primary connection and isolated replica enabled", e.getMessage());
+    }
   }
 }

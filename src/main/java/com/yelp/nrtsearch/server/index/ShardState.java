@@ -962,6 +962,8 @@ public class ShardState implements Closeable {
               configuration.getNodeName(),
               indexDir,
               new ShardSearcherFactory(true, false),
+              configuration.getIsolatedReplicaConfig(),
+              nrtDataManager,
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               configuration.getFileCopyConfig().getAckedCopy(),
               configuration.getDecInitialCommit(),

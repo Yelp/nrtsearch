@@ -114,6 +114,7 @@ public class NrtsearchConfig {
   private final boolean useKeepAliveForReplication;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
+  private final IsolatedReplicaConfig isolatedReplicaConfig;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -194,6 +195,7 @@ public class NrtsearchConfig {
             DirectoryFactory.MMapGrouping.SEGMENT);
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
     requireIdField = configReader.getBoolean("requireIdField", false);
+    isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -393,6 +395,10 @@ public class NrtsearchConfig {
 
   public boolean getRequireIdField() {
     return requireIdField;
+  }
+
+  public IsolatedReplicaConfig getIsolatedReplicaConfig() {
+    return isolatedReplicaConfig;
   }
 
   /**

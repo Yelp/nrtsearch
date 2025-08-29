@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.grpc.FileInfo;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
-import com.yelp.nrtsearch.server.nrt.SimpleCopyJob.FileChunkStreamingIterator;
+import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob.FileChunkStreamingIterator;
 import io.grpc.stub.StreamObserver;
 import java.util.Arrays;
 import java.util.List;
