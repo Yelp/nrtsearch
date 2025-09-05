@@ -44,8 +44,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
     super(name, requestField, context, Void.class);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
-    this.postingsFormat =
-        new Completion101PostingsFormat(context.config().getCompletionCodecLoadMode());
+    this.postingsFormat = new Completion101PostingsFormat();
   }
 
   @Override
