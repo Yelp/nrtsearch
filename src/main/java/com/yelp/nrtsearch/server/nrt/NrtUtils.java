@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
-import static org.apache.lucene.replicator.nrt.Node.VERBOSE_FILES;
 import static org.apache.lucene.replicator.nrt.Node.bytesToString;
 
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
@@ -73,16 +72,16 @@ public class NrtUtils {
           // corrupting an un-fsync'd file.  On init we try
           // to delete such unreferenced files, but virus checker can block that, leaving this bad
           // file.
-          if (VERBOSE_FILES) {
+          if (node.isVerboseFiles()) {
             node.message("file " + fileName + ": will copy [existing file is corrupt]");
           }
           return null;
         }
-        if (VERBOSE_FILES) {
+        if (node.isVerboseFiles()) {
           node.message("file " + fileName + " has length=" + bytesToString(length));
         }
       } catch (@SuppressWarnings("unused") FileNotFoundException | NoSuchFileException e) {
-        if (VERBOSE_FILES) {
+        if (node.isVerboseFiles()) {
           node.message("file " + fileName + ": will copy [file does not exist]");
         }
         return null;
