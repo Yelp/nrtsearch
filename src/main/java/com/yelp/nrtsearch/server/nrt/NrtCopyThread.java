@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
+import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
+import com.yelp.nrtsearch.server.nrt.jobs.VisitableCopyJob;
 import java.io.Closeable;
 import java.util.Locale;
 import org.apache.lucene.replicator.nrt.CopyJob;
@@ -61,7 +63,7 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
    * Returns null if we are closing, else, returns the top job or waits for one to arrive if the
    * queue is empty.
    */
-  private synchronized SimpleCopyJob getNextJob() {
+  private synchronized VisitableCopyJob getNextJob() {
     while (true) {
       if (finish) {
         return null;
@@ -72,7 +74,7 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
           throw new RuntimeException(ie);
         }
       } else {
-        return (SimpleCopyJob) getJob();
+        return (VisitableCopyJob) getJob();
       }
     }
   }
@@ -81,7 +83,7 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
   public void run() {
     // nocommit: prioritize jobs better here, the way an OS assigns CPU to processes:
     while (true) {
-      SimpleCopyJob topJob = getNextJob();
+      VisitableCopyJob topJob = getNextJob();
       if (topJob == null) {
         assert finish;
         break;

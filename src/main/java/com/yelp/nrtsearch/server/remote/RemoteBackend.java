@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Map;
 
 /** Interface for interacting with service resources stored in a persistent backend. */
@@ -33,6 +34,8 @@ public interface RemoteBackend extends PluginDownloader {
   enum GlobalResourceType {
     GLOBAL_STATE
   }
+
+  record InputStreamWithTimestamp(InputStream inputStream, Instant timestamp) {}
 
   /**
    * Get if a given global resource exists in the backend.
@@ -141,6 +144,20 @@ public interface RemoteBackend extends PluginDownloader {
       throws IOException;
 
   /**
+   * Download a single index file from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param fileName file name to download
+   * @param fileMetaData file metadata
+   * @return input stream of the index file
+   * @throws IOException on error downloading the file
+   */
+  InputStream downloadIndexFile(
+      String service, String indexIdentifier, String fileName, NrtFileMetaData fileMetaData)
+      throws IOException;
+
+  /**
    * Upload NRT point state to the remote backend.
    *
    * @param service service name
@@ -158,8 +175,9 @@ public interface RemoteBackend extends PluginDownloader {
    *
    * @param service service name
    * @param indexIdentifier unique index identifier
-   * @return input stream of point state data
+   * @return input stream of point state data with timestamp
    * @throws IOException on error downloading point state
    */
-  InputStream downloadPointState(String service, String indexIdentifier) throws IOException;
+  InputStreamWithTimestamp downloadPointState(String service, String indexIdentifier)
+      throws IOException;
 }

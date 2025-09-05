@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,6 +72,10 @@ public class NrtDataManager implements Closeable {
   // Set during restoreIfNeeded, then only accessed by UploadManagerThread
   private volatile NrtPointState lastPointState = null;
 
+  // Set during restoreIfNeeded, then updated by setLastPointState, which only happens on replicas
+  // using the isolated replica feature
+  private volatile Instant lastPointTimestamp = null;
+
   // use synchronized access
   private UploadTask currentUploadTask = null;
   private UploadTask nextUploadTask = null;
@@ -109,9 +114,22 @@ public class NrtDataManager implements Closeable {
     this.remoteCommit = remoteCommit;
   }
 
+  /**
+   * Represents a point state along with the timestamp it was uploaded to the remote backend.
+   *
+   * @param pointState NrtPointState object
+   * @param timestamp Instant representing the time the point state was uploaded
+   */
+  public record PointStateWithTimestamp(NrtPointState pointState, Instant timestamp) {}
+
   @VisibleForTesting
   NrtPointState getLastPointState() {
     return lastPointState;
+  }
+
+  @VisibleForTesting
+  Instant getLastPointTimestamp() {
+    return lastPointTimestamp;
   }
 
   @VisibleForTesting
@@ -183,9 +201,14 @@ public class NrtDataManager implements Closeable {
     }
     if (hasRestoreData()) {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
-      InputStream pointStateStream = remoteBackend.downloadPointState(serviceName, indexIdentifier);
+      RemoteBackend.InputStreamWithTimestamp pointStateWithTimestamp =
+          remoteBackend.downloadPointState(serviceName, indexIdentifier);
+      InputStream pointStateStream = pointStateWithTimestamp.inputStream();
       byte[] pointStateBytes = pointStateStream.readAllBytes();
       NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
+
+      logger.info(
+          "Point state: {}, timestamp: {}", pointState, pointStateWithTimestamp.timestamp());
 
       long start = System.nanoTime();
       try {
@@ -209,6 +232,7 @@ public class NrtDataManager implements Closeable {
       }
 
       lastPointState = pointState;
+      lastPointTimestamp = pointStateWithTimestamp.timestamp();
     }
   }
 
@@ -221,6 +245,19 @@ public class NrtDataManager implements Closeable {
     try (OutputStream os = new FileOutputStream(segmentsFile.toFile())) {
       os.write(segmentBytes);
     }
+  }
+
+  /**
+   * Download a single index file from the remote backend.
+   *
+   * @param fileName file name to download
+   * @param fileMetaData file metadata
+   * @return input stream of the index file
+   * @throws IOException on error downloading the file
+   */
+  public InputStream downloadIndexFile(String fileName, NrtFileMetaData fileMetaData)
+      throws IOException {
+    return remoteBackend.downloadIndexFile(serviceName, indexIdentifier, fileName, fileMetaData);
   }
 
   /**
@@ -244,6 +281,43 @@ public class NrtDataManager implements Closeable {
       nextUploadTask = uploadTask;
     } else {
       nextUploadTask = mergeTasks(nextUploadTask, uploadTask, primaryNode);
+    }
+  }
+
+  /**
+   * Get the target point state that should be loaded from the remote backend. This is used by the
+   * isolated replica feature to determine when and index update is needed. It currently returns the
+   * latest point state from the remote backend.
+   *
+   * @return PointStateWithTimestamp object containing the target point state and its timestamp
+   * @throws IOException if an error occurs while downloading the point state
+   */
+  public PointStateWithTimestamp getTargetPointState() throws IOException {
+    RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
+        remoteBackend.downloadPointState(serviceName, indexIdentifier);
+    InputStream pointStateStream = inputStreamWithTimestamp.inputStream();
+    byte[] pointStateBytes = pointStateStream.readAllBytes();
+    return new PointStateWithTimestamp(
+        RemoteUtils.pointStateFromUtf8(pointStateBytes), inputStreamWithTimestamp.timestamp());
+  }
+
+  /**
+   * Set the last point state. This is used by the isolated replica feature to update the last point
+   * state after the copy job is complete.
+   *
+   * @param pointState NrtPointState object representing the last point state
+   * @param timestamp Instant representing the time the point state was uploaded
+   */
+  public synchronized void setLastPointState(NrtPointState pointState, Instant timestamp) {
+    logger.info("Setting last point state: {}, timestamp: {}", pointState, timestamp);
+    if (lastPointState == null || (pointState.version > lastPointState.version)) {
+      this.lastPointState = pointState;
+      this.lastPointTimestamp = timestamp;
+    } else {
+      logger.info(
+          "Not setting last point state, existing version is later. Existing version: {}, new version: {}",
+          lastPointState.version,
+          pointState.version);
     }
   }
 

@@ -164,7 +164,10 @@ public class SnapshotCommand implements Callable<Integer> {
       throw new IllegalArgumentException("No data found for index: " + resolvedIndexResource);
     }
     byte[] pointStateBytes =
-        s3Backend.downloadPointState(serviceName, resolvedIndexResource).readAllBytes();
+        s3Backend
+            .downloadPointState(serviceName, resolvedIndexResource)
+            .inputStream()
+            .readAllBytes();
     NrtPointState nrtPointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
     Set<String> indexDataFiles =
         nrtPointState.files.entrySet().stream()
