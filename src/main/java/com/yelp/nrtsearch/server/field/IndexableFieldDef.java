@@ -75,12 +75,14 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
    * @param requestField field definition from grpc request
    * @param context creation context
    * @param docValuesObjectClass class of doc values object
+   * @param previousField the previous instance of this field definition, or null if there is none
    */
   protected IndexableFieldDef(
       String name,
       Field requestField,
       FieldDefCreator.FieldDefCreatorContext context,
-      Class<? super T> docValuesObjectClass) {
+      Class<? super T> docValuesObjectClass,
+      IndexableFieldDef<?> previousField) {
     super(name);
 
     validateRequest(requestField);
@@ -120,7 +122,12 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
       for (Field field : requestField.getChildFieldsList()) {
         checkChildName(field.getName());
         String childName = getName() + IndexState.CHILD_FIELD_SEPARATOR + field.getName();
-        FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(childName, field, context);
+        Map<String, IndexableFieldDef<?>> previousChildFields =
+            previousField == null ? Map.of() : previousField.getChildFields();
+        FieldDef fieldDef =
+            FieldDefCreator.getInstance()
+                .createFieldDefFromPrevious(
+                    childName, field, previousChildFields.get(childName), context);
         if (!(fieldDef instanceof IndexableFieldDef)) {
           throw new IllegalArgumentException("Child field is not indexable: " + childName);
         }
@@ -146,10 +153,10 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
 
   /**
    * Method called by {@link #IndexableFieldDef(String, Field,
-   * FieldDefCreator.FieldDefCreatorContext, Class)} to validate the provided {@link Field}. Field
-   * definitions should define a version that checks for incompatible parameters and any other
-   * potential issues. It is recommended to also call the super version of this method, so that
-   * general checks do not need to be repeated everywhere.
+   * FieldDefCreator.FieldDefCreatorContext, Class, IndexableFieldDef)} to validate the provided
+   * {@link Field}. Field definitions should define a version that checks for incompatible
+   * parameters and any other potential issues. It is recommended to also call the super version of
+   * this method, so that general checks do not need to be repeated everywhere.
    *
    * @param requestField field properties to validate
    */
@@ -157,9 +164,9 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
 
   /**
    * Method called by {@link #IndexableFieldDef(String, Field,
-   * FieldDefCreator.FieldDefCreatorContext, Class)} to determine the doc value type used by this
-   * field. Fields are not necessarily limited to one doc value, but this should represent the
-   * primary value that will be accessible to scripts and search through {@link
+   * FieldDefCreator.FieldDefCreatorContext, Class, IndexableFieldDef)} to determine the doc value
+   * type used by this field. Fields are not necessarily limited to one doc value, but this should
+   * represent the primary value that will be accessible to scripts and search through {@link
    * #getDocValues(LeafReaderContext)}. A value of NONE implies that the field does not support doc
    * values.
    *
@@ -172,9 +179,9 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
 
   /**
    * Method called by {@link #IndexableFieldDef(String, Field,
-   * FieldDefCreator.FieldDefCreatorContext, Class)} to determine the facet value type for this
-   * field. The result of this method is exposed externally through {@link #getFacetValueType()}. A
-   * value of NO_FACETS implies that the field does not support facets.
+   * FieldDefCreator.FieldDefCreatorContext, Class, IndexableFieldDef)} to determine the facet value
+   * type for this field. The result of this method is exposed externally through {@link
+   * #getFacetValueType()}. A value of NO_FACETS implies that the field does not support facets.
    *
    * @param requestField field from request
    * @return field facet value type
@@ -185,12 +192,12 @@ public abstract class IndexableFieldDef<T> extends FieldDef {
 
   /**
    * Method called by {@link #IndexableFieldDef(String, Field,
-   * FieldDefCreator.FieldDefCreatorContext, Class)} to set the search properties on the given
-   * {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set to the value
-   * from {@link Field#getStore()}. This method should set any other needed properties, such as
-   * index options, tokenization, term vectors, etc. It likely should not set a doc value type, as
-   * those are usually added separately. The common use of this {@link FieldType} is to add a {@link
-   * FieldWithData} during indexing. This method should not freeze the field type.
+   * FieldDefCreator.FieldDefCreatorContext, Class, IndexableFieldDef)} to set the search properties
+   * on the given {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set
+   * to the value from {@link Field#getStore()}. This method should set any other needed properties,
+   * such as index options, tokenization, term vectors, etc. It likely should not set a doc value
+   * type, as those are usually added separately. The common use of this {@link FieldType} is to add
+   * a {@link FieldWithData} during indexing. This method should not freeze the field type.
    *
    * @param fieldType type that needs search properties set
    * @param requestField field from request

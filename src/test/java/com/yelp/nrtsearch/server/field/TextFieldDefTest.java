@@ -124,4 +124,24 @@ public class TextFieldDefTest {
       assertEquals("posIncGap must be >= 0", e.getMessage());
     }
   }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    TextFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof TextFieldDef);
+    TextFieldDef updatedFieldDef = (TextFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
+    assertSame(fieldDef.ordinalLookupCache, updatedFieldDef.ordinalLookupCache);
+    assertSame(fieldDef.ordinalBuilderLock, updatedFieldDef.ordinalBuilderLock);
+  }
 }
