@@ -58,7 +58,7 @@ public class GrpcCopyOneFile implements CopyOneFile {
     tmpName = out.getName();
     // last 8 bytes are checksum:
     bytesToCopy = metaData.length() - Long.BYTES;
-    if (Node.VERBOSE_FILES) {
+    if (dest.isVerboseFiles()) {
       dest.message(
           "file "
               + name
@@ -154,7 +154,7 @@ public class GrpcCopyOneFile implements CopyOneFile {
       }
       CodecUtil.writeBELong(out, checksum);
       close();
-      if (Node.VERBOSE_FILES) {
+      if (dest.isVerboseFiles()) {
         dest.message(
             String.format(
                 Locale.ROOT,
