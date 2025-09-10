@@ -38,6 +38,13 @@ public interface RemoteBackend extends PluginDownloader {
   record InputStreamWithTimestamp(InputStream inputStream, Instant timestamp) {}
 
   /**
+   * Configuration context for update interval when downloading point state.
+   *
+   * @param updateIntervalSeconds update interval in seconds, or 0 to get the latest point state
+   */
+  record UpdateIntervalContext(int updateIntervalSeconds) {}
+
+  /**
    * Get if a given global resource exists in the backend.
    *
    * @param service service name
@@ -171,13 +178,19 @@ public interface RemoteBackend extends PluginDownloader {
       throws IOException;
 
   /**
-   * Download NRT point state from the remote backend.
+   * Download NRT point state from the remote backend, potentially using an update interval. When
+   * the update interval is greater than zero, the backend will provide the first index version
+   * within the update interval. Intervals begin at midnight UTC. If no index version is available
+   * within the last interval, the latest version is returned.
    *
    * @param service service name
    * @param indexIdentifier unique index identifier
-   * @return input stream of point state data with timestamp
+   * @param updateIntervalContext configuration context for update interval, or null to get the
+   *     latest point state
+   * @return input stream of point state data and the timestamp of the point state
    * @throws IOException on error downloading point state
    */
-  InputStreamWithTimestamp downloadPointState(String service, String indexIdentifier)
+  InputStreamWithTimestamp downloadPointState(
+      String service, String indexIdentifier, UpdateIntervalContext updateIntervalContext)
       throws IOException;
 }

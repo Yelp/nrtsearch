@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.nrt;
 import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
@@ -193,6 +194,19 @@ public class NrtDataManager implements Closeable {
    * @throws IOException if an error occurs while restoring the index data
    */
   public void restoreIfNeeded(Path shardDataDir) throws IOException {
+    restoreIfNeeded(shardDataDir, null);
+  }
+
+  /**
+   * Restore the index data if it is available in the remote backend.
+   *
+   * @param shardDataDir Path to the shard index data directory
+   * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
+   *     replica
+   * @throws IOException if an error occurs while restoring the index data
+   */
+  public void restoreIfNeeded(Path shardDataDir, IsolatedReplicaConfig isolatedReplicaConfig)
+      throws IOException {
     if (restoreIndex == null) {
       return;
     }
@@ -202,7 +216,8 @@ public class NrtDataManager implements Closeable {
     if (hasRestoreData()) {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
       RemoteBackend.InputStreamWithTimestamp pointStateWithTimestamp =
-          remoteBackend.downloadPointState(serviceName, indexIdentifier);
+          remoteBackend.downloadPointState(
+              serviceName, indexIdentifier, createUpdateIntervalContext(isolatedReplicaConfig));
       InputStream pointStateStream = pointStateWithTimestamp.inputStream();
       byte[] pointStateBytes = pointStateStream.readAllBytes();
       NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
@@ -245,6 +260,48 @@ public class NrtDataManager implements Closeable {
     try (OutputStream os = new FileOutputStream(segmentsFile.toFile())) {
       os.write(segmentBytes);
     }
+  }
+
+  /**
+   * Create an update interval context from the isolated replica configuration. If the isolated
+   * replica configuration is null or not enabled, null is returned.
+   *
+   * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
+   *     replica
+   * @return RemoteBackend.UpdateIntervalContext object with appropriate update interval, or null
+   */
+  @VisibleForTesting
+  static RemoteBackend.UpdateIntervalContext createUpdateIntervalContext(
+      IsolatedReplicaConfig isolatedReplicaConfig) {
+    if (isolatedReplicaConfig == null || !isolatedReplicaConfig.isEnabled()) {
+      return null;
+    }
+    int updateIntervalSeconds =
+        freshnessToUpdateIntervalSeconds(isolatedReplicaConfig.getFreshnessTargetSeconds());
+    return new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds);
+  }
+
+  /**
+   * Convert freshness target interval to update interval in seconds. The update interval is used to
+   * determine which index version to download from the remote backend. The update interval is half
+   * the freshness target interval, with a minimum of 1 second. If the freshness target interval is
+   * 0 or negative, the update interval is 0, which means no interval and the latest version is
+   * always returned.
+   *
+   * @param freshnessTargetInterval Target for how fresh the replica index data should be in
+   *     seconds, must be >= 0, 0 means as fresh as possible
+   * @return update interval in seconds
+   */
+  @VisibleForTesting
+  static int freshnessToUpdateIntervalSeconds(int freshnessTargetInterval) {
+    if (freshnessTargetInterval <= 0) {
+      return 0;
+    }
+    // Use half the target interval as the update interval, with a minimum of 1 second. This is
+    // needed for cases where on update is at the start of the freshness interval, and the next
+    // update is at the end. Using half the interval ensures that the second update will not be
+    // skipped, violating the freshness target.
+    return Math.max(1, freshnessTargetInterval / 2);
   }
 
   /**
@@ -294,7 +351,7 @@ public class NrtDataManager implements Closeable {
    */
   public PointStateWithTimestamp getTargetPointState() throws IOException {
     RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
-        remoteBackend.downloadPointState(serviceName, indexIdentifier);
+        remoteBackend.downloadPointState(serviceName, indexIdentifier, null);
     InputStream pointStateStream = inputStreamWithTimestamp.inputStream();
     byte[] pointStateBytes = pointStateStream.readAllBytes();
     return new PointStateWithTimestamp(

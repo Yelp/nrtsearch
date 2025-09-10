@@ -165,7 +165,7 @@ public class SnapshotCommand implements Callable<Integer> {
     }
     byte[] pointStateBytes =
         s3Backend
-            .downloadPointState(serviceName, resolvedIndexResource)
+            .downloadPointState(serviceName, resolvedIndexResource, null)
             .inputStream()
             .readAllBytes();
     NrtPointState nrtPointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);

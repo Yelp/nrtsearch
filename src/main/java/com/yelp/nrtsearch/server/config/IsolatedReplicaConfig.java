@@ -19,10 +19,12 @@ import java.util.Objects;
 
 /** Config class for the isolated replica feature that decouples replicas from the primary. */
 public class IsolatedReplicaConfig {
+  private static final int MAX_FRESHNESS_TARGET_SECONDS = 60 * 60 * 24; // 1 day
   public static final String CONFIG_PREFIX = "isolatedReplicaConfig.";
 
   private final boolean enabled;
   private final int pollingIntervalSeconds;
+  private final int freshnessTargetSeconds;
 
   /**
    * Create instance from provided configuration reader.
@@ -35,7 +37,9 @@ public class IsolatedReplicaConfig {
     boolean enabled = configReader.getBoolean(CONFIG_PREFIX + "enabled", false);
     int pollingIntervalSeconds =
         configReader.getInteger(CONFIG_PREFIX + "pollingIntervalSeconds", 120);
-    return new IsolatedReplicaConfig(enabled, pollingIntervalSeconds);
+    int freshnessTargetSeconds =
+        configReader.getInteger(CONFIG_PREFIX + "freshnessTargetSeconds", 0);
+    return new IsolatedReplicaConfig(enabled, pollingIntervalSeconds, freshnessTargetSeconds);
   }
 
   /**
@@ -43,14 +47,30 @@ public class IsolatedReplicaConfig {
    *
    * @param enabled if isolated replica is enabled
    * @param pollingIntervalSeconds interval in seconds to poll for new index versions, must be > 0
+   * @param freshnessTargetSeconds target for how fresh the replica index data should be in seconds,
+   *     must be >= 0 and <= 1 day, 0 means as fresh as possible
+   * @throws IllegalArgumentException if pollingIntervalSeconds is not positive or
+   *     freshnessTargetSeconds is negative or too large
    */
-  public IsolatedReplicaConfig(boolean enabled, int pollingIntervalSeconds) {
+  public IsolatedReplicaConfig(
+      boolean enabled, int pollingIntervalSeconds, int freshnessTargetSeconds) {
     this.enabled = enabled;
     this.pollingIntervalSeconds = pollingIntervalSeconds;
     if (pollingIntervalSeconds <= 0) {
       throw new IllegalArgumentException(
           String.format(
               "Polling interval seconds must be positive, got: %d", pollingIntervalSeconds));
+    }
+    this.freshnessTargetSeconds = freshnessTargetSeconds;
+    if (freshnessTargetSeconds < 0) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Freshness target seconds must be non-negative, got: %d", freshnessTargetSeconds));
+    } else if (freshnessTargetSeconds > MAX_FRESHNESS_TARGET_SECONDS) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Freshness target seconds must be <= %d, got: %d",
+              MAX_FRESHNESS_TARGET_SECONDS, freshnessTargetSeconds));
     }
   }
 
@@ -66,5 +86,13 @@ public class IsolatedReplicaConfig {
    */
   public int getPollingIntervalSeconds() {
     return pollingIntervalSeconds;
+  }
+
+  /**
+   * @return target for how fresh the replica index should be in seconds, 0 means as fresh as
+   *     possible
+   */
+  public int getFreshnessTargetSeconds() {
+    return freshnessTargetSeconds;
   }
 }
