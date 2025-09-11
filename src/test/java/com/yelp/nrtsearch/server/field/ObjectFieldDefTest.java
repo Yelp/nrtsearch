@@ -17,6 +17,10 @@ package com.yelp.nrtsearch.server.field;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -43,6 +47,11 @@ public class ObjectFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   private static final String STORED_TEST_INDEX = "stored_test_index";
+
+  private ObjectFieldDef createFieldDef(Field field) {
+    return new ObjectFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
 
   protected List<String> getIndices() {
     return List.of(DEFAULT_TEST_INDEX, STORED_TEST_INDEX);
@@ -685,5 +694,23 @@ public class ObjectFieldDefTest extends ServerTestCase {
     }
     Set<String> expectedSet = new HashSet<>(Arrays.asList(expectedValues));
     assertEquals(seenSet, expectedSet);
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    ObjectFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof ObjectFieldDef);
+    ObjectFieldDef updatedFieldDef = (ObjectFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 }
