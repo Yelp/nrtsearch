@@ -42,6 +42,7 @@ public class StartIndexProcessor {
   private final IndexStateManager indexStateManager;
   private final boolean remoteCommit;
   private final int discoveryFileUpdateIntervalMs;
+  private final boolean requireIdField;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
 
   /**
@@ -53,6 +54,7 @@ public class StartIndexProcessor {
    * @param indexStateManager index state manager
    * @param remoteCommit whether to commit to remote state
    * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
+   * @param requireIdField whether the index must have an _ID field defined
    */
   public StartIndexProcessor(
       String serviceName,
@@ -60,13 +62,15 @@ public class StartIndexProcessor {
       RemoteBackend remoteBackend,
       IndexStateManager indexStateManager,
       boolean remoteCommit,
-      int discoveryFileUpdateIntervalMs) {
+      int discoveryFileUpdateIntervalMs,
+      boolean requireIdField) {
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.remoteBackend = remoteBackend;
     this.indexStateManager = indexStateManager;
     this.remoteCommit = remoteCommit;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
+    this.requireIdField = requireIdField;
   }
 
   public StartIndexResponse process(IndexState indexState, StartIndexRequest startIndexRequest)
@@ -96,6 +100,13 @@ public class StartIndexProcessor {
   private StartIndexResponse processInternal(
       IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexProcessorException {
+
+    if (requireIdField && indexState.getIdFieldDef().isEmpty()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Index %s must have an _ID field defined to be started", indexState.getName()));
+    }
+
     final ShardState shardState = indexState.getShard(0);
     final Mode mode = startIndexRequest.getMode();
     final long primaryGen;
@@ -169,8 +180,9 @@ public class StartIndexProcessor {
           new DiscoveryFileAndPort(request.getPrimaryDiscoveryFile(), request.getPort()),
           discoveryFileUpdateIntervalMs);
     } else {
-      throw new IllegalArgumentException(
-          "Unable to initialize primary replication client for start request: " + request);
+      logger.info(
+          "No primary address or discovery file provided for index {}", request.getIndexName());
+      return null;
     }
   }
 

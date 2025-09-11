@@ -23,7 +23,7 @@ import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.index.DirectoryFactory;
 import java.io.ByteArrayInputStream;
-import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
+import java.util.Map;
 import org.junit.Test;
 
 public class NrtsearchConfigTest {
@@ -77,20 +77,6 @@ public class NrtsearchConfigTest {
         String.join("\n", "nodeName: \"server_foo\"", "discoveryFileUpdateIntervalMs: 100");
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
-  }
-
-  @Test
-  public void testDefaultCompletionCodecLoadMode() {
-    String config = "nodeName: \"server_foo\"";
-    NrtsearchConfig luceneConfig = getForConfig(config);
-    assertEquals(FSTLoadMode.ON_HEAP, luceneConfig.getCompletionCodecLoadMode());
-  }
-
-  @Test
-  public void testSetCompletionCodecLoadMode() {
-    String config = "completionCodecLoadMode: OFF_HEAP";
-    NrtsearchConfig luceneConfig = getForConfig(config);
-    assertEquals(FSTLoadMode.OFF_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
 
   @Test
@@ -231,5 +217,63 @@ public class NrtsearchConfigTest {
     String config = "maxClauseCount: 2048";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(2048, luceneConfig.getMaxClauseCount());
+  }
+
+  @Test
+  public void testRequireIdField_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getRequireIdField());
+  }
+
+  @Test
+  public void testRequireIdField_set() {
+    String config = "requireIdField: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getRequireIdField());
+  }
+
+  @Test
+  public void testGetIngestionPluginConfigs() {
+    String config =
+        String.join(
+            "\n",
+            "nodeName: \"server_foo\"",
+            "plugins:",
+            "  - kafka-plugin",
+            "  - s3-plugin",
+            "pluginConfigs:",
+            "  ingestion:",
+            "    kafka:",
+            "      topic: \"my-topic\"",
+            "      autoCommitEnabled: false",
+            "    s3:",
+            "      bucket: \"my-bucket\"");
+
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    Map<String, Map<String, Object>> ingestionConfigs = luceneConfig.getIngestionPluginConfigs();
+
+    assertEquals("my-topic", ingestionConfigs.get("kafka").get("topic"));
+    assertEquals("my-bucket", ingestionConfigs.get("s3").get("bucket"));
+  }
+
+  @Test
+  public void testMissingIngestionConfigReturnsEmptyMap() {
+    String config = String.join("\n", "nodeName: \"server_foo\"", "plugins:", "  - kafka-plugin");
+
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    Map<String, Map<String, Object>> ingestionConfigs = luceneConfig.getIngestionPluginConfigs();
+
+    assertTrue(ingestionConfigs.isEmpty());
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testInvalidIngestionConfigThrows() {
+    String config =
+        String.join(
+            "\n", "nodeName: \"server_foo\"", "pluginConfigs:", "  ingestion:", "    - kafka");
+
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    luceneConfig.getIngestionPluginConfigs(); // should throw
   }
 }

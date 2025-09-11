@@ -35,12 +35,14 @@ import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.StateUtils;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
@@ -143,7 +145,7 @@ public class S3Backend implements RemoteBackend {
    */
   public InputStream downloadFromS3Path(String s3Path) {
     AmazonS3URI s3URI = new AmazonS3URI(s3Path);
-    return downloadFromS3Path(s3URI.getBucket(), s3URI.getKey());
+    return downloadFromS3Path(s3URI.getBucket(), s3URI.getKey(), true);
   }
 
   /**
@@ -151,18 +153,23 @@ public class S3Backend implements RemoteBackend {
    *
    * @param bucketName Bucket name in S3
    * @param absoluteResourcePath Key for the file in the bucket
+   * @param verbose log verbose output
    * @return {@link InputStream} of the file being streamed
    * @throws IllegalArgumentException if bucket or path not found
    */
-  public InputStream downloadFromS3Path(String bucketName, String absoluteResourcePath) {
-    logger.info("Downloading {} from bucket {}", absoluteResourcePath, bucketName);
+  public InputStream downloadFromS3Path(
+      String bucketName, String absoluteResourcePath, boolean verbose) {
+    if (verbose) {
+      logger.info("Downloading {} from bucket {}", absoluteResourcePath, bucketName);
+    }
     final InputStream s3InputStream;
     // Stream the file download from s3 instead of writing to a file first
     GetObjectMetadataRequest metadataRequest =
         new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
+    long fullObjectSize;
     try {
       ObjectMetadata fullMetadata = s3.getObjectMetadata(metadataRequest);
-      logger.info("Full object size: " + fullMetadata.getContentLength());
+      fullObjectSize = fullMetadata.getContentLength();
     } catch (AmazonS3Exception e) {
       if (isNotFoundException(e)) {
         String error =
@@ -172,12 +179,22 @@ public class S3Backend implements RemoteBackend {
       throw e;
     }
 
+    if (verbose) {
+      logger.info("Full object size: " + fullObjectSize);
+    } else {
+      logger.info("Downloading {}, size: {}", absoluteResourcePath, fullObjectSize);
+    }
+
     // get metadata for the 1st file part, needed to find the total number of parts
     ObjectMetadata partMetadata = s3.getObjectMetadata(metadataRequest.withPartNumber(1));
     int numParts = partMetadata.getPartCount() != null ? partMetadata.getPartCount() : 1;
-    logger.info("Object parts: " + numParts);
+    if (verbose) {
+      logger.info("Object parts: " + numParts);
+    }
     s3InputStream = getObjectStream(bucketName, absoluteResourcePath, numParts);
-    logger.info("Object streaming started...");
+    if (verbose) {
+      logger.info("Object streaming started...");
+    }
     return s3InputStream;
   }
 
@@ -442,6 +459,16 @@ public class S3Backend implements RemoteBackend {
     }
   }
 
+  @Override
+  public InputStream downloadIndexFile(
+      String service, String indexIdentifier, String fileName, NrtFileMetaData fileMetaData)
+      throws IOException {
+    String backendFileName = getIndexBackendFileName(fileName, fileMetaData);
+    String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
+    String backendKey = backendPrefix + backendFileName;
+    return downloadFromS3Path(serviceBucket, backendKey, false);
+  }
+
   @VisibleForTesting
   static List<FileNamePair> getFileNamePairs(Map<String, NrtFileMetaData> files) {
     List<FileNamePair> fileList = new LinkedList<>();
@@ -472,11 +499,15 @@ public class S3Backend implements RemoteBackend {
   }
 
   @Override
-  public InputStream downloadPointState(String service, String indexIdentifier) throws IOException {
+  public InputStreamWithTimestamp downloadPointState(String service, String indexIdentifier)
+      throws IOException {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.POINT_STATE);
     String fileName = getCurrentResourceName(prefix);
     String backendKey = prefix + fileName;
-    return downloadFromS3Path(serviceBucket, backendKey);
+    String timeString = getTimeStringFromPointStateFileName(fileName);
+    Instant timestamp = TimeStringUtils.parseTimeStringSec(timeString);
+    return new InputStreamWithTimestamp(
+        downloadFromS3Path(serviceBucket, backendKey, true), timestamp);
   }
 
   private void uploadResource(
@@ -502,7 +533,7 @@ public class S3Backend implements RemoteBackend {
   private InputStream downloadResource(String prefix) throws IOException {
     String fileName = getCurrentResourceName(prefix);
     String backendKey = prefix + fileName;
-    return downloadFromS3Path(serviceBucket, backendKey);
+    return downloadFromS3Path(serviceBucket, backendKey, true);
   }
 
   @VisibleForTesting
@@ -532,6 +563,20 @@ public class S3Backend implements RemoteBackend {
     String timestamp = generateTimeStringSec();
     return String.format(
         POINT_STATE_FILE_FORMAT, timestamp, nrtPointState.primaryId, nrtPointState.version);
+  }
+
+  /**
+   * Extract the time string from a point state file name.
+   *
+   * @param pointStateFileName point state file name
+   * @return time string
+   */
+  public static String getTimeStringFromPointStateFileName(String pointStateFileName) {
+    String[] parts = pointStateFileName.split("-");
+    if (parts.length < 3) {
+      throw new IllegalArgumentException("Invalid point state file name: " + pointStateFileName);
+    }
+    return parts[0];
   }
 
   /**

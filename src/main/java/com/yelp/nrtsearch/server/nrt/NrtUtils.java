@@ -15,13 +15,16 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
-import static org.apache.lucene.replicator.nrt.Node.VERBOSE_FILES;
 import static org.apache.lucene.replicator.nrt.Node.bytesToString;
 
+import com.yelp.nrtsearch.server.grpc.FileMetadata;
+import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -69,16 +72,16 @@ public class NrtUtils {
           // corrupting an un-fsync'd file.  On init we try
           // to delete such unreferenced files, but virus checker can block that, leaving this bad
           // file.
-          if (VERBOSE_FILES) {
+          if (node.isVerboseFiles()) {
             node.message("file " + fileName + ": will copy [existing file is corrupt]");
           }
           return null;
         }
-        if (VERBOSE_FILES) {
+        if (node.isVerboseFiles()) {
           node.message("file " + fileName + " has length=" + bytesToString(length));
         }
       } catch (@SuppressWarnings("unused") FileNotFoundException | NoSuchFileException e) {
-        if (VERBOSE_FILES) {
+        if (node.isVerboseFiles()) {
           node.message("file " + fileName + ": will copy [file does not exist]");
         }
         return null;
@@ -91,5 +94,31 @@ public class NrtUtils {
     }
 
     return result;
+  }
+
+  /**
+   * Reads {@link FilesMetadata} and converts it to a map of file names to {@link FileMetaData}.
+   *
+   * @param filesMetadata the FilesMetadata to read
+   * @return a map of file names to FileMetaData
+   * @throws IOException if an I/O error occurs
+   */
+  public static Map<String, FileMetaData> readFilesMetaData(FilesMetadata filesMetadata)
+      throws IOException {
+    int fileCount = filesMetadata.getNumFiles();
+    assert fileCount == filesMetadata.getFileMetadataCount();
+
+    Map<String, FileMetaData> files = new HashMap<>();
+    for (FileMetadata fileMetadata : filesMetadata.getFileMetadataList()) {
+      String fileName = fileMetadata.getFileName();
+      long length = fileMetadata.getLen();
+      long checksum = fileMetadata.getChecksum();
+      byte[] header = new byte[fileMetadata.getHeaderLength()];
+      fileMetadata.getHeader().copyTo(ByteBuffer.wrap(header));
+      byte[] footer = new byte[fileMetadata.getFooterLength()];
+      fileMetadata.getFooter().copyTo(ByteBuffer.wrap(footer));
+      files.put(fileName, new FileMetaData(header, footer, length, checksum));
+    }
+    return files;
   }
 }

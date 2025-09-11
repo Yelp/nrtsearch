@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 
 public class NrtsearchConfig {
   private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
@@ -98,7 +97,6 @@ public class NrtsearchConfig {
   private final StateConfig stateConfig;
   private final IndexStartConfig indexStartConfig;
   private final int discoveryFileUpdateIntervalMs;
-  private final FSTLoadMode completionCodecLoadMode;
   private final boolean filterIncompatibleSegmentReaders;
   private final Map<String, IndexLiveSettings> indexLiveSettingsOverrides;
   private final boolean useSeparateCommitExecutor;
@@ -113,6 +111,8 @@ public class NrtsearchConfig {
   private final boolean verifyReplicationIndexId;
   private final boolean useKeepAliveForReplication;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
+  private final boolean requireIdField;
+  private final IsolatedReplicaConfig isolatedReplicaConfig;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -177,8 +177,6 @@ public class NrtsearchConfig {
     discoveryFileUpdateIntervalMs =
         configReader.getInteger(
             "discoveryFileUpdateIntervalMs", ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
-    completionCodecLoadMode =
-        FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
     filterIncompatibleSegmentReaders =
         configReader.getBoolean("filterIncompatibleSegmentReaders", false);
     savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
@@ -192,6 +190,8 @@ public class NrtsearchConfig {
             o -> DirectoryFactory.parseMMapGrouping(o.toString()),
             DirectoryFactory.MMapGrouping.SEGMENT);
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
+    requireIdField = configReader.getBoolean("requireIdField", false);
+    isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -348,10 +348,6 @@ public class NrtsearchConfig {
     return discoveryFileUpdateIntervalMs;
   }
 
-  public FSTLoadMode getCompletionCodecLoadMode() {
-    return completionCodecLoadMode;
-  }
-
   public boolean getFilterIncompatibleSegmentReaders() {
     return filterIncompatibleSegmentReaders;
   }
@@ -387,6 +383,14 @@ public class NrtsearchConfig {
 
   public boolean getUseSeparateCommitExecutor() {
     return useSeparateCommitExecutor;
+  }
+
+  public boolean getRequireIdField() {
+    return requireIdField;
+  }
+
+  public IsolatedReplicaConfig getIsolatedReplicaConfig() {
+    return isolatedReplicaConfig;
   }
 
   /**
@@ -439,5 +443,15 @@ public class NrtsearchConfig {
       paths.add(o.toString());
     }
     return paths;
+  }
+
+  public Map<String, Map<String, Object>> getIngestionPluginConfigs() {
+    try {
+      return configReader.get(
+          "pluginConfigs.ingestion",
+          obj -> JsonUtils.convertValue(obj, IngestionPluginConfigs.class).getPluginConfigs());
+    } catch (ConfigKeyNotFoundException e) {
+      return Collections.emptyMap();
+    }
   }
 }

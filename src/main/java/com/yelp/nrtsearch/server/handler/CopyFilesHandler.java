@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.handler;
 
+import static com.yelp.nrtsearch.server.nrt.NrtUtils.readFilesMetaData;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.CopyFiles;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
@@ -23,7 +25,6 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
-import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
@@ -94,14 +95,19 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
           "index \"" + indexName + "\" is not a replica or was not started yet");
     }
 
+    if (!shardState.nrtReplicaNode.hasPrimaryConnection()) {
+      throw new IllegalStateException(
+          "Replica does not have a primary connection for index "
+              + copyFilesRequest.getIndexName());
+    }
+
     if (!isValidMagicHeader(copyFilesRequest.getMagicNumber())) {
       throw new RuntimeException("RecvCopyStateHandler invoked with Invalid Magic Number");
     }
 
     long primaryGen = copyFilesRequest.getPrimaryGen();
     // these are the files that the remote (primary) wants us to copy
-    Map<String, FileMetaData> files =
-        NRTReplicaNode.readFilesMetaData(copyFilesRequest.getFilesMetadata());
+    Map<String, FileMetaData> files = readFilesMetaData(copyFilesRequest.getFilesMetadata());
 
     AtomicBoolean finished = new AtomicBoolean();
     CopyJob job;

@@ -47,6 +47,7 @@ public class ThreadPoolConfigurationTest {
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(threadPoolSettings.maxThreads(), 16);
     assertEquals(threadPoolSettings.maxBufferedItems(), 100);
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -62,6 +63,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_SEARCH_BUFFERED_ITEMS);
     assertEquals("LuceneSearchExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -81,6 +83,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -95,6 +98,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_INDEXING_BUFFERED_ITEMS);
     assertEquals("LuceneIndexingExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -114,6 +118,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -129,6 +134,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_GRPC_SERVER_BUFFERED_ITEMS);
     assertEquals("GrpcServerExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -148,6 +154,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -165,6 +172,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS);
     assertEquals("GrpcReplicationServerExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -185,6 +193,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -199,6 +208,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_FETCH_BUFFERED_ITEMS);
     assertEquals("LuceneFetchExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -218,6 +228,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -231,6 +242,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(
         threadPoolSettings.maxBufferedItems(), ThreadPoolConfiguration.DEFAULT_GRPC_BUFFERED_ITEMS);
     assertEquals("GrpcExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -250,6 +262,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -264,6 +277,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_METRICS_BUFFERED_ITEMS);
     assertEquals("MetricsExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -283,6 +297,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -298,6 +313,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS);
     assertEquals("VectorMergeExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -317,6 +333,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -331,6 +348,7 @@ public class ThreadPoolConfigurationTest {
         threadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_COMMIT_BUFFERED_ITEMS);
     assertEquals("CommitExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -350,6 +368,7 @@ public class ThreadPoolConfigurationTest {
     assertEquals(threadPoolSettings.maxThreads(), 3);
     assertEquals(threadPoolSettings.maxBufferedItems(), 25);
     assertEquals("customCommitExecutor", threadPoolSettings.threadNamePrefix());
+    assertFalse(threadPoolSettings.useVirtualThreads());
   }
 
   @Test
@@ -372,12 +391,25 @@ public class ThreadPoolConfigurationTest {
         searchThreadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_SEARCH_BUFFERED_ITEMS);
     assertEquals("customName", searchThreadPoolSettings.threadNamePrefix());
+    assertFalse(searchThreadPoolSettings.useVirtualThreads());
     ThreadPoolConfiguration.ThreadPoolSettings indexThreadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.INDEX);
     assertEquals(
         indexThreadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_INDEXING_THREADS);
     assertEquals(indexThreadPoolSettings.maxBufferedItems(), 14);
     assertEquals("LuceneIndexingExecutor", indexThreadPoolSettings.threadNamePrefix());
+    assertFalse(indexThreadPoolSettings.useVirtualThreads());
+  }
+
+  @Test
+  public void testUseVirtualThreads() {
+    String config =
+        String.join("\n", "threadPoolConfiguration:", "  search:", "    useVirtualThreads: true");
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
+    assertTrue(threadPoolSettings.useVirtualThreads());
   }
 
   @Test

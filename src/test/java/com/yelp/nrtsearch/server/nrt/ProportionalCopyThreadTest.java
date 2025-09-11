@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.lucene.replicator.nrt.CopyJob;

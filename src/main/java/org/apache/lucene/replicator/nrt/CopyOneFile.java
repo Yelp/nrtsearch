@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2025 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,152 +15,54 @@
  */
 package org.apache.lucene.replicator.nrt;
 
-import com.google.protobuf.ByteString;
-import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.Locale;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 
-public class CopyOneFile implements Closeable {
-  private final Iterator<RawFileChunk> rawFileChunkIterator;
-  private final IndexOutput out;
-  private final ReplicaNode dest;
-  public final String name;
-  public final String tmpName;
-  public final FileMetaData metaData;
-  public final long bytesToCopy;
-  private final long copyStartNS;
-  private final ByteBuffer checksumBuffer = ByteBuffer.allocate(Long.BYTES);
-
-  private long bytesCopied;
-  private long remoteFileChecksum;
-
-  public CopyOneFile(
-      Iterator<RawFileChunk> rawFileChunkIterator,
-      ReplicaNode dest,
-      String name,
-      FileMetaData metaData)
-      throws IOException {
-
-    this.rawFileChunkIterator = rawFileChunkIterator;
-    this.name = name;
-    this.dest = dest;
-    // TODO: pass correct IOCtx, e.g. seg total size
-    out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
-    tmpName = out.getName();
-    // last 8 bytes are checksum:
-    bytesToCopy = metaData.length() - Long.BYTES;
-    if (Node.VERBOSE_FILES) {
-      dest.message(
-          "file "
-              + name
-              + ": start copying to tmp file "
-              + tmpName
-              + " length="
-              + (8 + bytesToCopy));
-    }
-    copyStartNS = System.nanoTime();
-    this.metaData = metaData;
-    dest.startCopyFile(name);
-  }
+/**
+ * Interface to replace the Lucene CopyOneFile class, so that we can use separate implementations
+ * for gRPC vs remote (S3) replication.
+ */
+public interface CopyOneFile extends Closeable {
+  /**
+   * Get the number of bytes copied so far.
+   *
+   * @return number of bytes copied so far
+   */
+  long getBytesCopied();
 
   /**
-   * Closes this stream and releases any system resources associated with it. If the stream is
-   * already closed then invoking this method has no effect.
+   * Perform one unit of work copying the file.
    *
-   * <p>As noted in {@link AutoCloseable#close()}, cases where the close may fail require careful
-   * attention. It is strongly advised to relinquish the underlying resources and to internally
-   * <em>mark</em> the {@code Closeable} as closed, prior to throwing the {@code IOException}.
-   *
-   * @throws IOException if an I/O error occurs
+   * @return true if the file is fully copied, false otherwise
+   * @throws IOException on error
    */
-  @Override
-  public void close() throws IOException {
-    out.close();
-    dest.finishCopyFile(name);
-    // This job may have been canceled before being completed, meaning the replica no longer needs
-    // it. Drain the iterator to not leak direct memory.
-    while (rawFileChunkIterator.hasNext()) {
-      rawFileChunkIterator.next();
-    }
-  }
+  boolean visit() throws IOException;
 
-  public long getBytesCopied() {
-    return bytesCopied;
-  }
+  /**
+   * Get the file metadata.
+   *
+   * @return file metadata
+   */
+  FileMetaData getFileMetaData();
 
-  /** Copy another chunk of bytes, returning true once the copy is done */
-  public boolean visit() throws IOException {
-    if (rawFileChunkIterator.hasNext()) {
-      RawFileChunk rawFileChunk = rawFileChunkIterator.next();
-      ByteString byteString = rawFileChunk.getContent();
-      bytesCopied += byteString.size();
-      if (bytesCopied < bytesToCopy) {
-        out.writeBytes(byteString.toByteArray(), 0, byteString.size());
-      } else {
-        int checksumBytesRead = (int) (bytesCopied - bytesToCopy);
-        if (byteString.size() > checksumBytesRead) {
-          // This chunk contains some data and some checksum
-          out.writeBytes(byteString.toByteArray(), 0, byteString.size() - checksumBytesRead);
-          checksumBuffer.put(
-              byteString.toByteArray(), byteString.size() - checksumBytesRead, checksumBytesRead);
-        } else {
-          // This chunk only contains checksum
-          checksumBuffer.put(byteString.toByteArray());
-        }
-        // Only get the checksum after it has been entirely read
-        if (checksumBytesRead == Long.BYTES) {
-          checksumBuffer.rewind();
-          remoteFileChecksum = checksumBuffer.getLong();
-          bytesCopied -= Long.BYTES;
-        }
-      }
-      return false;
-    } else {
-      long checksum = out.getChecksum();
-      if (checksum != metaData.checksum()) {
-        // Bits flipped during copy!
-        dest.message(
-            "file "
-                + tmpName
-                + ": checksum mismatch after copy (bits flipped during network copy?) after-copy checksum="
-                + checksum
-                + " vs expected="
-                + metaData.checksum()
-                + "; cancel job");
-        throw new IOException("file " + name + ": checksum mismatch after file copy");
-      }
-      // Paranoia: make sure the primary node is not smoking crack, by somehow sending us an already
-      // corrupted file whose checksum (in its
-      // footer) disagrees with reality:
-      long actualChecksumIn = remoteFileChecksum;
-      if (actualChecksumIn != checksum) {
-        dest.message(
-            "file "
-                + tmpName
-                + ": checksum claimed by primary disagrees with the file's footer: claimed checksum="
-                + checksum
-                + " vs actual="
-                + actualChecksumIn);
-        throw new IOException("file " + name + ": checksum mismatch after file copy");
-      }
-      CodecUtil.writeBELong(out, checksum);
-      close();
-      if (Node.VERBOSE_FILES) {
-        dest.message(
-            String.format(
-                Locale.ROOT,
-                "file %s: done copying [%s, %.3fms]",
-                name,
-                Node.bytesToString(metaData.length()),
-                (System.nanoTime() - copyStartNS) / 1000000.0));
-      }
-      return true;
-    }
-  }
+  /**
+   * Get the file name.
+   *
+   * @return file name
+   */
+  String getFileName();
+
+  /**
+   * Get the temporary file name used during copying.
+   *
+   * @return temporary file name
+   */
+  String getFileTmpName();
+
+  /**
+   * Get the total number of bytes to copy.
+   *
+   * @return total number of bytes to copy
+   */
+  long getBytesToCopy();
 }

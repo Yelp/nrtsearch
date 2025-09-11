@@ -51,13 +51,48 @@ public class NrtsearchTest {
   @ClassRule
   public static final AmazonS3Provider S3_PROVIDER = new AmazonS3Provider(getS3BucketName());
 
-  private final Path pluginSearchPath = TEMPORARY_FOLDER.newFolder("plugin_search_path").toPath();
+  private final Path pluginSearchPath = getOrCreatePluginSearchPath();
 
   @Rule
   public final TestNrtsearchServer testServer =
       new TestNrtsearchServer(getConfig(), S3_PROVIDER.getAmazonS3());
 
   public NrtsearchTest() throws IOException {}
+
+  private static Path getOrCreatePluginSearchPath() {
+    try {
+      // Try to create the folder, but handle the case where it already exists
+      return TEMPORARY_FOLDER.newFolder("plugin_search_path").toPath();
+    } catch (IOException e) {
+      if (e.getMessage() != null && e.getMessage().contains("already exists")) {
+        // Folder already exists, just return the path to it
+        return TEMPORARY_FOLDER.getRoot().toPath().resolve("plugin_search_path");
+      }
+      throw new RuntimeException("Failed to create plugin search path", e);
+    }
+  }
+
+  private static Path getOrCreateStateDir() throws IOException {
+    try {
+      return TEMPORARY_FOLDER.newFolder("tmp_state_dir").toPath();
+    } catch (IOException e) {
+      if (e.getMessage() != null && e.getMessage().contains("already exists")) {
+        return TEMPORARY_FOLDER.getRoot().toPath().resolve("tmp_state_dir");
+      }
+      throw e;
+    }
+  }
+
+  private static Path getOrCreateIndexDir() throws IOException {
+    try {
+      return TEMPORARY_FOLDER.newFolder("tmp_index_dir").toPath();
+    } catch (IOException e) {
+      if (e.getMessage() != null && e.getMessage().contains("already exists")) {
+        return TEMPORARY_FOLDER.getRoot().toPath().resolve("tmp_index_dir");
+      }
+      throw e;
+    }
+  }
 
   /**
    * Override this method to provide the plugins to install on server.
@@ -96,8 +131,8 @@ public class NrtsearchTest {
     config.put("plugins", getPlugins());
     config.put("pluginSearchPath", getPluginSearchPath().toAbsolutePath().toString());
     try {
-      config.put("stateDir", TEMPORARY_FOLDER.newFolder("tmp_state_dir").toString());
-      config.put("indexDir", TEMPORARY_FOLDER.newFolder("tmp_index_dir").toString());
+      config.put("stateDir", getOrCreateStateDir().toString());
+      config.put("indexDir", getOrCreateIndexDir().toString());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
