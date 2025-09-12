@@ -91,7 +91,10 @@ public class NRTReplicaNode extends ReplicaNode {
       }
       copyJobManager =
           new RemoteCopyJobManager(
-              isolatedReplicaConfig.getPollingIntervalSeconds(), nrtDataManager, this);
+              isolatedReplicaConfig.getPollingIntervalSeconds(),
+              nrtDataManager,
+              this,
+              isolatedReplicaConfig);
     } else {
       copyJobManager =
           new GrpcCopyJobManager(indexName, indexId, primaryAddress, ackedCopy, this, id);

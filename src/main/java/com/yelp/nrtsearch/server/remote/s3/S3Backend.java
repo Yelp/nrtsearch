@@ -517,6 +517,9 @@ public class S3Backend implements RemoteBackend {
     BackendKeyWithTimestamp backendKeyWithTimestamp =
         getBackendKeyWithTimestamp(
             serviceBucket, prefix, currentBackendKey, currentTimestamp, updateIntervalContext);
+    if (backendKeyWithTimestamp == null) {
+      return null;
+    }
     return new InputStreamWithTimestamp(
         downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
         backendKeyWithTimestamp.timestamp());
@@ -534,7 +537,9 @@ public class S3Backend implements RemoteBackend {
    * Get the S3 object key for an index file and its timestamp, considering the update interval. If
    * the update interval is 0 or less, return the current backend key and timestamp. If the current
    * timestamp is older than the update interval, return the current backend key and timestamp.
-   * Otherwise, return the first object key within the current update interval and its timestamp.
+   * Otherwise, return the first object key within the current update interval and its timestamp. If
+   * the currently loaded index version is already within the update interval, return null to
+   * indicate that no change is needed.
    *
    * @param bucket bucket name
    * @param prefix object prefix
@@ -560,10 +565,19 @@ public class S3Backend implements RemoteBackend {
       return new BackendKeyWithTimestamp(currentBackendKey, currentTimestamp);
     }
 
-    LocalTime localTime = currentTimestamp.atZone(ZoneId.of("UTC")).toLocalTime();
-    int secondsSinceMidnight = localTime.toSecondOfDay();
-    int remainderSeconds = secondsSinceMidnight % updateIntervalContext.updateIntervalSeconds();
-    Instant lastIntervalStart = currentTimestamp.minusSeconds(remainderSeconds);
+    Instant lastIntervalStart =
+        getIntervalStart(currentTimestamp, updateIntervalContext.updateIntervalSeconds());
+    if (updateIntervalContext.currentIndexTimestamp() != null) {
+      Instant indexCurrentIntervalStart =
+          getIntervalStart(
+              updateIntervalContext.currentIndexTimestamp(),
+              updateIntervalContext.updateIntervalSeconds());
+      if (!indexCurrentIntervalStart.isBefore(lastIntervalStart)) {
+        // We are already at a version within the current update interval, we do not need to
+        // continue
+        return null;
+      }
+    }
     String lastIntervalTimeString = formatTimeStringSec(lastIntervalStart);
     String firstVersionKey = getFirstKeyAfter(bucket, prefix, lastIntervalTimeString);
     if (firstVersionKey == null) {
@@ -573,6 +587,22 @@ public class S3Backend implements RemoteBackend {
     String firstVersionTimeString = firstVersionFileName.split("-")[0];
     Instant firstVersionTimestamp = TimeStringUtils.parseTimeStringSec(firstVersionTimeString);
     return new BackendKeyWithTimestamp(firstVersionKey, firstVersionTimestamp);
+  }
+
+  /**
+   * Get the timestamp for the start of the interval containing the specified timestamp. Intervals
+   * start at midnight UTC for each day.
+   *
+   * @param timestamp timestamp
+   * @param intervalSeconds interval in seconds
+   * @return start of the interval containing the specified timestamp
+   */
+  @VisibleForTesting
+  static Instant getIntervalStart(Instant timestamp, int intervalSeconds) {
+    LocalTime localTime = timestamp.atZone(ZoneId.of("UTC")).toLocalTime();
+    int secondsSinceMidnight = localTime.toSecondOfDay();
+    int remainderSeconds = secondsSinceMidnight % intervalSeconds;
+    return timestamp.minusSeconds(remainderSeconds);
   }
 
   /**

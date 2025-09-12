@@ -46,11 +46,28 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-/** Tests for the S3Backend downloadPointState method with updateIntervalSeconds parameter. */
+/**
+ * Tests for the S3Backend downloadPointState method with updateIntervalSeconds parameter and
+ * currentIndexTimestamp. This class tests the behavior of the S3Backend when downloading point
+ * state with different update interval configurations:
+ *
+ * <ul>
+ *   <li>Zero update interval - should behave like default download
+ *   <li>Update interval with older files - should return current version
+ *   <li>Update interval with newer files - should return first version after interval start
+ *   <li>Update interval with currentIndexTimestamp in same interval - should return null (no update
+ *       needed)
+ *   <li>Update interval with currentIndexTimestamp in earlier interval - should return newer
+ *       version
+ * </ul>
+ */
 public class S3BackendUpdateIntervalTest {
   private static final String BUCKET_NAME = "s3-backend-update-interval-test";
   private static final String SERVICE = "test_update_interval_service";
   private static final String INDEX = "test_update_interval_index";
+
+  // Service name for tests specifically for currentIndexTimestamp
+  private static final String SERVICE_CURRENT_TIMESTAMP = "test_update_interval_current_timestamp";
 
   @ClassRule public static final AmazonS3Provider S3_PROVIDER = new AmazonS3Provider(BUCKET_NAME);
 
@@ -87,7 +104,8 @@ public class S3BackendUpdateIntervalTest {
     // Download using both methods and compare results
     InputStreamWithTimestamp resultDefault = s3Backend.downloadPointState(SERVICE, INDEX, null);
     InputStreamWithTimestamp resultWithZeroInterval =
-        s3Backend.downloadPointState(SERVICE, INDEX, new RemoteBackend.UpdateIntervalContext(0));
+        s3Backend.downloadPointState(
+            SERVICE, INDEX, new RemoteBackend.UpdateIntervalContext(0, null));
 
     // Compare the content
     byte[] defaultData = resultDefault.inputStream().readAllBytes();
@@ -137,7 +155,7 @@ public class S3BackendUpdateIntervalTest {
         s3Backend.downloadPointState(
             SERVICE + "_older",
             INDEX,
-            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds));
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
 
     // Verify we got the expected content
     NrtPointState downloadedState =
@@ -198,7 +216,7 @@ public class S3BackendUpdateIntervalTest {
     // Download with update interval
     InputStreamWithTimestamp result =
         s3Backend.downloadPointState(
-            serviceId, INDEX, new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds));
+            serviceId, INDEX, new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
 
     // Verify we got the expected content (should be the first version)
     NrtPointState downloadedState =
@@ -241,7 +259,9 @@ public class S3BackendUpdateIntervalTest {
     // We're using a large interval (24 hours) to try to trigger the edge case
     try {
       s3Backend.downloadPointState(
-          serviceId, INDEX, new RemoteBackend.UpdateIntervalContext(86400)); // 24 hour interval
+          serviceId,
+          INDEX,
+          new RemoteBackend.UpdateIntervalContext(86400, null)); // 24 hour interval
 
       // If we get here without an exception, the implementation may have been improved
       // to handle the edge case better, which is good!
@@ -303,7 +323,9 @@ public class S3BackendUpdateIntervalTest {
       // Download with the update interval
       InputStreamWithTimestamp result =
           s3Backend.downloadPointState(
-              serviceId, INDEX, new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds));
+              serviceId,
+              INDEX,
+              new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
 
       // Verify we got the expected content (should be one of our point states)
       NrtPointState downloadedState =
@@ -335,6 +357,110 @@ public class S3BackendUpdateIntervalTest {
       // can't find a suitable version in the interval
       // This is acceptable behavior too
     }
+  }
+
+  /**
+   * Test downloadPointState with currentIndexTimestamp in the same interval as the latest version.
+   * Should return null to indicate no change needed.
+   *
+   * <p>This test verifies that when the currentIndexTimestamp is provided and it falls within the
+   * same update interval as the latest point state version, the downloadPointState method returns
+   * null. This indicates that the current index is already up-to-date and no download is needed,
+   * which is an optimization to prevent unnecessary network operations.
+   */
+  @Test
+  public void testDownloadPointState_currentTimestampInSameInterval() throws IOException {
+    String serviceId = SERVICE_CURRENT_TIMESTAMP + "_same_interval";
+    String prefix =
+        S3Backend.getIndexResourcePrefix(serviceId, INDEX, IndexResourceType.POINT_STATE);
+
+    // Create and upload a point state
+    NrtPointState pointState = getPointState();
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(pointState);
+
+    s3Backend.uploadPointState(serviceId, INDEX, pointState, pointStateBytes);
+
+    // Get current file name and timestamp
+    String currentFileName = s3Backend.getCurrentResourceName(prefix);
+    Instant currentTimestamp =
+        TimeStringUtils.parseTimeStringSec(
+            S3Backend.getTimeStringFromPointStateFileName(currentFileName));
+
+    // Use an update interval of 10 seconds
+    int updateIntervalSeconds = 10;
+
+    // Create a currentIndexTimestamp in the same interval as the current version
+    // We'll use the interval start of the current timestamp
+    Instant currentIntervalStart =
+        S3Backend.getIntervalStart(currentTimestamp, updateIntervalSeconds);
+
+    // Download with the update interval context including currentIndexTimestamp
+    InputStreamWithTimestamp result =
+        s3Backend.downloadPointState(
+            serviceId,
+            INDEX,
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, currentIntervalStart));
+
+    // The result should be null since the current index is already in the latest interval
+    assertEquals("Should return null when currentIndexTimestamp is in same interval", null, result);
+  }
+
+  /** Test the getIntervalStart method with various timestamps and intervals. */
+  @Test
+  public void testGetIntervalStart() {
+    // Test with a 1-hour interval
+    int oneHourInterval = 3600; // seconds
+
+    // Test case 1: Exactly at the start of an interval
+    Instant timestamp1 = Instant.parse("2023-01-01T10:00:00Z");
+    Instant expectedStart1 = Instant.parse("2023-01-01T10:00:00Z");
+    assertEquals(
+        "Should return the same time for timestamps at interval start",
+        expectedStart1,
+        S3Backend.getIntervalStart(timestamp1, oneHourInterval));
+
+    // Test case 2: In the middle of an interval
+    Instant timestamp2 = Instant.parse("2023-01-01T10:30:45Z");
+    Instant expectedStart2 = Instant.parse("2023-01-01T10:00:00Z");
+    assertEquals(
+        "Should return the start of the hour for timestamps in the middle of an interval",
+        expectedStart2,
+        S3Backend.getIntervalStart(timestamp2, oneHourInterval));
+
+    // Test case 3: With a 15-minute interval
+    int fifteenMinuteInterval = 900; // seconds
+    Instant timestamp3 = Instant.parse("2023-01-01T10:22:30Z");
+    Instant expectedStart3 = Instant.parse("2023-01-01T10:15:00Z");
+    assertEquals(
+        "Should return the start of the 15-minute interval",
+        expectedStart3,
+        S3Backend.getIntervalStart(timestamp3, fifteenMinuteInterval));
+
+    // Test case 4: With a non-standard interval (7 minutes = 420 seconds)
+    int sevenMinuteInterval = 420; // seconds
+    Instant timestamp4 = Instant.parse("2023-01-01T10:13:30Z");
+    Instant expectedStart4 = Instant.parse("2023-01-01T10:09:00Z");
+    assertEquals(
+        "Should return the start of the 7-minute interval",
+        expectedStart4,
+        S3Backend.getIntervalStart(timestamp4, sevenMinuteInterval));
+
+    // Test case 5: With crossing midnight
+    Instant timestamp5 = Instant.parse("2023-01-02T00:05:30Z");
+    Instant expectedStart5 = Instant.parse("2023-01-02T00:00:00Z");
+    assertEquals(
+        "Should handle timestamps after midnight correctly",
+        expectedStart5,
+        S3Backend.getIntervalStart(timestamp5, oneHourInterval));
+
+    // Test case 6: With a full day interval
+    int oneDayInterval = 86400; // seconds in a day
+    Instant timestamp6 = Instant.parse("2023-01-01T15:30:45Z");
+    Instant expectedStart6 = Instant.parse("2023-01-01T00:00:00Z");
+    assertEquals(
+        "Should return midnight for a full day interval",
+        expectedStart6,
+        S3Backend.getIntervalStart(timestamp6, oneDayInterval));
   }
 
   /** Helper method to create a test NrtPointState. */
@@ -370,5 +496,67 @@ public class S3BackendUpdateIntervalTest {
     StringWriter writer = new StringWriter();
     IOUtils.copy(inputStream, writer, StandardCharsets.UTF_8);
     return writer.toString();
+  }
+
+  /**
+   * Test downloadPointState with currentIndexTimestamp in an earlier interval than the latest
+   * version. Should return the new version.
+   *
+   * <p>This test verifies that when the currentIndexTimestamp is provided but it falls within an
+   * earlier update interval than the latest point state version, the downloadPointState method
+   * returns the latest version. This ensures that when the current index is outdated (from an
+   * earlier interval), it will be properly updated to the latest version.
+   *
+   * <p>The test creates a point state, uploads it, and then attempts to download it with a
+   * currentIndexTimestamp that is set to be in an earlier interval by making it older than the
+   * current timestamp by twice the update interval. This simulates a scenario where the client has
+   * an outdated index and needs to be updated to the latest version.
+   */
+  @Test
+  public void testDownloadPointState_currentTimestampInEarlierInterval() throws IOException {
+    String serviceId = SERVICE_CURRENT_TIMESTAMP + "_earlier_interval";
+    String prefix =
+        S3Backend.getIndexResourcePrefix(serviceId, INDEX, IndexResourceType.POINT_STATE);
+
+    // Create and upload a point state
+    NrtPointState pointState = getPointState();
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(pointState);
+
+    s3Backend.uploadPointState(serviceId, INDEX, pointState, pointStateBytes);
+
+    // Get current file name and timestamp
+    String currentFileName = s3Backend.getCurrentResourceName(prefix);
+    Instant currentTimestamp =
+        TimeStringUtils.parseTimeStringSec(
+            S3Backend.getTimeStringFromPointStateFileName(currentFileName));
+
+    // Use an update interval of 10 seconds
+    int updateIntervalSeconds = 10;
+
+    // Create a currentIndexTimestamp that is in an earlier interval
+    // We'll use a timestamp that's older than the current interval start
+    Instant earlierTimestamp = currentTimestamp.minusSeconds(updateIntervalSeconds * 2);
+
+    // Download with the update interval context including the earlier currentIndexTimestamp
+    InputStreamWithTimestamp result =
+        s3Backend.downloadPointState(
+            serviceId,
+            INDEX,
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, earlierTimestamp));
+
+    // The result should not be null as we need to update to the newer version
+    NrtPointState downloadedState =
+        RemoteUtils.pointStateFromUtf8(result.inputStream().readAllBytes());
+
+    // Verify we got the expected content
+    assertEquals(
+        "Should return the original point state", pointState.primaryId, downloadedState.primaryId);
+    assertEquals(
+        "Should return the original point state version",
+        pointState.version,
+        downloadedState.version);
+
+    // Also verify the timestamp matches the current file
+    assertEquals("Timestamp should match the current file", currentTimestamp, result.timestamp());
   }
 }
