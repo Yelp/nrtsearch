@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.lucene102.Lucene102HnswBinaryQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -87,7 +88,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           "hnsw",
           VectorSearchType.HNSW,
           "hnsw_scalar_quantized",
-          VectorSearchType.HNSW_SCALAR_QUANTIZED);
+          VectorSearchType.HNSW_SCALAR_QUANTIZED,
+          "hnsw_binary_quantized",
+          VectorSearchType.HNSW_BINARY_QUANTIZED);
   private static final String DEFAULT_SEARCH_TYPE = "hnsw";
   private static final int MAX_VECTOR_DIMENSIONS = 4096;
   private static final int DEFAULT_QUANTIZED_BITS = 7;
@@ -101,7 +104,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   enum VectorSearchType {
     HNSW,
-    HNSW_SCALAR_QUANTIZED
+    HNSW_SCALAR_QUANTIZED,
+    HNSW_BINARY_QUANTIZED
   }
 
   /**
@@ -179,6 +183,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           case HNSW_SCALAR_QUANTIZED ->
               getHnswScalarQuantizedVectorsFormat(
                   m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
+          case HNSW_BINARY_QUANTIZED ->
+              getHnswBinaryQuantizedVectorsFormat(m, efConstruction, mergeWorkers, executorService);
         };
 
     return new KnnVectorsFormat(vectorsFormat.getName()) {
@@ -229,6 +235,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
     return new Lucene99HnswScalarQuantizedVectorsFormat(
         m, efConstruction, mergeWorkers, bits, compress, confidenceInterval, executorService);
+  }
+
+  private static KnnVectorsFormat getHnswBinaryQuantizedVectorsFormat(
+      int m, int efConstruction, int mergeWorkers, ExecutorService executorService) {
+    return new Lucene102HnswBinaryQuantizedVectorsFormat(
+        m, efConstruction, mergeWorkers, executorService);
   }
 
   /**
@@ -623,6 +635,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       if (vectorSearchType == VectorSearchType.HNSW_SCALAR_QUANTIZED) {
         throw new IllegalArgumentException(
             "HNSW scalar quantized search type is only supported for float vectors");
+      }
+      if (vectorSearchType == VectorSearchType.HNSW_BINARY_QUANTIZED) {
+        throw new IllegalArgumentException(
+            "HNSW binary quantized search type is only supported for float vectors");
       }
       return vectorSearchType;
     }

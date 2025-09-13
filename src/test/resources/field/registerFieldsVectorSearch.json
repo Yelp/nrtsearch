@@ -141,6 +141,16 @@
       ]
     },
     {
+      "name": "binary_quantized_vector",
+      "type": "VECTOR",
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "cosine",
+      "vectorIndexingOptions": {
+        "type": "hnsw_binary_quantized"
+      }
+    },
+    {
       "name": "filter",
       "type": "ATOM",
       "search": true,
