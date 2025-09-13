@@ -1645,7 +1645,7 @@ type VectorIndexingOptions struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The vector indexing type, supports 'hnsw' and 'hnsw_scalar_quantized', default: hnsw
+	// The vector indexing type, supports 'hnsw', 'hnsw_binary_quantized', and 'hnsw_scalar_quantized', default: hnsw
 	Type *string `protobuf:"bytes,1,opt,name=type,proto3,oneof" json:"type,omitempty"`
 	// The number of neighbors each node will be connected to in the HNSW graph, default: 16
 	HnswM *int32 `protobuf:"varint,2,opt,name=hnsw_m,json=hnswM,proto3,oneof" json:"hnsw_m,omitempty"`
@@ -1658,12 +1658,12 @@ type VectorIndexingOptions struct {
 	// determining the most accurate pair. Otherwise, the value must be between 0.9 and 1.0 (both inclusive).
 	// default: unset
 	QuantizedConfidenceInterval *float32 `protobuf:"fixed32,5,opt,name=quantized_confidence_interval,json=quantizedConfidenceInterval,proto3,oneof" json:"quantized_confidence_interval,omitempty"`
-	// The number of bits to use for quantizing the vectors. It can have the following values:
+	// The number of bits to use for scalar quantizing the vectors. It can have the following values:
 	//
 	//	4 - half byte
 	//	7 - signed byte (default)
 	QuantizedBits *int32 `protobuf:"varint,6,opt,name=quantized_bits,json=quantizedBits,proto3,oneof" json:"quantized_bits,omitempty"`
-	// Whether to compress the vectors, if true, the vectors that are quantized with <= 4 bits will be compressed into
+	// Whether to compress the vectors, if true, the vectors that are (scalar) quantized with <= 4 bits will be compressed into
 	// a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.
 	// default: false
 	QuantizedCompress *bool `protobuf:"varint,7,opt,name=quantized_compress,json=quantizedCompress,proto3,oneof" json:"quantized_compress,omitempty"`
