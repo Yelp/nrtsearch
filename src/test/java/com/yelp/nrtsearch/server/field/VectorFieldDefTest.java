@@ -107,7 +107,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 
     // make testing deterministic
-    Random random = new Random(123456);
+    Random random = new Random(12345678L);
     for (int i = 0; i < 10; ++i) {
       List<AddDocumentRequest> docs = new ArrayList<>();
 
@@ -154,6 +154,11 @@ public class VectorFieldDefTest extends ServerTestCase {
                     "byte_vector_mip",
                     MultiValuedField.newBuilder()
                         .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "binary_quantized_vector",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 3, false))
                         .build())
                 .putFields(
                     "quantized_vector_4",
@@ -565,6 +570,13 @@ public class VectorFieldDefTest extends ServerTestCase {
         VectorSimilarityFunction.DOT_PRODUCT,
         1.0f,
         0.001);
+  }
+
+  @Test
+  public void testBinaryQuantizedVectorSearch() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    singleVectorQueryAndVerify(
+        "binary_quantized_vector", queryVector, VectorSimilarityFunction.COSINE, 1.0f, 0.05);
   }
 
   @Test
@@ -1310,6 +1322,14 @@ public class VectorFieldDefTest extends ServerTestCase {
             .getFieldOrThrow("quantized_vector_7");
   }
 
+  private VectorFieldDef.FloatVectorFieldDef getBinaryQuantizedField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("binary_quantized_vector");
+  }
+
   @Test
   public void testFieldNotExist() {
     try {
@@ -1535,6 +1555,15 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testGetBinaryQuantizedVectorFormat() throws IOException {
+    VectorFieldDef<?> vectorFieldDef = getBinaryQuantizedField();
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertEquals(
+        "Lucene102HnswBinaryQuantizedVectorsFormat(name=Lucene102HnswBinaryQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene102BinaryQuantizedVectorsFormat(name=Lucene102BinaryQuantizedVectorsFormat, flatVectorScorer=Lucene102BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
+        format.toString());
+  }
+
+  @Test
   public void testInvalidConfidenceInterval() {
     Field field =
         Field.newBuilder()
@@ -1604,6 +1633,29 @@ public class VectorFieldDefTest extends ServerTestCase {
     } catch (IllegalArgumentException e) {
       assertEquals(
           "HNSW scalar quantized search type is only supported for float vectors", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalidBinaryQuantizedByteVector() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorElementType(VectorElementType.VECTOR_ELEMENT_BYTE)
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder().setType("hnsw_binary_quantized").build())
+            .build();
+    try {
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "HNSW binary quantized search type is only supported for float vectors", e.getMessage());
     }
   }
 
