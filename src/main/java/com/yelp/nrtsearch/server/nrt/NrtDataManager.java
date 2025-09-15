@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexNam
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -233,6 +234,9 @@ public class NrtDataManager implements Closeable {
 
       lastPointState = pointState;
       lastPointTimestamp = pointStateWithTimestamp.timestamp();
+      NrtMetrics.indexTimestampSec
+          .labelValues(getBaseIndexName(indexIdentifier))
+          .set(lastPointTimestamp.getEpochSecond());
     }
   }
 
@@ -313,6 +317,9 @@ public class NrtDataManager implements Closeable {
     if (lastPointState == null || (pointState.version > lastPointState.version)) {
       this.lastPointState = pointState;
       this.lastPointTimestamp = timestamp;
+      NrtMetrics.indexTimestampSec
+          .labelValues(getBaseIndexName(indexIdentifier))
+          .set(lastPointTimestamp.getEpochSecond());
     } else {
       logger.info(
           "Not setting last point state, existing version is later. Existing version: {}, new version: {}",
