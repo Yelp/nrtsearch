@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -59,6 +60,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
@@ -241,6 +243,15 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       int m, int efConstruction, int mergeWorkers, ExecutorService executorService) {
     return new Lucene102HnswBinaryQuantizedVectorsFormat(
         m, efConstruction, mergeWorkers, executorService);
+  }
+
+  @VisibleForTesting
+  static KnnSearchStrategy createKnnSearchStrategy(KnnQuery.FilterStrategy filterStrategy) {
+    return switch (filterStrategy) {
+      case FANOUT -> new KnnSearchStrategy.Hnsw(0);
+      case ACORN -> new KnnSearchStrategy.Hnsw(60);
+      default -> throw new IllegalArgumentException("Unknown filter strategy: " + filterStrategy);
+    };
   }
 
   /**
@@ -525,11 +536,19 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         float magnitude = (float) Math.sqrt(magnitude2);
         normalizeVector(queryVector, magnitude);
       }
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
         return new NrtDiversifyingChildrenFloatKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+            getName(),
+            queryVector,
+            filterQuery,
+            k,
+            numCandidates,
+            parentBitSetProducer,
+            searchStrategy);
       } else {
-        return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        return new NrtKnnFloatVectorQuery(
+            getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
     }
 
@@ -708,11 +727,19 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       }
       byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
         return new NrtDiversifyingChildrenByteKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+            getName(),
+            queryVector,
+            filterQuery,
+            k,
+            numCandidates,
+            parentBitSetProducer,
+            searchStrategy);
       } else {
-        return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        return new NrtKnnByteVectorQuery(
+            getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
     }
 

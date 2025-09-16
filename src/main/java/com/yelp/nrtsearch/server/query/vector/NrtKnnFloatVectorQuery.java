@@ -19,6 +19,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 /**
  * A {@link KnnFloatVectorQuery} that has its functionality slightly modified. The {@link TotalHits}
@@ -40,8 +41,13 @@ public class NrtKnnFloatVectorQuery extends KnnFloatVectorQuery implements WithV
    * @param numCandidates number of candidates to retrieve from each leaf
    */
   public NrtKnnFloatVectorQuery(
-      String field, float[] target, int k, Query filter, int numCandidates) {
-    super(field, target, numCandidates, filter);
+      String field,
+      float[] target,
+      int k,
+      Query filter,
+      int numCandidates,
+      KnnSearchStrategy searchStrategy) {
+    super(field, target, numCandidates, filter, searchStrategy);
     this.topHits = k;
   }
 
