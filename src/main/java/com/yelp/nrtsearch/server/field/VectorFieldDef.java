@@ -248,7 +248,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   @VisibleForTesting
   static KnnSearchStrategy createKnnSearchStrategy(KnnQuery.FilterStrategy filterStrategy) {
     return switch (filterStrategy) {
-      case DEFAULT -> KnnSearchStrategy.Hnsw.DEFAULT;
+      case FANOUT -> new KnnSearchStrategy.Hnsw(0);
       case ACORN -> new KnnSearchStrategy.Hnsw(60);
       default -> throw new IllegalArgumentException("Unknown filter strategy: " + filterStrategy);
     };

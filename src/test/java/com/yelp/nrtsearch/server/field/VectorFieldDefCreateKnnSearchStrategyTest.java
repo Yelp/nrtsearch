@@ -26,9 +26,9 @@ import org.junit.Test;
 public class VectorFieldDefCreateKnnSearchStrategyTest {
 
   @Test
-  public void testCreateKnnSearchStrategy_Default() {
+  public void testCreateKnnSearchStrategy_Fanout() {
     KnnSearchStrategy strategy =
-        VectorFieldDef.createKnnSearchStrategy(KnnQuery.FilterStrategy.DEFAULT);
+        VectorFieldDef.createKnnSearchStrategy(KnnQuery.FilterStrategy.FANOUT);
     assertNotNull(strategy);
     assertEquals(KnnSearchStrategy.Hnsw.DEFAULT, strategy);
   }

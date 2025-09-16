@@ -1499,7 +1499,7 @@ message KnnQuery {
 
     enum FilterStrategy {
         // Compare against all vector neighbors, keeping only those that match the filter (default)
-        DEFAULT = 0;
+        FANOUT = 0;
         // Compare only against vector neighbors that match the filter
         ACORN = 1;
     }

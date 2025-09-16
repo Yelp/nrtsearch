@@ -1876,11 +1876,11 @@
     "KnnQueryFilterStrategy": {
       "type": "string",
       "enum": [
-        "DEFAULT",
+        "FANOUT",
         "ACORN"
       ],
-      "default": "DEFAULT",
-      "title": "- DEFAULT: Compare against all vector neighbors, keeping only those that match the filter (default)\n - ACORN: Compare only against vector neighbors that match the filter"
+      "default": "FANOUT",
+      "title": "- FANOUT: Compare against all vector neighbors, keeping only those that match the filter (default)\n - ACORN: Compare only against vector neighbors that match the filter"
     },
     "MatchPhraseQueryZeroTerms": {
       "type": "string",
