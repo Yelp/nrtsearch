@@ -1873,6 +1873,15 @@
       },
       "title": "Highlighted text result"
     },
+    "KnnQueryFilterStrategy": {
+      "type": "string",
+      "enum": [
+        "DEFAULT",
+        "ACORN"
+      ],
+      "default": "DEFAULT",
+      "title": "- DEFAULT: Compare against all vector neighbors, keeping only those that match the filter (default)\n - ACORN: Compare only against vector neighbors that match the filter"
+    },
     "MatchPhraseQueryZeroTerms": {
       "type": "string",
       "enum": [
@@ -4238,6 +4247,10 @@
           "type": "number",
           "format": "float",
           "title": "Boost multiplier for similarity score"
+        },
+        "filterStrategy": {
+          "$ref": "#/definitions/KnnQueryFilterStrategy",
+          "title": "Strategy to use when applying filter"
         }
       },
       "title": "Specification for kNN vector search query"
