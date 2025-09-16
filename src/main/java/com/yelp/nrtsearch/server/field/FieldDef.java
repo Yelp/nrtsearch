@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.yelp.nrtsearch.server.grpc.Field;
 import java.io.Closeable;
 
 /** Base class for all field definition types. */
@@ -33,6 +34,22 @@ public abstract class FieldDef implements Closeable {
   /** Get the name of this field. */
   public String getName() {
     return name;
+  }
+
+  /**
+   * Create a new instance of the current {@link FieldDef} that is updated to use the provided
+   * request field definition. This method must not modify the current instance, but instead return
+   * a new instance with the updated properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @return a new instance of the field definition with updated properties
+   */
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    throw new UnsupportedOperationException(
+        String.format("Field %s does not support update", this.getName()));
   }
 
   /** Get String representation of the field type. */
