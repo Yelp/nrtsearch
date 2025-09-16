@@ -771,7 +771,7 @@ public class S3BackendTest {
     s3.putObject(BUCKET_NAME, keyPrefix + S3Backend.CURRENT_VERSION, fileName);
 
     RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
-        s3Backend.downloadPointState("download_point_service", "download_point_index");
+        s3Backend.downloadPointState("download_point_service", "download_point_index", null);
     byte[] downloadedData = inputStreamWithTimestamp.inputStream().readAllBytes();
     NrtPointState downloadedPointState = RemoteUtils.pointStateFromUtf8(downloadedData);
     assertEquals(pointState, downloadedPointState);

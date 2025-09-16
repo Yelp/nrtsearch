@@ -34,6 +34,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -206,7 +207,7 @@ public class NrtDataManagerTest {
     Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
     NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
     byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
         .thenReturn(
             new RemoteBackend.InputStreamWithTimestamp(
                 new ByteArrayInputStream(pointStateBytes), Instant.now()));
@@ -225,7 +226,7 @@ public class NrtDataManagerTest {
     assertArrayEquals(new String[] {"segments_6"}, folder.getRoot().list());
     assertEquals(nrtPointState, nrtDataManager.getLastPointState());
 
-    verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME);
+    verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
             SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
@@ -254,7 +255,7 @@ public class NrtDataManagerTest {
     NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
     byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
     Instant nrtPointTimestamp = Instant.now();
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
         .thenReturn(
             new RemoteBackend.InputStreamWithTimestamp(
                 new ByteArrayInputStream(pointStateBytes), nrtPointTimestamp));
@@ -276,7 +277,7 @@ public class NrtDataManagerTest {
     assertEquals(nrtPointState, nrtDataManager.getLastPointState());
     assertEquals(nrtPointTimestamp, nrtDataManager.getLastPointTimestamp());
 
-    verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME);
+    verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
             SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
@@ -901,6 +902,85 @@ public class NrtDataManagerTest {
     assertFalse(NrtDataManager.UploadManagerThread.isSameFile(fileMetaData2, nrtFileMetaData));
   }
 
+  @Test
+  public void testFreshnessToUpdateIntervalSeconds_zero() {
+    assertEquals(0, NrtDataManager.freshnessToUpdateIntervalSeconds(0));
+  }
+
+  @Test
+  public void testFreshnessToUpdateIntervalSeconds_negative() {
+    assertEquals(0, NrtDataManager.freshnessToUpdateIntervalSeconds(-10));
+  }
+
+  @Test
+  public void testFreshnessToUpdateIntervalSeconds_small() {
+    assertEquals(1, NrtDataManager.freshnessToUpdateIntervalSeconds(1));
+    assertEquals(1, NrtDataManager.freshnessToUpdateIntervalSeconds(2));
+  }
+
+  @Test
+  public void testFreshnessToUpdateIntervalSeconds_normal() {
+    assertEquals(5, NrtDataManager.freshnessToUpdateIntervalSeconds(10));
+    assertEquals(60, NrtDataManager.freshnessToUpdateIntervalSeconds(120));
+  }
+
+  @Test
+  public void testRestoreIfNeeded_withFreshnessTarget() throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 16);
+    CopyState copyState =
+        new CopyState(
+            Map.of("file1", fileMetaData),
+            5,
+            6,
+            new byte[] {1, 2, 3},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    Instant nrtPointTimestamp = Instant.now();
+
+    // Test with freshness target of 120 seconds, which should use an update interval of 60 seconds
+    when(mockRemoteBackend.downloadPointState(
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60)))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), nrtPointTimestamp));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder()
+            .setServiceName(SERVICE_NAME)
+            .setResourceName(INDEX_NAME)
+            .setDeleteExistingData(false)
+            .build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+    folder.newFile("test_file");
+    IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 60, 120);
+    nrtDataManager.restoreIfNeeded(folder.getRoot().toPath(), config);
+
+    Set<String> expectedFiles = Set.of("test_file", "segments_6");
+    Set<String> actualFiles = Set.of(folder.getRoot().list());
+    assertEquals(expectedFiles, actualFiles);
+    assertEquals(nrtPointState, nrtDataManager.getLastPointState());
+    assertEquals(nrtPointTimestamp, nrtDataManager.getLastPointTimestamp());
+
+    verify(mockRemoteBackend, times(1))
+        .downloadPointState(SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60));
+    verify(mockRemoteBackend, times(1))
+        .downloadIndexFiles(
+            SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
+  }
+
   private void verifyPointStates(NrtPointState expected, NrtPointState actual) {
     assertEquals(expected.version, actual.version);
     assertEquals(expected.gen, actual.gen);
@@ -950,7 +1030,7 @@ public class NrtDataManagerTest {
     byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
     Instant testTimestamp = Instant.now();
 
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
         .thenReturn(
             new RemoteBackend.InputStreamWithTimestamp(
                 new ByteArrayInputStream(pointStateBytes), testTimestamp));
@@ -966,14 +1046,14 @@ public class NrtDataManagerTest {
     assertEquals(testTimestamp, result.timestamp());
     verifyPointStates(nrtPointState, result.pointState());
 
-    verify(mockRemoteBackend).downloadPointState(SERVICE_NAME, INDEX_NAME);
+    verify(mockRemoteBackend).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
   }
 
   @Test
   public void testGetTargetPointState_ioException() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
 
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
         .thenThrow(new IOException("Download failed"));
 
     NrtDataManager nrtDataManager =
@@ -986,7 +1066,7 @@ public class NrtDataManagerTest {
       assertEquals("Download failed", e.getMessage());
     }
 
-    verify(mockRemoteBackend).downloadPointState(SERVICE_NAME, INDEX_NAME);
+    verify(mockRemoteBackend).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
   }
 
   @Test

@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
+import static com.yelp.nrtsearch.server.utils.TimeStringUtils.formatTimeStringSec;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringSec;
 
 import com.amazonaws.services.s3.AmazonS3;
@@ -22,6 +23,8 @@ import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
@@ -42,7 +45,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
@@ -499,15 +505,103 @@ public class S3Backend implements RemoteBackend {
   }
 
   @Override
-  public InputStreamWithTimestamp downloadPointState(String service, String indexIdentifier)
+  public InputStreamWithTimestamp downloadPointState(
+      String service, String indexIdentifier, UpdateIntervalContext updateIntervalContext)
       throws IOException {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.POINT_STATE);
     String fileName = getCurrentResourceName(prefix);
-    String backendKey = prefix + fileName;
-    String timeString = getTimeStringFromPointStateFileName(fileName);
-    Instant timestamp = TimeStringUtils.parseTimeStringSec(timeString);
+    String currentBackendKey = prefix + fileName;
+    String currentTimeString = getTimeStringFromPointStateFileName(fileName);
+    Instant currentTimestamp = TimeStringUtils.parseTimeStringSec(currentTimeString);
+
+    BackendKeyWithTimestamp backendKeyWithTimestamp =
+        getBackendKeyWithTimestamp(
+            serviceBucket, prefix, currentBackendKey, currentTimestamp, updateIntervalContext);
     return new InputStreamWithTimestamp(
-        downloadFromS3Path(serviceBucket, backendKey, true), timestamp);
+        downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
+        backendKeyWithTimestamp.timestamp());
+  }
+
+  /**
+   * Get the S3 object key for an index file and its timestamp.
+   *
+   * @param backendKey object key
+   * @param timestamp timestamp
+   */
+  private record BackendKeyWithTimestamp(String backendKey, Instant timestamp) {}
+
+  /**
+   * Get the S3 object key for an index file and its timestamp, considering the update interval. If
+   * the update interval is 0 or less, return the current backend key and timestamp. If the current
+   * timestamp is older than the update interval, return the current backend key and timestamp.
+   * Otherwise, return the first object key within the current update interval and its timestamp.
+   *
+   * @param bucket bucket name
+   * @param prefix object prefix
+   * @param currentBackendKey current object key
+   * @param currentTimestamp current timestamp
+   * @param updateIntervalContext update interval context, or null to get the current version
+   * @return object key and timestamp
+   * @throws IOException if an error occurs while listing objects
+   */
+  private BackendKeyWithTimestamp getBackendKeyWithTimestamp(
+      String bucket,
+      String prefix,
+      String currentBackendKey,
+      Instant currentTimestamp,
+      UpdateIntervalContext updateIntervalContext)
+      throws IOException {
+    if (updateIntervalContext == null || updateIntervalContext.updateIntervalSeconds() <= 0) {
+      return new BackendKeyWithTimestamp(currentBackendKey, currentTimestamp);
+    }
+    long secondsOld = Duration.between(currentTimestamp, Instant.now()).toSeconds();
+    // There were no updates within the update interval, advance to the latest version
+    if (secondsOld > updateIntervalContext.updateIntervalSeconds()) {
+      return new BackendKeyWithTimestamp(currentBackendKey, currentTimestamp);
+    }
+
+    LocalTime localTime = currentTimestamp.atZone(ZoneId.of("UTC")).toLocalTime();
+    int secondsSinceMidnight = localTime.toSecondOfDay();
+    int remainderSeconds = secondsSinceMidnight % updateIntervalContext.updateIntervalSeconds();
+    Instant lastIntervalStart = currentTimestamp.minusSeconds(remainderSeconds);
+    String lastIntervalTimeString = formatTimeStringSec(lastIntervalStart);
+    String firstVersionKey = getFirstKeyAfter(bucket, prefix, lastIntervalTimeString);
+    if (firstVersionKey == null) {
+      throw new IllegalArgumentException("No version found after " + lastIntervalTimeString);
+    }
+    String firstVersionFileName = firstVersionKey.split(prefix)[1];
+    String firstVersionTimeString = firstVersionFileName.split("-")[0];
+    Instant firstVersionTimestamp = TimeStringUtils.parseTimeStringSec(firstVersionTimeString);
+    return new BackendKeyWithTimestamp(firstVersionKey, firstVersionTimestamp);
+  }
+
+  /**
+   * Get the first object key after the specified time string. Returns null if no such object
+   * exists.
+   *
+   * @param bucket bucket name
+   * @param prefix object prefix
+   * @param timeString time string
+   * @return first object key after the specified time string, or null if no such object exists
+   * @throws IOException if an error occurs while listing objects
+   */
+  private String getFirstKeyAfter(String bucket, String prefix, String timeString)
+      throws IOException {
+    ListObjectsV2Request req =
+        new ListObjectsV2Request()
+            .withBucketName(bucket)
+            .withPrefix(prefix)
+            .withStartAfter(prefix + timeString)
+            .withMaxKeys(1);
+    ListObjectsV2Result result = s3.listObjectsV2(req);
+    if (result.getKeyCount() == 0) {
+      return null;
+    }
+    String objectKey = result.getObjectSummaries().get(0).getKey();
+    if (objectKey.endsWith(CURRENT_VERSION)) {
+      return null;
+    }
+    return objectKey;
   }
 
   private void uploadResource(

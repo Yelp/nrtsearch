@@ -927,7 +927,7 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile);
+      nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
