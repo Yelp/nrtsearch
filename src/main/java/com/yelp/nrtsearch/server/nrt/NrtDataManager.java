@@ -218,7 +218,9 @@ public class NrtDataManager implements Closeable {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
       RemoteBackend.InputStreamWithTimestamp pointStateWithTimestamp =
           remoteBackend.downloadPointState(
-              serviceName, indexIdentifier, createUpdateIntervalContext(isolatedReplicaConfig));
+              serviceName,
+              indexIdentifier,
+              createUpdateIntervalContext(isolatedReplicaConfig, null));
       InputStream pointStateStream = pointStateWithTimestamp.inputStream();
       byte[] pointStateBytes = pointStateStream.readAllBytes();
       NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
@@ -272,17 +274,19 @@ public class NrtDataManager implements Closeable {
    *
    * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
    *     replica
+   * @param currentTimestamp timestamp of the currently loaded index version, or null if no loaded
+   *     version
    * @return RemoteBackend.UpdateIntervalContext object with appropriate update interval, or null
    */
   @VisibleForTesting
   static RemoteBackend.UpdateIntervalContext createUpdateIntervalContext(
-      IsolatedReplicaConfig isolatedReplicaConfig) {
+      IsolatedReplicaConfig isolatedReplicaConfig, Instant currentTimestamp) {
     if (isolatedReplicaConfig == null || !isolatedReplicaConfig.isEnabled()) {
       return null;
     }
     int updateIntervalSeconds =
         freshnessToUpdateIntervalSeconds(isolatedReplicaConfig.getFreshnessTargetSeconds());
-    return new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds);
+    return new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, currentTimestamp);
   }
 
   /**
@@ -350,12 +354,24 @@ public class NrtDataManager implements Closeable {
    * isolated replica feature to determine when and index update is needed. It currently returns the
    * latest point state from the remote backend.
    *
+   * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
+   *     replicas
    * @return PointStateWithTimestamp object containing the target point state and its timestamp
    * @throws IOException if an error occurs while downloading the point state
    */
-  public PointStateWithTimestamp getTargetPointState() throws IOException {
+  public PointStateWithTimestamp getTargetPointState(IsolatedReplicaConfig isolatedReplicaConfig)
+      throws IOException {
     RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
-        remoteBackend.downloadPointState(serviceName, indexIdentifier, null);
+        remoteBackend.downloadPointState(
+            serviceName,
+            indexIdentifier,
+            createUpdateIntervalContext(isolatedReplicaConfig, lastPointTimestamp));
+    // No update is needed based on the freshness target, return the current point state
+    if (inputStreamWithTimestamp == null) {
+      synchronized (this) {
+        return new PointStateWithTimestamp(lastPointState, lastPointTimestamp);
+      }
+    }
     InputStream pointStateStream = inputStreamWithTimestamp.inputStream();
     byte[] pointStateBytes = pointStateStream.readAllBytes();
     return new PointStateWithTimestamp(

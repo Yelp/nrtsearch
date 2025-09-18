@@ -950,7 +950,7 @@ public class NrtDataManagerTest {
 
     // Test with freshness target of 120 seconds, which should use an update interval of 60 seconds
     when(mockRemoteBackend.downloadPointState(
-            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60)))
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null)))
         .thenReturn(
             new RemoteBackend.InputStreamWithTimestamp(
                 new ByteArrayInputStream(pointStateBytes), nrtPointTimestamp));
@@ -975,7 +975,8 @@ public class NrtDataManagerTest {
     assertEquals(nrtPointTimestamp, nrtDataManager.getLastPointTimestamp());
 
     verify(mockRemoteBackend, times(1))
-        .downloadPointState(SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60));
+        .downloadPointState(
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null));
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
             SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
@@ -1039,7 +1040,7 @@ public class NrtDataManagerTest {
         new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
 
     // Test the method
-    NrtDataManager.PointStateWithTimestamp result = nrtDataManager.getTargetPointState();
+    NrtDataManager.PointStateWithTimestamp result = nrtDataManager.getTargetPointState(null);
 
     // Verify results
     assertNotNull(result);
@@ -1060,7 +1061,7 @@ public class NrtDataManagerTest {
         new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
 
     try {
-      nrtDataManager.getTargetPointState();
+      nrtDataManager.getTargetPointState(null);
       fail("Expected IOException");
     } catch (IOException e) {
       assertEquals("Download failed", e.getMessage());
@@ -1280,6 +1281,59 @@ public class NrtDataManagerTest {
     // Verify interactions with the mock
     verify(mockRemoteBackend)
         .downloadIndexFile(SERVICE_NAME, INDEX_NAME, fileName, nrtFileMetaData);
+    verifyNoMoreInteractions(mockRemoteBackend);
+  }
+
+  @Test
+  public void testGetTargetPointState_noUpdateNeeded() throws IOException {
+    // Create mock RemoteBackend
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Create initial point state
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
+    CopyState copyState =
+        new CopyState(
+            Map.of("test_file", fileMetaData),
+            1,
+            3,
+            new byte[] {1, 2, 3, 4, 5},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData =
+        new NrtFileMetaData(fileMetaData, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("test_file", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    Instant testTimestamp = Instant.now();
+
+    // Set the initial point state
+    nrtDataManager.setLastPointState(nrtPointState, testTimestamp);
+
+    // Create an isolated replica config with freshness target of 120 seconds
+    IsolatedReplicaConfig isolatedReplicaConfig = new IsolatedReplicaConfig(true, 60, 120);
+
+    // Mock RemoteBackend.downloadPointState to return null (no update needed)
+    when(mockRemoteBackend.downloadPointState(
+            eq(SERVICE_NAME),
+            eq(INDEX_NAME),
+            eq(new RemoteBackend.UpdateIntervalContext(60, testTimestamp))))
+        .thenReturn(null);
+
+    // Test the method
+    NrtDataManager.PointStateWithTimestamp result =
+        nrtDataManager.getTargetPointState(isolatedReplicaConfig);
+
+    // Verify results - should return existing point state
+    assertNotNull(result);
+    assertEquals(testTimestamp, result.timestamp());
+    verifyPointStates(nrtPointState, result.pointState());
+
+    // Verify the mock interaction
+    verify(mockRemoteBackend)
+        .downloadPointState(
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, testTimestamp));
     verifyNoMoreInteractions(mockRemoteBackend);
   }
 }
