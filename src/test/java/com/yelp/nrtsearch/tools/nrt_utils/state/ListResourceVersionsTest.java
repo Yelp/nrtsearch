@@ -200,7 +200,7 @@ public class ListResourceVersionsTest {
   public void testListResourceVersionsFromGlobalState() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, getS3());
+    S3Backend backend = new S3Backend(TEST_BUCKET, false, false, getS3());
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(

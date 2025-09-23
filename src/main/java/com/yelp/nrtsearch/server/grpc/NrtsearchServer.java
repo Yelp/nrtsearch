@@ -93,6 +93,7 @@ import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.ProcStatCollector;
 import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
+import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
@@ -272,6 +273,7 @@ public class NrtsearchServer {
     prometheusRegistry.register(new SearchResponseCollector(globalState));
     // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
     IndexingMetrics.register(prometheusRegistry);
+    S3DownloadStreamWrapper.register(prometheusRegistry);
   }
 
   /** Main launches the server from the command line. */
