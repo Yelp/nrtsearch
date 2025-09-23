@@ -22,8 +22,8 @@ import java.io.InputStream;
 import org.apache.commons.io.input.ProxyInputStream;
 
 /**
- * InputStream wrapper that counts the number of bytes read from an S3 download stream
- * and updates a Prometheus counter with the total bytes downloaded per index.
+ * InputStream wrapper that counts the number of bytes read from an S3 download stream and updates a
+ * Prometheus counter with the total bytes downloaded per index.
  */
 public class S3DownloadStreamWrapper extends ProxyInputStream {
   public static final Counter nrtS3DownloadBytes =
