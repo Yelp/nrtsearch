@@ -756,6 +756,43 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testVectorSearch_filterAcorn() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .addRetrieveFields("filter")
+                    .setStartHit(0)
+                    .setTopHits(20)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(20)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter")
+                                            .setTextValue("term2")
+                                            .build())
+                                    .build())
+                            .setFilterStrategy(KnnQuery.FilterStrategy.ACORN)
+                            .build())
+                    .build());
+    assertEquals(20, searchResponse.getHitsCount());
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertEquals("term2", hit.getFieldsOrThrow("filter").getFieldValue(0).getTextValue());
+    }
+  }
+
+  @Test
   public void testMultipleVectorSearch() {
     List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
     SearchResponse searchResponse =
