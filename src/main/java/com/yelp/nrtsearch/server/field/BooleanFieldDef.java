@@ -39,7 +39,24 @@ import org.apache.lucene.search.Query;
 public class BooleanFieldDef extends IndexableFieldDef<Boolean> implements TermQueryable {
   protected BooleanFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context, Boolean.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected BooleanFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      BooleanFieldDef previousField) {
+    super(name, requestField, context, Boolean.class, previousField);
   }
 
   @Override
@@ -136,6 +153,12 @@ public class BooleanFieldDef extends IndexableFieldDef<Boolean> implements TermQ
   @Override
   public String getType() {
     return "BOOLEAN";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new BooleanFieldDef(name, requestField, context, this);
   }
 
   @Override
