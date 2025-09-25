@@ -120,7 +120,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, s3Client);
+    S3Backend s3Backend = new S3Backend(bucketName, false, false, s3Client);
 
     String stateFileContents = StateCommandUtils.getGlobalStateFileContents(s3Backend, serviceName);
     if (stateFileContents == null) {

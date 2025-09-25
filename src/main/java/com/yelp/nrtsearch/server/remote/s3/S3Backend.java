@@ -34,9 +34,11 @@ import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
@@ -88,6 +90,7 @@ public class S3Backend implements RemoteBackend {
   private final AmazonS3 s3;
   private final String serviceBucket;
   private final TransferManager transferManager;
+  private final boolean s3Metrics;
 
   /**
    * Pair of file names, one for the local file and one for the backend file.
@@ -104,7 +107,11 @@ public class S3Backend implements RemoteBackend {
    * @param s3 s3 client
    */
   public S3Backend(NrtsearchConfig configuration, AmazonS3 s3) {
-    this(configuration.getBucketName(), configuration.getSavePluginBeforeUnzip(), s3);
+    this(
+        configuration.getBucketName(),
+        configuration.getSavePluginBeforeUnzip(),
+        configuration.getS3Metrics(),
+        s3);
   }
 
   /**
@@ -112,9 +119,11 @@ public class S3Backend implements RemoteBackend {
    *
    * @param serviceBucket bucket name
    * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3Metrics enable s3 download metrics
    * @param s3 s3 client
    */
-  public S3Backend(String serviceBucket, boolean savePluginBeforeUnzip, AmazonS3 s3) {
+  public S3Backend(
+      String serviceBucket, boolean savePluginBeforeUnzip, boolean s3Metrics, AmazonS3 s3) {
     this.s3 = s3;
     this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
     this.saveBeforeUnzip = savePluginBeforeUnzip;
@@ -125,6 +134,7 @@ public class S3Backend implements RemoteBackend {
             .withExecutorFactory(() -> executor)
             .withShutDownThreadPools(false)
             .build();
+    this.s3Metrics = s3Metrics;
   }
 
   public AmazonS3 getS3() {
@@ -346,7 +356,7 @@ public class S3Backend implements RemoteBackend {
   @Override
   public InputStream downloadGlobalState(String service) throws IOException {
     String prefix = getGlobalStateResourcePrefix(service);
-    return downloadResource(prefix);
+    return downloadResource(prefix, null);
   }
 
   @Override
@@ -360,7 +370,7 @@ public class S3Backend implements RemoteBackend {
   @Override
   public InputStream downloadIndexState(String service, String indexIdentifier) throws IOException {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.INDEX_STATE);
-    return downloadResource(prefix);
+    return downloadResource(prefix, indexIdentifier);
   }
 
   @Override
@@ -377,7 +387,7 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     String prefix =
         getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.WARMING_QUERIES);
-    return downloadResource(prefix);
+    return downloadResource(prefix, indexIdentifier);
   }
 
   @Override
@@ -472,7 +482,8 @@ public class S3Backend implements RemoteBackend {
     String backendFileName = getIndexBackendFileName(fileName, fileMetaData);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     String backendKey = backendPrefix + backendFileName;
-    return downloadFromS3Path(serviceBucket, backendKey, false);
+    return wrapDownloadStream(
+        downloadFromS3Path(serviceBucket, backendKey, false), s3Metrics, indexIdentifier);
   }
 
   @VisibleForTesting
@@ -484,6 +495,17 @@ public class S3Backend implements RemoteBackend {
       fileList.add(new FileNamePair(fileName, getIndexBackendFileName(fileName, fileMetaData)));
     }
     return fileList;
+  }
+
+  @VisibleForTesting
+  static InputStream wrapDownloadStream(
+      InputStream inputStream, boolean s3Metrics, String indexIdentifier) {
+    if (s3Metrics) {
+      String indexName = BackendGlobalState.getBaseIndexName(indexIdentifier);
+      return new S3DownloadStreamWrapper(inputStream, indexName);
+    } else {
+      return inputStream;
+    }
   }
 
   @Override
@@ -521,7 +543,10 @@ public class S3Backend implements RemoteBackend {
       return null;
     }
     return new InputStreamWithTimestamp(
-        downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
+        wrapDownloadStream(
+            downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
+            s3Metrics,
+            indexIdentifier),
         backendKeyWithTimestamp.timestamp());
   }
 
@@ -654,10 +679,14 @@ public class S3Backend implements RemoteBackend {
     setCurrentResource(prefix, fileName);
   }
 
-  private InputStream downloadResource(String prefix) throws IOException {
+  private InputStream downloadResource(String prefix, String indexIdentifier) throws IOException {
     String fileName = getCurrentResourceName(prefix);
     String backendKey = prefix + fileName;
-    return downloadFromS3Path(serviceBucket, backendKey, true);
+    InputStream inputStream = downloadFromS3Path(serviceBucket, backendKey, true);
+    if (indexIdentifier != null) {
+      inputStream = wrapDownloadStream(inputStream, s3Metrics, indexIdentifier);
+    }
+    return inputStream;
   }
 
   @VisibleForTesting
