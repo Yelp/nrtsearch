@@ -139,13 +139,62 @@ task nrtUtils(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
-applicationDistribution.into('bin') {
-    from(luceneServer)
-    from(luceneServerClient)
-    from(nrtsearchServer)
-    from(nrtsearchServerClient)
-    from(nrtUtils)
-    fileMode = 0755
+distributions {
+    main {
+        contents {
+            into('bin') {
+                from(luceneServer)
+                from(luceneServerClient)
+                from(nrtsearchServer)
+                from(nrtsearchServerClient)
+                from(nrtUtils)
+            }
+        }
+    }
+}
+
+tasks.named('distTar').configure {
+    eachFile { details ->
+        if (details.path.contains('bin/')) {
+            details.permissions {
+                user {
+                    read = true
+                    write = true
+                    execute = true
+                }
+                group {
+                    read = true
+                    execute = true
+                }
+                other {
+                    read = true
+                    execute = true
+                }
+            }
+        }
+    }
+}
+
+tasks.named('distZip').configure {
+    eachFile { details ->
+        if (details.path.contains('bin/')) {
+            details.permissions {
+                user {
+                    read = true
+                    write = true
+                    execute = true
+                }
+                group {
+                    read = true
+                    execute = true
+                }
+                other {
+                    read = true
+                    execute = true
+                }
+            }
+        }
+    }
 }
 
 task buildGrpcGateway(dependsOn: installDist, type: Exec) {
