@@ -26,6 +26,7 @@ import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
 import java.io.ByteArrayInputStream;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,6 +35,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class GrpcServerExecutorSupplierTest {
 
+  static ExecutorFactory executorFactory;
+
   @BeforeClass
   public static void setUp() {
     ThreadPoolConfiguration threadPoolConfiguration =
@@ -41,13 +44,19 @@ public class GrpcServerExecutorSupplierTest {
             new YamlConfigReader(
                 new ByteArrayInputStream(
                     "threadPoolConfiguration:\n  search:\n    maxThreads: 1".getBytes())));
-    ExecutorFactory.init(threadPoolConfiguration);
+    executorFactory = new ExecutorFactory(threadPoolConfiguration);
+  }
+
+  @AfterClass
+  public static void tearDown() throws Exception {
+    executorFactory.close();
   }
 
   @Test
   public void testGetExecutor() {
 
-    GrpcServerExecutorSupplier grpcServerExecutorSupplier = new GrpcServerExecutorSupplier();
+    GrpcServerExecutorSupplier grpcServerExecutorSupplier =
+        new GrpcServerExecutorSupplier(executorFactory);
 
     ServerCall metricsServerCall = getMockServerCall("metrics");
     ServerCall searchServerCall = getMockServerCall("search");
