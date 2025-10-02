@@ -70,7 +70,7 @@ public class AmazonS3Provider extends ExternalResource {
   protected void before() throws Throwable {
     temporaryFolder.create();
     s3Path = temporaryFolder.newFolder("s3").toString();
-    api = S3Mock.create(8011, s3Path);
+    api = new S3Mock.Builder().withPort(8011).withFileBackend(s3Path).build();
     api.start();
     s3 = createTestS3Client("http://127.0.0.1:8011");
     s3.createBucket(bucketName);
