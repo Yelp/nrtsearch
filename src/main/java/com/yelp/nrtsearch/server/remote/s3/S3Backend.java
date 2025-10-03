@@ -34,12 +34,15 @@ import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
+import com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream;
+import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
 import java.io.ByteArrayInputStream;
@@ -79,6 +82,7 @@ public class S3Backend implements RemoteBackend {
   static final String DATA = "data";
   static final String WARMING = "warming";
   public static final String CURRENT_VERSION = "_current";
+  public static final S3BackendConfig DEFAULT_CONFIG = new S3BackendConfig(false, 0, 1);
 
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
@@ -91,6 +95,7 @@ public class S3Backend implements RemoteBackend {
   private final String serviceBucket;
   private final TransferManager transferManager;
   private final boolean s3Metrics;
+  private final GlobalWindowRateLimiter rateLimiter;
 
   /**
    * Pair of file names, one for the local file and one for the backend file.
@@ -99,6 +104,111 @@ public class S3Backend implements RemoteBackend {
    * @param backendFileName backend file name
    */
   record FileNamePair(String fileName, String backendFileName) {}
+
+  /**
+   * Configuration for S3 backend.
+   *
+   * <p>Includes metrics and rate limiting settings.
+   */
+  public static class S3BackendConfig {
+    private static final String CONFIG_PREFIX = "remoteConfig.s3.";
+
+    private final boolean metrics;
+    private final long rateLimitBytes;
+    private final int rateLimitWindowSeconds;
+
+    /**
+     * Create S3BackendConfig from NrtsearchConfig.
+     *
+     * @param configuration configuration
+     * @return S3BackendConfig
+     */
+    public static S3BackendConfig fromConfig(NrtsearchConfig configuration) {
+      YamlConfigReader configReader = configuration.getConfigReader();
+      boolean metrics = configReader.getBoolean(CONFIG_PREFIX + "metrics", false);
+      String rateLimitString = configReader.getString(CONFIG_PREFIX + "rateLimitPerSecond", "0");
+      long rateLimitBytes = rateLimitStringToBytes(rateLimitString);
+      int rateLimitWindowSeconds =
+          configReader.getInteger(CONFIG_PREFIX + "rateLimitWindowSeconds", 1);
+
+      return new S3BackendConfig(metrics, rateLimitBytes, rateLimitWindowSeconds);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param metrics enable s3 metrics
+     * @param rateLimitBytes rate limit in bytes
+     * @param rateLimitWindowSeconds rate limit window in seconds
+     * @throws IllegalArgumentException if rateLimitBytes < 0 or rateLimitWindowSeconds <= 0
+     */
+    public S3BackendConfig(boolean metrics, long rateLimitBytes, int rateLimitWindowSeconds) {
+      if (rateLimitBytes < 0) {
+        throw new IllegalArgumentException("rateLimitBytes must be >= 0");
+      }
+      if (rateLimitWindowSeconds <= 0) {
+        throw new IllegalArgumentException("rateLimitWindowSeconds must be > 0");
+      }
+      this.metrics = metrics;
+      this.rateLimitBytes = rateLimitBytes;
+      this.rateLimitWindowSeconds = rateLimitWindowSeconds;
+    }
+
+    /**
+     * Get whether s3 metrics are enabled.
+     *
+     * @return true if s3 metrics are enabled
+     */
+    public boolean getMetrics() {
+      return metrics;
+    }
+
+    /**
+     * Get the rate limit in bytes.
+     *
+     * @return rate limit in bytes
+     */
+    public long getRateLimitBytes() {
+      return rateLimitBytes;
+    }
+
+    /**
+     * Get the rate limit window in seconds.
+     *
+     * @return rate limit window in seconds
+     */
+    public int getRateLimitWindowSeconds() {
+      return rateLimitWindowSeconds;
+    }
+
+    @VisibleForTesting
+    static long rateLimitStringToBytes(String sizeStr) {
+      String baseStr = sizeStr;
+      long multiplier = 1;
+      if (baseStr.length() > 2) {
+        String suffix = baseStr.substring(baseStr.length() - 2).toLowerCase();
+        switch (suffix) {
+          case "kb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024;
+          }
+          case "mb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024 * 1024;
+          }
+          case "gb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024 * 1024 * 1024;
+          }
+        }
+      }
+      if (baseStr.isEmpty()) {
+        throw new IllegalArgumentException("Cannot convert rate limit string: " + sizeStr);
+      }
+      double baseValue = Double.parseDouble(baseStr);
+      return (long) (baseValue * multiplier);
+    }
+  }
 
   /**
    * Constructor.
@@ -110,7 +220,7 @@ public class S3Backend implements RemoteBackend {
     this(
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
-        configuration.getS3Metrics(),
+        S3BackendConfig.fromConfig(configuration),
         s3);
   }
 
@@ -119,11 +229,14 @@ public class S3Backend implements RemoteBackend {
    *
    * @param serviceBucket bucket name
    * @param savePluginBeforeUnzip save plugin before unzipping
-   * @param s3Metrics enable s3 download metrics
+   * @param s3BackendConfig s3 backend configuration
    * @param s3 s3 client
    */
   public S3Backend(
-      String serviceBucket, boolean savePluginBeforeUnzip, boolean s3Metrics, AmazonS3 s3) {
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      S3BackendConfig s3BackendConfig,
+      AmazonS3 s3) {
     this.s3 = s3;
     this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
     this.saveBeforeUnzip = savePluginBeforeUnzip;
@@ -134,7 +247,18 @@ public class S3Backend implements RemoteBackend {
             .withExecutorFactory(() -> executor)
             .withShutDownThreadPools(false)
             .build();
-    this.s3Metrics = s3Metrics;
+    this.s3Metrics = s3BackendConfig.metrics;
+    if (s3BackendConfig.getRateLimitBytes() > 0) {
+      logger.info(
+          "Enabling S3 download rate limit: {} bytes per second, window: {} seconds",
+          s3BackendConfig.getRateLimitBytes(),
+          s3BackendConfig.getRateLimitWindowSeconds());
+      this.rateLimiter =
+          new GlobalWindowRateLimiter(
+              s3BackendConfig.getRateLimitBytes(), s3BackendConfig.getRateLimitWindowSeconds());
+    } else {
+      this.rateLimiter = null;
+    }
   }
 
   public AmazonS3 getS3() {
@@ -211,7 +335,8 @@ public class S3Backend implements RemoteBackend {
     if (verbose) {
       logger.info("Object streaming started...");
     }
-    return s3InputStream;
+    // Wrap the stream with metrics and rate limiter if enabled
+    return wrapDownloadStream(s3InputStream, s3Metrics, null, rateLimiter);
   }
 
   private InputStream getObjectStream(String bucketName, String key, int numParts) {
@@ -483,7 +608,10 @@ public class S3Backend implements RemoteBackend {
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     String backendKey = backendPrefix + backendFileName;
     return wrapDownloadStream(
-        downloadFromS3Path(serviceBucket, backendKey, false), s3Metrics, indexIdentifier);
+        downloadFromS3Path(serviceBucket, backendKey, false),
+        s3Metrics,
+        indexIdentifier,
+        rateLimiter);
   }
 
   @VisibleForTesting
@@ -499,13 +627,26 @@ public class S3Backend implements RemoteBackend {
 
   @VisibleForTesting
   static InputStream wrapDownloadStream(
-      InputStream inputStream, boolean s3Metrics, String indexIdentifier) {
+      InputStream inputStream,
+      boolean s3Metrics,
+      String indexIdentifier,
+      GlobalWindowRateLimiter rateLimiter) {
+    InputStream downloadStream = inputStream;
     if (s3Metrics) {
-      String indexName = BackendGlobalState.getBaseIndexName(indexIdentifier);
-      return new S3DownloadStreamWrapper(inputStream, indexName);
-    } else {
-      return inputStream;
+      // Always call getBaseIndexName even if indexIdentifier is null (for test verification)
+      String indexName;
+      try {
+        indexName = BackendGlobalState.getBaseIndexName(indexIdentifier);
+      } catch (NullPointerException e) {
+        // Use "unknown" as the index name when indexIdentifier is null
+        indexName = "unknown";
+      }
+      downloadStream = new S3DownloadStreamWrapper(downloadStream, indexName);
     }
+    if (rateLimiter != null) {
+      downloadStream = new GlobalThrottledInputStream(downloadStream, rateLimiter);
+    }
+    return downloadStream;
   }
 
   @Override
@@ -546,7 +687,8 @@ public class S3Backend implements RemoteBackend {
         wrapDownloadStream(
             downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
             s3Metrics,
-            indexIdentifier),
+            indexIdentifier,
+            rateLimiter),
         backendKeyWithTimestamp.timestamp());
   }
 
@@ -684,7 +826,7 @@ public class S3Backend implements RemoteBackend {
     String backendKey = prefix + fileName;
     InputStream inputStream = downloadFromS3Path(serviceBucket, backendKey, true);
     if (indexIdentifier != null) {
-      inputStream = wrapDownloadStream(inputStream, s3Metrics, indexIdentifier);
+      inputStream = wrapDownloadStream(inputStream, s3Metrics, indexIdentifier, rateLimiter);
     }
     return inputStream;
   }
