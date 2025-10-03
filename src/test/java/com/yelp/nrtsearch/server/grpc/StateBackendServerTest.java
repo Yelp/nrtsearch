@@ -152,8 +152,8 @@ public class StateBackendServerTest {
     Files.createDirectories(getReplicaIndexDir());
 
     AmazonS3 s3 = s3Provider.getAmazonS3();
-    remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, false, s3);
-    remoteBackendReplica = new S3Backend(TEST_BUCKET, false, false, s3);
+    remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
+    remoteBackendReplica = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
   }
 
   private NrtsearchConfig getPrimaryConfig() {

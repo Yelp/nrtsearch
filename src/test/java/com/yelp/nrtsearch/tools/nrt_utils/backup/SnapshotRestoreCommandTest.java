@@ -370,7 +370,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, s3Client);
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Client);
     NrtPointState pointState =
         RemoteUtils.pointStateFromUtf8(
             s3Backend
@@ -412,7 +412,7 @@ public class SnapshotRestoreCommandTest {
   private void assertRestoreFiles(
       AmazonS3 s3Client, String serviceName, String indexResource, boolean withWarming)
       throws IOException {
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, s3Client);
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Client);
     Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs");
 
     NrtPointState pointState =
