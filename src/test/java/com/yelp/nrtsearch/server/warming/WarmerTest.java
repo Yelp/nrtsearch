@@ -21,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
@@ -43,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -53,6 +55,7 @@ public class WarmerTest {
   private final String service = "test_service";
   private final String index = "test_index";
   private final String bucketName = "warmer-unittest";
+  private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private Warmer warmer;
@@ -65,8 +68,14 @@ public class WarmerTest {
     String configStr = "bucketName: " + bucketName;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
-    remoteBackend = new S3Backend(config, s3);
+    executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
+    remoteBackend = new S3Backend(config, s3, executorFactory);
     warmer = new Warmer(remoteBackend, service, index, 4);
+  }
+
+  @After
+  public void teardown() throws IOException {
+    executorFactory.close();
   }
 
   @Test

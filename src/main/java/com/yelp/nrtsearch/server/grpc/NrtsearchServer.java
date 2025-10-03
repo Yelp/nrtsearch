@@ -135,6 +135,7 @@ public class NrtsearchServer {
   private final RemoteBackend remoteBackend;
   private final PrometheusRegistry prometheusRegistry;
   private final PluginsService pluginsService;
+  private final ExecutorFactory executorFactory;
 
   private Server server;
   private Server replicationServer;
@@ -144,10 +145,12 @@ public class NrtsearchServer {
   public NrtsearchServer(
       NrtsearchConfig configuration,
       RemoteBackend remoteBackend,
-      PrometheusRegistry prometheusRegistry) {
+      PrometheusRegistry prometheusRegistry,
+      ExecutorFactory executorFactory) {
     this.configuration = configuration;
     this.remoteBackend = remoteBackend;
     this.prometheusRegistry = prometheusRegistry;
+    this.executorFactory = executorFactory;
     this.pluginsService = new PluginsService(configuration, remoteBackend, prometheusRegistry);
   }
 
@@ -157,7 +160,8 @@ public class NrtsearchServer {
     List<Plugin> plugins = pluginsService.loadPlugins();
 
     LuceneServerImpl serverImpl =
-        new LuceneServerImpl(configuration, remoteBackend, prometheusRegistry, plugins);
+        new LuceneServerImpl(
+            configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
@@ -168,9 +172,7 @@ public class NrtsearchServer {
               .addService(
                   new ReplicationServerImpl(
                       globalState, configuration.getVerifyReplicationIndexId()))
-              .executor(
-                  ExecutorFactory.getInstance()
-                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
+              .executor(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .maxConcurrentCallsPerConnection(
                   configuration.getMaxConcurrentCallsPerConnectionForReplication())
@@ -185,9 +187,7 @@ public class NrtsearchServer {
               .addService(
                   new ReplicationServerImpl(
                       globalState, configuration.getVerifyReplicationIndexId()))
-              .executor(
-                  ExecutorFactory.getInstance()
-                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
+              .executor(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .build()
               .start();
@@ -206,7 +206,7 @@ public class NrtsearchServer {
                 .withLatencyBuckets(configuration.getMetricsBuckets())
                 .withPrometheusRegistry(prometheusRegistry));
     /* The port on which the server should run */
-    GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
+    GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier(executorFactory);
     server =
         ServerBuilder.forPort(configuration.getPort())
             // The last interceptor is invoked first
@@ -374,6 +374,7 @@ public class NrtsearchServer {
      * @param configuration server configuration
      * @param remoteBackend backend for persistent remote storage
      * @param prometheusRegistry metrics collector registry
+     * @param executorFactory executor factory
      * @param plugins loaded plugins
      * @throws IOException
      */
@@ -381,17 +382,17 @@ public class NrtsearchServer {
         NrtsearchConfig configuration,
         RemoteBackend remoteBackend,
         PrometheusRegistry prometheusRegistry,
+        ExecutorFactory executorFactory,
         List<Plugin> plugins)
         throws IOException {
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
-      ExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);
       initMaxClauseCount(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, remoteBackend);
+      this.globalState = GlobalState.createState(configuration, remoteBackend, executorFactory);
 
       // Initialize handlers
       initIngestionPlugin(globalState, plugins);

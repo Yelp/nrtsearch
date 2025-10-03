@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -75,18 +76,21 @@ public class S3BackendUpdateIntervalTest {
 
   private static AmazonS3 s3;
   private static S3Backend s3Backend;
+  private static ExecutorFactory executorFactory;
 
   @BeforeClass
   public static void setup() throws IOException {
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     s3 = S3_PROVIDER.getAmazonS3();
-    s3Backend = new S3Backend(config, s3);
+    s3Backend = new S3Backend(config, s3, executorFactory);
   }
 
   @AfterClass
-  public static void cleanUp() {
+  public static void cleanUp() throws IOException {
     s3Backend.close();
+    executorFactory.close();
   }
 
   /**

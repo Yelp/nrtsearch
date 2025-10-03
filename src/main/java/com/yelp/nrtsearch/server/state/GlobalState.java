@@ -62,21 +62,24 @@ public abstract class GlobalState implements Closeable {
   private final Path stateDir;
   private final Path indexDirBase;
 
+  private final ExecutorFactory executorFactory;
   private final ExecutorService indexExecutor;
   private final ExecutorService fetchExecutor;
   private final ExecutorService searchExecutor;
   private final ExecutorService commitExecutor;
 
-  public static GlobalState createState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
+  public static GlobalState createState(
+      NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
       throws IOException {
-    return new BackendGlobalState(configuration, remoteBackend);
+    return new BackendGlobalState(configuration, remoteBackend, executorFactory);
   }
 
   public RemoteBackend getRemoteBackend() {
     return remoteBackend;
   }
 
-  protected GlobalState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
+  protected GlobalState(
+      NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
       throws IOException {
     this.remoteBackend = remoteBackend;
     this.nodeName = configuration.getNodeName();
@@ -90,14 +93,11 @@ public abstract class GlobalState implements Closeable {
     if (!Files.exists(stateDir)) {
       Files.createDirectories(stateDir);
     }
-    this.indexExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.INDEX);
-    this.searchExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SEARCH);
-    this.fetchExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.FETCH);
-    this.commitExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.COMMIT);
+    this.executorFactory = executorFactory;
+    this.indexExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.INDEX);
+    this.searchExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.SEARCH);
+    this.fetchExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.FETCH);
+    this.commitExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.COMMIT);
     this.configuration = configuration;
   }
 
@@ -305,6 +305,15 @@ public abstract class GlobalState implements Closeable {
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
     return threadPoolConfiguration;
+  }
+
+  /**
+   * Get the executor factory.
+   *
+   * @return executor factory
+   */
+  public ExecutorFactory getExecutorFactory() {
+    return executorFactory;
   }
 
   public ExecutorService getSearchExecutor() {

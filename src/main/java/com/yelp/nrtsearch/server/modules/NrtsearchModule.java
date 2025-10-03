@@ -19,6 +19,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
@@ -46,6 +47,13 @@ public class NrtsearchModule extends AbstractModule {
   @Provides
   public PrometheusRegistry providesPrometheusRegistry() {
     return new PrometheusRegistry();
+  }
+
+  @Inject
+  @Singleton
+  @Provides
+  public ExecutorFactory providesExecutorFactory(NrtsearchConfig configuration) {
+    return new ExecutorFactory(configuration.getThreadPoolConfiguration());
   }
 
   @Inject

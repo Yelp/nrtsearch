@@ -20,6 +20,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.modules.BackendModule;
@@ -29,10 +30,13 @@ public class TestNrtsearchModule extends AbstractModule {
 
   private final NrtsearchConfig nrtsearchConfig;
   private final AmazonS3 amazonS3;
+  private final ExecutorFactory executorFactory;
 
-  public TestNrtsearchModule(NrtsearchConfig nrtsearchConfig, AmazonS3 amazonS3) {
+  public TestNrtsearchModule(
+      NrtsearchConfig nrtsearchConfig, AmazonS3 amazonS3, ExecutorFactory executorFactory) {
     this.nrtsearchConfig = nrtsearchConfig;
     this.amazonS3 = amazonS3;
+    this.executorFactory = executorFactory;
   }
 
   protected void configure() {
@@ -51,5 +55,12 @@ public class TestNrtsearchModule extends AbstractModule {
   @Provides
   protected AmazonS3 providesAmazonS3() {
     return amazonS3;
+  }
+
+  @Inject
+  @Singleton
+  @Provides
+  protected ExecutorFactory providesExecutorFactory() {
+    return executorFactory;
   }
 }
