@@ -39,7 +39,24 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
 
   public FloatFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, FLOAT_PARSER, context, Float.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected FloatFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      FloatFieldDef previousField) {
+    super(name, requestField, FLOAT_PARSER, context, Float.class, previousField);
   }
 
   @Override
@@ -97,6 +114,12 @@ public class FloatFieldDef extends NumberFieldDef<Float> {
   @Override
   public String getType() {
     return "FLOAT";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new FloatFieldDef(name, requestField, context, this);
   }
 
   @Override
