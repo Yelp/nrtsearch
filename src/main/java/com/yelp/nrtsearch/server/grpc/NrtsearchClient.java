@@ -21,13 +21,16 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Metadata;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.MetadataUtils;
 import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -53,27 +56,49 @@ public class NrtsearchClient implements Closeable {
   private final LuceneServerGrpc.LuceneServerStub asyncStub;
 
   /** Construct client connecting to NrtsearchServer server at {@code host:port}. */
+  /** Construct client connecting to NrtsearchServer server at {@code host:port}. */
   public NrtsearchClient(String host, int port) {
+    this(host, port, null);
+  }
+
+  public NrtsearchClient(String host, int port, Map<String, String> metadata) {
     this(
         ManagedChannelBuilder.forAddress(host, port)
             // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
             // needing certificates.
             .usePlaintext()
             .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .build());
+            .build(),
+        metadata);
   }
 
   /** Construct client for accessing NrtsearchServer server using the existing channel. */
-  NrtsearchClient(ManagedChannel channel) {
+  NrtsearchClient(ManagedChannel channel, Map<String, String> metadata) {
     this.channel = channel;
-    blockingStub =
+    LuceneServerGrpc.LuceneServerBlockingStub localBlockingStub =
         LuceneServerGrpc.newBlockingStub(channel)
             .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
-    asyncStub =
+    LuceneServerGrpc.LuceneServerStub localAsyncStub =
         LuceneServerGrpc.newStub(channel)
             .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
+
+    if (metadata != null && !metadata.isEmpty()) {
+      Metadata headers = new Metadata();
+      for (Map.Entry<String, String> entry : metadata.entrySet()) {
+        Metadata.Key<String> key =
+            Metadata.Key.of(entry.getKey(), Metadata.ASCII_STRING_MARSHALLER);
+        headers.put(key, entry.getValue());
+      }
+      localBlockingStub =
+          localBlockingStub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(headers));
+      localAsyncStub =
+          localAsyncStub.withInterceptors(MetadataUtils.newAttachHeadersInterceptor(headers));
+    }
+
+    this.blockingStub = localBlockingStub;
+    this.asyncStub = localAsyncStub;
   }
 
   public void shutdown() throws InterruptedException {
