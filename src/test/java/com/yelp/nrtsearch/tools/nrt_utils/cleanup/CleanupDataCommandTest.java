@@ -110,7 +110,7 @@ public class CleanupDataCommandTest {
   @Test
   public void testKeepsRecentVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, getS3());
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -130,7 +130,7 @@ public class CleanupDataCommandTest {
   @Test
   public void testDeletesUnneededVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, getS3());
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -149,7 +149,7 @@ public class CleanupDataCommandTest {
   @Test
   public void testKeepsFutureVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, getS3());
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -171,7 +171,7 @@ public class CleanupDataCommandTest {
   @Test
   public void testGracePeriod() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, false, getS3());
+    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
     AmazonS3 s3Client = getS3();

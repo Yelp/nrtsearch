@@ -49,7 +49,7 @@ public class S3BackendWrapDownloadStreamTest {
 
       // Act
       InputStream result =
-          S3Backend.wrapDownloadStream(inputStream, s3Metrics, TEST_INDEX_IDENTIFIER);
+          S3Backend.wrapDownloadStream(inputStream, s3Metrics, TEST_INDEX_IDENTIFIER, null);
 
       // Assert
       assertTrue(
@@ -75,7 +75,7 @@ public class S3BackendWrapDownloadStreamTest {
 
     // Act
     InputStream result =
-        S3Backend.wrapDownloadStream(inputStream, s3Metrics, TEST_INDEX_IDENTIFIER);
+        S3Backend.wrapDownloadStream(inputStream, s3Metrics, TEST_INDEX_IDENTIFIER, null);
 
     // Assert
     assertSame(
@@ -106,7 +106,7 @@ public class S3BackendWrapDownloadStreamTest {
 
       // Act
       InputStream result =
-          S3Backend.wrapDownloadStream(inputStream, s3Metrics, nullIndexIdentifier);
+          S3Backend.wrapDownloadStream(inputStream, s3Metrics, nullIndexIdentifier, null);
 
       // Assert
       assertTrue(
@@ -139,7 +139,7 @@ public class S3BackendWrapDownloadStreamTest {
 
       // Act
       InputStream result =
-          S3Backend.wrapDownloadStream(emptyStream, s3Metrics, TEST_INDEX_IDENTIFIER);
+          S3Backend.wrapDownloadStream(emptyStream, s3Metrics, TEST_INDEX_IDENTIFIER, null);
 
       // Assert
       assertTrue(
