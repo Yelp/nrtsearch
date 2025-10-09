@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.state;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringMs;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
@@ -116,11 +117,13 @@ public class BackendGlobalState extends GlobalState {
    *
    * @param configuration server config
    * @param remoteBackend backend for persistent remote storage
+   * @param executorFactory executor factory
    * @throws IOException on filesystem error
    */
-  public BackendGlobalState(NrtsearchConfig configuration, RemoteBackend remoteBackend)
+  public BackendGlobalState(
+      NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
       throws IOException {
-    super(configuration, remoteBackend);
+    super(configuration, remoteBackend, executorFactory);
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers

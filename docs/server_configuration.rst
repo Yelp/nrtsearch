@@ -311,6 +311,26 @@ Example server configuration
      - Whether to use virtual threads instead of a traditional thread pool for commit operations
      - false
 
+   * - remote.maxThreads
+     - int
+     - Size of remote threadpool executor
+     - 20
+
+   * - remote.maxBufferedItems
+     - int
+     - Max tasks that can be queued by remote threadpool executor
+     - INT_MAX
+
+   * - remote.threadNamePrefix
+     - string
+     - Name prefix for threads created by remote threadpool executor
+     - RemoteExecutor
+
+   * - remote.useVirtualThreads
+     - bool
+     - Whether to use virtual threads instead of a traditional thread pool for remote operations
+     - false
+
 .. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*.maxThreads.*``)
    :widths: 25 10 50 25
    :header-rows: 1

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
@@ -56,6 +57,7 @@ public class GrpcServer {
   private final GrpcCleanupRule grpcCleanup;
   private final TemporaryFolder temporaryFolder;
   private final RemoteBackend remoteBackend;
+  private final ExecutorFactory executorFactory;
   private String indexDir;
   private String testIndex;
   private LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
@@ -89,6 +91,7 @@ public class GrpcServer {
     this.indexDir = indexDir;
     this.testIndex = index;
     this.remoteBackend = remoteBackend;
+    this.executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
     invoke(prometheusRegistry, replicationGlobalState != null, port, remoteBackend, plugins);
   }
 
@@ -167,7 +170,7 @@ public class GrpcServer {
     return remoteBackend;
   }
 
-  public void shutdown() {
+  public void shutdown() throws IOException {
     if (server != null && luceneServerManagedChannel != null) {
       server.shutdown();
       luceneServerManagedChannel.shutdown();
@@ -180,9 +183,10 @@ public class GrpcServer {
       replicationServer = null;
       replicationServerStub = null;
     }
+    executorFactory.close();
   }
 
-  public void forceShutdown() {
+  public void forceShutdown() throws IOException {
     if (server != null && luceneServerManagedChannel != null) {
       server.shutdownNow();
       luceneServerManagedChannel.shutdownNow();
@@ -195,6 +199,7 @@ public class GrpcServer {
       replicationServer = null;
       replicationServerStub = null;
     }
+    executorFactory.close();
   }
 
   /**
@@ -215,7 +220,7 @@ public class GrpcServer {
       if (prometheusRegistry == null) {
         LuceneServerImpl serverImpl =
             new NrtsearchServer.LuceneServerImpl(
-                configuration, remoteBackend, prometheusRegistry, plugins);
+                configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
@@ -233,7 +238,7 @@ public class GrpcServer {
                 Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
         LuceneServerImpl serverImpl =
             new NrtsearchServer.LuceneServerImpl(
-                configuration, remoteBackend, prometheusRegistry, plugins);
+                configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =

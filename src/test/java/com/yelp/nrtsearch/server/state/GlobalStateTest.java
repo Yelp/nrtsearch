@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.state;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -23,6 +24,7 @@ import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,11 +34,18 @@ public class GlobalStateTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
+  ExecutorFactory executorFactory;
+
   @Before
   public void setUp() {
     // Initialize ExecutorFactory with default configuration
     NrtsearchConfig defaultConfig = getConfig("nodeName: test");
-    ExecutorFactory.init(defaultConfig.getThreadPoolConfiguration());
+    executorFactory = new ExecutorFactory(defaultConfig.getThreadPoolConfiguration());
+  }
+
+  @After
+  public void tearDown() throws IOException {
+    executorFactory.close();
   }
 
   private NrtsearchConfig getConfig(String config) {
@@ -52,15 +61,16 @@ public class GlobalStateTest {
             "  backendType: LOCAL",
             "stateDir: " + folder.getRoot().getAbsolutePath());
     NrtsearchConfig configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
     assertTrue(globalState instanceof BackendGlobalState);
+    assertNotNull(globalState.getExecutorFactory());
   }
 
   @Test
   public void testGetGeneration() throws IOException {
     String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
     NrtsearchConfig configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
     long gen = globalState.getGeneration();
     assertTrue(gen > 0);
     assertEquals(gen, globalState.getGeneration());
@@ -69,7 +79,7 @@ public class GlobalStateTest {
       Thread.sleep(50);
     } catch (InterruptedException ignore) {
     }
-    GlobalState globalState2 = GlobalState.createState(configuration, null);
+    GlobalState globalState2 = GlobalState.createState(configuration, null, executorFactory);
     assertTrue(globalState2.getGeneration() > gen);
   }
 
@@ -77,7 +87,7 @@ public class GlobalStateTest {
   public void testSubmitCommitTask_executesTask() throws IOException, InterruptedException {
     String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
     NrtsearchConfig configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
 
     // Create a task that will modify this array when executed
     boolean[] taskExecuted = {false};
@@ -105,9 +115,10 @@ public class GlobalStateTest {
     NrtsearchConfig configuration = getConfig(configFile);
 
     // Initialize ExecutorFactory with our custom configuration
-    ExecutorFactory.init(configuration.getThreadPoolConfiguration());
+    executorFactory.close();
+    executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
 
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
 
     // Execute a simple task to ensure the executor is created
     globalState.submitCommitTask(() -> {});
@@ -130,7 +141,7 @@ public class GlobalStateTest {
         String.join(
             "\n", "stateConfig:", "  backendType: LOCAL", "useSeparateCommitExecutor: false");
     NrtsearchConfig configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
 
     boolean[] taskExecuted = {false};
     globalState.submitCommitTask(() -> taskExecuted[0] = true);
@@ -149,7 +160,7 @@ public class GlobalStateTest {
         String.join(
             "\n", "stateConfig:", "  backendType: LOCAL", "useSeparateCommitExecutor: true");
     NrtsearchConfig configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null);
+    GlobalState globalState = GlobalState.createState(configuration, null, executorFactory);
 
     boolean[] taskExecuted = {false};
     globalState.submitCommitTask(() -> taskExecuted[0] = true);

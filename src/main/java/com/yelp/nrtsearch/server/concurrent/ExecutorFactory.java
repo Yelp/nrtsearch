@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.concurrent;
 
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,7 +35,7 @@ import org.slf4j.LoggerFactory;
  * Static Factory to generate {@link java.util.concurrent.ExecutorService} as per the {@link
  * ExecutorType} provided.
  */
-public class ExecutorFactory {
+public class ExecutorFactory implements Closeable {
   public enum ExecutorType {
     SEARCH,
     INDEX,
@@ -43,7 +45,8 @@ public class ExecutorFactory {
     GRPC,
     METRICS,
     VECTORMERGE,
-    COMMIT
+    COMMIT,
+    REMOTE
   }
 
   private static final Logger logger = LoggerFactory.getLogger(ExecutorFactory.class);
@@ -52,28 +55,6 @@ public class ExecutorFactory {
 
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final Map<ExecutorType, ExecutorService> executorMap = new ConcurrentHashMap<>();
-
-  /**
-   * Initialize the factory with the provided {@link ThreadPoolConfiguration}.
-   *
-   * @param threadPoolConfiguration thread pool configuration
-   */
-  public static void init(ThreadPoolConfiguration threadPoolConfiguration) {
-    instance = new ExecutorFactory(threadPoolConfiguration);
-  }
-
-  /**
-   * Get the instance of the factory.
-   *
-   * @return instance of the factory
-   * @throws IllegalStateException if the factory is not initialized
-   */
-  public static ExecutorFactory getInstance() {
-    if (instance == null) {
-      throw new IllegalStateException("ExecutorFactory not initialized");
-    }
-    return instance;
-  }
 
   /**
    * Constructor to create the factory with the provided {@link ThreadPoolConfiguration}.
@@ -122,6 +103,13 @@ public class ExecutorFactory {
               new NamedThreadFactory(threadPoolSettings.threadNamePrefix()));
       ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
       return threadPoolExecutor;
+    }
+  }
+
+  @Override
+  public void close() throws IOException {
+    for (ExecutorService executorService : executorMap.values()) {
+      executorService.shutdown();
     }
   }
 }

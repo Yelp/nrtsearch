@@ -65,6 +65,7 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxon
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -76,6 +77,8 @@ import org.mockito.MockedStatic;
 public class BackendGlobalStateTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+
+  static ExecutorFactory executorFactory;
 
   private static final IndexLiveSettings LIVE_SETTINGS_OVERRIDES =
       IndexLiveSettings.newBuilder()
@@ -92,7 +95,12 @@ public class BackendGlobalStateTest {
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);
     SimilarityCreator.initialize(dummyConfig, dummyPlugins);
-    ExecutorFactory.init(dummyConfig.getThreadPoolConfiguration());
+    executorFactory = new ExecutorFactory(dummyConfig.getThreadPoolConfiguration());
+  }
+
+  @AfterClass
+  public static void tearDown() throws IOException {
+    executorFactory.close();
   }
 
   @Before
@@ -114,7 +122,7 @@ public class BackendGlobalStateTest {
      * @throws IOException on filesystem error
      */
     public MockBackendGlobalState(NrtsearchConfig configuration) throws IOException {
-      super(configuration, null);
+      super(configuration, null, executorFactory);
     }
 
     @Override
@@ -791,7 +799,7 @@ public class BackendGlobalStateTest {
             "stateDir: " + folder.newFolder("state").getAbsolutePath(),
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null);
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null, executorFactory);
     assertTrue(backendGlobalState.getStateBackend() instanceof LocalStateBackend);
   }
 
@@ -819,7 +827,8 @@ public class BackendGlobalStateTest {
             any(String.class), eq(RemoteBackend.GlobalResourceType.GLOBAL_STATE)))
         .thenReturn(false);
 
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, mockRemoteBackend);
+    BackendGlobalState backendGlobalState =
+        new BackendGlobalState(config, mockRemoteBackend, executorFactory);
     assertTrue(backendGlobalState.getStateBackend() instanceof RemoteStateBackend);
   }
 

@@ -26,6 +26,7 @@ import static org.junit.Assert.fail;
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -115,6 +116,7 @@ public class NrtsearchServerTest {
   private GrpcServer grpcServer;
   private GrpcServer replicaGrpcServer;
   private PrometheusRegistry prometheusRegistry;
+  private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
@@ -123,6 +125,7 @@ public class NrtsearchServerTest {
   public void tearDown() throws IOException {
     tearDownGrpcServer();
     tearDownReplicaGrpcServer();
+    executorFactory.close();
   }
 
   private void tearDownGrpcServer() throws IOException {
@@ -144,15 +147,17 @@ public class NrtsearchServerTest {
             Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
 
     prometheusRegistry = new PrometheusRegistry();
-    remoteBackend = setUpRemoteBackend(configuration);
+    executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
+    remoteBackend = setUpRemoteBackend(configuration, executorFactory);
     grpcServer = setUpGrpcServer(configuration, prometheusRegistry);
     replicaGrpcServer = setUpReplicaGrpcServer(prometheusRegistry);
     setUpWarmer();
   }
 
-  private RemoteBackend setUpRemoteBackend(NrtsearchConfig configuration) throws IOException {
+  private RemoteBackend setUpRemoteBackend(
+      NrtsearchConfig configuration, ExecutorFactory executorFactory) throws IOException {
     s3 = s3Provider.getAmazonS3();
-    return new S3Backend(configuration, s3);
+    return new S3Backend(configuration, s3, executorFactory);
   }
 
   private void setUpWarmer() throws IOException {
