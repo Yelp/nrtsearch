@@ -38,7 +38,7 @@ public class ReadyCommandTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   @After
-  public void cleanup() {
+  public void cleanup() throws IOException {
     if (server != null) {
       server.shutdown();
       server = null;
