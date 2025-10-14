@@ -80,7 +80,7 @@ public class PutRemoteStateCommandTest {
   }
 
   private S3Backend getRemoteBackend() {
-    return new S3Backend(TEST_BUCKET, false, getS3());
+    return new S3Backend(TEST_BUCKET, false, false, getS3());
   }
 
   @Test

@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.tools.cli;
 
 import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
+import java.util.HashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -78,17 +80,26 @@ public class NrtsearchClientCommand implements Runnable {
       defaultValue = "localhost")
   private String hostname;
 
+  public String getHostname() {
+    return hostname;
+  }
+
+  @CommandLine.Option(
+      names = {"-M", "--metadata"},
+      description = "Metadata key-value pairs")
+  Map<String, String> metadata = new HashMap<>();
+
+  public Map<String, String> getMetadata() {
+    return metadata;
+  }
+
   @CommandLine.Option(
       names = {"-V", "--version"},
       description = "Print version information and exit")
   private boolean printVersion;
 
-  public String getHostname() {
-    return hostname;
-  }
-
   public NrtsearchClient getClient() {
-    return new NrtsearchClient(getHostname(), getPort());
+    return new NrtsearchClient(getHostname(), getPort(), getMetadata());
   }
 
   public static void main(String[] args) {

@@ -372,6 +372,39 @@ public class ThreadPoolConfigurationTest {
   }
 
   @Test
+  public void testRemoteThreadPool_default() {
+    String config = "nodeName: node1";
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE);
+    assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
+    assertEquals(
+        threadPoolSettings.maxBufferedItems(),
+        ThreadPoolConfiguration.DEFAULT_REMOTE_BUFFERED_ITEMS);
+    assertEquals("RemoteExecutor", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
+  public void testRemoteThreadPool_set() {
+    String config =
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  remote:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10",
+            "    threadNamePrefix: customName");
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE);
+    assertEquals(threadPoolSettings.maxThreads(), 5);
+    assertEquals(threadPoolSettings.maxBufferedItems(), 10);
+    assertEquals("customName", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
   public void partialOverride() {
     String config =
         String.join(

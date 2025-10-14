@@ -113,6 +113,7 @@ public class NrtsearchConfig {
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
   private final IsolatedReplicaConfig isolatedReplicaConfig;
+  private final boolean s3Metrics;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -192,6 +193,7 @@ public class NrtsearchConfig {
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
     requireIdField = configReader.getBoolean("requireIdField", false);
     isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
+    s3Metrics = configReader.getBoolean("s3Metrics", false);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -391,6 +393,10 @@ public class NrtsearchConfig {
 
   public IsolatedReplicaConfig getIsolatedReplicaConfig() {
     return isolatedReplicaConfig;
+  }
+
+  public boolean getS3Metrics() {
+    return s3Metrics;
   }
 
   /**

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.ingestion;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.List;
@@ -81,6 +82,21 @@ public interface Ingestor {
    * @throws Exception if indexing fails
    */
   long addDocuments(List<AddDocumentRequest> addDocRequests, String indexName) throws Exception;
+
+  /**
+   * Delete documents matching the specified queries.
+   *
+   * <p>This method is designed to support deletion of documents during ingestion, particularly for
+   * change data capture scenarios where DELETE and UPDATE_BEFORE operations need to be processed.
+   * The delete operation should be executed before any subsequent addDocuments calls to ensure
+   * correct ordering for UPDATE operations.
+   *
+   * @param queries list of queries to match documents for deletion
+   * @param indexName name of the target index
+   * @return sequence number of the delete operation
+   * @throws Exception if delete fails
+   */
+  long deleteByQuery(List<Query> queries, String indexName) throws Exception;
 
   /**
    * Commit any pending changes to the specified index.

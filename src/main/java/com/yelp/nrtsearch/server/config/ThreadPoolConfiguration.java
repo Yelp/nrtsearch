@@ -57,6 +57,9 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_COMMIT_THREADS = 5;
   public static final int DEFAULT_COMMIT_BUFFERED_ITEMS = DEFAULT_COMMIT_THREADS;
 
+  public static final int DEFAULT_REMOTE_THREADS = 20;
+  public static final int DEFAULT_REMOTE_BUFFERED_ITEMS = Integer.MAX_VALUE;
+
   /**
    * Settings for a {@link ExecutorFactory.ExecutorType}.
    *
@@ -118,7 +121,10 @@ public class ThreadPoolConfiguration {
                   false),
               ExecutorFactory.ExecutorType.COMMIT,
               new ThreadPoolSettings(
-                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor", false));
+                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor", false),
+              ExecutorFactory.ExecutorType.REMOTE,
+              new ThreadPoolSettings(
+                  DEFAULT_REMOTE_THREADS, DEFAULT_REMOTE_BUFFERED_ITEMS, "RemoteExecutor", false));
 
   private final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 

@@ -119,6 +119,13 @@ public class NrtMetrics {
           .labelNames("index")
           .build();
 
+  public static final Gauge indexTimestampSec =
+      Gauge.builder()
+          .name("nrt_index_timestamp_sec")
+          .help("Timestamp (epoch seconds) of the current index version.")
+          .labelNames("index")
+          .build();
+
   /**
    * Add all nrt metrics to the collector registry.
    *
@@ -137,5 +144,6 @@ public class NrtMetrics {
     registry.register(nrtMergeCopyStartCount);
     registry.register(nrtMergeCopyEndCount);
     registry.register(nrtAckedCopyMB);
+    registry.register(indexTimestampSec);
   }
 }
