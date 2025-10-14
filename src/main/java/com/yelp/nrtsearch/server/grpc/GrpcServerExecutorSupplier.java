@@ -42,11 +42,15 @@ public class GrpcServerExecutorSupplier implements ServerCallExecutorSupplier {
   private final ExecutorService metricsExecutor;
   private final ExecutorService grpcExecutor;
 
-  public GrpcServerExecutorSupplier() {
-    serverExecutor = ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SERVER);
-    metricsExecutor =
-        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.METRICS);
-    grpcExecutor = ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.GRPC);
+  /**
+   * Constructor for GrpcServerExecutorSupplier.
+   *
+   * @param executorFactory the ExecutorFactory to get executors from
+   */
+  public GrpcServerExecutorSupplier(ExecutorFactory executorFactory) {
+    serverExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.SERVER);
+    metricsExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.METRICS);
+    grpcExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.GRPC);
   }
 
   public ExecutorService getServerExecutor() {

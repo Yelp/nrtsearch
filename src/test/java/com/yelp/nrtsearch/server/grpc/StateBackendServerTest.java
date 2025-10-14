@@ -32,6 +32,7 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
@@ -78,10 +79,12 @@ public class StateBackendServerTest {
   private Server primaryServer;
   private Server primaryReplicationServer;
   private NrtsearchClient primaryClient;
+  private ExecutorFactory primaryExecutorFactory;
 
   private Server replicaServer;
   private Server replicaReplicationServer;
   private NrtsearchClient replicaClient;
+  private ExecutorFactory replicaExecutorFactory;
 
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
@@ -120,6 +123,13 @@ public class StateBackendServerTest {
       }
       primaryReplicationServer = null;
     }
+    if (primaryExecutorFactory != null) {
+      try {
+        primaryExecutorFactory.close();
+      } catch (IOException ignore) {
+      }
+      primaryExecutorFactory = null;
+    }
   }
 
   private void cleanupReplica() {
@@ -145,6 +155,13 @@ public class StateBackendServerTest {
       } catch (InterruptedException ignore) {
       }
       replicaReplicationServer = null;
+    }
+    if (replicaExecutorFactory != null) {
+      try {
+        replicaExecutorFactory.close();
+      } catch (IOException ignore) {
+      }
+      replicaExecutorFactory = null;
     }
   }
 
@@ -221,9 +238,15 @@ public class StateBackendServerTest {
 
   private void restartPrimary() throws IOException {
     cleanupPrimary();
+    NrtsearchConfig config = getPrimaryConfig();
+    primaryExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getPrimaryConfig(), null, new PrometheusRegistry(), Collections.emptyList());
+            config,
+            null,
+            new PrometheusRegistry(),
+            primaryExecutorFactory,
+            Collections.emptyList());
 
     primaryReplicationServer =
         ServerBuilder.forPort(0)
@@ -236,11 +259,14 @@ public class StateBackendServerTest {
 
   private void restartPrimaryWithRemote() throws IOException {
     cleanupPrimary();
+    NrtsearchConfig config = getPrimaryRemoteConfig();
+    primaryExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getPrimaryRemoteConfig(),
+            config,
             remoteBackendPrimary,
             new PrometheusRegistry(),
+            primaryExecutorFactory,
             Collections.emptyList());
 
     primaryReplicationServer =
@@ -254,9 +280,15 @@ public class StateBackendServerTest {
 
   private void restartReplica() throws IOException {
     cleanupReplica();
+    NrtsearchConfig config = getReplicaConfig();
+    replicaExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getReplicaConfig(), null, new PrometheusRegistry(), Collections.emptyList());
+            config,
+            null,
+            new PrometheusRegistry(),
+            replicaExecutorFactory,
+            Collections.emptyList());
 
     replicaReplicationServer =
         ServerBuilder.forPort(0)
@@ -269,11 +301,14 @@ public class StateBackendServerTest {
 
   private void restartReplicaWithRemote() throws IOException {
     cleanupReplica();
+    NrtsearchConfig config = getReplicaRemoteConfig();
+    replicaExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getReplicaRemoteConfig(),
+            config,
             remoteBackendReplica,
             new PrometheusRegistry(),
+            replicaExecutorFactory,
             Collections.emptyList());
 
     replicaReplicationServer =

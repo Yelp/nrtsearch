@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend.S3BackendConfig;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
@@ -67,7 +68,9 @@ public class S3BackendRateLimitTest {
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig nrtsearchConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-    S3Backend s3Backend = new S3Backend(nrtsearchConfig, s3);
+    S3Backend s3Backend =
+        new S3Backend(
+            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -91,7 +94,9 @@ public class S3BackendRateLimitTest {
             + "    rateLimitWindowSeconds: 5";
     NrtsearchConfig nrtsearchConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-    S3Backend s3Backend = new S3Backend(nrtsearchConfig, s3);
+    S3Backend s3Backend =
+        new S3Backend(
+            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -129,7 +134,9 @@ public class S3BackendRateLimitTest {
             + "    rateLimitWindowSeconds: 5";
     NrtsearchConfig nrtsearchConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-    S3Backend s3Backend = new S3Backend(nrtsearchConfig, s3);
+    S3Backend s3Backend =
+        new S3Backend(
+            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
 
     // Download a file - this should work normally since our test file is small
     // and the rate limit is high enough

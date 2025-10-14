@@ -33,7 +33,9 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
@@ -59,9 +61,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -87,9 +89,9 @@ public class S3Backend implements RemoteBackend {
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
 
-  public static final int NUM_S3_THREADS = 20;
-
-  private final ThreadPoolExecutor executor;
+  private final ExecutorService executor;
+  private final int maxExecutorParallelism;
+  private final boolean shutdownExecutor;
   private final boolean saveBeforeUnzip;
   private final AmazonS3 s3;
   private final String serviceBucket;
@@ -215,13 +217,20 @@ public class S3Backend implements RemoteBackend {
    *
    * @param configuration configuration
    * @param s3 s3 client
+   * @param executorFactory executor factory
    */
-  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3) {
+  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3, ExecutorFactory executorFactory) {
     this(
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
-        s3);
+        s3,
+        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
+        configuration
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
+            .maxThreads(),
+        false);
   }
 
   /**
@@ -237,8 +246,28 @@ public class S3Backend implements RemoteBackend {
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
       AmazonS3 s3) {
+    this(
+        serviceBucket,
+        savePluginBeforeUnzip,
+        s3BackendConfig,
+        s3,
+        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
+        true);
+  }
+
+  private S3Backend(
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      S3BackendConfig s3BackendConfig,
+      AmazonS3 s3,
+      ExecutorService executor,
+      int maxExecutorParallelism,
+      boolean shutdownExecutor) {
     this.s3 = s3;
-    this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
+    this.executor = executor;
+    this.maxExecutorParallelism = maxExecutorParallelism;
+    this.shutdownExecutor = shutdownExecutor;
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
     this.transferManager =
@@ -263,6 +292,11 @@ public class S3Backend implements RemoteBackend {
 
   public AmazonS3 getS3() {
     return s3;
+  }
+
+  @VisibleForTesting
+  ExecutorService getExecutor() {
+    return executor;
   }
 
   @Override
@@ -361,7 +395,7 @@ public class S3Backend implements RemoteBackend {
       @Override
       public InputStream nextElement() {
         // top off the work queue so parts can download in parallel
-        while (pendingParts.size() < NUM_S3_THREADS && queuedPart <= numParts) {
+        while (pendingParts.size() < maxExecutorParallelism && queuedPart <= numParts) {
           // set to final variable for use in lambda
           final int finalPart = queuedPart;
           pendingParts.add(
@@ -398,11 +432,13 @@ public class S3Backend implements RemoteBackend {
   @Override
   public void close() {
     transferManager.shutdownNow(false);
-    try {
-      executor.shutdown();
-      executor.awaitTermination(1, TimeUnit.SECONDS);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
+    if (shutdownExecutor) {
+      try {
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
     }
     s3.shutdown();
   }

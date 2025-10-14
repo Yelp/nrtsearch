@@ -25,6 +25,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.clientlib.Node;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.StateConfig.StateBackendType;
@@ -106,6 +107,7 @@ public class TestServer {
   private NrtsearchClient client;
   private ReplicationServerClient replicationClient;
   private LuceneServerImpl serverImpl;
+  private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
@@ -118,6 +120,16 @@ public class TestServer {
 
   public static void cleanupAll() {
     createdServers.forEach(TestServer::stop);
+    createdServers.forEach(
+        s -> {
+          if (s.executorFactory != null) {
+            try {
+              s.executorFactory.close();
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          }
+        });
     createdServers.clear();
     if (api != null) {
       api.shutdown();
@@ -138,7 +150,7 @@ public class TestServer {
   private RemoteBackend createRemoteBackend() {
     AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     s3.createBucket(TEST_BUCKET);
-    return new S3Backend(configuration, s3);
+    return new S3Backend(configuration, s3, executorFactory);
   }
 
   public void restart() throws IOException {
@@ -147,10 +159,17 @@ public class TestServer {
 
   public void restart(boolean clearData) throws IOException {
     stop(clearData);
+    if (executorFactory == null) {
+      executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
+    }
     remoteBackend = createRemoteBackend();
     serverImpl =
         new LuceneServerImpl(
-            configuration, remoteBackend, new PrometheusRegistry(), Collections.emptyList());
+            configuration,
+            remoteBackend,
+            new PrometheusRegistry(),
+            executorFactory,
+            Collections.emptyList());
 
     replicationServer =
         ServerBuilder.forPort(0)
