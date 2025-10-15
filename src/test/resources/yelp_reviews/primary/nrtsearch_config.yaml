@@ -2,11 +2,12 @@ nodeName: "nrtsearch_primary"
 hostName: "localhost"
 port: "8000"
 replicationPort: "8001"
-stateDir: "primary_state"
+stateDir: "shared_state"
 indexDir: "primary_index_base"
+indexStartConfig:
+  mode: PRIMARY
 threadPoolConfiguration:
   search:
     maxThreads: 4
   index:
     maxThreads: 18
-verifyReplicationIndexId: false
