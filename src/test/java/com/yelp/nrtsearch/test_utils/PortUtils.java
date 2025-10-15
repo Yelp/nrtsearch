@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Yelp Inc.
+ * Copyright 2025 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,23 @@
  */
 package com.yelp.nrtsearch.test_utils;
 
-public class DefaultTestProperties {
-  public static final String S3_BUCKET_NAME = "test-bucket";
+import java.io.IOException;
+import java.net.ServerSocket;
+
+/** Utility class for finding available ports for tests */
+public class PortUtils {
+  /**
+   * Finds an available port on localhost
+   *
+   * @return an available port number
+   * @throws RuntimeException if no port is available
+   */
+  public static int findAvailablePort() {
+    try (ServerSocket socket = new ServerSocket(0)) {
+      socket.setReuseAddress(true);
+      return socket.getLocalPort();
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to find available port", e);
+    }
+  }
 }
