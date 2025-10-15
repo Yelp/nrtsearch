@@ -276,4 +276,18 @@ public class NrtsearchConfigTest {
     NrtsearchConfig luceneConfig = getForConfig(config);
     luceneConfig.getIngestionPluginConfigs(); // should throw
   }
+
+  @Test
+  public void testS3Metrics_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getS3Metrics());
+  }
+
+  @Test
+  public void testS3Metrics_set() {
+    String config = "s3Metrics: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getS3Metrics());
+  }
 }

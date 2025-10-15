@@ -57,7 +57,8 @@ public class RemoteCopyJobManagerTest {
 
   @Before
   public void setUp() {
-    copyJobManager = new RemoteCopyJobManager(POLLING_INTERVAL, mockDataManager, mockReplicaNode);
+    copyJobManager =
+        new RemoteCopyJobManager(POLLING_INTERVAL, mockDataManager, mockReplicaNode, null);
   }
 
   @After
@@ -93,7 +94,7 @@ public class RemoteCopyJobManagerTest {
     NrtDataManager.PointStateWithTimestamp pointStateWithTimestamp =
         new NrtDataManager.PointStateWithTimestamp(pointState, timestamp);
 
-    when(mockDataManager.getTargetPointState()).thenReturn(pointStateWithTimestamp);
+    when(mockDataManager.getTargetPointState(null)).thenReturn(pointStateWithTimestamp);
 
     // Test the method
     CopyJob copyJob = copyJobManager.newCopyJob("test_reason", null, null, true, mockOnceDone);
@@ -106,7 +107,7 @@ public class RemoteCopyJobManagerTest {
     assertEquals(pointState, remoteCopyJob.getPointState());
     assertEquals(timestamp, remoteCopyJob.getPointStateTimestamp());
 
-    verify(mockDataManager).getTargetPointState();
+    verify(mockDataManager).getTargetPointState(null);
   }
 
   @Test
@@ -179,12 +180,12 @@ public class RemoteCopyJobManagerTest {
     NrtDataManager.PointStateWithTimestamp pointStateWithTimestamp =
         new NrtDataManager.PointStateWithTimestamp(targetPointState, Instant.now());
 
-    when(mockDataManager.getTargetPointState()).thenReturn(pointStateWithTimestamp);
+    when(mockDataManager.getTargetPointState(null)).thenReturn(pointStateWithTimestamp);
     when(mockReplicaNode.getCurrentSearchingVersion()).thenReturn(0L); // Lower than target version
 
     // Create a copy job manager with very short polling interval for testing
     RemoteCopyJobManager shortIntervalManager =
-        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode);
+        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode, null);
 
     try {
       shortIntervalManager.start();
@@ -209,13 +210,13 @@ public class RemoteCopyJobManagerTest {
     NrtDataManager.PointStateWithTimestamp pointStateWithTimestamp =
         new NrtDataManager.PointStateWithTimestamp(targetPointState, Instant.now());
 
-    when(mockDataManager.getTargetPointState()).thenReturn(pointStateWithTimestamp);
+    when(mockDataManager.getTargetPointState(null)).thenReturn(pointStateWithTimestamp);
     when(mockReplicaNode.getCurrentSearchingVersion())
         .thenReturn(targetPointState.version); // Same as target
 
     // Create a copy job manager with very short polling interval for testing
     RemoteCopyJobManager shortIntervalManager =
-        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode);
+        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode, null);
 
     try {
       shortIntervalManager.start();
@@ -234,11 +235,12 @@ public class RemoteCopyJobManagerTest {
   @Test
   public void testUpdateTask_exceptionHandling() throws Exception {
     // Set up test data to throw an exception
-    when(mockDataManager.getTargetPointState()).thenThrow(new RuntimeException("Test exception"));
+    when(mockDataManager.getTargetPointState(null))
+        .thenThrow(new RuntimeException("Test exception"));
 
     // Create a copy job manager with very short polling interval for testing
     RemoteCopyJobManager shortIntervalManager =
-        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode);
+        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode, null);
 
     try {
       shortIntervalManager.start();
@@ -259,7 +261,7 @@ public class RemoteCopyJobManagerTest {
   public void testUpdateTask_interrupted() throws Exception {
     // Create a copy job manager
     RemoteCopyJobManager shortIntervalManager =
-        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode);
+        new RemoteCopyJobManager(1, mockDataManager, mockReplicaNode, null);
 
     try {
       shortIntervalManager.start();

@@ -19,12 +19,16 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -76,6 +80,73 @@ public class AbstractIngestorTest {
 
     ingestor.stop();
     assertTrue(ingestor.stopped);
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void testDeleteByQueryWithoutInitialize() throws Exception {
+    Query query =
+        Query.newBuilder()
+            .setTermInSetQuery(
+                TermInSetQuery.newBuilder()
+                    .setField("id")
+                    .setLongTerms(TermInSetQuery.LongTerms.newBuilder().addTerms(1L).build())
+                    .build())
+            .build();
+    ingestor.deleteByQuery(List.of(query), "test_index");
+  }
+
+  @Test
+  public void testDeleteByQueryRequiresValidIndexState() throws Exception {
+    Query query =
+        Query.newBuilder()
+            .setTermInSetQuery(
+                TermInSetQuery.newBuilder()
+                    .setField("id")
+                    .setLongTerms(TermInSetQuery.LongTerms.newBuilder().addTerms(1L).build())
+                    .build())
+            .build();
+
+    try {
+      ingestor.deleteByQuery(List.of(query), "test_index");
+      fail("Expected IllegalStateException");
+    } catch (IllegalStateException e) {
+      assertTrue(e.getMessage().contains("not initialized"));
+    }
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void testGetIdFieldDefWithoutInitialize() throws IOException {
+    ingestor.getIdFieldDef("test_index");
+  }
+
+  @Test
+  public void testGetIdFieldDefWithNoIdField() throws IOException {
+    when(mockGlobalState.getIndexOrThrow("test_index")).thenReturn(mockIndexState);
+    when(mockIndexState.getIdFieldDef()).thenReturn(Optional.empty());
+
+    ingestor.initialize(mockGlobalState);
+
+    Optional<IdFieldDef> result = ingestor.getIdFieldDef("test_index");
+
+    assertFalse(result.isPresent());
+    verify(mockGlobalState, atLeastOnce()).getIndexOrThrow("test_index");
+    verify(mockIndexState).getIdFieldDef();
+  }
+
+  @Test
+  public void testGetIdFieldDefWithIdField() throws IOException {
+    IdFieldDef mockIdFieldDef = mock(IdFieldDef.class);
+    when(mockGlobalState.getIndexOrThrow("test_index")).thenReturn(mockIndexState);
+    when(mockIndexState.getIdFieldDef()).thenReturn(Optional.of(mockIdFieldDef));
+
+    ingestor.initialize(mockGlobalState);
+
+    Optional<IdFieldDef> result = ingestor.getIdFieldDef("test_index");
+
+    assertTrue(result.isPresent());
+    assertEquals(mockIdFieldDef, result.get());
+    verify(mockGlobalState, atLeastOnce()).getIndexOrThrow("test_index");
+    verify(mockIndexState).getIdFieldDef();
   }
 
   private static class FlagIngestor extends AbstractIngestor {

@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.nrt.jobs;
 
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -39,14 +40,19 @@ public class RemoteCopyJobManager implements CopyJobManager {
   private static final Logger logger = LoggerFactory.getLogger(NrtDataManager.class);
 
   private final int pollingIntervalSecond;
+  private final IsolatedReplicaConfig isolatedReplicaConfig;
   private final NrtDataManager dataManager;
   private final NRTReplicaNode replicaNode;
   private final Thread updateThread;
   private final UpdateTask updateTask;
 
   public RemoteCopyJobManager(
-      int pollingIntervalSecond, NrtDataManager dataManager, NRTReplicaNode replicaNode) {
+      int pollingIntervalSecond,
+      NrtDataManager dataManager,
+      NRTReplicaNode replicaNode,
+      IsolatedReplicaConfig isolatedReplicaConfig) {
     this.pollingIntervalSecond = pollingIntervalSecond;
+    this.isolatedReplicaConfig = isolatedReplicaConfig;
     this.dataManager = dataManager;
     this.replicaNode = replicaNode;
     logger.info(
@@ -74,7 +80,7 @@ public class RemoteCopyJobManager implements CopyJobManager {
     }
 
     NrtDataManager.PointStateWithTimestamp targetPointStateWithTimestamp =
-        dataManager.getTargetPointState();
+        dataManager.getTargetPointState(isolatedReplicaConfig);
 
     CopyState copyState = targetPointStateWithTimestamp.pointState().toCopyState();
     return new RemoteCopyJob(
@@ -137,7 +143,7 @@ public class RemoteCopyJobManager implements CopyJobManager {
         try {
           NrtPointState targetPointState;
           long currentIndexVersion;
-          targetPointState = dataManager.getTargetPointState().pointState();
+          targetPointState = dataManager.getTargetPointState(isolatedReplicaConfig).pointState();
           currentIndexVersion = replicaNode.getCurrentSearchingVersion();
           if (targetPointState.version > currentIndexVersion) {
             logger.info(

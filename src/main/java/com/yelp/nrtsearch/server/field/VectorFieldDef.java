@@ -164,7 +164,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   private static KnnVectorsFormat createVectorsFormat(
-      VectorSearchType vectorSearchType, VectorIndexingOptions vectorIndexingOptions) {
+      VectorSearchType vectorSearchType,
+      VectorIndexingOptions vectorIndexingOptions,
+      FieldDefCreator.FieldDefCreatorContext fieldDefCreatorContext) {
     int m =
         vectorIndexingOptions.hasHnswM()
             ? vectorIndexingOptions.getHnswM()
@@ -177,7 +179,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         vectorIndexingOptions.hasMergeWorkers() ? vectorIndexingOptions.getMergeWorkers() : 1;
     ExecutorService executorService =
         mergeWorkers > 1
-            ? ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.VECTORMERGE)
+            ? fieldDefCreatorContext
+                .executorFactory()
+                .getExecutor(ExecutorFactory.ExecutorType.VECTORMERGE)
             : null;
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {
@@ -290,7 +294,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
       setupNormalizedVectorField(requestField.getVectorSimilarity(), context);
       this.vectorsFormat =
-          createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions());
+          createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions(), context);
     } else {
       this.similarityFunction = null;
       this.vectorsFormat = null;

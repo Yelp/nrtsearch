@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
+import static com.yelp.nrtsearch.server.utils.TimeStringUtils.formatTimeStringSec;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringSec;
 
 import com.amazonaws.services.s3.AmazonS3;
@@ -22,6 +23,8 @@ import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
@@ -30,10 +33,14 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
@@ -42,15 +49,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -75,13 +85,14 @@ public class S3Backend implements RemoteBackend {
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
 
-  public static final int NUM_S3_THREADS = 20;
-
-  private final ThreadPoolExecutor executor;
+  private final ExecutorService executor;
+  private final int maxExecutorParallelism;
+  private final boolean shutdownExecutor;
   private final boolean saveBeforeUnzip;
   private final AmazonS3 s3;
   private final String serviceBucket;
   private final TransferManager transferManager;
+  private final boolean s3Metrics;
 
   /**
    * Pair of file names, one for the local file and one for the backend file.
@@ -96,9 +107,20 @@ public class S3Backend implements RemoteBackend {
    *
    * @param configuration configuration
    * @param s3 s3 client
+   * @param executorFactory executor factory
    */
-  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3) {
-    this(configuration.getBucketName(), configuration.getSavePluginBeforeUnzip(), s3);
+  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3, ExecutorFactory executorFactory) {
+    this(
+        configuration.getBucketName(),
+        configuration.getSavePluginBeforeUnzip(),
+        configuration.getS3Metrics(),
+        s3,
+        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
+        configuration
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
+            .maxThreads(),
+        false);
   }
 
   /**
@@ -106,11 +128,33 @@ public class S3Backend implements RemoteBackend {
    *
    * @param serviceBucket bucket name
    * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3Metrics enable s3 download metrics
    * @param s3 s3 client
    */
-  public S3Backend(String serviceBucket, boolean savePluginBeforeUnzip, AmazonS3 s3) {
+  public S3Backend(
+      String serviceBucket, boolean savePluginBeforeUnzip, boolean s3Metrics, AmazonS3 s3) {
+    this(
+        serviceBucket,
+        savePluginBeforeUnzip,
+        s3Metrics,
+        s3,
+        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
+        true);
+  }
+
+  private S3Backend(
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      boolean s3Metrics,
+      AmazonS3 s3,
+      ExecutorService executor,
+      int maxExecutorParallelism,
+      boolean shutdownExecutor) {
     this.s3 = s3;
-    this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
+    this.executor = executor;
+    this.maxExecutorParallelism = maxExecutorParallelism;
+    this.shutdownExecutor = shutdownExecutor;
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
     this.transferManager =
@@ -119,10 +163,16 @@ public class S3Backend implements RemoteBackend {
             .withExecutorFactory(() -> executor)
             .withShutDownThreadPools(false)
             .build();
+    this.s3Metrics = s3Metrics;
   }
 
   public AmazonS3 getS3() {
     return s3;
+  }
+
+  @VisibleForTesting
+  ExecutorService getExecutor() {
+    return executor;
   }
 
   @Override
@@ -220,7 +270,7 @@ public class S3Backend implements RemoteBackend {
       @Override
       public InputStream nextElement() {
         // top off the work queue so parts can download in parallel
-        while (pendingParts.size() < NUM_S3_THREADS && queuedPart <= numParts) {
+        while (pendingParts.size() < maxExecutorParallelism && queuedPart <= numParts) {
           // set to final variable for use in lambda
           final int finalPart = queuedPart;
           pendingParts.add(
@@ -257,11 +307,13 @@ public class S3Backend implements RemoteBackend {
   @Override
   public void close() {
     transferManager.shutdownNow(false);
-    try {
-      executor.shutdown();
-      executor.awaitTermination(1, TimeUnit.SECONDS);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
+    if (shutdownExecutor) {
+      try {
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
     }
     s3.shutdown();
   }
@@ -340,7 +392,7 @@ public class S3Backend implements RemoteBackend {
   @Override
   public InputStream downloadGlobalState(String service) throws IOException {
     String prefix = getGlobalStateResourcePrefix(service);
-    return downloadResource(prefix);
+    return downloadResource(prefix, null);
   }
 
   @Override
@@ -354,7 +406,7 @@ public class S3Backend implements RemoteBackend {
   @Override
   public InputStream downloadIndexState(String service, String indexIdentifier) throws IOException {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.INDEX_STATE);
-    return downloadResource(prefix);
+    return downloadResource(prefix, indexIdentifier);
   }
 
   @Override
@@ -371,7 +423,7 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     String prefix =
         getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.WARMING_QUERIES);
-    return downloadResource(prefix);
+    return downloadResource(prefix, indexIdentifier);
   }
 
   @Override
@@ -466,7 +518,8 @@ public class S3Backend implements RemoteBackend {
     String backendFileName = getIndexBackendFileName(fileName, fileMetaData);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     String backendKey = backendPrefix + backendFileName;
-    return downloadFromS3Path(serviceBucket, backendKey, false);
+    return wrapDownloadStream(
+        downloadFromS3Path(serviceBucket, backendKey, false), s3Metrics, indexIdentifier);
   }
 
   @VisibleForTesting
@@ -478,6 +531,17 @@ public class S3Backend implements RemoteBackend {
       fileList.add(new FileNamePair(fileName, getIndexBackendFileName(fileName, fileMetaData)));
     }
     return fileList;
+  }
+
+  @VisibleForTesting
+  static InputStream wrapDownloadStream(
+      InputStream inputStream, boolean s3Metrics, String indexIdentifier) {
+    if (s3Metrics) {
+      String indexName = BackendGlobalState.getBaseIndexName(indexIdentifier);
+      return new S3DownloadStreamWrapper(inputStream, indexName);
+    } else {
+      return inputStream;
+    }
   }
 
   @Override
@@ -499,15 +563,136 @@ public class S3Backend implements RemoteBackend {
   }
 
   @Override
-  public InputStreamWithTimestamp downloadPointState(String service, String indexIdentifier)
+  public InputStreamWithTimestamp downloadPointState(
+      String service, String indexIdentifier, UpdateIntervalContext updateIntervalContext)
       throws IOException {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.POINT_STATE);
     String fileName = getCurrentResourceName(prefix);
-    String backendKey = prefix + fileName;
-    String timeString = getTimeStringFromPointStateFileName(fileName);
-    Instant timestamp = TimeStringUtils.parseTimeStringSec(timeString);
+    String currentBackendKey = prefix + fileName;
+    String currentTimeString = getTimeStringFromPointStateFileName(fileName);
+    Instant currentTimestamp = TimeStringUtils.parseTimeStringSec(currentTimeString);
+
+    BackendKeyWithTimestamp backendKeyWithTimestamp =
+        getBackendKeyWithTimestamp(
+            serviceBucket, prefix, currentBackendKey, currentTimestamp, updateIntervalContext);
+    if (backendKeyWithTimestamp == null) {
+      return null;
+    }
     return new InputStreamWithTimestamp(
-        downloadFromS3Path(serviceBucket, backendKey, true), timestamp);
+        wrapDownloadStream(
+            downloadFromS3Path(serviceBucket, backendKeyWithTimestamp.backendKey(), true),
+            s3Metrics,
+            indexIdentifier),
+        backendKeyWithTimestamp.timestamp());
+  }
+
+  /**
+   * Get the S3 object key for an index file and its timestamp.
+   *
+   * @param backendKey object key
+   * @param timestamp timestamp
+   */
+  private record BackendKeyWithTimestamp(String backendKey, Instant timestamp) {}
+
+  /**
+   * Get the S3 object key for an index file and its timestamp, considering the update interval. If
+   * the update interval is 0 or less, return the current backend key and timestamp. If the current
+   * timestamp is older than the update interval, return the current backend key and timestamp.
+   * Otherwise, return the first object key within the current update interval and its timestamp. If
+   * the currently loaded index version is already within the update interval, return null to
+   * indicate that no change is needed.
+   *
+   * @param bucket bucket name
+   * @param prefix object prefix
+   * @param currentBackendKey current object key
+   * @param currentTimestamp current timestamp
+   * @param updateIntervalContext update interval context, or null to get the current version
+   * @return object key and timestamp
+   * @throws IOException if an error occurs while listing objects
+   */
+  private BackendKeyWithTimestamp getBackendKeyWithTimestamp(
+      String bucket,
+      String prefix,
+      String currentBackendKey,
+      Instant currentTimestamp,
+      UpdateIntervalContext updateIntervalContext)
+      throws IOException {
+    if (updateIntervalContext == null || updateIntervalContext.updateIntervalSeconds() <= 0) {
+      return new BackendKeyWithTimestamp(currentBackendKey, currentTimestamp);
+    }
+    long secondsOld = Duration.between(currentTimestamp, Instant.now()).toSeconds();
+    // There were no updates within the update interval, advance to the latest version
+    if (secondsOld > updateIntervalContext.updateIntervalSeconds()) {
+      return new BackendKeyWithTimestamp(currentBackendKey, currentTimestamp);
+    }
+
+    Instant lastIntervalStart =
+        getIntervalStart(currentTimestamp, updateIntervalContext.updateIntervalSeconds());
+    if (updateIntervalContext.currentIndexTimestamp() != null) {
+      Instant indexCurrentIntervalStart =
+          getIntervalStart(
+              updateIntervalContext.currentIndexTimestamp(),
+              updateIntervalContext.updateIntervalSeconds());
+      if (!indexCurrentIntervalStart.isBefore(lastIntervalStart)) {
+        // We are already at a version within the current update interval, we do not need to
+        // continue
+        return null;
+      }
+    }
+    String lastIntervalTimeString = formatTimeStringSec(lastIntervalStart);
+    String firstVersionKey = getFirstKeyAfter(bucket, prefix, lastIntervalTimeString);
+    if (firstVersionKey == null) {
+      throw new IllegalArgumentException("No version found after " + lastIntervalTimeString);
+    }
+    String firstVersionFileName = firstVersionKey.split(prefix)[1];
+    String firstVersionTimeString = firstVersionFileName.split("-")[0];
+    Instant firstVersionTimestamp = TimeStringUtils.parseTimeStringSec(firstVersionTimeString);
+    return new BackendKeyWithTimestamp(firstVersionKey, firstVersionTimestamp);
+  }
+
+  /**
+   * Get the timestamp for the start of the interval containing the specified timestamp. Intervals
+   * start at midnight UTC for each day.
+   *
+   * @param timestamp timestamp
+   * @param intervalSeconds interval in seconds
+   * @return start of the interval containing the specified timestamp
+   */
+  @VisibleForTesting
+  static Instant getIntervalStart(Instant timestamp, int intervalSeconds) {
+    LocalTime localTime = timestamp.atZone(ZoneId.of("UTC")).toLocalTime();
+    int secondsSinceMidnight = localTime.toSecondOfDay();
+    int remainderSeconds = secondsSinceMidnight % intervalSeconds;
+    return timestamp.minusSeconds(remainderSeconds);
+  }
+
+  /**
+   * Get the first object key after the specified time string. Returns null if no such object
+   * exists.
+   *
+   * @param bucket bucket name
+   * @param prefix object prefix
+   * @param timeString time string
+   * @return first object key after the specified time string, or null if no such object exists
+   * @throws IOException if an error occurs while listing objects
+   */
+  private String getFirstKeyAfter(String bucket, String prefix, String timeString)
+      throws IOException {
+    ListObjectsV2Request req =
+        new ListObjectsV2Request()
+            .withBucketName(bucket)
+            .withPrefix(prefix)
+            .withStartAfter(prefix + timeString)
+            .withMaxKeys(1);
+    ListObjectsV2Result result = s3.listObjectsV2(req);
+    if (result.getKeyCount() == 0) {
+      return null;
+    }
+    String objectKey = result.getObjectSummaries().get(0).getKey();
+    if (objectKey.endsWith(CURRENT_VERSION)) {
+      return null;
+    }
+    return objectKey;
   }
 
   private void uploadResource(
@@ -530,10 +715,14 @@ public class S3Backend implements RemoteBackend {
     setCurrentResource(prefix, fileName);
   }
 
-  private InputStream downloadResource(String prefix) throws IOException {
+  private InputStream downloadResource(String prefix, String indexIdentifier) throws IOException {
     String fileName = getCurrentResourceName(prefix);
     String backendKey = prefix + fileName;
-    return downloadFromS3Path(serviceBucket, backendKey, true);
+    InputStream inputStream = downloadFromS3Path(serviceBucket, backendKey, true);
+    if (indexIdentifier != null) {
+      inputStream = wrapDownloadStream(inputStream, s3Metrics, indexIdentifier);
+    }
+    return inputStream;
   }
 
   @VisibleForTesting
