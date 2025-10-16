@@ -25,6 +25,7 @@ public class IsolatedReplicaConfig {
   private final boolean enabled;
   private final int pollingIntervalSeconds;
   private final int freshnessTargetSeconds;
+  private final int freshnessTargetOffsetSeconds;
 
   /**
    * Create instance from provided configuration reader.
@@ -39,7 +40,10 @@ public class IsolatedReplicaConfig {
         configReader.getInteger(CONFIG_PREFIX + "pollingIntervalSeconds", 120);
     int freshnessTargetSeconds =
         configReader.getInteger(CONFIG_PREFIX + "freshnessTargetSeconds", 0);
-    return new IsolatedReplicaConfig(enabled, pollingIntervalSeconds, freshnessTargetSeconds);
+    int freshnessTargetOffsetSeconds =
+        configReader.getInteger(CONFIG_PREFIX + "freshnessTargetOffsetSeconds", 0);
+    return new IsolatedReplicaConfig(
+        enabled, pollingIntervalSeconds, freshnessTargetSeconds, freshnessTargetOffsetSeconds);
   }
 
   /**
@@ -49,11 +53,17 @@ public class IsolatedReplicaConfig {
    * @param pollingIntervalSeconds interval in seconds to poll for new index versions, must be > 0
    * @param freshnessTargetSeconds target for how fresh the replica index data should be in seconds,
    *     must be >= 0 and <= 1 day, 0 means as fresh as possible
+   * @param freshnessTargetOffsetSeconds offset to apply to the freshness target in seconds, must be
+   *     >= 0 and <= 1 day
    * @throws IllegalArgumentException if pollingIntervalSeconds is not positive or
    *     freshnessTargetSeconds is negative or too large
+   * @throws IllegalArgumentException if freshnessTargetOffsetSeconds is negative or too large
    */
   public IsolatedReplicaConfig(
-      boolean enabled, int pollingIntervalSeconds, int freshnessTargetSeconds) {
+      boolean enabled,
+      int pollingIntervalSeconds,
+      int freshnessTargetSeconds,
+      int freshnessTargetOffsetSeconds) {
     this.enabled = enabled;
     this.pollingIntervalSeconds = pollingIntervalSeconds;
     if (pollingIntervalSeconds <= 0) {
@@ -71,6 +81,18 @@ public class IsolatedReplicaConfig {
           String.format(
               "Freshness target seconds must be <= %d, got: %d",
               MAX_FRESHNESS_TARGET_SECONDS, freshnessTargetSeconds));
+    }
+    this.freshnessTargetOffsetSeconds = freshnessTargetOffsetSeconds;
+    if (freshnessTargetOffsetSeconds < 0) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Freshness target offset seconds must be non-negative, got: %d",
+              freshnessTargetOffsetSeconds));
+    } else if (freshnessTargetOffsetSeconds > MAX_FRESHNESS_TARGET_SECONDS) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Freshness target offset seconds must be <= %d, got: %d",
+              MAX_FRESHNESS_TARGET_SECONDS, freshnessTargetOffsetSeconds));
     }
   }
 
@@ -94,5 +116,12 @@ public class IsolatedReplicaConfig {
    */
   public int getFreshnessTargetSeconds() {
     return freshnessTargetSeconds;
+  }
+
+  /**
+   * @return offset to apply to the freshness target in seconds
+   */
+  public int getFreshnessTargetOffsetSeconds() {
+    return freshnessTargetOffsetSeconds;
   }
 }

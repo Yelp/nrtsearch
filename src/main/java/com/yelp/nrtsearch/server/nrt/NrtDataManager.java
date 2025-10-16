@@ -286,7 +286,10 @@ public class NrtDataManager implements Closeable {
     }
     int updateIntervalSeconds =
         freshnessToUpdateIntervalSeconds(isolatedReplicaConfig.getFreshnessTargetSeconds());
-    return new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, currentTimestamp);
+    return new RemoteBackend.UpdateIntervalContext(
+        updateIntervalSeconds,
+        currentTimestamp,
+        isolatedReplicaConfig.getFreshnessTargetOffsetSeconds());
   }
 
   /**

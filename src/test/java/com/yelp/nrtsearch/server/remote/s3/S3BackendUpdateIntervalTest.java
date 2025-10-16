@@ -109,7 +109,7 @@ public class S3BackendUpdateIntervalTest {
     InputStreamWithTimestamp resultDefault = s3Backend.downloadPointState(SERVICE, INDEX, null);
     InputStreamWithTimestamp resultWithZeroInterval =
         s3Backend.downloadPointState(
-            SERVICE, INDEX, new RemoteBackend.UpdateIntervalContext(0, null));
+            SERVICE, INDEX, new RemoteBackend.UpdateIntervalContext(0, null, 0));
 
     // Compare the content
     byte[] defaultData = resultDefault.inputStream().readAllBytes();
@@ -159,7 +159,7 @@ public class S3BackendUpdateIntervalTest {
         s3Backend.downloadPointState(
             SERVICE + "_older",
             INDEX,
-            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null, 0));
 
     // Verify we got the expected content
     NrtPointState downloadedState =
@@ -220,7 +220,9 @@ public class S3BackendUpdateIntervalTest {
     // Download with update interval
     InputStreamWithTimestamp result =
         s3Backend.downloadPointState(
-            serviceId, INDEX, new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
+            serviceId,
+            INDEX,
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null, 0));
 
     // Verify we got the expected content (should be the first version)
     NrtPointState downloadedState =
@@ -265,7 +267,7 @@ public class S3BackendUpdateIntervalTest {
       s3Backend.downloadPointState(
           serviceId,
           INDEX,
-          new RemoteBackend.UpdateIntervalContext(86400, null)); // 24 hour interval
+          new RemoteBackend.UpdateIntervalContext(86400, null, 0)); // 24 hour interval
 
       // If we get here without an exception, the implementation may have been improved
       // to handle the edge case better, which is good!
@@ -329,7 +331,7 @@ public class S3BackendUpdateIntervalTest {
           s3Backend.downloadPointState(
               serviceId,
               INDEX,
-              new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null));
+              new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, null, 0));
 
       // Verify we got the expected content (should be one of our point states)
       NrtPointState downloadedState =
@@ -396,14 +398,15 @@ public class S3BackendUpdateIntervalTest {
     // Create a currentIndexTimestamp in the same interval as the current version
     // We'll use the interval start of the current timestamp
     Instant currentIntervalStart =
-        S3Backend.getIntervalStart(currentTimestamp, updateIntervalSeconds);
+        S3Backend.getIntervalStart(currentTimestamp, updateIntervalSeconds, 0);
 
     // Download with the update interval context including currentIndexTimestamp
     InputStreamWithTimestamp result =
         s3Backend.downloadPointState(
             serviceId,
             INDEX,
-            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, currentIntervalStart));
+            new RemoteBackend.UpdateIntervalContext(
+                updateIntervalSeconds, currentIntervalStart, 0));
 
     // The result should be null since the current index is already in the latest interval
     assertEquals("Should return null when currentIndexTimestamp is in same interval", null, result);
@@ -421,7 +424,7 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should return the same time for timestamps at interval start",
         expectedStart1,
-        S3Backend.getIntervalStart(timestamp1, oneHourInterval));
+        S3Backend.getIntervalStart(timestamp1, oneHourInterval, 0));
 
     // Test case 2: In the middle of an interval
     Instant timestamp2 = Instant.parse("2023-01-01T10:30:45Z");
@@ -429,7 +432,7 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should return the start of the hour for timestamps in the middle of an interval",
         expectedStart2,
-        S3Backend.getIntervalStart(timestamp2, oneHourInterval));
+        S3Backend.getIntervalStart(timestamp2, oneHourInterval, 0));
 
     // Test case 3: With a 15-minute interval
     int fifteenMinuteInterval = 900; // seconds
@@ -438,7 +441,7 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should return the start of the 15-minute interval",
         expectedStart3,
-        S3Backend.getIntervalStart(timestamp3, fifteenMinuteInterval));
+        S3Backend.getIntervalStart(timestamp3, fifteenMinuteInterval, 0));
 
     // Test case 4: With a non-standard interval (7 minutes = 420 seconds)
     int sevenMinuteInterval = 420; // seconds
@@ -447,7 +450,7 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should return the start of the 7-minute interval",
         expectedStart4,
-        S3Backend.getIntervalStart(timestamp4, sevenMinuteInterval));
+        S3Backend.getIntervalStart(timestamp4, sevenMinuteInterval, 0));
 
     // Test case 5: With crossing midnight
     Instant timestamp5 = Instant.parse("2023-01-02T00:05:30Z");
@@ -455,7 +458,7 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should handle timestamps after midnight correctly",
         expectedStart5,
-        S3Backend.getIntervalStart(timestamp5, oneHourInterval));
+        S3Backend.getIntervalStart(timestamp5, oneHourInterval, 0));
 
     // Test case 6: With a full day interval
     int oneDayInterval = 86400; // seconds in a day
@@ -464,7 +467,71 @@ public class S3BackendUpdateIntervalTest {
     assertEquals(
         "Should return midnight for a full day interval",
         expectedStart6,
-        S3Backend.getIntervalStart(timestamp6, oneDayInterval));
+        S3Backend.getIntervalStart(timestamp6, oneDayInterval, 0));
+
+    // Test case 7: With a positive offset (30 minutes = 1800 seconds)
+    int offsetSeconds = 1800; // 30 minutes
+    Instant timestamp7 = Instant.parse("2023-01-01T10:45:00Z");
+    Instant expectedStart7 = Instant.parse("2023-01-01T10:30:00Z");
+    assertEquals(
+        "Should handle positive offset correctly",
+        expectedStart7,
+        S3Backend.getIntervalStart(timestamp7, oneHourInterval, offsetSeconds));
+
+    // Test case 8: With offset near midnight
+    Instant timestamp8 = Instant.parse("2023-01-01T00:15:00Z");
+    Instant expectedStart8 = Instant.parse("2022-12-31T23:30:00Z");
+    assertEquals(
+        "Should handle offset near midnight correctly",
+        expectedStart8,
+        S3Backend.getIntervalStart(timestamp8, oneHourInterval, offsetSeconds));
+
+    // Test case 9: With offset crossing midnight
+    int largeOffset = 3300; // 55 minutes
+    Instant timestamp9 = Instant.parse("2023-01-01T00:10:00Z");
+    Instant expectedStart9 = Instant.parse("2022-12-31T23:55:00Z");
+    assertEquals(
+        "Should handle offset crossing midnight correctly",
+        expectedStart9,
+        S3Backend.getIntervalStart(timestamp9, oneHourInterval, largeOffset));
+  }
+
+  /** Test the adjustForOffset method with various seconds and offsets. */
+  @Test
+  public void testAdjustForOffset() {
+    // Test case 1: No offset
+    assertEquals(
+        "Should return the same seconds with zero offset",
+        3600, // 1 hour
+        S3Backend.adjustForOffset(3600, 0));
+
+    // Test case 2: With offset in the middle of the day
+    assertEquals(
+        "Should subtract offset from seconds",
+        3000, // 50 minutes
+        S3Backend.adjustForOffset(3600, 600)); // 1 hour - 10 minutes
+
+    // Test case 3: With offset causing wrap around midnight
+    int secondsNearMidnight = 300; // 5 minutes after midnight
+    int offsetLargerThanSeconds = 900; // 15 minutes
+    int expectedWrappedSeconds = 86400 - 900 + 300; // Wrap around to previous day
+    assertEquals(
+        "Should wrap around to previous day when offset > seconds",
+        expectedWrappedSeconds,
+        S3Backend.adjustForOffset(secondsNearMidnight, offsetLargerThanSeconds));
+
+    // Test case 4: With offset exactly at midnight
+    assertEquals(
+        "Should handle offset at midnight boundary",
+        86400 - 60, // 1 minute before midnight
+        S3Backend.adjustForOffset(0, 60)); // midnight - 1 minute
+
+    // Test case 5: With large offset
+    int largeOffset = 43200; // 12 hours
+    assertEquals(
+        "Should handle large offsets correctly",
+        43200, // 12 hours
+        S3Backend.adjustForOffset(86400, largeOffset)); // midnight - 12 hours
   }
 
   /** Helper method to create a test NrtPointState. */
@@ -546,7 +613,65 @@ public class S3BackendUpdateIntervalTest {
         s3Backend.downloadPointState(
             serviceId,
             INDEX,
-            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, earlierTimestamp));
+            new RemoteBackend.UpdateIntervalContext(updateIntervalSeconds, earlierTimestamp, 0));
+
+    // The result should not be null as we need to update to the newer version
+    NrtPointState downloadedState =
+        RemoteUtils.pointStateFromUtf8(result.inputStream().readAllBytes());
+
+    // Verify we got the expected content
+    assertEquals(
+        "Should return the original point state", pointState.primaryId, downloadedState.primaryId);
+    assertEquals(
+        "Should return the original point state version",
+        pointState.version,
+        downloadedState.version);
+
+    // Also verify the timestamp matches the current file
+    assertEquals("Timestamp should match the current file", currentTimestamp, result.timestamp());
+  }
+
+  /**
+   * Test downloadPointState with a non-zero intervalOffsetSeconds value. This test verifies that
+   * the offset is correctly applied when calculating interval boundaries.
+   */
+  @Test
+  public void testDownloadPointState_withIntervalOffset() throws IOException {
+    String serviceId = SERVICE + "_with_offset";
+    String prefix =
+        S3Backend.getIndexResourcePrefix(serviceId, INDEX, IndexResourceType.POINT_STATE);
+
+    // Create and upload a point state
+    NrtPointState pointState = getPointState();
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(pointState);
+
+    s3Backend.uploadPointState(serviceId, INDEX, pointState, pointStateBytes);
+
+    // Get current file name and timestamp
+    String currentFileName = s3Backend.getCurrentResourceName(prefix);
+    Instant currentTimestamp =
+        TimeStringUtils.parseTimeStringSec(
+            S3Backend.getTimeStringFromPointStateFileName(currentFileName));
+
+    // Use an update interval of 1 hour with a 30-minute offset
+    int updateIntervalSeconds = 3600; // 1 hour
+    int offsetSeconds = 1800; // 30 minutes
+
+    // Create a currentIndexTimestamp that would be in the same interval without offset
+    // but in a different interval with the offset applied
+    Instant currentIntervalStart =
+        S3Backend.getIntervalStart(currentTimestamp, updateIntervalSeconds, offsetSeconds);
+
+    // Create a timestamp that's in a different interval with the offset
+    Instant differentIntervalTimestamp = currentIntervalStart.minusSeconds(updateIntervalSeconds);
+
+    // Download with the update interval context including the offset
+    InputStreamWithTimestamp result =
+        s3Backend.downloadPointState(
+            serviceId,
+            INDEX,
+            new RemoteBackend.UpdateIntervalContext(
+                updateIntervalSeconds, differentIntervalTimestamp, offsetSeconds));
 
     // The result should not be null as we need to update to the newer version
     NrtPointState downloadedState =

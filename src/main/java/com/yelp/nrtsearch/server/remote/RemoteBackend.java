@@ -43,8 +43,11 @@ public interface RemoteBackend extends PluginDownloader {
    * @param updateIntervalSeconds update interval in seconds, or 0 to get the latest point state
    * @param currentIndexTimestamp timestamp of the currently loaded index data, or null if no
    *     version loaded
+   * @param updateIntervalOffsetSeconds offset in seconds to apply to the update interval, must be
+   *     >= 0 and < updateIntervalSeconds
    */
-  record UpdateIntervalContext(int updateIntervalSeconds, Instant currentIndexTimestamp) {}
+  record UpdateIntervalContext(
+      int updateIntervalSeconds, Instant currentIndexTimestamp, int updateIntervalOffsetSeconds) {}
 
   /**
    * Get if a given global resource exists in the backend.

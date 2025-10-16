@@ -84,6 +84,7 @@ public class S3Backend implements RemoteBackend {
 
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
+  private static final int SECONDS_PER_DAY = 60 * 60 * 24;
 
   private final ExecutorService executor;
   private final int maxExecutorParallelism;
@@ -627,12 +628,16 @@ public class S3Backend implements RemoteBackend {
     }
 
     Instant lastIntervalStart =
-        getIntervalStart(currentTimestamp, updateIntervalContext.updateIntervalSeconds());
+        getIntervalStart(
+            currentTimestamp,
+            updateIntervalContext.updateIntervalSeconds(),
+            updateIntervalContext.updateIntervalOffsetSeconds());
     if (updateIntervalContext.currentIndexTimestamp() != null) {
       Instant indexCurrentIntervalStart =
           getIntervalStart(
               updateIntervalContext.currentIndexTimestamp(),
-              updateIntervalContext.updateIntervalSeconds());
+              updateIntervalContext.updateIntervalSeconds(),
+              updateIntervalContext.updateIntervalOffsetSeconds());
       if (!indexCurrentIntervalStart.isBefore(lastIntervalStart)) {
         // We are already at a version within the current update interval, we do not need to
         // continue
@@ -656,14 +661,33 @@ public class S3Backend implements RemoteBackend {
    *
    * @param timestamp timestamp
    * @param intervalSeconds interval in seconds
+   * @param intervalOffsetSeconds interval offset in seconds
    * @return start of the interval containing the specified timestamp
    */
   @VisibleForTesting
-  static Instant getIntervalStart(Instant timestamp, int intervalSeconds) {
+  static Instant getIntervalStart(
+      Instant timestamp, int intervalSeconds, int intervalOffsetSeconds) {
     LocalTime localTime = timestamp.atZone(ZoneId.of("UTC")).toLocalTime();
     int secondsSinceMidnight = localTime.toSecondOfDay();
-    int remainderSeconds = secondsSinceMidnight % intervalSeconds;
+    int adjustedSeconds = adjustForOffset(secondsSinceMidnight, intervalOffsetSeconds);
+    int remainderSeconds = adjustedSeconds % intervalSeconds;
     return timestamp.minusSeconds(remainderSeconds);
+  }
+
+  /**
+   * Adjust seconds since midnight by the specified offset, wrapping around at midnight if needed.
+   *
+   * @param secondsSinceMidnight seconds since midnight
+   * @param offsetSeconds offset in seconds
+   * @return adjusted seconds since midnight
+   */
+  @VisibleForTesting
+  static int adjustForOffset(int secondsSinceMidnight, int offsetSeconds) {
+    int adjusted = secondsSinceMidnight - offsetSeconds;
+    if (adjusted < 0) {
+      adjusted += SECONDS_PER_DAY;
+    }
+    return adjusted;
   }
 
   /**
