@@ -2,11 +2,15 @@ nodeName: "nrtsearch_replica_0"
 hostName: "localhost"
 port: "8002"
 replicationPort: "8003"
-stateDir: "replica_state"
+stateDir: "shared_state"
 indexDir: "replica_index_base"
+indexStartConfig:
+  mode: REPLICA
+  primaryDiscovery:
+    host: "localhost"
+    port: "8001"
 threadPoolConfiguration:
   search:
     maxThreads: 16
   index:
     maxThreads: 4
-verifyReplicationIndexId: false

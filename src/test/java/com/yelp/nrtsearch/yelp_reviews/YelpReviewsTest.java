@@ -24,21 +24,23 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexResponse;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
+import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsResponse;
-import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
+import com.yelp.nrtsearch.server.grpc.ReloadStateRequest;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsResponse;
-import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
 import com.yelp.nrtsearch.yelp_reviews.utils.OneDocBuilder;
 import com.yelp.nrtsearch.yelp_reviews.utils.ParallelDocumentIndexer;
@@ -232,8 +234,7 @@ public class YelpReviewsTest {
         Paths.get(
             System.getProperty("user.home"), "lucene", "server", "scratch", "yelp_reviews_test");
     GrpcServer.rmDir(yelp_reviews_test_base_path);
-    GrpcServer.rmDir(Paths.get("primary_state"));
-    GrpcServer.rmDir(Paths.get("replica_state"));
+    GrpcServer.rmDir(Paths.get("shared_state"));
     GrpcServer.rmDir(Paths.get("primary_index_base"));
     GrpcServer.rmDir(Paths.get("replica_index_base"));
 
@@ -243,59 +244,46 @@ public class YelpReviewsTest {
     Files.createDirectories(primaryDir);
     Files.createDirectories(replicaDir);
 
-    // create primary and secondary, server and client log files
-    String primaryClientCommandLog = primaryDir.resolve(CLIENT_LOG).toString();
-    String secondaryClientCommandLog = replicaDir.resolve(CLIENT_LOG).toString();
-
     logger.info("Temporary directory: {}", yelp_reviews_test_base_path);
+    // Start primary
     Process primaryServerProcess =
         startServer(primaryDir.resolve(SERVER_LOG).toString(), getServerPrimaryConfigurationYaml());
-    Process replicaServerProcess =
-        startServer(replicaDir.resolve(SERVER_LOG).toString(), getServerReplicaConfigurationYaml());
-
     HostPort primaryHostPort = new HostPort(getServerPrimaryConfigurationYaml());
-    HostPort secondaryHostPort = new HostPort(getServerReplicaConfigurationYaml());
     NrtsearchClient primaryServerClient =
         new NrtsearchClient(primaryHostPort.hostName, primaryHostPort.port);
-    NrtsearchClient secondaryServerClient =
-        new NrtsearchClient(secondaryHostPort.hostName, secondaryHostPort.port);
-
+    ReplicationServerClient primaryReplicationClient =
+        new ReplicationServerClient(primaryHostPort.hostName, primaryHostPort.replicationPort);
     // healthcheck, make sure servers are up
     ensureServersUp(primaryServerClient);
-    ensureServersUp(secondaryServerClient);
-
     CompletableFuture<Process> primaryServer = primaryServerProcess.onExit();
+
+    // Start replica
+    Process replicaServerProcess =
+        startServer(replicaDir.resolve(SERVER_LOG).toString(), getServerReplicaConfigurationYaml());
+    HostPort secondaryHostPort = new HostPort(getServerReplicaConfigurationYaml());
+    NrtsearchClient secondaryServerClient =
+        new NrtsearchClient(secondaryHostPort.hostName, secondaryHostPort.port);
+    // healthcheck, make sure servers are up
+    ensureServersUp(secondaryServerClient);
     CompletableFuture<Process> replicaServer = replicaServerProcess.onExit();
 
     try {
       // create indexes
       createIndex(primaryServerClient);
-      createIndex(secondaryServerClient);
       // live settings -- only primary
       liveSettings(primaryServerClient);
       // register
       registerFields(primaryServerClient);
-      registerFields(secondaryServerClient);
       // settings
       settings(primaryServerClient, ServerType.primary);
-      settings(secondaryServerClient, ServerType.replica);
       // start primary index
-      StartIndexRequest startIndexRequest =
-          StartIndexRequest.newBuilder()
-              .setIndexName(INDEX_NAME)
-              .setMode(Mode.PRIMARY)
-              .setPrimaryGen(0)
-              .build();
+      StartIndexV2Request startIndexRequest =
+          StartIndexV2Request.newBuilder().setIndexName(INDEX_NAME).build();
       startIndex(primaryServerClient, startIndexRequest);
-      // start replica index
-      startIndexRequest =
-          StartIndexRequest.newBuilder()
-              .setIndexName(INDEX_NAME)
-              .setMode(Mode.REPLICA)
-              .setPrimaryAddress(primaryHostPort.hostName)
-              .setPort(primaryHostPort.replicationPort)
-              .build();
-      startIndex(secondaryServerClient, startIndexRequest);
+
+      // load and start index on replica
+      reloadState(secondaryServerClient);
+      waitForRegistration(primaryReplicationClient);
 
       int availableProcessors = Runtime.getRuntime().availableProcessors();
       int MAX_INDEXING_THREADS =
@@ -342,8 +330,6 @@ public class YelpReviewsTest {
       logger.info("Search result totalHits: {}", searchFuture.get());
 
       // publishNRT, get latest searcher version and search over replica again with searcherVersion
-      ReplicationServerClient primaryReplicationClient =
-          new ReplicationServerClient(primaryHostPort.hostName, primaryHostPort.replicationPort);
       SearcherVersion searcherVersion = primaryReplicationClient.writeNRTPoint(INDEX_NAME);
       new SearchTask(secondaryServerClient, indexingDone)
           .getSearchTotalHits(searcherVersion.getVersion());
@@ -365,9 +351,10 @@ public class YelpReviewsTest {
     }
   }
 
-  public static void startIndex(NrtsearchClient serverClient, StartIndexRequest startIndexRequest) {
+  public static void startIndex(
+      NrtsearchClient serverClient, StartIndexV2Request startIndexRequest) {
     StartIndexResponse startIndexResponse =
-        serverClient.getBlockingStub().startIndex(startIndexRequest);
+        serverClient.getBlockingStub().startIndexV2(startIndexRequest);
     logger.info(
         "numDocs: {}, maxDoc: {}, segments: {}, startTimeMS: {}",
         startIndexResponse.getNumDocs(),
@@ -410,6 +397,39 @@ public class YelpReviewsTest {
             .getBlockingStub()
             .createIndex(CreateIndexRequest.newBuilder().setIndexName(INDEX_NAME).build());
     logger.info(response.getResponse());
+  }
+
+  private static void reloadState(NrtsearchClient serverClient) {
+    serverClient.getBlockingStub().reloadState(ReloadStateRequest.newBuilder().build());
+    logger.info("reloadState issued on replica");
+  }
+
+  private static void waitForRegistration(ReplicationServerClient primaryReplicationClient)
+      throws InterruptedException {
+    int retry = 0;
+    final int RETRY_LIMIT = 10;
+    while (retry < RETRY_LIMIT) {
+      try {
+        List<NodeInfo> registeredNodes =
+            primaryReplicationClient
+                .getBlockingStub()
+                .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName(INDEX_NAME).build())
+                .getNodesList();
+        if (!registeredNodes.isEmpty()) {
+          logger.info("Found {} nodes in primary replica", registeredNodes.size());
+          return;
+        } else {
+          throw new StatusRuntimeException(Status.INTERNAL);
+        }
+      } catch (Exception e) {
+        retry += 1;
+        logger.warn("Node not registered on primary yet...retrying {}/{} time", retry, RETRY_LIMIT);
+        Thread.sleep(5000);
+      }
+    }
+    if (retry >= RETRY_LIMIT) {
+      throw new RuntimeException("Index not registered on primary giving up..");
+    }
   }
 
   private static Process startServer(String logFilename, String configFileName) throws IOException {
