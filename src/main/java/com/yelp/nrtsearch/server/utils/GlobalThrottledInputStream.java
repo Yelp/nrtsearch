@@ -38,9 +38,9 @@ public class GlobalThrottledInputStream extends ProxyInputStream {
   }
 
   @Override
-  protected void afterRead(int n) {
-    if (n != -1) {
-      limiter.acquire(n);
+  protected void afterRead(int numBytes) {
+    if (numBytes != -1) {
+      limiter.acquire(numBytes);
     }
   }
 }
