@@ -183,10 +183,10 @@ public class StreamCopyOneFileTest {
         new StreamCopyOneFile(mockDataInput, mockNode, "test_file", fileMetaData, buffer)) {
 
       // Test getters
-      assertEquals("test_file", copyOneFile.getFileName());
-      assertEquals("test_file.tmp", copyOneFile.getFileTmpName());
-      assertEquals(fileMetaData, copyOneFile.getFileMetaData());
-      assertEquals(fileLength - Long.BYTES, copyOneFile.getBytesToCopy());
+      assertEquals("test_file", copyOneFile.name);
+      assertEquals("test_file.tmp", copyOneFile.tmpName);
+      assertEquals(fileMetaData, copyOneFile.metaData);
+      assertEquals(fileLength - Long.BYTES, copyOneFile.bytesToCopy);
       assertEquals(0, copyOneFile.getBytesCopied()); // Initially 0
 
       // Copy some data and check bytes copied
@@ -243,7 +243,7 @@ public class StreamCopyOneFileTest {
 
       // Verify initial state
       assertEquals(0, copyOneFile.getBytesCopied());
-      assertEquals(length - Long.BYTES, copyOneFile.getBytesToCopy());
+      assertEquals(length - Long.BYTES, copyOneFile.bytesToCopy);
 
       // Copy the file
       boolean done = false;

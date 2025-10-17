@@ -22,21 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Locale;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 
 /**
  * Implementation of {@link CopyOneFile} that copies a file from a gRPC stream of {@link
  * RawFileChunk}.
  */
-public class GrpcCopyOneFile implements CopyOneFile {
+public class GrpcCopyOneFile extends CopyOneFile {
   private final Iterator<RawFileChunk> rawFileChunkIterator;
-  private final IndexOutput out;
-  private final ReplicaNode dest;
-  private final String name;
-  private final String tmpName;
-  private final FileMetaData metaData;
-  private final long bytesToCopy;
   private final long copyStartNS;
   private final ByteBuffer checksumBuffer = ByteBuffer.allocate(Long.BYTES);
 
@@ -49,26 +41,10 @@ public class GrpcCopyOneFile implements CopyOneFile {
       String name,
       FileMetaData metaData)
       throws IOException {
+    super(dest, name, metaData);
 
     this.rawFileChunkIterator = rawFileChunkIterator;
-    this.name = name;
-    this.dest = dest;
-    // TODO: pass correct IOCtx, e.g. seg total size
-    out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
-    tmpName = out.getName();
-    // last 8 bytes are checksum:
-    bytesToCopy = metaData.length() - Long.BYTES;
-    if (Node.VERBOSE_FILES) {
-      dest.message(
-          "file "
-              + name
-              + ": start copying to tmp file "
-              + tmpName
-              + " length="
-              + (8 + bytesToCopy));
-    }
     copyStartNS = System.nanoTime();
-    this.metaData = metaData;
     dest.startCopyFile(name);
   }
 
@@ -84,8 +60,7 @@ public class GrpcCopyOneFile implements CopyOneFile {
    */
   @Override
   public void close() throws IOException {
-    out.close();
-    dest.finishCopyFile(name);
+    super.close();
     // This job may have been canceled before being completed, meaning the replica no longer needs
     // it. Drain the iterator to not leak direct memory.
     while (rawFileChunkIterator.hasNext()) {
@@ -165,25 +140,5 @@ public class GrpcCopyOneFile implements CopyOneFile {
       }
       return true;
     }
-  }
-
-  @Override
-  public FileMetaData getFileMetaData() {
-    return metaData;
-  }
-
-  @Override
-  public String getFileName() {
-    return name;
-  }
-
-  @Override
-  public String getFileTmpName() {
-    return tmpName;
-  }
-
-  @Override
-  public long getBytesToCopy() {
-    return bytesToCopy;
   }
 }
