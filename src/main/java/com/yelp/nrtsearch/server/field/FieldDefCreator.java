@@ -100,6 +100,29 @@ public class FieldDefCreator {
   }
 
   /**
+   * Create a new {@link FieldDef} instance based on a previous {@link FieldDef}. This is typically
+   * used when updating a field definition in the index.
+   *
+   * @param name name of the field
+   * @param field grpc request field definition
+   * @param previousFieldDef previous field definition, or null if there is none
+   * @param context context for creating the field definition
+   * @return new field definition instance
+   */
+  public FieldDef createFieldDefFromPrevious(
+      String name, Field field, FieldDef previousFieldDef, FieldDefCreatorContext context) {
+    if (previousFieldDef == null) {
+      return createFieldDef(name, field, context);
+    }
+    FieldDef updatedFieldDef = previousFieldDef.createUpdatedFieldDef(name, field, context);
+    if (updatedFieldDef == null) {
+      throw new IllegalArgumentException(
+          "FieldDef " + previousFieldDef.getName() + " cannot be updated");
+    }
+    return updatedFieldDef;
+  }
+
+  /**
    * Create a new {@link FieldDefCreatorContext} instance.
    *
    * @param globalState global state
