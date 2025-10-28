@@ -99,9 +99,13 @@ public class Warmer {
 
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     int count = 0;
+    List<SearchRequest> warmingRequestsToBackup;
+    synchronized (warmingRequests) {
+      warmingRequestsToBackup = new ArrayList<>(warmingRequests);
+    }
     try (Writer writer =
         new OutputStreamWriter(byteArrayOutputStream, StateUtils.getValidatingUTF8Encoder())) {
-      for (SearchRequest searchRequest : warmingRequests) {
+      for (SearchRequest searchRequest : warmingRequestsToBackup) {
         writer.write(JsonFormat.printer().omittingInsignificantWhitespace().print(searchRequest));
         writer.write("\n");
         count++;
