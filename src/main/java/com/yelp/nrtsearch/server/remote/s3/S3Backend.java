@@ -651,6 +651,51 @@ public class S3Backend implements RemoteBackend {
         rateLimiter);
   }
 
+  /**
+   * Download a specific byte range from an index file in S3.
+   *
+   * @param service service name
+   * @param indexIdentifier index identifier
+   * @param fileName file name
+   * @param fileMetaData file metadata
+   * @param offset starting byte offset
+   * @param length number of bytes to read
+   * @return {@link InputStream} of the file range being streamed
+   * @throws IOException if an error occurs while downloading
+   */
+  public InputStream downloadIndexFileRange(
+      String service,
+      String indexIdentifier,
+      String fileName,
+      NrtFileMetaData fileMetaData,
+      long offset,
+      long length)
+      throws IOException {
+    String backendFileName = getIndexBackendFileName(fileName, fileMetaData);
+    String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
+    String backendKey = backendPrefix + backendFileName;
+
+    // Use S3 range request to download only the requested bytes
+    GetObjectRequest request = new GetObjectRequest(serviceBucket, backendKey);
+    request.setRange(offset, offset + length - 1);
+
+    S3Object s3Object;
+    try {
+      s3Object = s3.getObject(request);
+    } catch (AmazonS3Exception e) {
+      if (isNotFoundException(e)) {
+        String error =
+            String.format(
+                "Object s3://%s/%s not found (range %d-%d)",
+                serviceBucket, backendKey, offset, offset + length - 1);
+        throw new IllegalArgumentException(error, e);
+      }
+      throw e;
+    }
+
+    return wrapDownloadStream(s3Object.getObjectContent(), s3Metrics, indexIdentifier, rateLimiter);
+  }
+
   @VisibleForTesting
   static List<FileNamePair> getFileNamePairs(Map<String, NrtFileMetaData> files) {
     List<FileNamePair> fileList = new LinkedList<>();

@@ -208,6 +208,22 @@ public class NrtDataManager implements Closeable {
    */
   public void restoreIfNeeded(Path shardDataDir, IsolatedReplicaConfig isolatedReplicaConfig)
       throws IOException {
+    restoreIfNeeded(shardDataDir, isolatedReplicaConfig, false);
+  }
+
+  /**
+   * Restore the index data if it is available in the remote backend.
+   *
+   * @param shardDataDir Path to the shard index data directory
+   * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
+   *     replica
+   * @param metadataOnly if true, only restore metadata (segments file) without downloading index
+   *     files. Used for remote-only mode where files are streamed from S3.
+   * @throws IOException if an error occurs while restoring the index data
+   */
+  public void restoreIfNeeded(
+      Path shardDataDir, IsolatedReplicaConfig isolatedReplicaConfig, boolean metadataOnly)
+      throws IOException {
     if (restoreIndex == null) {
       return;
     }
@@ -230,9 +246,16 @@ public class NrtDataManager implements Closeable {
 
       long start = System.nanoTime();
       try {
-        remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
-        writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
+        if (metadataOnly) {
+          logger.info(
+              "Remote-only mode: skipping file download, only writing segments file for index: {}",
+              indexIdentifier);
+          writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
+        } else {
+          remoteBackend.downloadIndexFiles(
+              serviceName, indexIdentifier, shardDataDir, pointState.files);
+          writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
+        }
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
         logger.info(
@@ -326,6 +349,47 @@ public class NrtDataManager implements Closeable {
   public InputStream downloadIndexFile(String fileName, NrtFileMetaData fileMetaData)
       throws IOException {
     return remoteBackend.downloadIndexFile(serviceName, indexIdentifier, fileName, fileMetaData);
+  }
+
+  /**
+   * Get the file metadata from the last restored point state. This is used to create S3Directory
+   * instances that can read index files directly from S3.
+   *
+   * @return map of file names to their metadata, or empty map if no restore has been done
+   */
+  public Map<String, NrtFileMetaData> getRestoredFileMetadata() {
+    NrtPointState pointState = lastPointState;
+    if (pointState == null) {
+      return Map.of();
+    }
+    return Map.copyOf(pointState.files);
+  }
+
+  /**
+   * Get the service name.
+   *
+   * @return service name
+   */
+  public String getServiceName() {
+    return serviceName;
+  }
+
+  /**
+   * Get the index identifier.
+   *
+   * @return index identifier
+   */
+  public String getIndexIdentifier() {
+    return indexIdentifier;
+  }
+
+  /**
+   * Get the remote backend.
+   *
+   * @return remote backend
+   */
+  public RemoteBackend getRemoteBackend() {
+    return remoteBackend;
   }
 
   /**

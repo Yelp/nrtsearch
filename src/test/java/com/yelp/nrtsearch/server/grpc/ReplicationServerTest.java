@@ -23,7 +23,12 @@ import static org.junit.Assert.fail;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -320,6 +325,99 @@ public class ReplicationServerTest {
       assertTrue(
           e.getMessage()
               .contains("Adding documents to an index on a replica node is not supported"));
+    }
+  }
+
+  @Test
+  public void testRemoteCommitAndRestore() throws IOException, InterruptedException {
+    // Start primary with remote commit enabled
+    primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.PRIMARY, 0, IndexStartConfig.IndexDataLocationType.REMOTE)
+            .withAdditionalConfig("remoteCommit: true")
+            .build();
+    primaryServer.createSimpleIndex("test_index");
+    primaryServer.startPrimaryIndex("test_index", -1, null);
+
+    // Index 4 documents to primary
+    primaryServer.addSimpleDocs("test_index", 1, 2, 3, 4);
+
+    // Refresh and commit to S3
+    primaryServer.refresh("test_index");
+    primaryServer.commit("test_index");
+
+    // Wait for S3 upload to complete
+    Thread.sleep(2000);
+
+    // Verify primary can search the documents
+    primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
+
+    // Start replica in remote-only mode (reads from S3 without downloading files)
+    replicaServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true,
+                Mode.REPLICA,
+                primaryServer.getReplicationPort(),
+                IndexStartConfig.IndexDataLocationType.REMOTE)
+            .withAdditionalConfig("remoteOnlyIndex: true\nsyncInitialNrtPoint: false")
+            .build();
+
+    // Register replica with primary
+    replicaServer.registerWithPrimary("test_index");
+
+    // Give replica time to start up and restore from S3
+    Thread.sleep(1000);
+
+    // Refresh replica to ensure searcher sees the data
+    replicaServer.refresh("test_index");
+
+    // Verify replica can search documents restored from S3
+    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
+
+    // Verify that data files are NOT downloaded locally in remote-only mode
+    // The replica should only have the segments_* file locally, all other files should be in S3
+    String configuredIndexDir = replicaServer.getGlobalState().getConfiguration().getIndexDir();
+
+    // Try to find the actual index directory - it may have a timestamp suffix
+    Path indexBaseDir = Paths.get(configuredIndexDir);
+    Path replicaIndexDir = null;
+
+    if (Files.exists(indexBaseDir)) {
+      List<Path> testIndexDirs =
+          Files.list(indexBaseDir)
+              .filter(p -> p.getFileName().toString().startsWith("test_index"))
+              .toList();
+
+      if (!testIndexDirs.isEmpty()) {
+        replicaIndexDir = testIndexDirs.getFirst().resolve("shard0").resolve("index");
+      }
+    }
+
+    if (replicaIndexDir != null && Files.exists(replicaIndexDir)) {
+      try (Stream<Path> stream = Files.list(replicaIndexDir)) {
+        List<Path> dataFiles =
+            stream
+                .filter(
+                    p -> {
+                      String name = p.getFileName().toString();
+                      // Segments file and write.lock are OK, but .cfs, .cfe, .si should NOT exist
+                      return !name.startsWith("segments_")
+                          && !name.equals("write.lock")
+                          && (name.endsWith(".cfs")
+                              || name.endsWith(".cfe")
+                              || name.endsWith(".si")
+                              || name.endsWith(".fdt")
+                              || name.endsWith(".fdx")
+                              || name.endsWith(".fnm"));
+                    })
+                .toList();
+
+        assertEquals("Replica should not have data files in remote-only mode", 0, dataFiles.size());
+      }
+    } else {
+      fail("Could not find replica index directory to verify remote-only mode");
     }
   }
 

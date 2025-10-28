@@ -568,25 +568,73 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile);
-      origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
 
-      // nocommit don't allow RAMDir
-      // nocommit remove NRTCachingDir too?
-      if (!(origIndexDir instanceof MMapDirectory)) {
-        double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
-        double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
-        if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
-          indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+      // Check if remote-only mode is enabled (using S3Directory instead of local disk)
+      boolean remoteOnlyMode =
+          indexState
+              .getGlobalState()
+              .getConfiguration()
+              .getConfigReader()
+              .getBoolean("remoteOnlyIndex", false);
+
+      if (remoteOnlyMode && nrtDataManager != null) {
+        // Remote-only mode: create S3Directory that reads directly from S3
+        logger.info(
+            "Starting shard in remote-only mode for index: {}, shard: {}",
+            indexState.getName(),
+            shardOrd);
+
+        // Restore metadata only (segments file) without downloading actual index files
+        nrtDataManager.restoreIfNeeded(indexDirFile, null, true);
+
+        // For now, remote-only mode for standalone is not fully implemented
+        // Fall back to traditional mode with local disk
+        logger.warn(
+            "Remote-only mode is not yet fully supported. Falling back to traditional mode.");
+        nrtDataManager.restoreIfNeeded(indexDirFile, null, false);
+        origIndexDir =
+            indexState
+                .getDirectoryFactory()
+                .open(
+                    indexDirFile,
+                    indexState.getGlobalState().getConfiguration().getPreloadConfig());
+
+        // nocommit don't allow RAMDir
+        // nocommit remove NRTCachingDir too?
+        if (!(origIndexDir instanceof MMapDirectory)) {
+          double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
+          double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
+          if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
+            indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+          } else {
+            indexDir = origIndexDir;
+          }
         } else {
           indexDir = origIndexDir;
         }
       } else {
-        indexDir = origIndexDir;
+        // Traditional mode: download files to local disk
+        nrtDataManager.restoreIfNeeded(indexDirFile);
+        origIndexDir =
+            indexState
+                .getDirectoryFactory()
+                .open(
+                    indexDirFile,
+                    indexState.getGlobalState().getConfiguration().getPreloadConfig());
+
+        // nocommit don't allow RAMDir
+        // nocommit remove NRTCachingDir too?
+        if (!(origIndexDir instanceof MMapDirectory)) {
+          double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
+          double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
+          if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
+            indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+          } else {
+            indexDir = origIndexDir;
+          }
+        } else {
+          indexDir = origIndexDir;
+        }
       }
 
       // Rather than rely on IndexWriter/TaxonomyWriter to
@@ -700,6 +748,8 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
+
+      // Remote-only mode is not supported for primary nodes as they need to write
       nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState
@@ -927,21 +977,62 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
-      origIndexDir =
-          indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
-      // nocommit don't allow RAMDir
-      // nocommit remove NRTCachingDir too?
-      if (!(origIndexDir instanceof MMapDirectory)) {
-        double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
-        double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
-        if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
-          indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+
+      // Check if remote-only mode is enabled (using S3Directory instead of local disk)
+      boolean remoteOnlyMode = configuration.getConfigReader().getBoolean("remoteOnlyIndex", false);
+
+      if (remoteOnlyMode && nrtDataManager != null) {
+        // Remote-only mode: create HybridDirectory that reads from local (segments) and S3 (data)
+        logger.info(
+            "Starting replica shard in remote-only mode for index: {}, shard: {}",
+            indexState.getName(),
+            shardOrd);
+
+        // Restore metadata only (segments file) without downloading actual index files
+        nrtDataManager.restoreIfNeeded(
+            indexDirFile, configuration.getIsolatedReplicaConfig(), true);
+
+        // Open local directory for segments file
+        Directory localDir =
+            indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+
+        // Create S3Directory for data files
+        Map<String, com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData> fileMetadata =
+            nrtDataManager.getRestoredFileMetadata();
+        com.yelp.nrtsearch.server.remote.s3.S3Backend s3Backend =
+            (com.yelp.nrtsearch.server.remote.s3.S3Backend) nrtDataManager.getRemoteBackend();
+        S3Directory s3Dir =
+            new S3Directory(
+                s3Backend,
+                nrtDataManager.getServiceName(),
+                nrtDataManager.getIndexIdentifier(),
+                indexState.getName(),
+                fileMetadata);
+
+        // Combine with HybridDirectory
+        origIndexDir = new HybridDirectory(localDir, s3Dir, indexState.getName());
+        indexDir = origIndexDir; // No caching for remote-only mode
+
+        logger.info(
+            "Created HybridDirectory for remote-only mode, index: {}", indexState.getName());
+      } else {
+        // Traditional mode: download files to local disk
+        nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
+        origIndexDir =
+            indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+        // nocommit don't allow RAMDir
+        // nocommit remove NRTCachingDir too?
+        if (!(origIndexDir instanceof MMapDirectory)) {
+          double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
+          double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
+          if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
+            indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+          } else {
+            indexDir = origIndexDir;
+          }
         } else {
           indexDir = origIndexDir;
         }
-      } else {
-        indexDir = origIndexDir;
       }
 
       manager = null;
@@ -1068,6 +1159,9 @@ public class ShardState implements Closeable {
         This is also run in a separate thread every near-real-time interval (1s) (see: restartReopenThread for Primary)
       */
       searcherManager.maybeRefreshBlocking();
+    } else if (nrtReplicaNode != null) {
+      /* Replica mode: refresh the replica's searcher manager */
+      nrtReplicaNode.getSearcherManager().maybeRefreshBlocking();
     } else {
       /* SearchAndTaxnomyManager for stand alone mode */
       manager.maybeRefreshBlocking();
