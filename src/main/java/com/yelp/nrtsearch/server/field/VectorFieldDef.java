@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -27,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
+import com.yelp.nrtsearch.server.query.MinThresholdQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenFloatKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnByteVectorQuery;
@@ -135,7 +137,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       int k,
       Query filterQuery,
       int numCandidates,
-      BitSetProducer parentBitSetProducer);
+      BitSetProducer parentBitSetProducer,
+      float similarityThreshold);
 
   /**
    * Get the exact search query for this field.
@@ -375,6 +378,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
     int k = knnQuery.getK();
     int numCandidates = knnQuery.getNumCandidates();
+    float similarityThreshold =
+        knnQuery.hasSimilarityThreshold()
+            ? knnQuery.getSimilarityThreshold()
+            : Float.NEGATIVE_INFINITY;
     if (k < 1) {
       throw new IllegalArgumentException("Vector search k must be >= 1");
     }
@@ -385,7 +392,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
-    return getTypeKnnQuery(knnQuery, k, filterQuery, numCandidates, parentBitSetProducer);
+    return getTypeKnnQuery(
+        knnQuery, k, filterQuery, numCandidates, parentBitSetProducer, similarityThreshold);
   }
 
   @Override
@@ -499,7 +507,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         int k,
         Query filterQuery,
         int numCandidates,
-        BitSetProducer parentBitSetProducer) {
+        BitSetProducer parentBitSetProducer,
+        float similarityThreshold) {
       if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query vector size, expected: "
@@ -517,12 +526,19 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         float magnitude = (float) Math.sqrt(magnitude2);
         normalizeVector(queryVector, magnitude);
       }
+      Query query;
       if (parentBitSetProducer != null) {
-        return new NrtDiversifyingChildrenFloatKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+        query =
+            new NrtDiversifyingChildrenFloatKnnVectorQuery(
+                getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
       } else {
-        return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query = new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
       }
+      if (similarityThreshold != Float.NEGATIVE_INFINITY) {
+        float similarityScore = similarityToScore(similarityThreshold, similarityFunction);
+        query = new MinThresholdQuery(query, similarityScore);
+      }
+      return query;
     }
 
     @Override
@@ -582,6 +598,18 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       for (int i = 0; i < vector.length; i++) {
         vector[i] /= magnitude;
       }
+    }
+
+    @VisibleForTesting
+    static float similarityToScore(float similarity, VectorSimilarityFunction similarityFunction) {
+      return switch (similarityFunction) {
+        case COSINE, DOT_PRODUCT -> (1 + similarity) / 2f;
+        case EUCLIDEAN -> 1f / (1f + similarity * similarity);
+        case MAXIMUM_INNER_PRODUCT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
+        default ->
+            throw new IllegalArgumentException(
+                "Unsupported vector similarity function for scoring: " + similarityFunction);
+      };
     }
   }
 
@@ -686,7 +714,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         int k,
         Query filterQuery,
         int numCandidates,
-        BitSetProducer parentBitSetProducer) {
+        BitSetProducer parentBitSetProducer,
+        float similarityThreshold) {
       if (knnQuery.getQueryByteVector().size() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query byte vector size, expected: "
@@ -696,12 +725,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       }
       byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);
+
+      Query query;
       if (parentBitSetProducer != null) {
-        return new NrtDiversifyingChildrenByteKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+        query =
+            new NrtDiversifyingChildrenByteKnnVectorQuery(
+                getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
       } else {
-        return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query = new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
       }
+      if (similarityThreshold != Float.NEGATIVE_INFINITY) {
+        float similarityScore =
+            similarityToScore(similarityThreshold, similarityFunction, vectorDimensions);
+        query = new MinThresholdQuery(query, similarityScore);
+      }
+      return query;
     }
 
     @Override
@@ -734,6 +772,20 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
               "Vector magnitude cannot be 0 when using cosine similarity");
         }
       }
+    }
+
+    @VisibleForTesting
+    static float similarityToScore(
+        float similarity, VectorSimilarityFunction similarityFunction, int vectorDimensions) {
+      return switch (similarityFunction) {
+        case COSINE -> (1 + similarity) / 2f;
+        case DOT_PRODUCT -> 0.5f + similarity / (float) (vectorDimensions * (1 << 15));
+        case EUCLIDEAN -> 1f / (1f + similarity * similarity);
+        case MAXIMUM_INNER_PRODUCT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
+        default ->
+            throw new IllegalArgumentException(
+                "Unsupported vector similarity function for scoring: " + similarityFunction);
+      };
     }
   }
 }
