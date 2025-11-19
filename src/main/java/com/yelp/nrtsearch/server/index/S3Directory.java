@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import com.yelp.nrtsearch.server.monitoring.S3DirectoryMetrics;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.io.FileNotFoundException;
@@ -89,9 +90,9 @@ public class S3Directory extends Directory {
         fileMetadata.size());
 
     // Initialize metrics
-    com.yelp.nrtsearch.server.monitoring.S3DirectoryMetrics.updateFileCount(
+    S3DirectoryMetrics.updateFileCount(
         indexName, fileMetadata.size());
-    com.yelp.nrtsearch.server.monitoring.S3DirectoryMetrics.updateOpenInputs(indexName, 0);
+    S3DirectoryMetrics.updateOpenInputs(indexName, 0);
   }
 
   @Override
@@ -167,7 +168,7 @@ public class S3Directory extends Directory {
         indexName);
 
     // Update metrics
-    com.yelp.nrtsearch.server.monitoring.S3DirectoryMetrics.updateOpenInputs(
+    S3DirectoryMetrics.updateOpenInputs(
         indexName, openInputs.size());
 
     return new S3IndexInput(
@@ -222,7 +223,7 @@ public class S3Directory extends Directory {
     this.fileMetadata.putAll(newFileMetadata);
 
     // Update metrics
-    com.yelp.nrtsearch.server.monitoring.S3DirectoryMetrics.updateFileCount(
+    S3DirectoryMetrics.updateFileCount(
         indexName, newFileMetadata.size());
   }
 
