@@ -785,6 +785,10 @@ message SearchRequest {
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using
     // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
+    // Batch size for streaming search responses. When using the streamingSearch RPC, this controls how many
+    // hits are sent in each streamed message after the initial header. Default is 50 if not specified or set to 0.
+    // This parameter is ignored for non-streaming search endpoints.
+    int32 streamingHitBatchSize = 32;
 }
 
 // Last Hit info for search after
@@ -1500,4 +1504,40 @@ message KnnQuery {
     // greater than or equal to this value will be returned. If unset, all results are returned.
     // Note: This value is specified as the raw similarity, not the normalized/boosted score.
     optional float similarityThreshold = 8;
+}
+
+// Streaming search response - first message in stream
+message StreamingSearchResponseHeader {
+    // Query diagnostics
+    SearchResponse.Diagnostics diagnostics = 1;
+    // Set to true if search times out and a degraded response is returned
+    bool hit_timeout = 2;
+    // Total hits for the query
+    TotalHits total_hits = 3;
+    // State for use in subsequent searches (search after)
+    SearchResponse.SearchState search_state = 4;
+    // Counts or aggregates for a single dimension
+    repeated FacetResult facet_result = 5;
+    // Detailed stats returned when profile=true in request
+    ProfileResult profile_result = 6;
+    // Results from any additional document collectors
+    map<string, CollectorResult> collector_results = 7;
+    // If this query hit the terminateAfter threshold specified in the request
+    bool terminated_early = 8;
+}
+
+// Streaming search response - hit chunk message
+message StreamingSearchResponseHits {
+    // One or more hits (could batch for efficiency)
+    repeated SearchResponse.Hit hits = 1;
+}
+
+// Wrapper for streaming search response
+message StreamingSearchResponse {
+    oneof ResponseType {
+        // First message: contains everything except hits
+        StreamingSearchResponseHeader header = 1;
+        // Subsequent messages: contain hits
+        StreamingSearchResponseHits hits = 2;
+    }
 }

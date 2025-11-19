@@ -177,6 +177,16 @@ service LuceneServer {
         };
     }
 
+    // Execute a search query against an index, streaming results back. The first message in the stream
+    // contains all response metadata (diagnostics, facets, total hits, etc.) except hits. Subsequent messages
+    // contain batches of hits. The batch size can be controlled via SearchRequest.streamingHitBatchSize.
+    rpc streamingSearch (SearchRequest) returns (stream StreamingSearchResponse) {
+        option (google.api.http) = {
+            post: "/v1/streaming_search"
+            body: "*"
+        };
+    }
+
     // Delete documents from an index. Changes are not durable until after the next successful @commit call.
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
