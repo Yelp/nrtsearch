@@ -76,6 +76,7 @@ import com.yelp.nrtsearch.server.handler.StartIndexV2Handler;
 import com.yelp.nrtsearch.server.handler.StatsHandler;
 import com.yelp.nrtsearch.server.handler.StatusHandler;
 import com.yelp.nrtsearch.server.handler.StopIndexHandler;
+import com.yelp.nrtsearch.server.handler.StreamingSearchHandler;
 import com.yelp.nrtsearch.server.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
@@ -358,6 +359,7 @@ public class NrtsearchServer {
     private final ReloadStateHandler reloadStateHandler;
     private final SearchHandler searchHandler;
     private final SearchV2Handler searchV2Handler;
+    private final StreamingSearchHandler streamingSearchHandler;
     private final SettingsHandler settingsHandler;
     private final SettingsV2Handler settingsV2Handler;
     private final StartIndexHandler startIndexHandler;
@@ -424,6 +426,7 @@ public class NrtsearchServer {
       reloadStateHandler = new ReloadStateHandler(globalState);
       searchHandler = new SearchHandler(globalState);
       searchV2Handler = new SearchV2Handler(globalState, searchHandler);
+      streamingSearchHandler = new StreamingSearchHandler(globalState);
       settingsHandler = new SettingsHandler(globalState);
       settingsV2Handler = new SettingsV2Handler(globalState);
       startIndexHandler = new StartIndexHandler(globalState);
@@ -578,6 +581,12 @@ public class NrtsearchServer {
     public void searchV2(
         SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
       searchV2Handler.handle(searchRequest, searchResponseStreamObserver);
+    }
+
+    @Override
+    public void streamingSearch(
+        SearchRequest searchRequest, StreamObserver<StreamingSearchResponse> responseObserver) {
+      streamingSearchHandler.handle(searchRequest, responseObserver);
     }
 
     @Override
