@@ -141,8 +141,33 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     return handle(indexState, searchRequest);
   }
 
-  public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
-      throws SearchHandlerException {
+  /**
+   * Intermediate result from search execution phase, containing all data needed to build the final
+   * response with hits.
+   */
+  protected record SearchExecutionResult(
+      SearchContext searchContext,
+      TopDocs topDocs,
+      SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ProfileResult.Builder profileResult,
+      ShardState shardState) {}
+
+  /**
+   * Execute the search phase including query execution and rescoring. This method returns
+   * intermediate results that can be used to build the final response or to progressively stream
+   * hits. The returned TopDocs contains doc IDs only - no field fetching is performed.
+   *
+   * <p>IMPORTANT: The caller is responsible for releasing the searcher reference by calling
+   * result.getShardState().release(result.getSearcherAndTaxonomy()).
+   *
+   * @param indexState the index to search
+   * @param searchRequest the search request
+   * @return intermediate result containing search context, top docs, and diagnostics
+   * @throws SearchHandlerException on search errors
+   */
+  protected SearchExecutionResult executeSearchPhase(
+      IndexState indexState, SearchRequest searchRequest) throws SearchHandlerException {
     // this request may have been waiting in the grpc queue too long
     DeadlineUtils.checkDeadline("SearchHandler: start", "SEARCH");
 
@@ -158,6 +183,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     SearchContext searchContext;
+
     try {
       s =
           getSearcherAndTaxonomy(
@@ -271,6 +297,43 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
 
+      return new SearchExecutionResult(
+          searchContext, hits, s, diagnostics, profileResultBuilder, shardState);
+    } catch (IOException | InterruptedException e) {
+      logger.warn(e.getMessage(), e);
+      // Clean up searcher reference if we got one
+      if (s != null) {
+        try {
+          shardState.release(s);
+        } catch (IOException ioException) {
+          logger.warn(
+              "Failed to release searcher reference previously acquired by acquire()", ioException);
+        }
+      }
+      throw new SearchHandlerException(e);
+    }
+  }
+
+  /**
+   * Build a complete SearchResponse with hits from the search execution result. This method
+   * performs field fetching for all hits, builds search state, and collects diagnostics.
+   *
+   * <p>IMPORTANT: The caller is responsible for releasing the searcher reference by calling
+   * execResult.getShardState().release(execResult.getSearcherAndTaxonomy()).
+   *
+   * @param execResult the search execution result from executeSearchPhase()
+   * @return complete SearchResponse with all hits and fields populated
+   * @throws SearchHandlerException on errors during field fetching or response building
+   */
+  protected SearchResponse buildResponseWithHits(SearchExecutionResult execResult)
+      throws SearchHandlerException {
+    SearchContext searchContext = execResult.searchContext();
+    TopDocs hits = execResult.topDocs();
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = execResult.searcherAndTaxonomy();
+    SearchResponse.Diagnostics.Builder diagnostics = execResult.diagnostics();
+    ProfileResult.Builder profileResultBuilder = execResult.profileResult();
+
+    try {
       long t0 = System.nanoTime();
 
       hits =
@@ -332,47 +395,46 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       if (profileResultBuilder != null) {
         searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
       }
+
+      return searchContext.getResponseBuilder().build();
     } catch (IOException | InterruptedException | ExecutionException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
-    } finally {
-      // NOTE: this is a little iffy, because we may not
-      // have obtained this searcher from the NRTManager
-      // (i.e. sometimes we pulled from
-      // SearcherLifetimeManager, other times (if
-      // snapshot was specified) we opened ourselves,
-      // but under-the-hood all these methods just call
-      // s.getIndexReader().decRef(), which is what release
-      // does:
+    }
+  }
+
+  public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
+      throws SearchHandlerException {
+    SearchExecutionResult execResult = executeSearchPhase(indexState, searchRequest);
+    try {
+      SearchResponse response = buildResponseWithHits(execResult);
+
+      // Add searchRequest to warmer if needed
       try {
-        if (s != null) {
-          shardState.release(s);
+        if (!warming && indexState.getWarmer() != null) {
+          indexState.getWarmer().addSearchRequest(searchRequest);
         }
+      } catch (Exception e) {
+        logger.error("Unable to add warming query", e);
+      }
+
+      // if we are out of time, don't bother with serialization
+      DeadlineUtils.checkDeadline("SearchHandler: end", execResult.diagnostics(), "SEARCH");
+      if (!warming) {
+        SearchResponseCollector.updateSearchResponseMetrics(
+            response,
+            execResult.searchContext().getIndexState().getName(),
+            execResult.searchContext().getIndexState().getVerboseMetrics());
+      }
+      return response;
+    } finally {
+      try {
+        execResult.shardState().release(execResult.searcherAndTaxonomy());
       } catch (IOException e) {
         logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
         throw new SearchHandlerException(e);
       }
     }
-
-    // Add searchRequest to warmer if needed
-    try {
-      if (!warming && indexState.getWarmer() != null) {
-        indexState.getWarmer().addSearchRequest(searchRequest);
-      }
-    } catch (Exception e) {
-      logger.error("Unable to add warming query", e);
-    }
-
-    // if we are out of time, don't bother with serialization
-    DeadlineUtils.checkDeadline("SearchHandler: end", diagnostics, "SEARCH");
-    SearchResponse searchResponse = searchContext.getResponseBuilder().build();
-    if (!warming) {
-      SearchResponseCollector.updateSearchResponseMetrics(
-          searchResponse,
-          searchContext.getIndexState().getName(),
-          searchContext.getIndexState().getVerboseMetrics());
-    }
-    return searchResponse;
   }
 
   /**
