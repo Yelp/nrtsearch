@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.test_utils;
 
-import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.PORT;
-import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.REPLICATION_PORT;
 import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.S3_BUCKET_NAME;
 
 import com.amazonaws.services.s3.AmazonS3;
@@ -125,8 +123,8 @@ public class NrtsearchTest {
    * @param config A {@link Map} which will be used to built {@link NrtsearchConfig}
    */
   protected void addNrtsearchConfigs(Map<String, Object> config) {
-    config.put("port", PORT);
-    config.put("replicationPort", REPLICATION_PORT);
+    config.put("port", PortUtils.findAvailablePort());
+    config.put("replicationPort", PortUtils.findAvailablePort());
     config.put("bucketName", getS3BucketName());
     config.put("plugins", getPlugins());
     config.put("pluginSearchPath", getPluginSearchPath().toAbsolutePath().toString());

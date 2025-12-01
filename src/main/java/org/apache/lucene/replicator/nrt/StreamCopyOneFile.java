@@ -21,18 +21,10 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 
 /** Copies one file from an incoming DataInput to a dest filename in a local Directory */
-public class StreamCopyOneFile implements CopyOneFile {
+public class StreamCopyOneFile extends CopyOneFile {
   private final DataInput in;
-  private final IndexOutput out;
-  private final ReplicaNode dest;
-  public final String name;
-  public final String tmpName;
-  public final FileMetaData metaData;
-  public final long bytesToCopy;
   private final long copyStartNS;
   private final byte[] buffer;
 
@@ -41,30 +33,10 @@ public class StreamCopyOneFile implements CopyOneFile {
   public StreamCopyOneFile(
       DataInput in, ReplicaNode dest, String name, FileMetaData metaData, byte[] buffer)
       throws IOException {
+    super(dest, name, metaData);
     this.in = in;
-    this.name = name;
-    this.dest = dest;
     this.buffer = buffer;
-    // TODO: pass correct IOCtx, e.g. seg total size
-    out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
-    tmpName = out.getName();
-
-    // last 8 bytes are checksum, which we write ourselves after copying all bytes and confirming
-    // checksum:
-    bytesToCopy = metaData.length() - Long.BYTES;
-
-    if (dest.isVerboseFiles()) {
-      dest.message(
-          "file "
-              + name
-              + ": start copying to tmp file "
-              + tmpName
-              + " length="
-              + (8 + bytesToCopy));
-    }
-
     copyStartNS = System.nanoTime();
-    this.metaData = metaData;
     dest.startCopyFile(name);
   }
 
@@ -73,8 +45,7 @@ public class StreamCopyOneFile implements CopyOneFile {
     if (in instanceof Closeable closeable) {
       closeable.close();
     }
-    out.close();
-    dest.finishCopyFile(name);
+    super.close();
   }
 
   /** Copy another chunk of bytes, returning true once the copy is done */
@@ -137,25 +108,6 @@ public class StreamCopyOneFile implements CopyOneFile {
   }
 
   @Override
-  public FileMetaData getFileMetaData() {
-    return metaData;
-  }
-
-  @Override
-  public String getFileName() {
-    return name;
-  }
-
-  @Override
-  public String getFileTmpName() {
-    return tmpName;
-  }
-
-  @Override
-  public long getBytesToCopy() {
-    return bytesToCopy;
-  }
-
   public long getBytesCopied() {
     return bytesCopied;
   }

@@ -39,6 +39,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -49,6 +50,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -59,6 +61,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -69,6 +72,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isFalse(); // default value
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(60);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -81,6 +85,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(30);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -113,6 +118,7 @@ public class IsolatedReplicaConfigTest {
 
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(3600);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -122,6 +128,7 @@ public class IsolatedReplicaConfigTest {
 
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -131,6 +138,7 @@ public class IsolatedReplicaConfigTest {
 
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -141,30 +149,33 @@ public class IsolatedReplicaConfigTest {
 
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(90);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
   public void testConstructorWithEnabledTrue() {
-    IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 240, 0);
+    IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 240, 0, 0);
 
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(240);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0);
   }
 
   @Test
   public void testConstructorWithEnabledFalse() {
-    IsolatedReplicaConfig config = new IsolatedReplicaConfig(false, 15, 0);
+    IsolatedReplicaConfig config = new IsolatedReplicaConfig(false, 15, 0, 0);
 
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(15);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0);
   }
 
   @Test
   public void testConstructorWithZeroInterval() {
     try {
-      new IsolatedReplicaConfig(true, 0, 0);
+      new IsolatedReplicaConfig(true, 0, 0, 0);
       fail();
     } catch (IllegalArgumentException e) {
       assertThat(e.getMessage()).isEqualTo("Polling interval seconds must be positive, got: 0");
@@ -174,7 +185,7 @@ public class IsolatedReplicaConfigTest {
   @Test
   public void testConstructorWithNegativeInterval() {
     try {
-      new IsolatedReplicaConfig(false, -5, 0);
+      new IsolatedReplicaConfig(false, -5, 0, 0);
       fail();
     } catch (IllegalArgumentException e) {
       assertThat(e.getMessage()).isEqualTo("Polling interval seconds must be positive, got: -5");
@@ -184,11 +195,33 @@ public class IsolatedReplicaConfigTest {
   @Test
   public void testConstructorWithNegativeFreshnessTarget() {
     try {
-      new IsolatedReplicaConfig(true, 120, -10);
+      new IsolatedReplicaConfig(true, 120, -10, 0);
       fail();
     } catch (IllegalArgumentException e) {
       assertThat(e.getMessage())
           .isEqualTo("Freshness target seconds must be non-negative, got: -10");
+    }
+  }
+
+  @Test
+  public void testConstructorWithNegativeFreshnessTargetOffset() {
+    try {
+      new IsolatedReplicaConfig(true, 120, 0, -5);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertThat(e.getMessage())
+          .isEqualTo("Freshness target offset seconds must be non-negative, got: -5");
+    }
+  }
+
+  @Test
+  public void testConstructorWithTooLargeFreshnessTargetOffset() {
+    try {
+      new IsolatedReplicaConfig(true, 120, 0, 86401);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertThat(e.getMessage())
+          .isEqualTo("Freshness target offset seconds must be <= 86400, got: 86401");
     }
   }
 
@@ -204,12 +237,15 @@ public class IsolatedReplicaConfigTest {
     when(mockReader.getBoolean("isolatedReplicaConfig.enabled", false)).thenReturn(true);
     when(mockReader.getInteger("isolatedReplicaConfig.pollingIntervalSeconds", 120)).thenReturn(45);
     when(mockReader.getInteger("isolatedReplicaConfig.freshnessTargetSeconds", 0)).thenReturn(60);
+    when(mockReader.getInteger("isolatedReplicaConfig.freshnessTargetOffsetSeconds", 0))
+        .thenReturn(30);
 
     IsolatedReplicaConfig config = IsolatedReplicaConfig.fromConfig(mockReader);
 
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(45);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(60);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(30);
   }
 
   @Test
@@ -219,12 +255,15 @@ public class IsolatedReplicaConfigTest {
     when(mockReader.getInteger("isolatedReplicaConfig.pollingIntervalSeconds", 120))
         .thenReturn(120);
     when(mockReader.getInteger("isolatedReplicaConfig.freshnessTargetSeconds", 0)).thenReturn(0);
+    when(mockReader.getInteger("isolatedReplicaConfig.freshnessTargetOffsetSeconds", 0))
+        .thenReturn(0);
 
     IsolatedReplicaConfig config = IsolatedReplicaConfig.fromConfig(mockReader);
 
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0);
   }
 
   @Test
@@ -240,6 +279,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isFalse();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0);
   }
 
   @Test
@@ -253,6 +293,7 @@ public class IsolatedReplicaConfigTest {
             "  enabled: true",
             "  pollingIntervalSeconds: 180",
             "  freshnessTargetSeconds: 300",
+            "  freshnessTargetOffsetSeconds: 60",
             "otherConfig:",
             "  someValue: 42");
     IsolatedReplicaConfig config = getConfig(configFile);
@@ -260,6 +301,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(180);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(300);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(60);
   }
 
   @Test
@@ -273,12 +315,14 @@ public class IsolatedReplicaConfigTest {
             "isolatedReplicaConfig:",
             "  enabled: true  # Enable isolated replica",
             "  pollingIntervalSeconds: 300  # Poll every 5 minutes",
-            "  freshnessTargetSeconds: 120  # Allow up to 2 minutes staleness");
+            "  freshnessTargetSeconds: 120  # Allow up to 2 minutes staleness",
+            "  freshnessTargetOffsetSeconds: 30  # Add 30 seconds offset to freshness target");
     IsolatedReplicaConfig config = getConfig(configFile);
 
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(300);
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(120);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(30);
   }
 
   @Test
@@ -290,6 +334,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isFalse(); // default value
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(240); // configured value stored
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -302,6 +347,7 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(240);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
   }
 
   @Test
@@ -327,5 +373,85 @@ public class IsolatedReplicaConfigTest {
     assertThat(config.isEnabled()).isTrue();
     assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
     assertThat(config.getFreshnessTargetSeconds()).isEqualTo(180);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(0); // default value
+  }
+
+  @Test
+  public void testCustomFreshnessTargetOffset() {
+    String configFile =
+        String.join("\n", "isolatedReplicaConfig:", "  freshnessTargetOffsetSeconds: 45");
+    IsolatedReplicaConfig config = getConfig(configFile);
+
+    assertThat(config.isEnabled()).isFalse(); // default value
+    assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
+    assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(45); // configured value stored
+  }
+
+  @Test
+  public void testCustomFreshnessTargetOffsetWithEnabled() {
+    String configFile =
+        String.join(
+            "\n",
+            "isolatedReplicaConfig:",
+            "  enabled: true",
+            "  freshnessTargetOffsetSeconds: 90");
+    IsolatedReplicaConfig config = getConfig(configFile);
+
+    assertThat(config.isEnabled()).isTrue();
+    assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
+    assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(90);
+  }
+
+  @Test
+  public void testCustomFreshnessTargetOffsetTooLarge() {
+    String configFile =
+        String.join(
+            "\n",
+            "isolatedReplicaConfig:",
+            "  enabled: true",
+            "  freshnessTargetOffsetSeconds: 86401");
+    try {
+      getConfig(configFile);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertThat(e.getMessage())
+          .isEqualTo("Freshness target offset seconds must be <= 86400, got: 86401");
+    }
+  }
+
+  @Test
+  public void testStringFreshnessTargetOffset() {
+    String configFile =
+        String.join(
+            "\n",
+            "isolatedReplicaConfig:",
+            "  enabled: true",
+            "  freshnessTargetOffsetSeconds: \"75\"");
+    IsolatedReplicaConfig config = getConfig(configFile);
+
+    assertThat(config.isEnabled()).isTrue();
+    assertThat(config.getPollingIntervalSeconds()).isEqualTo(120); // default value
+    assertThat(config.getFreshnessTargetSeconds()).isEqualTo(0); // default value
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(75);
+  }
+
+  @Test
+  public void testAllCustomValues() {
+    String configFile =
+        String.join(
+            "\n",
+            "isolatedReplicaConfig:",
+            "  enabled: true",
+            "  pollingIntervalSeconds: 60",
+            "  freshnessTargetSeconds: 120",
+            "  freshnessTargetOffsetSeconds: 30");
+    IsolatedReplicaConfig config = getConfig(configFile);
+
+    assertThat(config.isEnabled()).isTrue();
+    assertThat(config.getPollingIntervalSeconds()).isEqualTo(60);
+    assertThat(config.getFreshnessTargetSeconds()).isEqualTo(120);
+    assertThat(config.getFreshnessTargetOffsetSeconds()).isEqualTo(30);
   }
 }

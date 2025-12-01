@@ -1,0 +1,17 @@
+# This workflow will build a Java project with Gradle
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
+
+name: Java CI with Gradle for development branch
+
+on:
+  push:
+    branches: [ development ]
+  pull_request:
+    branches: [ development ]
+
+jobs:
+  build:
+    uses: Yelp/nrtsearch/.github/workflows/gradle.yml@development
+    with:
+      branch: development
+      badge_branch: badge_development
