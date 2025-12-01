@@ -112,7 +112,7 @@ public class RemoteCopyJob extends VisitableCopyJob {
       iter = toCopy.iterator();
       // This means we resumed an already in-progress copy; we do this one first:
       if (current != null) {
-        totBytes += current.getFileMetaData().length();
+        totBytes += current.metaData.length();
       }
       for (Map.Entry<String, FileMetaData> ent : toCopy) {
         FileMetaData metaData = ent.getValue();
@@ -267,7 +267,7 @@ public class RemoteCopyJob extends VisitableCopyJob {
 
     if (current.visit()) {
       // This file is done copying
-      copiedFiles.put(current.getFileName(), current.getFileTmpName());
+      copiedFiles.put(current.name, current.tmpName);
       totBytesCopied += current.getBytesCopied();
       assert totBytesCopied <= totBytes
           : "totBytesCopied=" + totBytesCopied + " totBytes=" + totBytes;

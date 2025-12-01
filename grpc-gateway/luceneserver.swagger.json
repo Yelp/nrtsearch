@@ -4248,6 +4248,11 @@
           "format": "float",
           "title": "Boost multiplier for similarity score"
         },
+        "similarityThreshold": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional similarity threshold to use for filtering results. If set, only results with a similarity score\ngreater than or equal to this value will be returned. If unset, all results are returned.\nNote: This value is specified as the raw similarity, not the normalized/boosted score."
+        },
         "filterStrategy": {
           "$ref": "#/definitions/KnnQueryFilterStrategy",
           "title": "Strategy to use when applying filter"

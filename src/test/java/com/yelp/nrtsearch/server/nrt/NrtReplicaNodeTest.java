@@ -135,21 +135,21 @@ public class NrtReplicaNodeTest {
   @Test
   public void testIsolatedReplicaConfig_disabled() throws IOException {
     NRTReplicaNode replicaNode =
-        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(false, 1, 0), false);
+        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(false, 1, 0, 0), false);
     assertTrue(replicaNode.getCopyJobManager() instanceof GrpcCopyJobManager);
   }
 
   @Test
   public void testIsolatedReplicaConfig_enabled() throws IOException {
     NRTReplicaNode replicaNode =
-        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5, 0), false);
+        getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5, 0, 0), false);
     assertTrue(replicaNode.getCopyJobManager() instanceof RemoteCopyJobManager);
   }
 
   @Test
   public void testIsolatedReplicaConfig_enabledWithPrimary() throws IOException {
     try {
-      getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5, 0), true);
+      getNrtReplicaNodeWithIRConfig(new IsolatedReplicaConfig(true, 5, 0, 0), true);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(

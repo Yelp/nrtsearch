@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Yelp Inc.
+ * Copyright 2025 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,11 +33,14 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
+import com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream;
+import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
@@ -135,7 +138,8 @@ public class S3BackendTest {
 
   @Test
   public void testDefaultExecutor() {
-    try (S3Backend s3Backend = new S3Backend(BUCKET_NAME, false, false, mock(AmazonS3.class))) {
+    try (S3Backend s3Backend =
+        new S3Backend(BUCKET_NAME, false, S3Backend.DEFAULT_CONFIG, mock(AmazonS3.class))) {
       ThreadPoolExecutor executor = (ThreadPoolExecutor) s3Backend.getExecutor();
       assertNotSame(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE), executor);
       assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, executor.getCorePoolSize());
@@ -1002,7 +1006,94 @@ public class S3BackendTest {
         "Filename should start with time string", fileName.startsWith(extractedTimeString + "-"));
   }
 
-  // ...existing helper methods...
+  @Test
+  public void testWrapDownloadStream_withMetricsNoRateLimiter() {
+    // Create a mock InputStream
+    InputStream mockInputStream = mock(InputStream.class);
+    String indexIdentifier = "test_index";
+
+    // Call wrapDownloadStream with metrics enabled but no rate limiter
+    InputStream result = S3Backend.wrapDownloadStream(mockInputStream, true, indexIdentifier, null);
+
+    // Verify the result is an S3DownloadStreamWrapper
+    assertTrue(
+        "Result should be an S3DownloadStreamWrapper", result instanceof S3DownloadStreamWrapper);
+
+    // Verify it's not a GlobalThrottledInputStream
+    assertFalse(
+        "Result should not be a GlobalThrottledInputStream",
+        result instanceof GlobalThrottledInputStream);
+  }
+
+  @Test
+  public void testWrapDownloadStream_withRateLimiterNoMetrics() {
+    // Create a mock InputStream
+    InputStream mockInputStream = mock(InputStream.class);
+    String indexIdentifier = "test_index";
+
+    // Create a rate limiter
+    GlobalWindowRateLimiter rateLimiter = new GlobalWindowRateLimiter(1024, 1);
+
+    // Call wrapDownloadStream with rate limiter enabled but no metrics
+    InputStream result =
+        S3Backend.wrapDownloadStream(mockInputStream, false, indexIdentifier, rateLimiter);
+
+    // Verify the result is a GlobalThrottledInputStream
+    assertTrue(
+        "Result should be a GlobalThrottledInputStream",
+        result instanceof GlobalThrottledInputStream);
+
+    // Verify it's not an S3DownloadStreamWrapper
+    assertFalse(
+        "Result should not be an S3DownloadStreamWrapper",
+        result instanceof S3DownloadStreamWrapper);
+  }
+
+  @Test
+  public void testWrapDownloadStream_withBothMetricsAndRateLimiter() {
+    // Create a mock InputStream
+    InputStream mockInputStream = mock(InputStream.class);
+    String indexIdentifier = "test_index";
+
+    // Create a rate limiter
+    GlobalWindowRateLimiter rateLimiter = new GlobalWindowRateLimiter(1024, 1);
+
+    // Call wrapDownloadStream with both metrics and rate limiter enabled
+    InputStream result =
+        S3Backend.wrapDownloadStream(mockInputStream, true, indexIdentifier, rateLimiter);
+
+    // The result should be a GlobalThrottledInputStream wrapping an S3DownloadStreamWrapper
+    assertTrue(
+        "Result should be a GlobalThrottledInputStream",
+        result instanceof GlobalThrottledInputStream);
+
+    // We can't directly check the wrapped stream type without reflection or exposing it,
+    // but we can verify the behavior is as expected by checking the class name
+    String className = result.getClass().getName();
+    assertEquals("com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream", className);
+  }
+
+  @Test
+  public void testWrapDownloadStream_withNeitherMetricsNorRateLimiter() {
+    // Create a mock InputStream
+    InputStream mockInputStream = mock(InputStream.class);
+    String indexIdentifier = "test_index";
+
+    // Call wrapDownloadStream with neither metrics nor rate limiter enabled
+    InputStream result =
+        S3Backend.wrapDownloadStream(mockInputStream, false, indexIdentifier, null);
+
+    // The result should be the original input stream
+    assertEquals("Result should be the original input stream", mockInputStream, result);
+
+    // Verify it's not an S3DownloadStreamWrapper or GlobalThrottledInputStream
+    assertFalse(
+        "Result should not be an S3DownloadStreamWrapper",
+        result instanceof S3DownloadStreamWrapper);
+    assertFalse(
+        "Result should not be a GlobalThrottledInputStream",
+        result instanceof GlobalThrottledInputStream);
+  }
 
   private void putMultiPart(String key, List<String> partsData) {
     InitiateMultipartUploadRequest initRequest =

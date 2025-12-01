@@ -950,7 +950,7 @@ public class NrtDataManagerTest {
 
     // Test with freshness target of 120 seconds, which should use an update interval of 60 seconds
     when(mockRemoteBackend.downloadPointState(
-            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null)))
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null, 0)))
         .thenReturn(
             new RemoteBackend.InputStreamWithTimestamp(
                 new ByteArrayInputStream(pointStateBytes), nrtPointTimestamp));
@@ -965,7 +965,7 @@ public class NrtDataManagerTest {
         new NrtDataManager(
             SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
     folder.newFile("test_file");
-    IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 60, 120);
+    IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 60, 120, 0);
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath(), config);
 
     Set<String> expectedFiles = Set.of("test_file", "segments_6");
@@ -976,7 +976,7 @@ public class NrtDataManagerTest {
 
     verify(mockRemoteBackend, times(1))
         .downloadPointState(
-            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null));
+            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null, 0));
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
             SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
@@ -1312,13 +1312,13 @@ public class NrtDataManagerTest {
     nrtDataManager.setLastPointState(nrtPointState, testTimestamp);
 
     // Create an isolated replica config with freshness target of 120 seconds
-    IsolatedReplicaConfig isolatedReplicaConfig = new IsolatedReplicaConfig(true, 60, 120);
+    IsolatedReplicaConfig isolatedReplicaConfig = new IsolatedReplicaConfig(true, 60, 120, 0);
 
     // Mock RemoteBackend.downloadPointState to return null (no update needed)
     when(mockRemoteBackend.downloadPointState(
             eq(SERVICE_NAME),
             eq(INDEX_NAME),
-            eq(new RemoteBackend.UpdateIntervalContext(60, testTimestamp))))
+            eq(new RemoteBackend.UpdateIntervalContext(60, testTimestamp, 0))))
         .thenReturn(null);
 
     // Test the method
@@ -1333,7 +1333,9 @@ public class NrtDataManagerTest {
     // Verify the mock interaction
     verify(mockRemoteBackend)
         .downloadPointState(
-            SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, testTimestamp));
+            SERVICE_NAME,
+            INDEX_NAME,
+            new RemoteBackend.UpdateIntervalContext(60, testTimestamp, 0));
     verifyNoMoreInteractions(mockRemoteBackend);
   }
 }
