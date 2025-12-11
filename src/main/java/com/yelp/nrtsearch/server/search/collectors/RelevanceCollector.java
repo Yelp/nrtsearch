@@ -23,10 +23,10 @@ import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MyTopScoreDocCollector;
+import org.apache.lucene.search.MyTopScoreDocCollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 public class RelevanceCollector extends DocCollector {
   private static final Logger logger = LoggerFactory.getLogger(RelevanceCollector.class);
 
-  private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
+  private final CollectorManager<MyTopScoreDocCollector, TopDocs> manager;
 
   public RelevanceCollector(
       CollectorCreatorContext context,
@@ -53,7 +53,7 @@ public class RelevanceCollector extends DocCollector {
     } else if (context.getRequest().getTotalHitsThreshold() != 0) {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
-    manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    manager = new MyTopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
   }
 
   @Override
