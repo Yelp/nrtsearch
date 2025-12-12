@@ -22,6 +22,7 @@ import io.grpc.ManagedChannelBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class for holding configuration information for channel building. Designed to be loadable using
@@ -32,6 +33,9 @@ public class ChannelConfig {
   private Boolean enableRetry;
   private Integer maxHedgedAttempts;
   private Integer maxInboundMessageSize;
+  private Integer keepAliveTimeMs;
+  private Integer keepAliveTimeoutMs;
+  private Boolean keepAliveWithoutCalls;
   private ServiceConfig serviceConfig;
 
   // Deserialization constructor
@@ -49,10 +53,16 @@ public class ChannelConfig {
       Boolean enableRetry,
       Integer maxHedgedAttempts,
       Integer maxInboundMessageSize,
+      Integer keepAliveTimeMs,
+      Integer keepAliveTimeoutMs,
+      Boolean keepAliveWithoutCalls,
       ServiceConfig serviceConfig) {
     this.enableRetry = enableRetry;
     this.maxHedgedAttempts = maxHedgedAttempts;
     this.maxInboundMessageSize = maxInboundMessageSize;
+    this.keepAliveTimeMs = keepAliveTimeMs;
+    this.keepAliveTimeoutMs = keepAliveTimeoutMs;
+    this.keepAliveWithoutCalls = keepAliveWithoutCalls;
     this.serviceConfig = serviceConfig;
   }
 
@@ -66,6 +76,18 @@ public class ChannelConfig {
 
   public Integer getMaxInboundMessageSize() {
     return maxInboundMessageSize;
+  }
+
+  public Integer getKeepAliveTimeMs() {
+    return keepAliveTimeMs;
+  }
+
+  public Integer getKeepAliveTimeoutMs() {
+    return keepAliveTimeoutMs;
+  }
+
+  public Boolean getKeepAliveWithoutCalls() {
+    return keepAliveWithoutCalls;
   }
 
   public ServiceConfig getServiceConfig() {
@@ -93,6 +115,15 @@ public class ChannelConfig {
     }
     if (maxInboundMessageSize != null) {
       builder.maxInboundMessageSize(maxInboundMessageSize);
+    }
+    if (keepAliveTimeMs != null) {
+      builder.keepAliveTime(keepAliveTimeMs, TimeUnit.MILLISECONDS);
+    }
+    if (keepAliveTimeoutMs != null) {
+      builder.keepAliveTimeout(keepAliveTimeoutMs, TimeUnit.MILLISECONDS);
+    }
+    if (keepAliveWithoutCalls != null) {
+      builder.keepAliveWithoutCalls(keepAliveWithoutCalls);
     }
     if (serviceConfig != null) {
       @SuppressWarnings("unchecked")

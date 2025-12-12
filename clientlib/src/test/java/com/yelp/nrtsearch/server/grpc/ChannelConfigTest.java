@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 public class ChannelConfigTest {
@@ -89,6 +90,42 @@ public class ChannelConfigTest {
     config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
 
     verify(mockBuilder, times(1)).maxInboundMessageSize(8388608);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testKeepAliveTimeMs() throws IOException {
+    String configJson = "{\"keepAliveTimeMs\": 30000}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveTime(30000, TimeUnit.MILLISECONDS);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testKeepAliveTimeoutMs() throws IOException {
+    String configJson = "{\"keepAliveTimeoutMs\": 40000}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveTimeout(40000, TimeUnit.MILLISECONDS);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testKeepAliveWithoutCalls() throws IOException {
+    String configJson = "{\"keepAliveWithoutCalls\": true}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveWithoutCalls(true);
     verifyNoMoreInteractions(mockBuilder);
   }
 
