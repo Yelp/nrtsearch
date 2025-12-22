@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.nrt;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
@@ -27,6 +28,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -64,6 +66,18 @@ public class NRTPrimaryNode extends PrimaryNode {
   final List<MergePreCopy> warmingSegments = Collections.synchronizedList(new ArrayList<>());
   final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue<>();
 
+  private long preRefreshVersion = -1;
+  private Instant refreshTimestamp;
+  private Instant indexVersionTimestamp;
+
+  /**
+   * Class to hold a copy state and its timestamp
+   *
+   * @param copyState lucene copy state
+   * @param timestamp timestamp
+   */
+  public record CopyStateAndTimestamp(CopyState copyState, Instant timestamp) {}
+
   public NRTPrimaryNode(
       IndexStateManager indexStateManager,
       HostPort hostPort,
@@ -80,6 +94,8 @@ public class NRTPrimaryNode extends PrimaryNode {
     this.indexName = indexStateManager.getCurrent().getName();
     this.indexStateManager = indexStateManager;
     this.nrtDataManager = nrtDataManager;
+    // initialize timestamp to that of index data loaded from the backend
+    setIndexVersionTimestamp(nrtDataManager.getLastPointTimestamp());
   }
 
   /**
@@ -583,5 +599,81 @@ public class NRTPrimaryNode extends PrimaryNode {
   @Override
   public FileMetaData readLocalFileMetaData(String fileName) throws IOException {
     return NrtUtils.readOnceLocalFileMetaData(fileName, lastFileMetaData, this);
+  }
+
+  @VisibleForTesting
+  synchronized void setPreRefreshVersion(long preRefreshVersion) {
+    this.preRefreshVersion = preRefreshVersion;
+  }
+
+  @VisibleForTesting
+  synchronized long getPreRefreshVersion() {
+    return preRefreshVersion;
+  }
+
+  @VisibleForTesting
+  synchronized void setRefreshTimestamp(Instant refreshTimestamp) {
+    this.refreshTimestamp = refreshTimestamp;
+  }
+
+  @VisibleForTesting
+  synchronized Instant getRefreshTimestamp() {
+    return refreshTimestamp;
+  }
+
+  @VisibleForTesting
+  synchronized void setIndexVersionTimestamp(Instant indexVersionTimestamp) {
+    this.indexVersionTimestamp = indexVersionTimestamp;
+  }
+
+  @VisibleForTesting
+  synchronized Instant getIndexVersionTimestamp() {
+    return indexVersionTimestamp;
+  }
+
+  /**
+   * Function that wraps the call to the super method and updates the index version timestamp.
+   *
+   * @return true if the index version changed
+   * @throws IOException
+   */
+  @Override
+  public boolean flushAndRefresh() throws IOException {
+    synchronized (this) {
+      // get the loaded index version before the refresh
+      setPreRefreshVersion(getCopyStateVersion());
+      // create a new timestamp to use for any index version created by this refresh
+      setRefreshTimestamp(Instant.now());
+    }
+
+    boolean refreshed = super.flushAndRefresh();
+
+    synchronized (this) {
+      // if the index version was updated, also update the main timestamp
+      if (refreshed) {
+        setIndexVersionTimestamp(getRefreshTimestamp());
+      }
+      // reset version to indicate no refresh in progress
+      setPreRefreshVersion(-1);
+    }
+    return refreshed;
+  }
+
+  /**
+   * Get the copy state representing the currently loaded index version, and its timestamp.
+   *
+   * @return copy state and timestamp
+   * @throws IOException
+   */
+  public synchronized CopyStateAndTimestamp getCopyStateAndTimestamp() throws IOException {
+    CopyState copyState = getCopyState();
+    Instant timestamp;
+    if (getPreRefreshVersion() != -1 && copyState.version() > getPreRefreshVersion()) {
+      // the index version has changed, but the timestamp is not updated yet, use the refresh value
+      timestamp = getRefreshTimestamp();
+    } else {
+      timestamp = getIndexVersionTimestamp();
+    }
+    return new CopyStateAndTimestamp(copyState, timestamp);
   }
 }

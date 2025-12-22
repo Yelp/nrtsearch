@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.slf4j.Logger;
@@ -65,19 +66,19 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
       throw new RuntimeException("RecvCopyStateHandler invoked with Invalid Magic Number");
     }
     NRTPrimaryNode primaryNode = shardState.nrtPrimaryNode;
-    org.apache.lucene.replicator.nrt.CopyState copyState = null;
+    NRTPrimaryNode.CopyStateAndTimestamp copyStateAndTimestamp = null;
     try {
       // Caller does not have CopyState; we pull the latest NRT point:
-      copyState = primaryNode.getCopyState();
-      return RecvCopyStateHandler.writeCopyState(copyState);
+      copyStateAndTimestamp = primaryNode.getCopyStateAndTimestamp();
+      return RecvCopyStateHandler.writeCopyState(copyStateAndTimestamp);
     } catch (IOException e) {
       primaryNode.message("top: exception during fetch: " + e.getMessage());
       throw new RuntimeException(e);
     } finally {
-      if (copyState != null) {
+      if (copyStateAndTimestamp != null) {
         primaryNode.message("top: fetch: now release CopyState");
         try {
-          primaryNode.releaseCopyState(copyState);
+          primaryNode.releaseCopyState(copyStateAndTimestamp.copyState());
         } catch (IOException e) {
           throw new RuntimeException(e);
         }
@@ -85,8 +86,9 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
     }
   }
 
-  private static CopyState writeCopyState(org.apache.lucene.replicator.nrt.CopyState state)
-      throws IOException {
+  private static CopyState writeCopyState(
+      NRTPrimaryNode.CopyStateAndTimestamp copyStateAndTimestamp) throws IOException {
+    org.apache.lucene.replicator.nrt.CopyState state = copyStateAndTimestamp.copyState();
     CopyState.Builder builder = CopyState.newBuilder();
     builder.setInfoBytesLength(state.infosBytes().length);
     builder.setInfoBytes(ByteString.copyFrom(state.infosBytes(), 0, state.infosBytes().length));
@@ -104,6 +106,11 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
     }
 
     builder.setPrimaryGen(state.primaryGen());
+
+    // If this index version has a timestamp, add it to the response
+    Instant timestamp = copyStateAndTimestamp.timestamp();
+    long timestampSeconds = timestamp != null ? timestamp.getEpochSecond() : 0;
+    builder.setTimestampSec(timestampSeconds);
 
     return builder.build();
   }
