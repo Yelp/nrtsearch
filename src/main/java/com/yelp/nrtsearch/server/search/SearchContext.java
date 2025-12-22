@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.retrievers.RetrieverContext;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +51,7 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
+  private final List<RetrieverContext> retrieverContexts;
 
   public enum VectorScoringMode {
     NONE,
@@ -80,6 +82,7 @@ public class SearchContext implements FieldFetchContext {
     this.queryNestedPath = builder.queryNestedPath;
     this.explain = builder.explain;
     this.warming = builder.warming;
+    this.retrieverContexts = builder.retrieverContexts;
 
     if (validate) {
       validate();
@@ -188,6 +191,10 @@ public class SearchContext implements FieldFetchContext {
     return queryNestedPath;
   }
 
+  public List<RetrieverContext> getRetrieverContexts() {
+    return retrieverContexts;
+  }
+
   /** Get the boolean flat whether to return the lucene explain */
   @Override
   public boolean isExplain() {
@@ -256,6 +263,7 @@ public class SearchContext implements FieldFetchContext {
     private String queryNestedPath;
     private boolean explain;
     private boolean warming;
+    private List<RetrieverContext> retrieverContexts;
 
     private Builder() {}
 
@@ -369,6 +377,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setWarming(boolean warming) {
       this.warming = warming;
+      return this;
+    }
+
+    public Builder setretrieverContexts(List<RetrieverContext> retrieverContexts) {
+      this.retrieverContexts = retrieverContexts;
       return this;
     }
 

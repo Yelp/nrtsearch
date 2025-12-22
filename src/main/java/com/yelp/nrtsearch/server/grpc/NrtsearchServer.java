@@ -66,6 +66,7 @@ import com.yelp.nrtsearch.server.handler.RegisterFieldsHandler;
 import com.yelp.nrtsearch.server.handler.ReleaseSnapshotHandler;
 import com.yelp.nrtsearch.server.handler.ReloadStateHandler;
 import com.yelp.nrtsearch.server.handler.ReplicaCurrentSearchingVersionHandler;
+import com.yelp.nrtsearch.server.handler.RetrieverHandler;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.handler.SearchV2Handler;
 import com.yelp.nrtsearch.server.handler.SendRawFileHandler;
@@ -358,6 +359,7 @@ public class NrtsearchServer {
     private final ReloadStateHandler reloadStateHandler;
     private final SearchHandler searchHandler;
     private final SearchV2Handler searchV2Handler;
+    private final RetrieverHandler retrieverHandler;
     private final SettingsHandler settingsHandler;
     private final SettingsV2Handler settingsV2Handler;
     private final StartIndexHandler startIndexHandler;
@@ -424,6 +426,7 @@ public class NrtsearchServer {
       reloadStateHandler = new ReloadStateHandler(globalState);
       searchHandler = new SearchHandler(globalState);
       searchV2Handler = new SearchV2Handler(globalState, searchHandler);
+      retrieverHandler = new RetrieverHandler(globalState);
       settingsHandler = new SettingsHandler(globalState);
       settingsV2Handler = new SettingsV2Handler(globalState);
       startIndexHandler = new StartIndexHandler(globalState);
@@ -578,6 +581,13 @@ public class NrtsearchServer {
     public void searchV2(
         SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
       searchV2Handler.handle(searchRequest, searchResponseStreamObserver);
+    }
+
+    @Override
+    public void multiRetrievers(
+        SearchRequest searchRequest, StreamObserver<SearchResponse> responseObserver) {
+
+      retrieverHandler.handle(searchRequest, responseObserver);
     }
 
     @Override

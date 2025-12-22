@@ -785,6 +785,40 @@ message SearchRequest {
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using
     // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
+    repeated Retriever retrievers = 32;
+    Blender blender = 33;
+}
+
+message Retriever {
+  enum JoinMethod{
+    OR = 0;
+    AND = 1;
+  }
+
+  oneof retrieve_method{
+    Query query = 1;
+    KnnQuery knn_query = 2;
+  }
+  string query_nested_path = 3;
+  int32 start_hit = 4;
+  int32 top_hits = 5;
+  JoinMethod join_method = 6;
+}
+
+message Blender {
+  message AddAll {
+    bool score_order = 1;
+  }
+  message Linear {
+    repeated float coefficients = 1;
+  }
+
+  oneof BlenderType{
+    AddAll add_all = 1;
+    Linear linear = 2;
+  }
+  int32 start_hit = 3;
+  int32 top_hits = 4;
 }
 
 // Last Hit info for search after

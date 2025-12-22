@@ -30,6 +30,7 @@ import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
+import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.RuntimeField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -60,6 +61,7 @@ import com.yelp.nrtsearch.server.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.search.retrievers.RetrieverContext;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,6 +172,26 @@ public class SearchRequestProcessor {
       profileResult.setRewrittenQuery(query.toString());
     }
 
+    List<RetrieverContext> retrieverContexts = new ArrayList<>();
+    for (Retriever retriever : searchRequest.getRetrieversList()) {
+      Query retrieverQuery =
+          // TODO: do not wrap with DrillDownQuery for facets
+          // TODO: support knn
+          extractQuery(
+              indexState, "", retriever.getQuery(), retriever.getQueryNestedPath(), docLookup);
+      RetrieverContext retrieverContext =
+          new RetrieverContext(
+              retrieverQuery,
+              retriever.getQueryNestedPath(),
+              retriever.getStartHit(),
+              retriever.getTopHits(),
+              retriever.getJoinMethod());
+      retrieverContexts.add(retrieverContext);
+    }
+    if (!retrieverContexts.isEmpty()) {
+      contextBuilder.setretrieverContexts(retrieverContexts);
+    }
+
     Highlight highlight = searchRequest.getHighlight();
     HighlightFetchTask highlightFetchTask = null;
     if (!highlight.getFieldsList().isEmpty()) {
@@ -244,13 +266,6 @@ public class SearchRequestProcessor {
         queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
       }
       query = queryBuilder.build();
-    }
-
-    if (searchRequest.getFacetsCount() > 0) {
-      query = addDrillDowns(indexState, query);
-      if (profileResult != null) {
-        profileResult.setDrillDownQuery(query.toString());
-      }
     }
 
     contextBuilder.setQuery(query);
@@ -555,7 +570,7 @@ public class SearchRequestProcessor {
   }
 
   /** Fold in any drillDowns requests into the query. */
-  private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
+  public static DrillDownQuery addDrillDowns(IndexState state, Query q) {
     return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 

@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.handler;
 
+import static com.yelp.nrtsearch.server.search.SearchRequestProcessor.addDrillDowns;
+
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -80,13 +82,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
-  private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
-  private static final Printer protoMessagePrinter =
+  private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
+
+  protected static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
+  protected static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
 
-  private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
-  private final ExecutorService searchExecutor;
-  private final boolean warming;
+  protected final ExecutorService searchExecutor;
+  protected final boolean warming;
 
   public SearchHandler(GlobalState globalState) {
     super(globalState);
@@ -176,7 +179,11 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       SearcherResult searcherResult;
       if (!searchRequest.getFacetsList().isEmpty()) {
-        DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
+
+        DrillDownQuery drillDownQuery = addDrillDowns(indexState, searchContext.getQuery());
+        if (profileResultBuilder != null) {
+          profileResultBuilder.setDrillDownQuery(drillDownQuery.toString());
+        }
 
         List<FacetResult> grpcFacetResults = new ArrayList<>();
         // Run the drill sideways search on the direct executor to run subtasks in the
@@ -200,7 +207,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
         try {
           concurrentDrillSidewaysResult =
-              drillS.search(ddq, searchContext.getCollector().getWrappedManager());
+              drillS.search(drillDownQuery, searchContext.getCollector().getWrappedManager());
         } catch (RuntimeException e) {
           // Searching with DrillSideways wraps exceptions in a few layers.
           // Try to find if this was caused by a timeout, if so, re-wrap
@@ -385,7 +392,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @throws ExecutionException on error when performing parallel fetch
    * @throws InterruptedException if parallel fetch is interrupted
    */
-  private void fetchFields(SearchContext searchContext)
+  protected void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
       // call log even when there is no hits.
@@ -543,7 +550,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *
    * @param context search context
    */
-  private static void setResponseTopHits(SearchContext context) {
+  protected static void setResponseTopHits(SearchContext context) {
     while (context.getResponseBuilder().getHitsCount()
         > context.getTopHits() - context.getStartHit()) {
       int hitLastIdx = context.getResponseBuilder().getHitsCount() - 1;
@@ -559,7 +566,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @param context search context
    * @param hits hits from query
    */
-  private static void setResponseHits(SearchContext context, TopDocs hits) {
+  protected static void setResponseHits(SearchContext context, TopDocs hits) {
     TotalHits totalHits =
         TotalHits.newBuilder()
             .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation().name()))
@@ -1221,7 +1228,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *
    * @return found exception instance or null
    */
-  private static CollectionTimeoutException findTimeoutException(Throwable e) {
+  protected static CollectionTimeoutException findTimeoutException(Throwable e) {
     if (e instanceof CollectionTimeoutException) {
       return (CollectionTimeoutException) e;
     }

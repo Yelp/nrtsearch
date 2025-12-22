@@ -1,0 +1,32 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "field_A",
+      "type": "TEXT",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "field_B",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "field_C",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true
+    }
+  ]
+}

@@ -177,6 +177,13 @@ service LuceneServer {
         };
     }
 
+    rpc multiRetrievers (SearchRequest) returns (SearchResponse){
+      option (google.api.http) = {
+      post: "/v1/multiRetrievers"
+          body: "*"
+          };
+    }
+
     // Delete documents from an index. Changes are not durable until after the next successful @commit call.
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
