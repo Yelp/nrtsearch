@@ -129,8 +129,8 @@ public class NrtDataManager implements Closeable {
     return lastPointState;
   }
 
-  @VisibleForTesting
-  Instant getLastPointTimestamp() {
+  /** Get the timestamp associated with the last loaded index version */
+  public Instant getLastPointTimestamp() {
     return lastPointTimestamp;
   }
 

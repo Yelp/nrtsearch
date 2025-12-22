@@ -19,8 +19,10 @@ import com.yelp.nrtsearch.server.grpc.FileInfo;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
@@ -42,7 +44,7 @@ import org.slf4j.LoggerFactory;
 public class SimpleCopyJob extends VisitableCopyJob {
   private static final Logger logger = LoggerFactory.getLogger(SimpleCopyJob.class);
 
-  private final CopyState copyState;
+  private final NRTPrimaryNode.CopyStateAndTimestamp copyStateAndTimestamp;
   private final ReplicationServerClient primaryAddres;
   private final String indexName;
   private final String indexId;
@@ -52,7 +54,7 @@ public class SimpleCopyJob extends VisitableCopyJob {
   public SimpleCopyJob(
       String reason,
       ReplicationServerClient primaryAddress,
-      CopyState copyState,
+      NRTPrimaryNode.CopyStateAndTimestamp copyStateAndTimestamp,
       ReplicaNode dest,
       Map<String, FileMetaData> files,
       boolean highPriority,
@@ -62,7 +64,7 @@ public class SimpleCopyJob extends VisitableCopyJob {
       boolean ackedCopy)
       throws IOException {
     super(reason, files, dest, highPriority, onceDone);
-    this.copyState = copyState;
+    this.copyStateAndTimestamp = copyStateAndTimestamp;
     this.primaryAddres = primaryAddress;
     this.indexName = indexName;
     this.indexId = indexId;
@@ -189,7 +191,12 @@ public class SimpleCopyJob extends VisitableCopyJob {
 
   @Override
   public CopyState getCopyState() {
-    return copyState;
+    return copyStateAndTimestamp != null ? copyStateAndTimestamp.copyState() : null;
+  }
+
+  /** Get the index version timestamp, or null if no timestamp is available. */
+  public Instant getTimestamp() {
+    return copyStateAndTimestamp != null ? copyStateAndTimestamp.timestamp() : null;
   }
 
   @Override

@@ -2821,6 +2821,11 @@
           "type": "string",
           "format": "int64",
           "title": "Primary generation"
+        },
+        "timestampSec": {
+          "type": "string",
+          "format": "int64",
+          "title": "Timestamp for this index version (epoch seconds), may be 0 for no timestamp"
         }
       },
       "title": "Holds incRef'd file level details for one point-in-time segment infos on the primary node"

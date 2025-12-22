@@ -18,9 +18,11 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 import static com.yelp.nrtsearch.server.nrt.NrtUtils.readFilesMetaData;
 
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +74,7 @@ public class GrpcCopyJobManager implements CopyJobManager {
           "Cannot create new copy job, primary connection not available");
     }
 
-    CopyState copyState;
+    NRTPrimaryNode.CopyStateAndTimestamp copyStateAndTimestamp;
 
     // sendMeFiles(?) (we dont need this, just send Index,replica, and request for copy State)
     if (files == null) {
@@ -80,18 +82,18 @@ public class GrpcCopyJobManager implements CopyJobManager {
       try {
         // Exceptions in here mean something went wrong talking over the socket, which are fine
         // (e.g. primary node crashed):
-        copyState = getCopyStateFromPrimary();
+        copyStateAndTimestamp = getCopyStateFromPrimary();
       } catch (Throwable t) {
         throw new NodeCommunicationException("exc while reading files to copy", t);
       }
-      files = copyState.files();
+      files = copyStateAndTimestamp.copyState().files();
     } else {
-      copyState = null;
+      copyStateAndTimestamp = null;
     }
     return new SimpleCopyJob(
         reason,
         primaryAddress,
-        copyState,
+        copyStateAndTimestamp,
         replicaNode,
         files,
         highPriority,
@@ -104,15 +106,15 @@ public class GrpcCopyJobManager implements CopyJobManager {
   @Override
   public void finishNRTCopy(CopyJob copyJob) throws IOException {}
 
-  private CopyState getCopyStateFromPrimary() throws IOException {
+  private NRTPrimaryNode.CopyStateAndTimestamp getCopyStateFromPrimary() throws IOException {
     com.yelp.nrtsearch.server.grpc.CopyState copyState =
         primaryAddress.recvCopyState(indexName, indexId, replicaId);
     return readCopyState(copyState);
   }
 
   /** Pulls CopyState off the wire */
-  private static CopyState readCopyState(com.yelp.nrtsearch.server.grpc.CopyState copyState)
-      throws IOException {
+  private static NRTPrimaryNode.CopyStateAndTimestamp readCopyState(
+      com.yelp.nrtsearch.server.grpc.CopyState copyState) throws IOException {
 
     // Decode a new CopyState
     byte[] infosBytes = new byte[copyState.getInfoBytesLength()];
@@ -125,7 +127,11 @@ public class GrpcCopyJobManager implements CopyJobManager {
     Set<String> completedMergeFiles = new HashSet<>(copyState.getCompletedMergeFilesList());
     long primaryGen = copyState.getPrimaryGen();
 
-    return new CopyState(files, version, gen, infosBytes, completedMergeFiles, primaryGen, null);
+    CopyState luceneCopyState =
+        new CopyState(files, version, gen, infosBytes, completedMergeFiles, primaryGen, null);
+    Instant timestamp =
+        copyState.getTimestampSec() > 0 ? Instant.ofEpochMilli(copyState.getTimestampSec()) : null;
+    return new NRTPrimaryNode.CopyStateAndTimestamp(luceneCopyState, timestamp);
   }
 
   @Override

@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,9 +31,11 @@ import static org.mockito.Mockito.when;
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob.FileChunkStreamingIterator;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -51,6 +54,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class SimpleCopyJobTest {
 
   @Mock private ReplicationServerClient mockPrimaryAddress;
+  @Mock private NRTPrimaryNode.CopyStateAndTimestamp mockCopyStateAndTimestamp;
   @Mock private CopyState mockCopyState;
   @Mock private ReplicaNode mockReplicaNode;
   @Mock private Directory mockDirectory;
@@ -64,6 +68,7 @@ public class SimpleCopyJobTest {
   public void setUp() {
     testFiles = createTestFiles();
     when(mockReplicaNode.getDirectory()).thenReturn(mockDirectory);
+    when(mockCopyStateAndTimestamp.copyState()).thenReturn(mockCopyState);
   }
 
   @Test
@@ -272,6 +277,80 @@ public class SimpleCopyJobTest {
     assertEquals(mockCopyOneFile, result);
   }
 
+  // Tests for getTimestamp method
+
+  @Test
+  public void testGetTimestamp_withValidTimestamp() throws IOException {
+    Instant expectedTimestamp = Instant.now();
+    when(mockCopyStateAndTimestamp.timestamp()).thenReturn(expectedTimestamp);
+
+    SimpleCopyJob copyJob = createSimpleCopyJob();
+
+    Instant actualTimestamp = copyJob.getTimestamp();
+
+    assertEquals(expectedTimestamp, actualTimestamp);
+  }
+
+  @Test
+  public void testGetTimestamp_withNullTimestamp() throws IOException {
+    when(mockCopyStateAndTimestamp.timestamp()).thenReturn(null);
+
+    SimpleCopyJob copyJob = createSimpleCopyJob();
+
+    Instant actualTimestamp = copyJob.getTimestamp();
+
+    assertNull(actualTimestamp);
+  }
+
+  @Test
+  public void testGetTimestamp_withNullCopyStateAndTimestamp() throws IOException {
+    SimpleCopyJob copyJob =
+        new SimpleCopyJob(
+            "test_reason",
+            mockPrimaryAddress,
+            null, // null copyStateAndTimestamp
+            mockReplicaNode,
+            testFiles,
+            false,
+            mockOnceDone,
+            testIndexName,
+            testIndexId,
+            false);
+
+    Instant actualTimestamp = copyJob.getTimestamp();
+
+    assertNull(actualTimestamp);
+  }
+
+  @Test
+  public void testGetTimestamp_withSpecificTimestamp() throws IOException {
+    // Test with a specific timestamp to ensure exact matching
+    Instant specificTimestamp = Instant.parse("2023-12-19T10:15:30.00Z");
+    when(mockCopyStateAndTimestamp.timestamp()).thenReturn(specificTimestamp);
+
+    SimpleCopyJob copyJob = createSimpleCopyJob();
+
+    Instant actualTimestamp = copyJob.getTimestamp();
+
+    assertEquals(specificTimestamp, actualTimestamp);
+    assertEquals("2023-12-19T10:15:30Z", actualTimestamp.toString());
+  }
+
+  @Test
+  public void testGetTimestamp_multipleCallsReturnSameValue() throws IOException {
+    Instant expectedTimestamp = Instant.now();
+    when(mockCopyStateAndTimestamp.timestamp()).thenReturn(expectedTimestamp);
+
+    SimpleCopyJob copyJob = createSimpleCopyJob();
+
+    Instant firstCall = copyJob.getTimestamp();
+    Instant secondCall = copyJob.getTimestamp();
+
+    assertEquals(expectedTimestamp, firstCall);
+    assertEquals(expectedTimestamp, secondCall);
+    assertEquals(firstCall, secondCall);
+  }
+
   // Tests for FileChunkStreamingIterator inner class
 
   @Test
@@ -397,7 +476,7 @@ public class SimpleCopyJobTest {
     return new SimpleCopyJob(
         reason,
         mockPrimaryAddress,
-        mockCopyState,
+        mockCopyStateAndTimestamp,
         mockReplicaNode,
         files,
         highPriority,
