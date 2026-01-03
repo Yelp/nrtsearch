@@ -902,7 +902,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           }
         }
 
-          // retrieve stored fields
+        // retrieve stored fields
         case IndexableFieldDef<?> indexableFieldDef when indexableFieldDef.isStored() -> {
           IndexableField[] values =
               storedFields.document(hit.getLuceneDocId(), Set.of(field)).getFields(field);

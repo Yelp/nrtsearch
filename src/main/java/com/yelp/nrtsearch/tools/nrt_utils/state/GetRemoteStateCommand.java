@@ -96,7 +96,7 @@ public class GetRemoteStateCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, s3Client);
+    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
     String resolvedResourceName =
         StateCommandUtils.getResourceName(s3Backend, serviceName, resourceName, exactResourceName);
 

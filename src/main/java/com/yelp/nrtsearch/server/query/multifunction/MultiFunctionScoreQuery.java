@@ -345,11 +345,17 @@ public class MultiFunctionScoreQuery extends Query {
     private final float minScore;
     private float curScore;
     private final boolean minExcluded;
+    private final float boost;
 
     public MinScoreWrapper(Scorer in, float minScore, boolean minExcluded) {
+      this(in, minScore, minExcluded, 1.0f);
+    }
+
+    public MinScoreWrapper(Scorer in, float minScore, boolean minExcluded, float boost) {
       this.in = in;
       this.minScore = minScore;
       this.minExcluded = minExcluded;
+      this.boost = boost;
     }
 
     @Override
@@ -399,7 +405,7 @@ public class MultiFunctionScoreQuery extends Query {
 
     @Override
     public float score() throws IOException {
-      return curScore;
+      return curScore * boost;
     }
 
     @Override

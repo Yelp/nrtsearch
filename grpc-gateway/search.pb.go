@@ -1000,6 +1000,54 @@ func (Highlight_Type) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{70, 0}
 }
 
+type KnnQuery_FilterStrategy int32
+
+const (
+	// Compare against all vector neighbors, keeping only those that match the filter (default)
+	KnnQuery_FANOUT KnnQuery_FilterStrategy = 0
+	// Compare only against vector neighbors that match the filter
+	KnnQuery_ACORN KnnQuery_FilterStrategy = 1
+)
+
+// Enum value maps for KnnQuery_FilterStrategy.
+var (
+	KnnQuery_FilterStrategy_name = map[int32]string{
+		0: "FANOUT",
+		1: "ACORN",
+	}
+	KnnQuery_FilterStrategy_value = map[string]int32{
+		"FANOUT": 0,
+		"ACORN":  1,
+	}
+)
+
+func (x KnnQuery_FilterStrategy) Enum() *KnnQuery_FilterStrategy {
+	p := new(KnnQuery_FilterStrategy)
+	*p = x
+	return p
+}
+
+func (x KnnQuery_FilterStrategy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (KnnQuery_FilterStrategy) Descriptor() protoreflect.EnumDescriptor {
+	return file_yelp_nrtsearch_search_proto_enumTypes[17].Descriptor()
+}
+
+func (KnnQuery_FilterStrategy) Type() protoreflect.EnumType {
+	return &file_yelp_nrtsearch_search_proto_enumTypes[17]
+}
+
+func (x KnnQuery_FilterStrategy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use KnnQuery_FilterStrategy.Descriptor instead.
+func (KnnQuery_FilterStrategy) EnumDescriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{71, 0}
+}
+
 // A clause in a BooleanQuery.
 type BooleanClause struct {
 	state         protoimpl.MessageState
@@ -7297,6 +7345,12 @@ type KnnQuery struct {
 	QueryByteVector []byte `protobuf:"bytes,6,opt,name=query_byte_vector,json=queryByteVector,proto3" json:"query_byte_vector,omitempty"`
 	// Boost multiplier for similarity score
 	Boost float32 `protobuf:"fixed32,7,opt,name=boost,proto3" json:"boost,omitempty"`
+	// Optional similarity threshold to use for filtering results. If set, only results with a similarity score
+	// greater than or equal to this value will be returned. If unset, all results are returned.
+	// Note: This value is specified as the raw similarity, not the normalized/boosted score.
+	SimilarityThreshold *float32 `protobuf:"fixed32,8,opt,name=similarityThreshold,proto3,oneof" json:"similarityThreshold,omitempty"`
+	// Strategy to use when applying filter
+	FilterStrategy KnnQuery_FilterStrategy `protobuf:"varint,9,opt,name=filter_strategy,json=filterStrategy,proto3,enum=luceneserver.KnnQuery_FilterStrategy" json:"filter_strategy,omitempty"`
 }
 
 func (x *KnnQuery) Reset() {
@@ -7378,6 +7432,20 @@ func (x *KnnQuery) GetBoost() float32 {
 		return x.Boost
 	}
 	return 0
+}
+
+func (x *KnnQuery) GetSimilarityThreshold() float32 {
+	if x != nil && x.SimilarityThreshold != nil {
+		return *x.SimilarityThreshold
+	}
+	return 0
+}
+
+func (x *KnnQuery) GetFilterStrategy() KnnQuery_FilterStrategy {
+	if x != nil {
+		return x.FilterStrategy
+	}
+	return KnnQuery_FANOUT
 }
 
 // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset.
@@ -11126,7 +11194,7 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x54, 0x79, 0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x45, 0x46, 0x41, 0x55, 0x4c, 0x54, 0x10,
 	0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x46, 0x41, 0x53, 0x54, 0x5f, 0x56, 0x45, 0x43, 0x54, 0x4f, 0x52,
 	0x10, 0x01, 0x12, 0x09, 0x0a, 0x05, 0x50, 0x4c, 0x41, 0x49, 0x4e, 0x10, 0x02, 0x12, 0x0a, 0x0a,
-	0x06, 0x43, 0x55, 0x53, 0x54, 0x4f, 0x4d, 0x10, 0x03, 0x22, 0xe7, 0x01, 0x0a, 0x08, 0x4b, 0x6e,
+	0x06, 0x43, 0x55, 0x53, 0x54, 0x4f, 0x4d, 0x10, 0x03, 0x22, 0xaf, 0x03, 0x0a, 0x08, 0x4b, 0x6e,
 	0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x12, 0x2b, 0x0a, 0x06,
 	0x66, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x6c,
@@ -11141,70 +11209,82 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x76, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0f, 0x71, 0x75,
 	0x65, 0x72, 0x79, 0x42, 0x79, 0x74, 0x65, 0x56, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x12, 0x14, 0x0a,
 	0x05, 0x62, 0x6f, 0x6f, 0x73, 0x74, 0x18, 0x07, 0x20, 0x01, 0x28, 0x02, 0x52, 0x05, 0x62, 0x6f,
-	0x6f, 0x73, 0x74, 0x2a, 0x25, 0x0a, 0x0d, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x4f, 0x70, 0x65, 0x72,
-	0x61, 0x74, 0x6f, 0x72, 0x12, 0x0a, 0x0a, 0x06, 0x53, 0x48, 0x4f, 0x55, 0x4c, 0x44, 0x10, 0x00,
-	0x12, 0x08, 0x0a, 0x04, 0x4d, 0x55, 0x53, 0x54, 0x10, 0x01, 0x2a, 0x95, 0x01, 0x0a, 0x0d, 0x52,
-	0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x12, 0x12, 0x0a, 0x0e,
-	0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x10, 0x00,
-	0x12, 0x1a, 0x0a, 0x16, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f,
-	0x52, 0x45, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10, 0x01, 0x12, 0x13, 0x0a, 0x0f,
-	0x53, 0x43, 0x4f, 0x52, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10,
-	0x02, 0x12, 0x1b, 0x0a, 0x17, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42,
-	0x4c, 0x45, 0x4e, 0x44, 0x45, 0x44, 0x5f, 0x46, 0x52, 0x45, 0x51, 0x53, 0x10, 0x03, 0x12, 0x13,
-	0x0a, 0x0f, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4f, 0x4f, 0x53,
-	0x54, 0x10, 0x04, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53,
-	0x10, 0x05, 0x2a, 0x38, 0x0a, 0x13, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e,
-	0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x52, 0x45,
-	0x46, 0x49, 0x58, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x46,
-	0x55, 0x5a, 0x5a, 0x59, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x2a, 0xb0, 0x01, 0x0a,
-	0x0a, 0x52, 0x65, 0x67, 0x65, 0x78, 0x70, 0x46, 0x6c, 0x61, 0x67, 0x12, 0x0e, 0x0a, 0x0a, 0x52,
-	0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4c, 0x4c, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x52,
-	0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4e, 0x59, 0x53, 0x54, 0x52, 0x49, 0x4e, 0x47, 0x10,
-	0x01, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x55, 0x54, 0x4f,
-	0x4d, 0x41, 0x54, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x15, 0x0a, 0x11, 0x52, 0x45, 0x47, 0x45, 0x58,
-	0x50, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x4d, 0x45, 0x4e, 0x54, 0x10, 0x03, 0x12, 0x10,
-	0x0a, 0x0c, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x45, 0x4d, 0x50, 0x54, 0x59, 0x10, 0x04,
-	0x12, 0x17, 0x0a, 0x13, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52,
-	0x53, 0x45, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x05, 0x12, 0x13, 0x0a, 0x0f, 0x52, 0x45, 0x47,
-	0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x56, 0x41, 0x4c, 0x10, 0x06, 0x12, 0x0f,
-	0x0a, 0x0b, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x07, 0x2a,
-	0xa6, 0x03, 0x0a, 0x09, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a,
-	0x04, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x42, 0x4f, 0x4f, 0x4c, 0x45,
-	0x41, 0x4e, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x48,
-	0x52, 0x41, 0x53, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x02, 0x12, 0x18, 0x0a, 0x14,
-	0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51,
-	0x55, 0x45, 0x52, 0x59, 0x10, 0x03, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x51,
-	0x55, 0x45, 0x52, 0x59, 0x10, 0x04, 0x12, 0x15, 0x0a, 0x11, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x49,
-	0x4e, 0x5f, 0x53, 0x45, 0x54, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x05, 0x12, 0x13, 0x0a,
-	0x0f, 0x44, 0x49, 0x53, 0x4a, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d, 0x41, 0x58,
-	0x10, 0x06, 0x12, 0x09, 0x0a, 0x05, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x07, 0x12, 0x10, 0x0a,
-	0x0c, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x10, 0x08, 0x12,
-	0x0f, 0x0a, 0x0b, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x5f, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x09,
-	0x12, 0x09, 0x0a, 0x05, 0x52, 0x41, 0x4e, 0x47, 0x45, 0x10, 0x0a, 0x12, 0x14, 0x0a, 0x10, 0x47,
-	0x45, 0x4f, 0x5f, 0x42, 0x4f, 0x55, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x58, 0x10,
-	0x0b, 0x12, 0x0d, 0x0a, 0x09, 0x47, 0x45, 0x4f, 0x5f, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10, 0x0c,
-	0x12, 0x0a, 0x0a, 0x06, 0x4e, 0x45, 0x53, 0x54, 0x45, 0x44, 0x10, 0x0d, 0x12, 0x0a, 0x0a, 0x06,
-	0x45, 0x58, 0x49, 0x53, 0x54, 0x53, 0x10, 0x0e, 0x12, 0x0e, 0x0a, 0x0a, 0x47, 0x45, 0x4f, 0x5f,
-	0x52, 0x41, 0x44, 0x49, 0x55, 0x53, 0x10, 0x0f, 0x12, 0x0e, 0x0a, 0x0a, 0x43, 0x4f, 0x4d, 0x50,
-	0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x10, 0x12, 0x1e, 0x0a, 0x1a, 0x4d, 0x55, 0x4c, 0x54,
-	0x49, 0x5f, 0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45,
-	0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x11, 0x12, 0x17, 0x0a, 0x13, 0x4d, 0x41, 0x54, 0x43,
-	0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x5f, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10,
-	0x12, 0x12, 0x0a, 0x0a, 0x06, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10, 0x13, 0x12, 0x18, 0x0a,
-	0x14, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f,
-	0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x14, 0x12, 0x0f, 0x0a, 0x0b, 0x47, 0x45, 0x4f, 0x5f, 0x50,
-	0x4f, 0x4c, 0x59, 0x47, 0x4f, 0x4e, 0x10, 0x15, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x50, 0x41, 0x4e,
-	0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x16, 0x2a, 0x3c, 0x0a, 0x08, 0x53, 0x65, 0x6c, 0x65,
-	0x63, 0x74, 0x6f, 0x72, 0x12, 0x07, 0x0a, 0x03, 0x4d, 0x49, 0x4e, 0x10, 0x00, 0x12, 0x07, 0x0a,
-	0x03, 0x4d, 0x41, 0x58, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45,
-	0x5f, 0x4d, 0x49, 0x4e, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45,
-	0x5f, 0x4d, 0x41, 0x58, 0x10, 0x03, 0x42, 0x58, 0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65,
-	0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70, 0x63, 0x42, 0x13, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a,
-	0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x59, 0x65, 0x6c, 0x70,
-	0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0xa2, 0x02, 0x03, 0x48, 0x4c, 0x57,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x73, 0x74, 0x12, 0x35, 0x0a, 0x13, 0x73, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74,
+	0x79, 0x54, 0x68, 0x72, 0x65, 0x73, 0x68, 0x6f, 0x6c, 0x64, 0x18, 0x08, 0x20, 0x01, 0x28, 0x02,
+	0x48, 0x00, 0x52, 0x13, 0x73, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79, 0x54, 0x68,
+	0x72, 0x65, 0x73, 0x68, 0x6f, 0x6c, 0x64, 0x88, 0x01, 0x01, 0x12, 0x4e, 0x0a, 0x0f, 0x66, 0x69,
+	0x6c, 0x74, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x72, 0x61, 0x74, 0x65, 0x67, 0x79, 0x18, 0x09, 0x20,
+	0x01, 0x28, 0x0e, 0x32, 0x25, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x4b, 0x6e, 0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x2e, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x53, 0x74, 0x72, 0x61, 0x74, 0x65, 0x67, 0x79, 0x52, 0x0e, 0x66, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x53, 0x74, 0x72, 0x61, 0x74, 0x65, 0x67, 0x79, 0x22, 0x27, 0x0a, 0x0e, 0x46, 0x69,
+	0x6c, 0x74, 0x65, 0x72, 0x53, 0x74, 0x72, 0x61, 0x74, 0x65, 0x67, 0x79, 0x12, 0x0a, 0x0a, 0x06,
+	0x46, 0x41, 0x4e, 0x4f, 0x55, 0x54, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x41, 0x43, 0x4f, 0x52,
+	0x4e, 0x10, 0x01, 0x42, 0x16, 0x0a, 0x14, 0x5f, 0x73, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69,
+	0x74, 0x79, 0x54, 0x68, 0x72, 0x65, 0x73, 0x68, 0x6f, 0x6c, 0x64, 0x2a, 0x25, 0x0a, 0x0d, 0x4d,
+	0x61, 0x74, 0x63, 0x68, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x12, 0x0a, 0x0a, 0x06,
+	0x53, 0x48, 0x4f, 0x55, 0x4c, 0x44, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x4d, 0x55, 0x53, 0x54,
+	0x10, 0x01, 0x2a, 0x95, 0x01, 0x0a, 0x0d, 0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x4d, 0x65,
+	0x74, 0x68, 0x6f, 0x64, 0x12, 0x12, 0x0a, 0x0e, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54,
+	0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x10, 0x00, 0x12, 0x1a, 0x0a, 0x16, 0x43, 0x4f, 0x4e, 0x53,
+	0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45,
+	0x41, 0x4e, 0x10, 0x01, 0x12, 0x13, 0x0a, 0x0f, 0x53, 0x43, 0x4f, 0x52, 0x49, 0x4e, 0x47, 0x5f,
+	0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10, 0x02, 0x12, 0x1b, 0x0a, 0x17, 0x54, 0x4f, 0x50,
+	0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4c, 0x45, 0x4e, 0x44, 0x45, 0x44, 0x5f, 0x46,
+	0x52, 0x45, 0x51, 0x53, 0x10, 0x03, 0x12, 0x13, 0x0a, 0x0f, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45,
+	0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4f, 0x4f, 0x53, 0x54, 0x10, 0x04, 0x12, 0x0d, 0x0a, 0x09, 0x54,
+	0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x10, 0x05, 0x2a, 0x38, 0x0a, 0x13, 0x43, 0x6f,
+	0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70,
+	0x65, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x5f, 0x51, 0x55, 0x45, 0x52,
+	0x59, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x46, 0x55, 0x5a, 0x5a, 0x59, 0x5f, 0x51, 0x55, 0x45,
+	0x52, 0x59, 0x10, 0x01, 0x2a, 0xb0, 0x01, 0x0a, 0x0a, 0x52, 0x65, 0x67, 0x65, 0x78, 0x70, 0x46,
+	0x6c, 0x61, 0x67, 0x12, 0x0e, 0x0a, 0x0a, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4c,
+	0x4c, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4e,
+	0x59, 0x53, 0x54, 0x52, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x45, 0x47,
+	0x45, 0x58, 0x50, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x4d, 0x41, 0x54, 0x4f, 0x4e, 0x10, 0x02, 0x12,
+	0x15, 0x0a, 0x11, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45,
+	0x4d, 0x45, 0x4e, 0x54, 0x10, 0x03, 0x12, 0x10, 0x0a, 0x0c, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50,
+	0x5f, 0x45, 0x4d, 0x50, 0x54, 0x59, 0x10, 0x04, 0x12, 0x17, 0x0a, 0x13, 0x52, 0x45, 0x47, 0x45,
+	0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x53, 0x45, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x10,
+	0x05, 0x12, 0x13, 0x0a, 0x0f, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45,
+	0x52, 0x56, 0x41, 0x4c, 0x10, 0x06, 0x12, 0x0f, 0x0a, 0x0b, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50,
+	0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x07, 0x2a, 0xa6, 0x03, 0x0a, 0x09, 0x51, 0x75, 0x65, 0x72,
+	0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12,
+	0x11, 0x0a, 0x0d, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59,
+	0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x5f, 0x51, 0x55, 0x45,
+	0x52, 0x59, 0x10, 0x02, 0x12, 0x18, 0x0a, 0x14, 0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e,
+	0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x03, 0x12, 0x0e,
+	0x0a, 0x0a, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x04, 0x12, 0x15,
+	0x0a, 0x11, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x49, 0x4e, 0x5f, 0x53, 0x45, 0x54, 0x5f, 0x51, 0x55,
+	0x45, 0x52, 0x59, 0x10, 0x05, 0x12, 0x13, 0x0a, 0x0f, 0x44, 0x49, 0x53, 0x4a, 0x55, 0x4e, 0x43,
+	0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d, 0x41, 0x58, 0x10, 0x06, 0x12, 0x09, 0x0a, 0x05, 0x4d, 0x41,
+	0x54, 0x43, 0x48, 0x10, 0x07, 0x12, 0x10, 0x0a, 0x0c, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x5f, 0x50,
+	0x48, 0x52, 0x41, 0x53, 0x45, 0x10, 0x08, 0x12, 0x0f, 0x0a, 0x0b, 0x4d, 0x55, 0x4c, 0x54, 0x49,
+	0x5f, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x09, 0x12, 0x09, 0x0a, 0x05, 0x52, 0x41, 0x4e, 0x47,
+	0x45, 0x10, 0x0a, 0x12, 0x14, 0x0a, 0x10, 0x47, 0x45, 0x4f, 0x5f, 0x42, 0x4f, 0x55, 0x4e, 0x44,
+	0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x58, 0x10, 0x0b, 0x12, 0x0d, 0x0a, 0x09, 0x47, 0x45, 0x4f,
+	0x5f, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10, 0x0c, 0x12, 0x0a, 0x0a, 0x06, 0x4e, 0x45, 0x53, 0x54,
+	0x45, 0x44, 0x10, 0x0d, 0x12, 0x0a, 0x0a, 0x06, 0x45, 0x58, 0x49, 0x53, 0x54, 0x53, 0x10, 0x0e,
+	0x12, 0x0e, 0x0a, 0x0a, 0x47, 0x45, 0x4f, 0x5f, 0x52, 0x41, 0x44, 0x49, 0x55, 0x53, 0x10, 0x0f,
+	0x12, 0x0e, 0x0a, 0x0a, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x10,
+	0x12, 0x1e, 0x0a, 0x1a, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x5f, 0x46, 0x55, 0x4e, 0x43, 0x54, 0x49,
+	0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x11,
+	0x12, 0x17, 0x0a, 0x13, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45,
+	0x5f, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10, 0x12, 0x12, 0x0a, 0x0a, 0x06, 0x50, 0x52, 0x45,
+	0x46, 0x49, 0x58, 0x10, 0x13, 0x12, 0x18, 0x0a, 0x14, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e,
+	0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x14, 0x12,
+	0x0f, 0x0a, 0x0b, 0x47, 0x45, 0x4f, 0x5f, 0x50, 0x4f, 0x4c, 0x59, 0x47, 0x4f, 0x4e, 0x10, 0x15,
+	0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x50, 0x41, 0x4e, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x16,
+	0x2a, 0x3c, 0x0a, 0x08, 0x53, 0x65, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x12, 0x07, 0x0a, 0x03,
+	0x4d, 0x49, 0x4e, 0x10, 0x00, 0x12, 0x07, 0x0a, 0x03, 0x4d, 0x41, 0x58, 0x10, 0x01, 0x12, 0x0e,
+	0x0a, 0x0a, 0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x49, 0x4e, 0x10, 0x02, 0x12, 0x0e,
+	0x0a, 0x0a, 0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x41, 0x58, 0x10, 0x03, 0x42, 0x58,
+	0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73, 0x65,
+	0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70, 0x63,
+	0x42, 0x13, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x59, 0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72,
+	0x63, 0x68, 0xa2, 0x02, 0x03, 0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -11219,7 +11299,7 @@ func file_yelp_nrtsearch_search_proto_rawDescGZIP() []byte {
 	return file_yelp_nrtsearch_search_proto_rawDescData
 }
 
-var file_yelp_nrtsearch_search_proto_enumTypes = make([]protoimpl.EnumInfo, 17)
+var file_yelp_nrtsearch_search_proto_enumTypes = make([]protoimpl.EnumInfo, 18)
 var file_yelp_nrtsearch_search_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
 var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(MatchOperator)(0),                             // 0: luceneserver.MatchOperator
@@ -11239,349 +11319,351 @@ var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(TotalHits_Relation)(0),                        // 14: luceneserver.TotalHits.Relation
 	(BucketOrder_OrderType)(0),                     // 15: luceneserver.BucketOrder.OrderType
 	(Highlight_Type)(0),                            // 16: luceneserver.Highlight.Type
-	(*BooleanClause)(nil),                          // 17: luceneserver.BooleanClause
-	(*FuzzyParams)(nil),                            // 18: luceneserver.FuzzyParams
-	(*BooleanQuery)(nil),                           // 19: luceneserver.BooleanQuery
-	(*PhraseQuery)(nil),                            // 20: luceneserver.PhraseQuery
-	(*PrefixQuery)(nil),                            // 21: luceneserver.PrefixQuery
-	(*TermRangeQuery)(nil),                         // 22: luceneserver.TermRangeQuery
-	(*FunctionScoreQuery)(nil),                     // 23: luceneserver.FunctionScoreQuery
-	(*FunctionFilterQuery)(nil),                    // 24: luceneserver.FunctionFilterQuery
-	(*NestedQuery)(nil),                            // 25: luceneserver.NestedQuery
-	(*TermQuery)(nil),                              // 26: luceneserver.TermQuery
-	(*TermInSetQuery)(nil),                         // 27: luceneserver.TermInSetQuery
-	(*DisjunctionMaxQuery)(nil),                    // 28: luceneserver.DisjunctionMaxQuery
-	(*MatchQuery)(nil),                             // 29: luceneserver.MatchQuery
-	(*MatchPhraseQuery)(nil),                       // 30: luceneserver.MatchPhraseQuery
-	(*MatchPhrasePrefixQuery)(nil),                 // 31: luceneserver.MatchPhrasePrefixQuery
-	(*MultiMatchQuery)(nil),                        // 32: luceneserver.MultiMatchQuery
-	(*RangeQuery)(nil),                             // 33: luceneserver.RangeQuery
-	(*GeoBoundingBoxQuery)(nil),                    // 34: luceneserver.GeoBoundingBoxQuery
-	(*GeoRadiusQuery)(nil),                         // 35: luceneserver.GeoRadiusQuery
-	(*GeoPointQuery)(nil),                          // 36: luceneserver.GeoPointQuery
-	(*Polygon)(nil),                                // 37: luceneserver.Polygon
-	(*GeoPolygonQuery)(nil),                        // 38: luceneserver.GeoPolygonQuery
-	(*ExistsQuery)(nil),                            // 39: luceneserver.ExistsQuery
-	(*CompletionQuery)(nil),                        // 40: luceneserver.CompletionQuery
-	(*MultiFunctionScoreQuery)(nil),                // 41: luceneserver.MultiFunctionScoreQuery
-	(*ConstantScoreQuery)(nil),                     // 42: luceneserver.ConstantScoreQuery
-	(*SpanQuery)(nil),                              // 43: luceneserver.SpanQuery
-	(*WildcardQuery)(nil),                          // 44: luceneserver.WildcardQuery
-	(*FuzzyQuery)(nil),                             // 45: luceneserver.FuzzyQuery
-	(*SpanMultiTermQuery)(nil),                     // 46: luceneserver.SpanMultiTermQuery
-	(*RegexpQuery)(nil),                            // 47: luceneserver.RegexpQuery
-	(*SpanNearQuery)(nil),                          // 48: luceneserver.SpanNearQuery
-	(*MatchAllQuery)(nil),                          // 49: luceneserver.MatchAllQuery
-	(*ExactVectorQuery)(nil),                       // 50: luceneserver.ExactVectorQuery
-	(*Query)(nil),                                  // 51: luceneserver.Query
-	(*SearchRequest)(nil),                          // 52: luceneserver.SearchRequest
-	(*LastHitInfo)(nil),                            // 53: luceneserver.LastHitInfo
-	(*InnerHit)(nil),                               // 54: luceneserver.InnerHit
-	(*VirtualField)(nil),                           // 55: luceneserver.VirtualField
-	(*RuntimeField)(nil),                           // 56: luceneserver.RuntimeField
-	(*Script)(nil),                                 // 57: luceneserver.Script
-	(*QuerySortField)(nil),                         // 58: luceneserver.QuerySortField
-	(*SortFields)(nil),                             // 59: luceneserver.SortFields
-	(*SortType)(nil),                               // 60: luceneserver.SortType
-	(*TotalHits)(nil),                              // 61: luceneserver.TotalHits
-	(*Point)(nil),                                  // 62: luceneserver.Point
-	(*SearchResponse)(nil),                         // 63: luceneserver.SearchResponse
-	(*NumericRangeType)(nil),                       // 64: luceneserver.NumericRangeType
-	(*SumCollector)(nil),                           // 65: luceneserver.SumCollector
-	(*Facet)(nil),                                  // 66: luceneserver.Facet
-	(*FacetResult)(nil),                            // 67: luceneserver.FacetResult
-	(*LabelAndValue)(nil),                          // 68: luceneserver.LabelAndValue
-	(*FetchTask)(nil),                              // 69: luceneserver.FetchTask
-	(*PluginRescorer)(nil),                         // 70: luceneserver.PluginRescorer
-	(*QueryRescorer)(nil),                          // 71: luceneserver.QueryRescorer
-	(*Rescorer)(nil),                               // 72: luceneserver.Rescorer
-	(*ProfileResult)(nil),                          // 73: luceneserver.ProfileResult
-	(*Collector)(nil),                              // 74: luceneserver.Collector
-	(*PluginCollector)(nil),                        // 75: luceneserver.PluginCollector
-	(*TermsCollector)(nil),                         // 76: luceneserver.TermsCollector
-	(*TopHitsCollector)(nil),                       // 77: luceneserver.TopHitsCollector
-	(*FilterCollector)(nil),                        // 78: luceneserver.FilterCollector
-	(*MaxCollector)(nil),                           // 79: luceneserver.MaxCollector
-	(*MinCollector)(nil),                           // 80: luceneserver.MinCollector
-	(*CollectorResult)(nil),                        // 81: luceneserver.CollectorResult
-	(*BucketOrder)(nil),                            // 82: luceneserver.BucketOrder
-	(*BucketResult)(nil),                           // 83: luceneserver.BucketResult
-	(*HitsResult)(nil),                             // 84: luceneserver.HitsResult
-	(*FilterResult)(nil),                           // 85: luceneserver.FilterResult
-	(*LoggingHits)(nil),                            // 86: luceneserver.LoggingHits
-	(*Highlight)(nil),                              // 87: luceneserver.Highlight
-	(*KnnQuery)(nil),                               // 88: luceneserver.KnnQuery
-	(*FuzzyParams_AutoFuzziness)(nil),              // 89: luceneserver.FuzzyParams.AutoFuzziness
-	(*TermInSetQuery_TextTerms)(nil),               // 90: luceneserver.TermInSetQuery.TextTerms
-	(*TermInSetQuery_IntTerms)(nil),                // 91: luceneserver.TermInSetQuery.IntTerms
-	(*TermInSetQuery_LongTerms)(nil),               // 92: luceneserver.TermInSetQuery.LongTerms
-	(*TermInSetQuery_FloatTerms)(nil),              // 93: luceneserver.TermInSetQuery.FloatTerms
-	(*TermInSetQuery_DoubleTerms)(nil),             // 94: luceneserver.TermInSetQuery.DoubleTerms
-	nil,                                            // 95: luceneserver.MultiMatchQuery.FieldBoostsEntry
-	(*MultiFunctionScoreQuery_FilterFunction)(nil), // 96: luceneserver.MultiFunctionScoreQuery.FilterFunction
-	(*MultiFunctionScoreQuery_DecayFunction)(nil),  // 97: luceneserver.MultiFunctionScoreQuery.DecayFunction
-	nil,                                  // 98: luceneserver.SearchRequest.CollectorsEntry
-	nil,                                  // 99: luceneserver.SearchRequest.InnerHitsEntry
-	(*Script_ParamValue)(nil),            // 100: luceneserver.Script.ParamValue
-	(*Script_ParamStructValue)(nil),      // 101: luceneserver.Script.ParamStructValue
-	(*Script_ParamListValue)(nil),        // 102: luceneserver.Script.ParamListValue
-	(*Script_ParamFloatVectorValue)(nil), // 103: luceneserver.Script.ParamFloatVectorValue
-	nil,                                  // 104: luceneserver.Script.ParamsEntry
-	nil,                                  // 105: luceneserver.Script.ParamStructValue.FieldsEntry
-	(*SearchResponse_Diagnostics)(nil),   // 106: luceneserver.SearchResponse.Diagnostics
-	(*SearchResponse_Hit)(nil),           // 107: luceneserver.SearchResponse.Hit
-	(*SearchResponse_SearchState)(nil),   // 108: luceneserver.SearchResponse.SearchState
-	nil,                                  // 109: luceneserver.SearchResponse.CollectorResultsEntry
-	(*SearchResponse_Diagnostics_VectorDiagnostics)(nil), // 110: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
-	nil,                                   // 111: luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
-	nil,                                   // 112: luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
-	nil,                                   // 113: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
-	(*SearchResponse_Hit_FieldValue)(nil), // 114: luceneserver.SearchResponse.Hit.FieldValue
-	(*SearchResponse_Hit_CompositeFieldValue)(nil), // 115: luceneserver.SearchResponse.Hit.CompositeFieldValue
-	(*SearchResponse_Hit_Highlights)(nil),          // 116: luceneserver.SearchResponse.Hit.Highlights
-	nil,                                            // 117: luceneserver.SearchResponse.Hit.FieldsEntry
-	nil,                                            // 118: luceneserver.SearchResponse.Hit.SortedFieldsEntry
-	nil,                                            // 119: luceneserver.SearchResponse.Hit.HighlightsEntry
-	nil,                                            // 120: luceneserver.SearchResponse.Hit.InnerHitsEntry
-	(*SearchResponse_Hit_FieldValue_Vector)(nil),   // 121: luceneserver.SearchResponse.Hit.FieldValue.Vector
-	(*ProfileResult_AdditionalCollectorStats)(nil), // 122: luceneserver.ProfileResult.AdditionalCollectorStats
-	(*ProfileResult_CollectorStats)(nil),           // 123: luceneserver.ProfileResult.CollectorStats
-	(*ProfileResult_SegmentStats)(nil),             // 124: luceneserver.ProfileResult.SegmentStats
-	(*ProfileResult_SearchStats)(nil),              // 125: luceneserver.ProfileResult.SearchStats
-	nil,                                            // 126: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
-	nil,                                            // 127: luceneserver.Collector.NestedCollectorsEntry
-	(*BucketResult_Bucket)(nil),                    // 128: luceneserver.BucketResult.Bucket
-	nil,                                            // 129: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
-	nil,                                            // 130: luceneserver.FilterResult.NestedCollectorResultsEntry
-	(*Highlight_Settings)(nil),                     // 131: luceneserver.Highlight.Settings
-	nil,                                            // 132: luceneserver.Highlight.FieldSettingsEntry
-	(*Analyzer)(nil),                               // 133: luceneserver.Analyzer
-	(*latlng.LatLng)(nil),                          // 134: google.type.LatLng
-	(*structpb.Struct)(nil),                        // 135: google.protobuf.Struct
-	(*anypb.Any)(nil),                              // 136: google.protobuf.Any
-	(*wrapperspb.DoubleValue)(nil),                 // 137: google.protobuf.DoubleValue
-	(*structpb.ListValue)(nil),                     // 138: google.protobuf.ListValue
-	(*wrapperspb.UInt32Value)(nil),                 // 139: google.protobuf.UInt32Value
-	(*wrapperspb.BoolValue)(nil),                   // 140: google.protobuf.BoolValue
-	(*wrapperspb.StringValue)(nil),                 // 141: google.protobuf.StringValue
+	(KnnQuery_FilterStrategy)(0),                   // 17: luceneserver.KnnQuery.FilterStrategy
+	(*BooleanClause)(nil),                          // 18: luceneserver.BooleanClause
+	(*FuzzyParams)(nil),                            // 19: luceneserver.FuzzyParams
+	(*BooleanQuery)(nil),                           // 20: luceneserver.BooleanQuery
+	(*PhraseQuery)(nil),                            // 21: luceneserver.PhraseQuery
+	(*PrefixQuery)(nil),                            // 22: luceneserver.PrefixQuery
+	(*TermRangeQuery)(nil),                         // 23: luceneserver.TermRangeQuery
+	(*FunctionScoreQuery)(nil),                     // 24: luceneserver.FunctionScoreQuery
+	(*FunctionFilterQuery)(nil),                    // 25: luceneserver.FunctionFilterQuery
+	(*NestedQuery)(nil),                            // 26: luceneserver.NestedQuery
+	(*TermQuery)(nil),                              // 27: luceneserver.TermQuery
+	(*TermInSetQuery)(nil),                         // 28: luceneserver.TermInSetQuery
+	(*DisjunctionMaxQuery)(nil),                    // 29: luceneserver.DisjunctionMaxQuery
+	(*MatchQuery)(nil),                             // 30: luceneserver.MatchQuery
+	(*MatchPhraseQuery)(nil),                       // 31: luceneserver.MatchPhraseQuery
+	(*MatchPhrasePrefixQuery)(nil),                 // 32: luceneserver.MatchPhrasePrefixQuery
+	(*MultiMatchQuery)(nil),                        // 33: luceneserver.MultiMatchQuery
+	(*RangeQuery)(nil),                             // 34: luceneserver.RangeQuery
+	(*GeoBoundingBoxQuery)(nil),                    // 35: luceneserver.GeoBoundingBoxQuery
+	(*GeoRadiusQuery)(nil),                         // 36: luceneserver.GeoRadiusQuery
+	(*GeoPointQuery)(nil),                          // 37: luceneserver.GeoPointQuery
+	(*Polygon)(nil),                                // 38: luceneserver.Polygon
+	(*GeoPolygonQuery)(nil),                        // 39: luceneserver.GeoPolygonQuery
+	(*ExistsQuery)(nil),                            // 40: luceneserver.ExistsQuery
+	(*CompletionQuery)(nil),                        // 41: luceneserver.CompletionQuery
+	(*MultiFunctionScoreQuery)(nil),                // 42: luceneserver.MultiFunctionScoreQuery
+	(*ConstantScoreQuery)(nil),                     // 43: luceneserver.ConstantScoreQuery
+	(*SpanQuery)(nil),                              // 44: luceneserver.SpanQuery
+	(*WildcardQuery)(nil),                          // 45: luceneserver.WildcardQuery
+	(*FuzzyQuery)(nil),                             // 46: luceneserver.FuzzyQuery
+	(*SpanMultiTermQuery)(nil),                     // 47: luceneserver.SpanMultiTermQuery
+	(*RegexpQuery)(nil),                            // 48: luceneserver.RegexpQuery
+	(*SpanNearQuery)(nil),                          // 49: luceneserver.SpanNearQuery
+	(*MatchAllQuery)(nil),                          // 50: luceneserver.MatchAllQuery
+	(*ExactVectorQuery)(nil),                       // 51: luceneserver.ExactVectorQuery
+	(*Query)(nil),                                  // 52: luceneserver.Query
+	(*SearchRequest)(nil),                          // 53: luceneserver.SearchRequest
+	(*LastHitInfo)(nil),                            // 54: luceneserver.LastHitInfo
+	(*InnerHit)(nil),                               // 55: luceneserver.InnerHit
+	(*VirtualField)(nil),                           // 56: luceneserver.VirtualField
+	(*RuntimeField)(nil),                           // 57: luceneserver.RuntimeField
+	(*Script)(nil),                                 // 58: luceneserver.Script
+	(*QuerySortField)(nil),                         // 59: luceneserver.QuerySortField
+	(*SortFields)(nil),                             // 60: luceneserver.SortFields
+	(*SortType)(nil),                               // 61: luceneserver.SortType
+	(*TotalHits)(nil),                              // 62: luceneserver.TotalHits
+	(*Point)(nil),                                  // 63: luceneserver.Point
+	(*SearchResponse)(nil),                         // 64: luceneserver.SearchResponse
+	(*NumericRangeType)(nil),                       // 65: luceneserver.NumericRangeType
+	(*SumCollector)(nil),                           // 66: luceneserver.SumCollector
+	(*Facet)(nil),                                  // 67: luceneserver.Facet
+	(*FacetResult)(nil),                            // 68: luceneserver.FacetResult
+	(*LabelAndValue)(nil),                          // 69: luceneserver.LabelAndValue
+	(*FetchTask)(nil),                              // 70: luceneserver.FetchTask
+	(*PluginRescorer)(nil),                         // 71: luceneserver.PluginRescorer
+	(*QueryRescorer)(nil),                          // 72: luceneserver.QueryRescorer
+	(*Rescorer)(nil),                               // 73: luceneserver.Rescorer
+	(*ProfileResult)(nil),                          // 74: luceneserver.ProfileResult
+	(*Collector)(nil),                              // 75: luceneserver.Collector
+	(*PluginCollector)(nil),                        // 76: luceneserver.PluginCollector
+	(*TermsCollector)(nil),                         // 77: luceneserver.TermsCollector
+	(*TopHitsCollector)(nil),                       // 78: luceneserver.TopHitsCollector
+	(*FilterCollector)(nil),                        // 79: luceneserver.FilterCollector
+	(*MaxCollector)(nil),                           // 80: luceneserver.MaxCollector
+	(*MinCollector)(nil),                           // 81: luceneserver.MinCollector
+	(*CollectorResult)(nil),                        // 82: luceneserver.CollectorResult
+	(*BucketOrder)(nil),                            // 83: luceneserver.BucketOrder
+	(*BucketResult)(nil),                           // 84: luceneserver.BucketResult
+	(*HitsResult)(nil),                             // 85: luceneserver.HitsResult
+	(*FilterResult)(nil),                           // 86: luceneserver.FilterResult
+	(*LoggingHits)(nil),                            // 87: luceneserver.LoggingHits
+	(*Highlight)(nil),                              // 88: luceneserver.Highlight
+	(*KnnQuery)(nil),                               // 89: luceneserver.KnnQuery
+	(*FuzzyParams_AutoFuzziness)(nil),              // 90: luceneserver.FuzzyParams.AutoFuzziness
+	(*TermInSetQuery_TextTerms)(nil),               // 91: luceneserver.TermInSetQuery.TextTerms
+	(*TermInSetQuery_IntTerms)(nil),                // 92: luceneserver.TermInSetQuery.IntTerms
+	(*TermInSetQuery_LongTerms)(nil),               // 93: luceneserver.TermInSetQuery.LongTerms
+	(*TermInSetQuery_FloatTerms)(nil),              // 94: luceneserver.TermInSetQuery.FloatTerms
+	(*TermInSetQuery_DoubleTerms)(nil),             // 95: luceneserver.TermInSetQuery.DoubleTerms
+	nil,                                            // 96: luceneserver.MultiMatchQuery.FieldBoostsEntry
+	(*MultiFunctionScoreQuery_FilterFunction)(nil), // 97: luceneserver.MultiFunctionScoreQuery.FilterFunction
+	(*MultiFunctionScoreQuery_DecayFunction)(nil),  // 98: luceneserver.MultiFunctionScoreQuery.DecayFunction
+	nil,                                  // 99: luceneserver.SearchRequest.CollectorsEntry
+	nil,                                  // 100: luceneserver.SearchRequest.InnerHitsEntry
+	(*Script_ParamValue)(nil),            // 101: luceneserver.Script.ParamValue
+	(*Script_ParamStructValue)(nil),      // 102: luceneserver.Script.ParamStructValue
+	(*Script_ParamListValue)(nil),        // 103: luceneserver.Script.ParamListValue
+	(*Script_ParamFloatVectorValue)(nil), // 104: luceneserver.Script.ParamFloatVectorValue
+	nil,                                  // 105: luceneserver.Script.ParamsEntry
+	nil,                                  // 106: luceneserver.Script.ParamStructValue.FieldsEntry
+	(*SearchResponse_Diagnostics)(nil),   // 107: luceneserver.SearchResponse.Diagnostics
+	(*SearchResponse_Hit)(nil),           // 108: luceneserver.SearchResponse.Hit
+	(*SearchResponse_SearchState)(nil),   // 109: luceneserver.SearchResponse.SearchState
+	nil,                                  // 110: luceneserver.SearchResponse.CollectorResultsEntry
+	(*SearchResponse_Diagnostics_VectorDiagnostics)(nil), // 111: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
+	nil,                                   // 112: luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
+	nil,                                   // 113: luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
+	nil,                                   // 114: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
+	(*SearchResponse_Hit_FieldValue)(nil), // 115: luceneserver.SearchResponse.Hit.FieldValue
+	(*SearchResponse_Hit_CompositeFieldValue)(nil), // 116: luceneserver.SearchResponse.Hit.CompositeFieldValue
+	(*SearchResponse_Hit_Highlights)(nil),          // 117: luceneserver.SearchResponse.Hit.Highlights
+	nil,                                            // 118: luceneserver.SearchResponse.Hit.FieldsEntry
+	nil,                                            // 119: luceneserver.SearchResponse.Hit.SortedFieldsEntry
+	nil,                                            // 120: luceneserver.SearchResponse.Hit.HighlightsEntry
+	nil,                                            // 121: luceneserver.SearchResponse.Hit.InnerHitsEntry
+	(*SearchResponse_Hit_FieldValue_Vector)(nil),   // 122: luceneserver.SearchResponse.Hit.FieldValue.Vector
+	(*ProfileResult_AdditionalCollectorStats)(nil), // 123: luceneserver.ProfileResult.AdditionalCollectorStats
+	(*ProfileResult_CollectorStats)(nil),           // 124: luceneserver.ProfileResult.CollectorStats
+	(*ProfileResult_SegmentStats)(nil),             // 125: luceneserver.ProfileResult.SegmentStats
+	(*ProfileResult_SearchStats)(nil),              // 126: luceneserver.ProfileResult.SearchStats
+	nil,                                            // 127: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	nil,                                            // 128: luceneserver.Collector.NestedCollectorsEntry
+	(*BucketResult_Bucket)(nil),                    // 129: luceneserver.BucketResult.Bucket
+	nil,                                            // 130: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
+	nil,                                            // 131: luceneserver.FilterResult.NestedCollectorResultsEntry
+	(*Highlight_Settings)(nil),                     // 132: luceneserver.Highlight.Settings
+	nil,                                            // 133: luceneserver.Highlight.FieldSettingsEntry
+	(*Analyzer)(nil),                               // 134: luceneserver.Analyzer
+	(*latlng.LatLng)(nil),                          // 135: google.type.LatLng
+	(*structpb.Struct)(nil),                        // 136: google.protobuf.Struct
+	(*anypb.Any)(nil),                              // 137: google.protobuf.Any
+	(*wrapperspb.DoubleValue)(nil),                 // 138: google.protobuf.DoubleValue
+	(*structpb.ListValue)(nil),                     // 139: google.protobuf.ListValue
+	(*wrapperspb.UInt32Value)(nil),                 // 140: google.protobuf.UInt32Value
+	(*wrapperspb.BoolValue)(nil),                   // 141: google.protobuf.BoolValue
+	(*wrapperspb.StringValue)(nil),                 // 142: google.protobuf.StringValue
 }
 var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
-	51,  // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query
+	52,  // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query
 	6,   // 1: luceneserver.BooleanClause.occur:type_name -> luceneserver.BooleanClause.Occur
-	89,  // 2: luceneserver.FuzzyParams.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
-	17,  // 3: luceneserver.BooleanQuery.clauses:type_name -> luceneserver.BooleanClause
+	90,  // 2: luceneserver.FuzzyParams.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
+	18,  // 3: luceneserver.BooleanQuery.clauses:type_name -> luceneserver.BooleanClause
 	1,   // 4: luceneserver.PrefixQuery.rewrite:type_name -> luceneserver.RewriteMethod
 	1,   // 5: luceneserver.TermRangeQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	51,  // 6: luceneserver.FunctionScoreQuery.query:type_name -> luceneserver.Query
-	57,  // 7: luceneserver.FunctionScoreQuery.script:type_name -> luceneserver.Script
-	57,  // 8: luceneserver.FunctionFilterQuery.script:type_name -> luceneserver.Script
-	51,  // 9: luceneserver.NestedQuery.query:type_name -> luceneserver.Query
+	52,  // 6: luceneserver.FunctionScoreQuery.query:type_name -> luceneserver.Query
+	58,  // 7: luceneserver.FunctionScoreQuery.script:type_name -> luceneserver.Script
+	58,  // 8: luceneserver.FunctionFilterQuery.script:type_name -> luceneserver.Script
+	52,  // 9: luceneserver.NestedQuery.query:type_name -> luceneserver.Query
 	7,   // 10: luceneserver.NestedQuery.scoreMode:type_name -> luceneserver.NestedQuery.ScoreMode
-	90,  // 11: luceneserver.TermInSetQuery.textTerms:type_name -> luceneserver.TermInSetQuery.TextTerms
-	91,  // 12: luceneserver.TermInSetQuery.intTerms:type_name -> luceneserver.TermInSetQuery.IntTerms
-	92,  // 13: luceneserver.TermInSetQuery.longTerms:type_name -> luceneserver.TermInSetQuery.LongTerms
-	93,  // 14: luceneserver.TermInSetQuery.floatTerms:type_name -> luceneserver.TermInSetQuery.FloatTerms
-	94,  // 15: luceneserver.TermInSetQuery.doubleTerms:type_name -> luceneserver.TermInSetQuery.DoubleTerms
-	51,  // 16: luceneserver.DisjunctionMaxQuery.disjuncts:type_name -> luceneserver.Query
+	91,  // 11: luceneserver.TermInSetQuery.textTerms:type_name -> luceneserver.TermInSetQuery.TextTerms
+	92,  // 12: luceneserver.TermInSetQuery.intTerms:type_name -> luceneserver.TermInSetQuery.IntTerms
+	93,  // 13: luceneserver.TermInSetQuery.longTerms:type_name -> luceneserver.TermInSetQuery.LongTerms
+	94,  // 14: luceneserver.TermInSetQuery.floatTerms:type_name -> luceneserver.TermInSetQuery.FloatTerms
+	95,  // 15: luceneserver.TermInSetQuery.doubleTerms:type_name -> luceneserver.TermInSetQuery.DoubleTerms
+	52,  // 16: luceneserver.DisjunctionMaxQuery.disjuncts:type_name -> luceneserver.Query
 	0,   // 17: luceneserver.MatchQuery.operator:type_name -> luceneserver.MatchOperator
-	133, // 18: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
-	18,  // 19: luceneserver.MatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
-	133, // 20: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
+	134, // 18: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	19,  // 19: luceneserver.MatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
+	134, // 20: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
 	8,   // 21: luceneserver.MatchPhraseQuery.zeroTermsQuery:type_name -> luceneserver.MatchPhraseQuery.ZeroTerms
-	133, // 22: luceneserver.MatchPhrasePrefixQuery.analyzer:type_name -> luceneserver.Analyzer
-	95,  // 23: luceneserver.MultiMatchQuery.fieldBoosts:type_name -> luceneserver.MultiMatchQuery.FieldBoostsEntry
+	134, // 22: luceneserver.MatchPhrasePrefixQuery.analyzer:type_name -> luceneserver.Analyzer
+	96,  // 23: luceneserver.MultiMatchQuery.fieldBoosts:type_name -> luceneserver.MultiMatchQuery.FieldBoostsEntry
 	0,   // 24: luceneserver.MultiMatchQuery.operator:type_name -> luceneserver.MatchOperator
-	133, // 25: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
-	18,  // 26: luceneserver.MultiMatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
+	134, // 25: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	19,  // 26: luceneserver.MultiMatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
 	9,   // 27: luceneserver.MultiMatchQuery.type:type_name -> luceneserver.MultiMatchQuery.MatchType
-	134, // 28: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
-	134, // 29: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
-	134, // 30: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
-	134, // 31: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
-	134, // 32: luceneserver.Polygon.points:type_name -> google.type.LatLng
-	37,  // 33: luceneserver.Polygon.holes:type_name -> luceneserver.Polygon
-	37,  // 34: luceneserver.GeoPolygonQuery.polygons:type_name -> luceneserver.Polygon
+	135, // 28: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
+	135, // 29: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
+	135, // 30: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
+	135, // 31: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
+	135, // 32: luceneserver.Polygon.points:type_name -> google.type.LatLng
+	38,  // 33: luceneserver.Polygon.holes:type_name -> luceneserver.Polygon
+	38,  // 34: luceneserver.GeoPolygonQuery.polygons:type_name -> luceneserver.Polygon
 	2,   // 35: luceneserver.CompletionQuery.queryType:type_name -> luceneserver.CompletionQueryType
-	51,  // 36: luceneserver.MultiFunctionScoreQuery.query:type_name -> luceneserver.Query
-	96,  // 37: luceneserver.MultiFunctionScoreQuery.functions:type_name -> luceneserver.MultiFunctionScoreQuery.FilterFunction
+	52,  // 36: luceneserver.MultiFunctionScoreQuery.query:type_name -> luceneserver.Query
+	97,  // 37: luceneserver.MultiFunctionScoreQuery.functions:type_name -> luceneserver.MultiFunctionScoreQuery.FilterFunction
 	11,  // 38: luceneserver.MultiFunctionScoreQuery.score_mode:type_name -> luceneserver.MultiFunctionScoreQuery.FunctionScoreMode
 	12,  // 39: luceneserver.MultiFunctionScoreQuery.boost_mode:type_name -> luceneserver.MultiFunctionScoreQuery.BoostMode
-	51,  // 40: luceneserver.ConstantScoreQuery.filter:type_name -> luceneserver.Query
-	26,  // 41: luceneserver.SpanQuery.spanTermQuery:type_name -> luceneserver.TermQuery
-	48,  // 42: luceneserver.SpanQuery.spanNearQuery:type_name -> luceneserver.SpanNearQuery
-	46,  // 43: luceneserver.SpanQuery.spanMultiTermQuery:type_name -> luceneserver.SpanMultiTermQuery
+	52,  // 40: luceneserver.ConstantScoreQuery.filter:type_name -> luceneserver.Query
+	27,  // 41: luceneserver.SpanQuery.spanTermQuery:type_name -> luceneserver.TermQuery
+	49,  // 42: luceneserver.SpanQuery.spanNearQuery:type_name -> luceneserver.SpanNearQuery
+	47,  // 43: luceneserver.SpanQuery.spanMultiTermQuery:type_name -> luceneserver.SpanMultiTermQuery
 	1,   // 44: luceneserver.WildcardQuery.rewrite:type_name -> luceneserver.RewriteMethod
 	1,   // 45: luceneserver.FuzzyQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	89,  // 46: luceneserver.FuzzyQuery.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
-	44,  // 47: luceneserver.SpanMultiTermQuery.wildcardQuery:type_name -> luceneserver.WildcardQuery
-	45,  // 48: luceneserver.SpanMultiTermQuery.fuzzyQuery:type_name -> luceneserver.FuzzyQuery
-	21,  // 49: luceneserver.SpanMultiTermQuery.prefixQuery:type_name -> luceneserver.PrefixQuery
-	47,  // 50: luceneserver.SpanMultiTermQuery.regexpQuery:type_name -> luceneserver.RegexpQuery
-	22,  // 51: luceneserver.SpanMultiTermQuery.termRangeQuery:type_name -> luceneserver.TermRangeQuery
+	90,  // 46: luceneserver.FuzzyQuery.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
+	45,  // 47: luceneserver.SpanMultiTermQuery.wildcardQuery:type_name -> luceneserver.WildcardQuery
+	46,  // 48: luceneserver.SpanMultiTermQuery.fuzzyQuery:type_name -> luceneserver.FuzzyQuery
+	22,  // 49: luceneserver.SpanMultiTermQuery.prefixQuery:type_name -> luceneserver.PrefixQuery
+	48,  // 50: luceneserver.SpanMultiTermQuery.regexpQuery:type_name -> luceneserver.RegexpQuery
+	23,  // 51: luceneserver.SpanMultiTermQuery.termRangeQuery:type_name -> luceneserver.TermRangeQuery
 	3,   // 52: luceneserver.RegexpQuery.flag:type_name -> luceneserver.RegexpFlag
 	1,   // 53: luceneserver.RegexpQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	43,  // 54: luceneserver.SpanNearQuery.clauses:type_name -> luceneserver.SpanQuery
+	44,  // 54: luceneserver.SpanNearQuery.clauses:type_name -> luceneserver.SpanQuery
 	4,   // 55: luceneserver.Query.queryType:type_name -> luceneserver.QueryType
-	19,  // 56: luceneserver.Query.booleanQuery:type_name -> luceneserver.BooleanQuery
-	20,  // 57: luceneserver.Query.phraseQuery:type_name -> luceneserver.PhraseQuery
-	23,  // 58: luceneserver.Query.functionScoreQuery:type_name -> luceneserver.FunctionScoreQuery
-	26,  // 59: luceneserver.Query.termQuery:type_name -> luceneserver.TermQuery
-	27,  // 60: luceneserver.Query.termInSetQuery:type_name -> luceneserver.TermInSetQuery
-	28,  // 61: luceneserver.Query.disjunctionMaxQuery:type_name -> luceneserver.DisjunctionMaxQuery
-	29,  // 62: luceneserver.Query.matchQuery:type_name -> luceneserver.MatchQuery
-	30,  // 63: luceneserver.Query.matchPhraseQuery:type_name -> luceneserver.MatchPhraseQuery
-	32,  // 64: luceneserver.Query.multiMatchQuery:type_name -> luceneserver.MultiMatchQuery
-	33,  // 65: luceneserver.Query.rangeQuery:type_name -> luceneserver.RangeQuery
-	34,  // 66: luceneserver.Query.geoBoundingBoxQuery:type_name -> luceneserver.GeoBoundingBoxQuery
-	36,  // 67: luceneserver.Query.geoPointQuery:type_name -> luceneserver.GeoPointQuery
-	25,  // 68: luceneserver.Query.nestedQuery:type_name -> luceneserver.NestedQuery
-	39,  // 69: luceneserver.Query.existsQuery:type_name -> luceneserver.ExistsQuery
-	35,  // 70: luceneserver.Query.geoRadiusQuery:type_name -> luceneserver.GeoRadiusQuery
-	24,  // 71: luceneserver.Query.functionFilterQuery:type_name -> luceneserver.FunctionFilterQuery
-	40,  // 72: luceneserver.Query.completionQuery:type_name -> luceneserver.CompletionQuery
-	41,  // 73: luceneserver.Query.multiFunctionScoreQuery:type_name -> luceneserver.MultiFunctionScoreQuery
-	31,  // 74: luceneserver.Query.matchPhrasePrefixQuery:type_name -> luceneserver.MatchPhrasePrefixQuery
-	21,  // 75: luceneserver.Query.prefixQuery:type_name -> luceneserver.PrefixQuery
-	42,  // 76: luceneserver.Query.constantScoreQuery:type_name -> luceneserver.ConstantScoreQuery
-	38,  // 77: luceneserver.Query.geoPolygonQuery:type_name -> luceneserver.GeoPolygonQuery
-	43,  // 78: luceneserver.Query.spanQuery:type_name -> luceneserver.SpanQuery
-	49,  // 79: luceneserver.Query.matchAllQuery:type_name -> luceneserver.MatchAllQuery
-	50,  // 80: luceneserver.Query.exactVectorQuery:type_name -> luceneserver.ExactVectorQuery
-	55,  // 81: luceneserver.SearchRequest.virtualFields:type_name -> luceneserver.VirtualField
-	51,  // 82: luceneserver.SearchRequest.query:type_name -> luceneserver.Query
-	58,  // 83: luceneserver.SearchRequest.querySort:type_name -> luceneserver.QuerySortField
-	66,  // 84: luceneserver.SearchRequest.facets:type_name -> luceneserver.Facet
-	69,  // 85: luceneserver.SearchRequest.fetchTasks:type_name -> luceneserver.FetchTask
-	72,  // 86: luceneserver.SearchRequest.rescorers:type_name -> luceneserver.Rescorer
-	98,  // 87: luceneserver.SearchRequest.collectors:type_name -> luceneserver.SearchRequest.CollectorsEntry
-	87,  // 88: luceneserver.SearchRequest.highlight:type_name -> luceneserver.Highlight
-	99,  // 89: luceneserver.SearchRequest.inner_hits:type_name -> luceneserver.SearchRequest.InnerHitsEntry
-	56,  // 90: luceneserver.SearchRequest.runtimeFields:type_name -> luceneserver.RuntimeField
-	86,  // 91: luceneserver.SearchRequest.loggingHits:type_name -> luceneserver.LoggingHits
-	53,  // 92: luceneserver.SearchRequest.searchAfter:type_name -> luceneserver.LastHitInfo
-	88,  // 93: luceneserver.SearchRequest.knn:type_name -> luceneserver.KnnQuery
-	51,  // 94: luceneserver.InnerHit.inner_query:type_name -> luceneserver.Query
-	58,  // 95: luceneserver.InnerHit.query_sort:type_name -> luceneserver.QuerySortField
-	87,  // 96: luceneserver.InnerHit.highlight:type_name -> luceneserver.Highlight
-	57,  // 97: luceneserver.VirtualField.script:type_name -> luceneserver.Script
-	57,  // 98: luceneserver.RuntimeField.script:type_name -> luceneserver.Script
-	104, // 99: luceneserver.Script.params:type_name -> luceneserver.Script.ParamsEntry
-	59,  // 100: luceneserver.QuerySortField.fields:type_name -> luceneserver.SortFields
-	60,  // 101: luceneserver.SortFields.sortedFields:type_name -> luceneserver.SortType
+	20,  // 56: luceneserver.Query.booleanQuery:type_name -> luceneserver.BooleanQuery
+	21,  // 57: luceneserver.Query.phraseQuery:type_name -> luceneserver.PhraseQuery
+	24,  // 58: luceneserver.Query.functionScoreQuery:type_name -> luceneserver.FunctionScoreQuery
+	27,  // 59: luceneserver.Query.termQuery:type_name -> luceneserver.TermQuery
+	28,  // 60: luceneserver.Query.termInSetQuery:type_name -> luceneserver.TermInSetQuery
+	29,  // 61: luceneserver.Query.disjunctionMaxQuery:type_name -> luceneserver.DisjunctionMaxQuery
+	30,  // 62: luceneserver.Query.matchQuery:type_name -> luceneserver.MatchQuery
+	31,  // 63: luceneserver.Query.matchPhraseQuery:type_name -> luceneserver.MatchPhraseQuery
+	33,  // 64: luceneserver.Query.multiMatchQuery:type_name -> luceneserver.MultiMatchQuery
+	34,  // 65: luceneserver.Query.rangeQuery:type_name -> luceneserver.RangeQuery
+	35,  // 66: luceneserver.Query.geoBoundingBoxQuery:type_name -> luceneserver.GeoBoundingBoxQuery
+	37,  // 67: luceneserver.Query.geoPointQuery:type_name -> luceneserver.GeoPointQuery
+	26,  // 68: luceneserver.Query.nestedQuery:type_name -> luceneserver.NestedQuery
+	40,  // 69: luceneserver.Query.existsQuery:type_name -> luceneserver.ExistsQuery
+	36,  // 70: luceneserver.Query.geoRadiusQuery:type_name -> luceneserver.GeoRadiusQuery
+	25,  // 71: luceneserver.Query.functionFilterQuery:type_name -> luceneserver.FunctionFilterQuery
+	41,  // 72: luceneserver.Query.completionQuery:type_name -> luceneserver.CompletionQuery
+	42,  // 73: luceneserver.Query.multiFunctionScoreQuery:type_name -> luceneserver.MultiFunctionScoreQuery
+	32,  // 74: luceneserver.Query.matchPhrasePrefixQuery:type_name -> luceneserver.MatchPhrasePrefixQuery
+	22,  // 75: luceneserver.Query.prefixQuery:type_name -> luceneserver.PrefixQuery
+	43,  // 76: luceneserver.Query.constantScoreQuery:type_name -> luceneserver.ConstantScoreQuery
+	39,  // 77: luceneserver.Query.geoPolygonQuery:type_name -> luceneserver.GeoPolygonQuery
+	44,  // 78: luceneserver.Query.spanQuery:type_name -> luceneserver.SpanQuery
+	50,  // 79: luceneserver.Query.matchAllQuery:type_name -> luceneserver.MatchAllQuery
+	51,  // 80: luceneserver.Query.exactVectorQuery:type_name -> luceneserver.ExactVectorQuery
+	56,  // 81: luceneserver.SearchRequest.virtualFields:type_name -> luceneserver.VirtualField
+	52,  // 82: luceneserver.SearchRequest.query:type_name -> luceneserver.Query
+	59,  // 83: luceneserver.SearchRequest.querySort:type_name -> luceneserver.QuerySortField
+	67,  // 84: luceneserver.SearchRequest.facets:type_name -> luceneserver.Facet
+	70,  // 85: luceneserver.SearchRequest.fetchTasks:type_name -> luceneserver.FetchTask
+	73,  // 86: luceneserver.SearchRequest.rescorers:type_name -> luceneserver.Rescorer
+	99,  // 87: luceneserver.SearchRequest.collectors:type_name -> luceneserver.SearchRequest.CollectorsEntry
+	88,  // 88: luceneserver.SearchRequest.highlight:type_name -> luceneserver.Highlight
+	100, // 89: luceneserver.SearchRequest.inner_hits:type_name -> luceneserver.SearchRequest.InnerHitsEntry
+	57,  // 90: luceneserver.SearchRequest.runtimeFields:type_name -> luceneserver.RuntimeField
+	87,  // 91: luceneserver.SearchRequest.loggingHits:type_name -> luceneserver.LoggingHits
+	54,  // 92: luceneserver.SearchRequest.searchAfter:type_name -> luceneserver.LastHitInfo
+	89,  // 93: luceneserver.SearchRequest.knn:type_name -> luceneserver.KnnQuery
+	52,  // 94: luceneserver.InnerHit.inner_query:type_name -> luceneserver.Query
+	59,  // 95: luceneserver.InnerHit.query_sort:type_name -> luceneserver.QuerySortField
+	88,  // 96: luceneserver.InnerHit.highlight:type_name -> luceneserver.Highlight
+	58,  // 97: luceneserver.VirtualField.script:type_name -> luceneserver.Script
+	58,  // 98: luceneserver.RuntimeField.script:type_name -> luceneserver.Script
+	105, // 99: luceneserver.Script.params:type_name -> luceneserver.Script.ParamsEntry
+	60,  // 100: luceneserver.QuerySortField.fields:type_name -> luceneserver.SortFields
+	61,  // 101: luceneserver.SortFields.sortedFields:type_name -> luceneserver.SortType
 	5,   // 102: luceneserver.SortType.selector:type_name -> luceneserver.Selector
-	62,  // 103: luceneserver.SortType.origin:type_name -> luceneserver.Point
+	63,  // 103: luceneserver.SortType.origin:type_name -> luceneserver.Point
 	14,  // 104: luceneserver.TotalHits.relation:type_name -> luceneserver.TotalHits.Relation
-	106, // 105: luceneserver.SearchResponse.diagnostics:type_name -> luceneserver.SearchResponse.Diagnostics
-	61,  // 106: luceneserver.SearchResponse.totalHits:type_name -> luceneserver.TotalHits
-	107, // 107: luceneserver.SearchResponse.hits:type_name -> luceneserver.SearchResponse.Hit
-	108, // 108: luceneserver.SearchResponse.searchState:type_name -> luceneserver.SearchResponse.SearchState
-	67,  // 109: luceneserver.SearchResponse.facetResult:type_name -> luceneserver.FacetResult
-	73,  // 110: luceneserver.SearchResponse.profileResult:type_name -> luceneserver.ProfileResult
-	109, // 111: luceneserver.SearchResponse.collectorResults:type_name -> luceneserver.SearchResponse.CollectorResultsEntry
-	57,  // 112: luceneserver.SumCollector.script:type_name -> luceneserver.Script
-	64,  // 113: luceneserver.Facet.numericRange:type_name -> luceneserver.NumericRangeType
-	57,  // 114: luceneserver.Facet.script:type_name -> luceneserver.Script
-	68,  // 115: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
-	135, // 116: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
-	135, // 117: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
-	51,  // 118: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
-	71,  // 119: luceneserver.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
-	70,  // 120: luceneserver.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
-	125, // 121: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
-	76,  // 122: luceneserver.Collector.terms:type_name -> luceneserver.TermsCollector
-	75,  // 123: luceneserver.Collector.pluginCollector:type_name -> luceneserver.PluginCollector
-	77,  // 124: luceneserver.Collector.topHitsCollector:type_name -> luceneserver.TopHitsCollector
-	78,  // 125: luceneserver.Collector.filter:type_name -> luceneserver.FilterCollector
-	79,  // 126: luceneserver.Collector.max:type_name -> luceneserver.MaxCollector
-	80,  // 127: luceneserver.Collector.min:type_name -> luceneserver.MinCollector
-	65,  // 128: luceneserver.Collector.sum:type_name -> luceneserver.SumCollector
-	127, // 129: luceneserver.Collector.nestedCollectors:type_name -> luceneserver.Collector.NestedCollectorsEntry
-	135, // 130: luceneserver.PluginCollector.params:type_name -> google.protobuf.Struct
-	57,  // 131: luceneserver.TermsCollector.script:type_name -> luceneserver.Script
-	82,  // 132: luceneserver.TermsCollector.order:type_name -> luceneserver.BucketOrder
-	58,  // 133: luceneserver.TopHitsCollector.querySort:type_name -> luceneserver.QuerySortField
-	51,  // 134: luceneserver.FilterCollector.query:type_name -> luceneserver.Query
-	27,  // 135: luceneserver.FilterCollector.setQuery:type_name -> luceneserver.TermInSetQuery
-	57,  // 136: luceneserver.MaxCollector.script:type_name -> luceneserver.Script
-	57,  // 137: luceneserver.MinCollector.script:type_name -> luceneserver.Script
-	83,  // 138: luceneserver.CollectorResult.bucketResult:type_name -> luceneserver.BucketResult
-	136, // 139: luceneserver.CollectorResult.anyResult:type_name -> google.protobuf.Any
-	84,  // 140: luceneserver.CollectorResult.hitsResult:type_name -> luceneserver.HitsResult
-	85,  // 141: luceneserver.CollectorResult.filterResult:type_name -> luceneserver.FilterResult
-	137, // 142: luceneserver.CollectorResult.doubleResult:type_name -> google.protobuf.DoubleValue
+	107, // 105: luceneserver.SearchResponse.diagnostics:type_name -> luceneserver.SearchResponse.Diagnostics
+	62,  // 106: luceneserver.SearchResponse.totalHits:type_name -> luceneserver.TotalHits
+	108, // 107: luceneserver.SearchResponse.hits:type_name -> luceneserver.SearchResponse.Hit
+	109, // 108: luceneserver.SearchResponse.searchState:type_name -> luceneserver.SearchResponse.SearchState
+	68,  // 109: luceneserver.SearchResponse.facetResult:type_name -> luceneserver.FacetResult
+	74,  // 110: luceneserver.SearchResponse.profileResult:type_name -> luceneserver.ProfileResult
+	110, // 111: luceneserver.SearchResponse.collectorResults:type_name -> luceneserver.SearchResponse.CollectorResultsEntry
+	58,  // 112: luceneserver.SumCollector.script:type_name -> luceneserver.Script
+	65,  // 113: luceneserver.Facet.numericRange:type_name -> luceneserver.NumericRangeType
+	58,  // 114: luceneserver.Facet.script:type_name -> luceneserver.Script
+	69,  // 115: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
+	136, // 116: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
+	136, // 117: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
+	52,  // 118: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
+	72,  // 119: luceneserver.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
+	71,  // 120: luceneserver.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
+	126, // 121: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
+	77,  // 122: luceneserver.Collector.terms:type_name -> luceneserver.TermsCollector
+	76,  // 123: luceneserver.Collector.pluginCollector:type_name -> luceneserver.PluginCollector
+	78,  // 124: luceneserver.Collector.topHitsCollector:type_name -> luceneserver.TopHitsCollector
+	79,  // 125: luceneserver.Collector.filter:type_name -> luceneserver.FilterCollector
+	80,  // 126: luceneserver.Collector.max:type_name -> luceneserver.MaxCollector
+	81,  // 127: luceneserver.Collector.min:type_name -> luceneserver.MinCollector
+	66,  // 128: luceneserver.Collector.sum:type_name -> luceneserver.SumCollector
+	128, // 129: luceneserver.Collector.nestedCollectors:type_name -> luceneserver.Collector.NestedCollectorsEntry
+	136, // 130: luceneserver.PluginCollector.params:type_name -> google.protobuf.Struct
+	58,  // 131: luceneserver.TermsCollector.script:type_name -> luceneserver.Script
+	83,  // 132: luceneserver.TermsCollector.order:type_name -> luceneserver.BucketOrder
+	59,  // 133: luceneserver.TopHitsCollector.querySort:type_name -> luceneserver.QuerySortField
+	52,  // 134: luceneserver.FilterCollector.query:type_name -> luceneserver.Query
+	28,  // 135: luceneserver.FilterCollector.setQuery:type_name -> luceneserver.TermInSetQuery
+	58,  // 136: luceneserver.MaxCollector.script:type_name -> luceneserver.Script
+	58,  // 137: luceneserver.MinCollector.script:type_name -> luceneserver.Script
+	84,  // 138: luceneserver.CollectorResult.bucketResult:type_name -> luceneserver.BucketResult
+	137, // 139: luceneserver.CollectorResult.anyResult:type_name -> google.protobuf.Any
+	85,  // 140: luceneserver.CollectorResult.hitsResult:type_name -> luceneserver.HitsResult
+	86,  // 141: luceneserver.CollectorResult.filterResult:type_name -> luceneserver.FilterResult
+	138, // 142: luceneserver.CollectorResult.doubleResult:type_name -> google.protobuf.DoubleValue
 	15,  // 143: luceneserver.BucketOrder.order:type_name -> luceneserver.BucketOrder.OrderType
-	128, // 144: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
-	61,  // 145: luceneserver.HitsResult.totalHits:type_name -> luceneserver.TotalHits
-	107, // 146: luceneserver.HitsResult.hits:type_name -> luceneserver.SearchResponse.Hit
-	130, // 147: luceneserver.FilterResult.nestedCollectorResults:type_name -> luceneserver.FilterResult.NestedCollectorResultsEntry
-	135, // 148: luceneserver.LoggingHits.params:type_name -> google.protobuf.Struct
-	131, // 149: luceneserver.Highlight.settings:type_name -> luceneserver.Highlight.Settings
-	132, // 150: luceneserver.Highlight.field_settings:type_name -> luceneserver.Highlight.FieldSettingsEntry
-	51,  // 151: luceneserver.KnnQuery.filter:type_name -> luceneserver.Query
-	51,  // 152: luceneserver.MultiFunctionScoreQuery.FilterFunction.filter:type_name -> luceneserver.Query
-	57,  // 153: luceneserver.MultiFunctionScoreQuery.FilterFunction.script:type_name -> luceneserver.Script
-	97,  // 154: luceneserver.MultiFunctionScoreQuery.FilterFunction.decayFunction:type_name -> luceneserver.MultiFunctionScoreQuery.DecayFunction
-	10,  // 155: luceneserver.MultiFunctionScoreQuery.DecayFunction.decayType:type_name -> luceneserver.MultiFunctionScoreQuery.DecayType
-	134, // 156: luceneserver.MultiFunctionScoreQuery.DecayFunction.geoPoint:type_name -> google.type.LatLng
-	74,  // 157: luceneserver.SearchRequest.CollectorsEntry.value:type_name -> luceneserver.Collector
-	54,  // 158: luceneserver.SearchRequest.InnerHitsEntry.value:type_name -> luceneserver.InnerHit
-	13,  // 159: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
-	102, // 160: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
-	101, // 161: luceneserver.Script.ParamValue.structValue:type_name -> luceneserver.Script.ParamStructValue
-	103, // 162: luceneserver.Script.ParamValue.floatVectorValue:type_name -> luceneserver.Script.ParamFloatVectorValue
-	105, // 163: luceneserver.Script.ParamStructValue.fields:type_name -> luceneserver.Script.ParamStructValue.FieldsEntry
-	100, // 164: luceneserver.Script.ParamListValue.values:type_name -> luceneserver.Script.ParamValue
-	100, // 165: luceneserver.Script.ParamsEntry.value:type_name -> luceneserver.Script.ParamValue
-	100, // 166: luceneserver.Script.ParamStructValue.FieldsEntry.value:type_name -> luceneserver.Script.ParamValue
-	111, // 167: luceneserver.SearchResponse.Diagnostics.facetTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
-	112, // 168: luceneserver.SearchResponse.Diagnostics.rescorersTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
-	113, // 169: luceneserver.SearchResponse.Diagnostics.innerHitsDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
-	110, // 170: luceneserver.SearchResponse.Diagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
-	117, // 171: luceneserver.SearchResponse.Hit.fields:type_name -> luceneserver.SearchResponse.Hit.FieldsEntry
-	118, // 172: luceneserver.SearchResponse.Hit.sortedFields:type_name -> luceneserver.SearchResponse.Hit.SortedFieldsEntry
-	119, // 173: luceneserver.SearchResponse.Hit.highlights:type_name -> luceneserver.SearchResponse.Hit.HighlightsEntry
-	120, // 174: luceneserver.SearchResponse.Hit.innerHits:type_name -> luceneserver.SearchResponse.Hit.InnerHitsEntry
-	53,  // 175: luceneserver.SearchResponse.SearchState.lastHitInfo:type_name -> luceneserver.LastHitInfo
-	81,  // 176: luceneserver.SearchResponse.CollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	61,  // 177: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics.totalHits:type_name -> luceneserver.TotalHits
-	106, // 178: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics
-	134, // 179: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
-	135, // 180: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
-	121, // 181: luceneserver.SearchResponse.Hit.FieldValue.vectorValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue.Vector
-	138, // 182: luceneserver.SearchResponse.Hit.FieldValue.listValue:type_name -> google.protobuf.ListValue
-	114, // 183: luceneserver.SearchResponse.Hit.CompositeFieldValue.fieldValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue
-	115, // 184: luceneserver.SearchResponse.Hit.FieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
-	115, // 185: luceneserver.SearchResponse.Hit.SortedFieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
-	116, // 186: luceneserver.SearchResponse.Hit.HighlightsEntry.value:type_name -> luceneserver.SearchResponse.Hit.Highlights
-	84,  // 187: luceneserver.SearchResponse.Hit.InnerHitsEntry.value:type_name -> luceneserver.HitsResult
-	124, // 188: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
-	126, // 189: luceneserver.ProfileResult.CollectorStats.additionalCollectorStats:type_name -> luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
-	123, // 190: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
-	122, // 191: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry.value:type_name -> luceneserver.ProfileResult.AdditionalCollectorStats
-	74,  // 192: luceneserver.Collector.NestedCollectorsEntry.value:type_name -> luceneserver.Collector
-	129, // 193: luceneserver.BucketResult.Bucket.nestedCollectorResults:type_name -> luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
-	81,  // 194: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	81,  // 195: luceneserver.FilterResult.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	16,  // 196: luceneserver.Highlight.Settings.highlighter_type:type_name -> luceneserver.Highlight.Type
-	139, // 197: luceneserver.Highlight.Settings.fragment_size:type_name -> google.protobuf.UInt32Value
-	139, // 198: luceneserver.Highlight.Settings.max_number_of_fragments:type_name -> google.protobuf.UInt32Value
-	51,  // 199: luceneserver.Highlight.Settings.highlight_query:type_name -> luceneserver.Query
-	140, // 200: luceneserver.Highlight.Settings.field_match:type_name -> google.protobuf.BoolValue
-	140, // 201: luceneserver.Highlight.Settings.score_ordered:type_name -> google.protobuf.BoolValue
-	141, // 202: luceneserver.Highlight.Settings.fragmenter:type_name -> google.protobuf.StringValue
-	140, // 203: luceneserver.Highlight.Settings.discrete_multivalue:type_name -> google.protobuf.BoolValue
-	135, // 204: luceneserver.Highlight.Settings.custom_highlighter_params:type_name -> google.protobuf.Struct
-	141, // 205: luceneserver.Highlight.Settings.boundary_scanner:type_name -> google.protobuf.StringValue
-	141, // 206: luceneserver.Highlight.Settings.boundary_chars:type_name -> google.protobuf.StringValue
-	139, // 207: luceneserver.Highlight.Settings.boundary_max_scan:type_name -> google.protobuf.UInt32Value
-	141, // 208: luceneserver.Highlight.Settings.boundary_scanner_locale:type_name -> google.protobuf.StringValue
-	140, // 209: luceneserver.Highlight.Settings.top_boost_only:type_name -> google.protobuf.BoolValue
-	131, // 210: luceneserver.Highlight.FieldSettingsEntry.value:type_name -> luceneserver.Highlight.Settings
-	211, // [211:211] is the sub-list for method output_type
-	211, // [211:211] is the sub-list for method input_type
-	211, // [211:211] is the sub-list for extension type_name
-	211, // [211:211] is the sub-list for extension extendee
-	0,   // [0:211] is the sub-list for field type_name
+	129, // 144: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
+	62,  // 145: luceneserver.HitsResult.totalHits:type_name -> luceneserver.TotalHits
+	108, // 146: luceneserver.HitsResult.hits:type_name -> luceneserver.SearchResponse.Hit
+	131, // 147: luceneserver.FilterResult.nestedCollectorResults:type_name -> luceneserver.FilterResult.NestedCollectorResultsEntry
+	136, // 148: luceneserver.LoggingHits.params:type_name -> google.protobuf.Struct
+	132, // 149: luceneserver.Highlight.settings:type_name -> luceneserver.Highlight.Settings
+	133, // 150: luceneserver.Highlight.field_settings:type_name -> luceneserver.Highlight.FieldSettingsEntry
+	52,  // 151: luceneserver.KnnQuery.filter:type_name -> luceneserver.Query
+	17,  // 152: luceneserver.KnnQuery.filter_strategy:type_name -> luceneserver.KnnQuery.FilterStrategy
+	52,  // 153: luceneserver.MultiFunctionScoreQuery.FilterFunction.filter:type_name -> luceneserver.Query
+	58,  // 154: luceneserver.MultiFunctionScoreQuery.FilterFunction.script:type_name -> luceneserver.Script
+	98,  // 155: luceneserver.MultiFunctionScoreQuery.FilterFunction.decayFunction:type_name -> luceneserver.MultiFunctionScoreQuery.DecayFunction
+	10,  // 156: luceneserver.MultiFunctionScoreQuery.DecayFunction.decayType:type_name -> luceneserver.MultiFunctionScoreQuery.DecayType
+	135, // 157: luceneserver.MultiFunctionScoreQuery.DecayFunction.geoPoint:type_name -> google.type.LatLng
+	75,  // 158: luceneserver.SearchRequest.CollectorsEntry.value:type_name -> luceneserver.Collector
+	55,  // 159: luceneserver.SearchRequest.InnerHitsEntry.value:type_name -> luceneserver.InnerHit
+	13,  // 160: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
+	103, // 161: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
+	102, // 162: luceneserver.Script.ParamValue.structValue:type_name -> luceneserver.Script.ParamStructValue
+	104, // 163: luceneserver.Script.ParamValue.floatVectorValue:type_name -> luceneserver.Script.ParamFloatVectorValue
+	106, // 164: luceneserver.Script.ParamStructValue.fields:type_name -> luceneserver.Script.ParamStructValue.FieldsEntry
+	101, // 165: luceneserver.Script.ParamListValue.values:type_name -> luceneserver.Script.ParamValue
+	101, // 166: luceneserver.Script.ParamsEntry.value:type_name -> luceneserver.Script.ParamValue
+	101, // 167: luceneserver.Script.ParamStructValue.FieldsEntry.value:type_name -> luceneserver.Script.ParamValue
+	112, // 168: luceneserver.SearchResponse.Diagnostics.facetTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
+	113, // 169: luceneserver.SearchResponse.Diagnostics.rescorersTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
+	114, // 170: luceneserver.SearchResponse.Diagnostics.innerHitsDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
+	111, // 171: luceneserver.SearchResponse.Diagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
+	118, // 172: luceneserver.SearchResponse.Hit.fields:type_name -> luceneserver.SearchResponse.Hit.FieldsEntry
+	119, // 173: luceneserver.SearchResponse.Hit.sortedFields:type_name -> luceneserver.SearchResponse.Hit.SortedFieldsEntry
+	120, // 174: luceneserver.SearchResponse.Hit.highlights:type_name -> luceneserver.SearchResponse.Hit.HighlightsEntry
+	121, // 175: luceneserver.SearchResponse.Hit.innerHits:type_name -> luceneserver.SearchResponse.Hit.InnerHitsEntry
+	54,  // 176: luceneserver.SearchResponse.SearchState.lastHitInfo:type_name -> luceneserver.LastHitInfo
+	82,  // 177: luceneserver.SearchResponse.CollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	62,  // 178: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics.totalHits:type_name -> luceneserver.TotalHits
+	107, // 179: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics
+	135, // 180: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
+	136, // 181: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
+	122, // 182: luceneserver.SearchResponse.Hit.FieldValue.vectorValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue.Vector
+	139, // 183: luceneserver.SearchResponse.Hit.FieldValue.listValue:type_name -> google.protobuf.ListValue
+	115, // 184: luceneserver.SearchResponse.Hit.CompositeFieldValue.fieldValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue
+	116, // 185: luceneserver.SearchResponse.Hit.FieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
+	116, // 186: luceneserver.SearchResponse.Hit.SortedFieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
+	117, // 187: luceneserver.SearchResponse.Hit.HighlightsEntry.value:type_name -> luceneserver.SearchResponse.Hit.Highlights
+	85,  // 188: luceneserver.SearchResponse.Hit.InnerHitsEntry.value:type_name -> luceneserver.HitsResult
+	125, // 189: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
+	127, // 190: luceneserver.ProfileResult.CollectorStats.additionalCollectorStats:type_name -> luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	124, // 191: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
+	123, // 192: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry.value:type_name -> luceneserver.ProfileResult.AdditionalCollectorStats
+	75,  // 193: luceneserver.Collector.NestedCollectorsEntry.value:type_name -> luceneserver.Collector
+	130, // 194: luceneserver.BucketResult.Bucket.nestedCollectorResults:type_name -> luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
+	82,  // 195: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	82,  // 196: luceneserver.FilterResult.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	16,  // 197: luceneserver.Highlight.Settings.highlighter_type:type_name -> luceneserver.Highlight.Type
+	140, // 198: luceneserver.Highlight.Settings.fragment_size:type_name -> google.protobuf.UInt32Value
+	140, // 199: luceneserver.Highlight.Settings.max_number_of_fragments:type_name -> google.protobuf.UInt32Value
+	52,  // 200: luceneserver.Highlight.Settings.highlight_query:type_name -> luceneserver.Query
+	141, // 201: luceneserver.Highlight.Settings.field_match:type_name -> google.protobuf.BoolValue
+	141, // 202: luceneserver.Highlight.Settings.score_ordered:type_name -> google.protobuf.BoolValue
+	142, // 203: luceneserver.Highlight.Settings.fragmenter:type_name -> google.protobuf.StringValue
+	141, // 204: luceneserver.Highlight.Settings.discrete_multivalue:type_name -> google.protobuf.BoolValue
+	136, // 205: luceneserver.Highlight.Settings.custom_highlighter_params:type_name -> google.protobuf.Struct
+	142, // 206: luceneserver.Highlight.Settings.boundary_scanner:type_name -> google.protobuf.StringValue
+	142, // 207: luceneserver.Highlight.Settings.boundary_chars:type_name -> google.protobuf.StringValue
+	140, // 208: luceneserver.Highlight.Settings.boundary_max_scan:type_name -> google.protobuf.UInt32Value
+	142, // 209: luceneserver.Highlight.Settings.boundary_scanner_locale:type_name -> google.protobuf.StringValue
+	141, // 210: luceneserver.Highlight.Settings.top_boost_only:type_name -> google.protobuf.BoolValue
+	132, // 211: luceneserver.Highlight.FieldSettingsEntry.value:type_name -> luceneserver.Highlight.Settings
+	212, // [212:212] is the sub-list for method output_type
+	212, // [212:212] is the sub-list for method input_type
+	212, // [212:212] is the sub-list for extension type_name
+	212, // [212:212] is the sub-list for extension extendee
+	0,   // [0:212] is the sub-list for field type_name
 }
 
 func init() { file_yelp_nrtsearch_search_proto_init() }
@@ -12866,6 +12948,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 		(*CollectorResult_FilterResult)(nil),
 		(*CollectorResult_DoubleResult)(nil),
 	}
+	file_yelp_nrtsearch_search_proto_msgTypes[71].OneofWrappers = []interface{}{}
 	file_yelp_nrtsearch_search_proto_msgTypes[79].OneofWrappers = []interface{}{
 		(*MultiFunctionScoreQuery_FilterFunction_Script)(nil),
 		(*MultiFunctionScoreQuery_FilterFunction_DecayFunction)(nil),
@@ -12902,7 +12985,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yelp_nrtsearch_search_proto_rawDesc,
-			NumEnums:      17,
+			NumEnums:      18,
 			NumMessages:   116,
 			NumExtensions: 0,
 			NumServices:   0,

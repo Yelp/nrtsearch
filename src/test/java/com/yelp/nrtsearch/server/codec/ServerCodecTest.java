@@ -32,7 +32,7 @@ import java.util.Set;
 import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.backward_codecs.lucene90.Lucene90HnswVectorsFormat;
 import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
+import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.junit.BeforeClass;
@@ -61,7 +61,7 @@ public class ServerCodecTest {
     when(mockFieldDef.getPostingsFormat()).thenReturn(null);
     IndexStateManager mockStateManager = getManager(mockFieldDef);
     ServerCodec serverCodec = new ServerCodec(mockStateManager);
-    assertTrue(serverCodec.getPostingsFormatForField("field") instanceof Lucene101PostingsFormat);
+    assertTrue(serverCodec.getPostingsFormatForField("field") instanceof Lucene103PostingsFormat);
     verify(mockFieldDef, times(1)).getPostingsFormat();
     verifyNoMoreInteractions(mockFieldDef);
   }
@@ -97,7 +97,7 @@ public class ServerCodecTest {
     IndexStateManager mockStateManager = getManager(mockFieldDef);
     ServerCodec serverCodec = new ServerCodec(mockStateManager);
     assertTrue(
-        serverCodec.getPostingsFormatForField("internal_field") instanceof Lucene101PostingsFormat);
+        serverCodec.getPostingsFormatForField("internal_field") instanceof Lucene103PostingsFormat);
     verifyNoInteractions(mockFieldDef);
   }
 

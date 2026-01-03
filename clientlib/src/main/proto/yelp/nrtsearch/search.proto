@@ -1496,4 +1496,17 @@ message KnnQuery {
     bytes query_byte_vector = 6;
     // Boost multiplier for similarity score
     float boost = 7;
+    // Optional similarity threshold to use for filtering results. If set, only results with a similarity score
+    // greater than or equal to this value will be returned. If unset, all results are returned.
+    // Note: This value is specified as the raw similarity, not the normalized/boosted score.
+    optional float similarityThreshold = 8;
+
+    enum FilterStrategy {
+      // Compare against all vector neighbors, keeping only those that match the filter (default)
+      FANOUT = 0;
+      // Compare only against vector neighbors that match the filter
+      ACORN = 1;
+    }
+    // Strategy to use when applying filter
+    FilterStrategy filter_strategy = 9;
 }

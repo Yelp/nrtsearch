@@ -26,7 +26,7 @@ java {
 }
 
 allprojects {
-    version = '1.2.1'
+    version = '1.2.8'
     group = 'com.yelp.nrtsearch'
 }
 
@@ -139,13 +139,62 @@ task nrtUtils(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
-applicationDistribution.into('bin') {
-    from(luceneServer)
-    from(luceneServerClient)
-    from(nrtsearchServer)
-    from(nrtsearchServerClient)
-    from(nrtUtils)
-    fileMode = 0755
+distributions {
+    main {
+        contents {
+            into('bin') {
+                from(luceneServer)
+                from(luceneServerClient)
+                from(nrtsearchServer)
+                from(nrtsearchServerClient)
+                from(nrtUtils)
+            }
+        }
+    }
+}
+
+tasks.named('distTar').configure {
+    eachFile { details ->
+        if (details.path.contains('bin/')) {
+            details.permissions {
+                user {
+                    read = true
+                    write = true
+                    execute = true
+                }
+                group {
+                    read = true
+                    execute = true
+                }
+                other {
+                    read = true
+                    execute = true
+                }
+            }
+        }
+    }
+}
+
+tasks.named('distZip').configure {
+    eachFile { details ->
+        if (details.path.contains('bin/')) {
+            details.permissions {
+                user {
+                    read = true
+                    write = true
+                    execute = true
+                }
+                group {
+                    read = true
+                    execute = true
+                }
+                other {
+                    read = true
+                    execute = true
+                }
+            }
+        }
+    }
 }
 
 task buildGrpcGateway(dependsOn: installDist, type: Exec) {
@@ -292,8 +341,8 @@ publishing {
                 }
             }
 
-            def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
-            def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+            def releasesRepoUrl = 'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+            def snapshotsRepoUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
             url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
         }
     }

@@ -119,7 +119,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 
     // make testing deterministic
-    Random random = new Random(123456);
+    Random random = new Random(12345678L);
     for (int i = 0; i < 10; ++i) {
       List<AddDocumentRequest> docs = new ArrayList<>();
 
@@ -166,6 +166,11 @@ public class VectorFieldDefTest extends ServerTestCase {
                     "byte_vector_mip",
                     MultiValuedField.newBuilder()
                         .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "binary_quantized_vector",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 3, false))
                         .build())
                 .putFields(
                     "quantized_vector_4",
@@ -580,6 +585,13 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testBinaryQuantizedVectorSearch() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    singleVectorQueryAndVerify(
+        "binary_quantized_vector", queryVector, VectorSimilarityFunction.COSINE, 1.0f, 0.05);
+  }
+
+  @Test
   public void testVectorSearch_boost() {
     singleVectorQueryAndVerify(
         "vector_l2_norm", List.of(0.25f, 0.5f, 0.75f), VectorSimilarityFunction.EUCLIDEAN, 2.0f);
@@ -747,6 +759,43 @@ public class VectorFieldDefTest extends ServerTestCase {
                                             .setTextValue("term2")
                                             .build())
                                     .build())
+                            .build())
+                    .build());
+    assertEquals(20, searchResponse.getHitsCount());
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertEquals("term2", hit.getFieldsOrThrow("filter").getFieldValue(0).getTextValue());
+    }
+  }
+
+  @Test
+  public void testVectorSearch_filterAcorn() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .addRetrieveFields("filter")
+                    .setStartHit(0)
+                    .setTopHits(20)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(20)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter")
+                                            .setTextValue("term2")
+                                            .build())
+                                    .build())
+                            .setFilterStrategy(KnnQuery.FilterStrategy.ACORN)
                             .build())
                     .build());
     assertEquals(20, searchResponse.getHitsCount());
@@ -1322,6 +1371,14 @@ public class VectorFieldDefTest extends ServerTestCase {
             .getFieldOrThrow("quantized_vector_7");
   }
 
+  private VectorFieldDef.FloatVectorFieldDef getBinaryQuantizedField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("binary_quantized_vector");
+  }
+
   @Test
   public void testFieldNotExist() {
     try {
@@ -1547,6 +1604,15 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testGetBinaryQuantizedVectorFormat() throws IOException {
+    VectorFieldDef<?> vectorFieldDef = getBinaryQuantizedField();
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertEquals(
+        "Lucene102HnswBinaryQuantizedVectorsFormat(name=Lucene102HnswBinaryQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene102BinaryQuantizedVectorsFormat(name=Lucene102BinaryQuantizedVectorsFormat, flatVectorScorer=Lucene102BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
+        format.toString());
+  }
+
+  @Test
   public void testInvalidConfidenceInterval() {
     Field field =
         Field.newBuilder()
@@ -1616,6 +1682,29 @@ public class VectorFieldDefTest extends ServerTestCase {
     } catch (IllegalArgumentException e) {
       assertEquals(
           "HNSW scalar quantized search type is only supported for float vectors", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalidBinaryQuantizedByteVector() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorElementType(VectorElementType.VECTOR_ELEMENT_BYTE)
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder().setType("hnsw_binary_quantized").build())
+            .build();
+    try {
+      VectorFieldDef.createField(
+          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "HNSW binary quantized search type is only supported for float vectors", e.getMessage());
     }
   }
 
@@ -2288,5 +2377,493 @@ public class VectorFieldDefTest extends ServerTestCase {
     assertEquals("field", updatedFieldDef.getName());
     assertTrue(fieldDef.hasDocValues());
     assertFalse(updatedFieldDef.hasDocValues());
+  }
+
+  // Tests for similarityThreshold functionality and similarityToScore methods
+
+  @Test
+  public void testFloatVectorSimilarityToScore_cosine() {
+    // Test COSINE similarity function
+    float similarity = 0.8f;
+    float expectedScore = (1 + similarity) / 2f; // (1 + 0.8) / 2 = 0.9
+    float actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.COSINE);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -0.5f;
+    expectedScore = (1 + similarity) / 2f; // (1 + (-0.5)) / 2 = 0.25
+    actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.COSINE);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testFloatVectorSimilarityToScore_dotProduct() {
+    // Test DOT_PRODUCT similarity function
+    float similarity = 0.6f;
+    float expectedScore = (1 + similarity) / 2f; // (1 + 0.6) / 2 = 0.8
+    float actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.DOT_PRODUCT);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -0.3f;
+    expectedScore = (1 + similarity) / 2f; // (1 + (-0.3)) / 2 = 0.35
+    actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.DOT_PRODUCT);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testFloatVectorSimilarityToScore_euclidean() {
+    // Test EUCLIDEAN similarity function
+    float similarity = 2.0f;
+    float expectedScore = 1f / (1f + similarity * similarity); // 1 / (1 + 4) = 0.2
+    float actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.EUCLIDEAN);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with zero similarity (perfect match)
+    similarity = 0.0f;
+    expectedScore = 1f / (1f + similarity * similarity); // 1 / (1 + 0) = 1.0
+    actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.EUCLIDEAN);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testFloatVectorSimilarityToScore_maximumInnerProduct() {
+    // Test MAXIMUM_INNER_PRODUCT similarity function with positive similarity
+    float similarity = 0.5f;
+    float expectedScore = similarity + 1; // 0.5 + 1 = 1.5
+    float actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -0.3f;
+    expectedScore = 1 / (1 + -1 * similarity); // 1 / (1 + 0.3) = 1 / 1.3 ≈ 0.769
+    actualScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testByteVectorSimilarityToScore_cosine() {
+    // Test COSINE similarity function for byte vectors
+    float similarity = 0.7f;
+    int vectorDimensions = 128;
+    float expectedScore = (1 + similarity) / 2f; // (1 + 0.7) / 2 = 0.85
+    float actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.COSINE, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -0.4f;
+    expectedScore = (1 + similarity) / 2f; // (1 + (-0.4)) / 2 = 0.3
+    actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.COSINE, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testByteVectorSimilarityToScore_dotProduct() {
+    // Test DOT_PRODUCT similarity function for byte vectors
+    float similarity = 1000.0f;
+    int vectorDimensions = 128;
+    float expectedScore = 0.5f + similarity / (float) (vectorDimensions * (1 << 15));
+    // 0.5 + 1000 / (128 * 32768) = 0.5 + 1000 / 4194304 ≈ 0.5002384
+    float actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.DOT_PRODUCT, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -500.0f;
+    expectedScore = 0.5f + similarity / (float) (vectorDimensions * (1 << 15));
+    actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.DOT_PRODUCT, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testByteVectorSimilarityToScore_euclidean() {
+    // Test EUCLIDEAN similarity function for byte vectors
+    float similarity = 3.0f;
+    int vectorDimensions = 64;
+    float expectedScore = 1f / (1f + similarity * similarity); // 1 / (1 + 9) = 0.1
+    float actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.EUCLIDEAN, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testByteVectorSimilarityToScore_maximumInnerProduct() {
+    // Test MAXIMUM_INNER_PRODUCT similarity function for byte vectors
+    float similarity = 0.8f;
+    int vectorDimensions = 256;
+    float expectedScore = similarity + 1; // 0.8 + 1 = 1.8
+    float actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+
+    // Test with negative similarity
+    similarity = -0.6f;
+    expectedScore = 1 / (1 + -1 * similarity); // 1 / (1 + 0.6) = 1 / 1.6 = 0.625
+    actualScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarity, VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT, vectorDimensions);
+    assertEquals(expectedScore, actualScore, 0.0001f);
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_l2norm() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_l2_norm";
+    float similarityThreshold = 0.5f; // Only return results with similarity >= 0.5
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.EUCLIDEAN);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    assertTrue(searchResponse.getDiagnostics().getVectorDiagnostics(0).getSearchTimeMs() > 0.0);
+    assertTrue(
+        searchResponse.getDiagnostics().getVectorDiagnostics(0).getTotalHits().getValue() > 0);
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_cosine() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine";
+    float similarityThreshold = 0.3f; // Only return results with similarity >= 0.3
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.COSINE);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_dotProduct() {
+    List<Float> queryVector = normalizeVector(List.of(0.25f, 0.5f, 0.75f));
+    String field = "vector_dot";
+    float similarityThreshold = 0.2f; // Only return results with similarity >= 0.2
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.DOT_PRODUCT);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+  }
+
+  @Test
+  public void testByteVectorSearch_withSimilarityThreshold_cosine() {
+    byte[] queryVector = new byte[] {-50, 5, 100};
+    String field = "byte_vector_cosine";
+    float similarityThreshold = 0.1f; // Only return results with similarity >= 0.1
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .setQueryByteVector(ByteString.copyFrom(queryVector))
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.COSINE, 3);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+  }
+
+  @Test
+  public void testByteVectorSearch_withSimilarityThreshold_dotProduct() {
+    byte[] queryVector = new byte[] {10, 20, 30};
+    String field = "byte_vector_dot";
+    float similarityThreshold = 100.0f; // Only return results with similarity >= 100
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .setQueryByteVector(ByteString.copyFrom(queryVector))
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.ByteVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.DOT_PRODUCT, 3);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_negativeInfinity() {
+    // Test with Float.NEGATIVE_INFINITY (should return all results, no filtering)
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine";
+
+    SearchResponse searchResponseWithThreshold =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(Float.NEGATIVE_INFINITY)
+                            .build())
+                    .build());
+
+    SearchResponse searchResponseWithoutThreshold =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .build())
+                    .build());
+
+    // Results should be identical
+    assertEquals(
+        "Results should be identical when using NEGATIVE_INFINITY threshold",
+        searchResponseWithoutThreshold.getHitsCount(),
+        searchResponseWithThreshold.getHitsCount());
+    for (int i = 0; i < searchResponseWithThreshold.getHitsCount(); i++) {
+      assertEquals(
+          "Scores should be identical",
+          searchResponseWithoutThreshold.getHits(i).getScore(),
+          searchResponseWithThreshold.getHits(i).getScore(),
+          0.0001f);
+    }
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_highThreshold() {
+    // Test with a very high threshold that should return few or no results
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_cosine";
+    float similarityThreshold = 0.99f; // Very high threshold
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(100)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Should return fewer results than without threshold
+    SearchResponse searchResponseWithoutThreshold =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(100)
+                            .setK(10)
+                            .build())
+                    .build());
+
+    assertTrue(
+        "High threshold should return fewer results",
+        searchResponse.getHitsCount() <= searchResponseWithoutThreshold.getHitsCount());
+
+    // Verify that all returned hits meet the threshold
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.COSINE);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
+  }
+
+  @Test
+  public void testVectorSearch_withSimilarityThreshold_zeroThreshold() {
+    // Test with zero threshold
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_dot";
+    float similarityThreshold = 0.0f;
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(50)
+                            .setK(10)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .build())
+                    .build());
+
+    // Verify that all returned hits have scores >= the converted threshold
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.DOT_PRODUCT);
+    assertTrue("Should return some results", searchResponse.getHitsCount() > 0);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(
+          "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
+    }
   }
 }

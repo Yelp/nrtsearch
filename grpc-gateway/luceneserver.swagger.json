@@ -1873,6 +1873,15 @@
       },
       "title": "Highlighted text result"
     },
+    "KnnQueryFilterStrategy": {
+      "type": "string",
+      "enum": [
+        "FANOUT",
+        "ACORN"
+      ],
+      "default": "FANOUT",
+      "title": "- FANOUT: Compare against all vector neighbors, keeping only those that match the filter (default)\n - ACORN: Compare only against vector neighbors that match the filter"
+    },
     "MatchPhraseQueryZeroTerms": {
       "type": "string",
       "enum": [
@@ -4238,6 +4247,15 @@
           "type": "number",
           "format": "float",
           "title": "Boost multiplier for similarity score"
+        },
+        "similarityThreshold": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional similarity threshold to use for filtering results. If set, only results with a similarity score\ngreater than or equal to this value will be returned. If unset, all results are returned.\nNote: This value is specified as the raw similarity, not the normalized/boosted score."
+        },
+        "filterStrategy": {
+          "$ref": "#/definitions/KnnQueryFilterStrategy",
+          "title": "Strategy to use when applying filter"
         }
       },
       "title": "Specification for kNN vector search query"
@@ -6181,7 +6199,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "title": "The vector indexing type, supports 'hnsw' and 'hnsw_scalar_quantized', default: hnsw"
+          "title": "The vector indexing type, supports 'hnsw', 'hnsw_binary_quantized', and 'hnsw_scalar_quantized', default: hnsw"
         },
         "hnswM": {
           "type": "integer",
@@ -6206,11 +6224,11 @@
         "quantizedBits": {
           "type": "integer",
           "format": "int32",
-          "title": "The number of bits to use for quantizing the vectors. It can have the following values:\n     4 - half byte\n     7 - signed byte (default)"
+          "title": "The number of bits to use for scalar quantizing the vectors. It can have the following values:\n     4 - half byte\n     7 - signed byte (default)"
         },
         "quantizedCompress": {
           "type": "boolean",
-          "title": "Whether to compress the vectors, if true, the vectors that are quantized with \u003c= 4 bits will be compressed into\na single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.\ndefault: false"
+          "title": "Whether to compress the vectors, if true, the vectors that are (scalar) quantized with \u003c= 4 bits will be compressed into\na single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.\ndefault: false"
         }
       },
       "title": "Options for indexing a VECTOR field for search"

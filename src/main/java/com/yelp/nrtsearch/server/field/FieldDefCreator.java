@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
@@ -39,8 +40,9 @@ public class FieldDefCreator {
    * Addition context for field definition creation.
    *
    * @param config service configuration
+   * @param executorFactory executor factory
    */
-  public record FieldDefCreatorContext(NrtsearchConfig config) {}
+  public record FieldDefCreatorContext(NrtsearchConfig config, ExecutorFactory executorFactory) {}
 
   public FieldDefCreator(NrtsearchConfig configuration) {
     register("ATOM", AtomFieldDef::new);
@@ -127,7 +129,8 @@ public class FieldDefCreator {
    * @return new context instance
    */
   public static FieldDefCreatorContext createContext(GlobalState globalState) {
-    return new FieldDefCreatorContext(globalState.getConfiguration());
+    return new FieldDefCreatorContext(
+        globalState.getConfiguration(), globalState.getExecutorFactory());
   }
 
   private void register(Map<String, FieldDefProvider<? extends FieldDef>> fieldDefs) {

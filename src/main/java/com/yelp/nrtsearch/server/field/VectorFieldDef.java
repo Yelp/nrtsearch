@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -27,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
+import com.yelp.nrtsearch.server.query.MinThresholdQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenFloatKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnByteVectorQuery;
@@ -43,6 +45,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.lucene102.Lucene102HnswBinaryQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -58,6 +61,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
@@ -87,7 +91,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           "hnsw",
           VectorSearchType.HNSW,
           "hnsw_scalar_quantized",
-          VectorSearchType.HNSW_SCALAR_QUANTIZED);
+          VectorSearchType.HNSW_SCALAR_QUANTIZED,
+          "hnsw_binary_quantized",
+          VectorSearchType.HNSW_BINARY_QUANTIZED);
   private static final String DEFAULT_SEARCH_TYPE = "hnsw";
   private static final int MAX_VECTOR_DIMENSIONS = 4096;
   private static final int DEFAULT_QUANTIZED_BITS = 7;
@@ -101,7 +107,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   enum VectorSearchType {
     HNSW,
-    HNSW_SCALAR_QUANTIZED
+    HNSW_SCALAR_QUANTIZED,
+    HNSW_BINARY_QUANTIZED
   }
 
   /**
@@ -135,7 +142,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       int k,
       Query filterQuery,
       int numCandidates,
-      BitSetProducer parentBitSetProducer);
+      BitSetProducer parentBitSetProducer,
+      float similarityThreshold);
 
   /**
    * Get the exact search query for this field.
@@ -158,7 +166,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   private static KnnVectorsFormat createVectorsFormat(
-      VectorSearchType vectorSearchType, VectorIndexingOptions vectorIndexingOptions) {
+      VectorSearchType vectorSearchType,
+      VectorIndexingOptions vectorIndexingOptions,
+      FieldDefCreator.FieldDefCreatorContext fieldDefCreatorContext) {
     int m =
         vectorIndexingOptions.hasHnswM()
             ? vectorIndexingOptions.getHnswM()
@@ -171,7 +181,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         vectorIndexingOptions.hasMergeWorkers() ? vectorIndexingOptions.getMergeWorkers() : 1;
     ExecutorService executorService =
         mergeWorkers > 1
-            ? ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.VECTORMERGE)
+            ? fieldDefCreatorContext
+                .executorFactory()
+                .getExecutor(ExecutorFactory.ExecutorType.VECTORMERGE)
             : null;
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {
@@ -179,6 +191,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           case HNSW_SCALAR_QUANTIZED ->
               getHnswScalarQuantizedVectorsFormat(
                   m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
+          case HNSW_BINARY_QUANTIZED ->
+              getHnswBinaryQuantizedVectorsFormat(m, efConstruction, mergeWorkers, executorService);
         };
 
     return new KnnVectorsFormat(vectorsFormat.getName()) {
@@ -231,6 +245,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         m, efConstruction, mergeWorkers, bits, compress, confidenceInterval, executorService);
   }
 
+  private static KnnVectorsFormat getHnswBinaryQuantizedVectorsFormat(
+      int m, int efConstruction, int mergeWorkers, ExecutorService executorService) {
+    return new Lucene102HnswBinaryQuantizedVectorsFormat(
+        m, efConstruction, mergeWorkers, executorService);
+  }
+
+  @VisibleForTesting
+  static KnnSearchStrategy createKnnSearchStrategy(KnnQuery.FilterStrategy filterStrategy) {
+    return switch (filterStrategy) {
+      case FANOUT -> new KnnSearchStrategy.Hnsw(0);
+      case ACORN -> new KnnSearchStrategy.Hnsw(60);
+      default -> throw new IllegalArgumentException("Unknown filter strategy: " + filterStrategy);
+    };
+  }
+
   /**
    * Create a new VectorFieldDef from a grpc Field definition.
    *
@@ -269,7 +298,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
       setupNormalizedVectorField(requestField.getVectorSimilarity(), context, previousField);
       this.vectorsFormat =
-          createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions());
+          createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions(), context);
     } else {
       this.similarityFunction = null;
       this.vectorsFormat = null;
@@ -378,6 +407,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
     int k = knnQuery.getK();
     int numCandidates = knnQuery.getNumCandidates();
+    float similarityThreshold =
+        knnQuery.hasSimilarityThreshold()
+            ? knnQuery.getSimilarityThreshold()
+            : Float.NEGATIVE_INFINITY;
     if (k < 1) {
       throw new IllegalArgumentException("Vector search k must be >= 1");
     }
@@ -388,7 +421,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
-    return getTypeKnnQuery(knnQuery, k, filterQuery, numCandidates, parentBitSetProducer);
+    return getTypeKnnQuery(
+        knnQuery, k, filterQuery, numCandidates, parentBitSetProducer, similarityThreshold);
   }
 
   @Override
@@ -519,7 +553,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         int k,
         Query filterQuery,
         int numCandidates,
-        BitSetProducer parentBitSetProducer) {
+        BitSetProducer parentBitSetProducer,
+        float similarityThreshold) {
       if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query vector size, expected: "
@@ -537,12 +572,28 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         float magnitude = (float) Math.sqrt(magnitude2);
         normalizeVector(queryVector, magnitude);
       }
+      Query query;
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
-        return new NrtDiversifyingChildrenFloatKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+        query =
+            new NrtDiversifyingChildrenFloatKnnVectorQuery(
+                getName(),
+                queryVector,
+                filterQuery,
+                k,
+                numCandidates,
+                parentBitSetProducer,
+                searchStrategy);
       } else {
-        return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query =
+            new NrtKnnFloatVectorQuery(
+                getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
+      if (similarityThreshold != Float.NEGATIVE_INFINITY) {
+        float similarityScore = similarityToScore(similarityThreshold, similarityFunction);
+        query = new MinThresholdQuery(query, similarityScore);
+      }
+      return query;
     }
 
     @Override
@@ -609,6 +660,18 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       return new FloatVectorFieldDef(name, requestField, context, this);
     }
+
+    @VisibleForTesting
+    static float similarityToScore(float similarity, VectorSimilarityFunction similarityFunction) {
+      return switch (similarityFunction) {
+        case COSINE, DOT_PRODUCT -> (1 + similarity) / 2f;
+        case EUCLIDEAN -> 1f / (1f + similarity * similarity);
+        case MAXIMUM_INNER_PRODUCT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
+        default ->
+            throw new IllegalArgumentException(
+                "Unsupported vector similarity function for scoring: " + similarityFunction);
+      };
+    }
   }
 
   /** Field class for 'BYTE' vector field type. */
@@ -671,6 +734,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         throw new IllegalArgumentException(
             "HNSW scalar quantized search type is only supported for float vectors");
       }
+      if (vectorSearchType == VectorSearchType.HNSW_BINARY_QUANTIZED) {
+        throw new IllegalArgumentException(
+            "HNSW binary quantized search type is only supported for float vectors");
+      }
       return vectorSearchType;
     }
 
@@ -729,7 +796,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         int k,
         Query filterQuery,
         int numCandidates,
-        BitSetProducer parentBitSetProducer) {
+        BitSetProducer parentBitSetProducer,
+        float similarityThreshold) {
       if (knnQuery.getQueryByteVector().size() != getVectorDimensions()) {
         throw new IllegalArgumentException(
             "Invalid query byte vector size, expected: "
@@ -739,12 +807,30 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       }
       byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);
+
+      Query query;
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
-        return new NrtDiversifyingChildrenByteKnnVectorQuery(
-            getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+        query =
+            new NrtDiversifyingChildrenByteKnnVectorQuery(
+                getName(),
+                queryVector,
+                filterQuery,
+                k,
+                numCandidates,
+                parentBitSetProducer,
+                searchStrategy);
       } else {
-        return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query =
+            new NrtKnnByteVectorQuery(
+                getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
+      if (similarityThreshold != Float.NEGATIVE_INFINITY) {
+        float similarityScore =
+            similarityToScore(similarityThreshold, similarityFunction, vectorDimensions);
+        query = new MinThresholdQuery(query, similarityScore);
+      }
+      return query;
     }
 
     @Override
@@ -783,6 +869,20 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     public FieldDef createUpdatedFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       return new ByteVectorFieldDef(name, requestField, context, this);
+    }
+
+    @VisibleForTesting
+    static float similarityToScore(
+        float similarity, VectorSimilarityFunction similarityFunction, int vectorDimensions) {
+      return switch (similarityFunction) {
+        case COSINE -> (1 + similarity) / 2f;
+        case DOT_PRODUCT -> 0.5f + similarity / (float) (vectorDimensions * (1 << 15));
+        case EUCLIDEAN -> 1f / (1f + similarity * similarity);
+        case MAXIMUM_INNER_PRODUCT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
+        default ->
+            throw new IllegalArgumentException(
+                "Unsupported vector similarity function for scoring: " + similarityFunction);
+      };
     }
   }
 }
