@@ -120,12 +120,13 @@ public class NRTFastVectorHighlighter implements Highlighter {
     }
 
     BaseFragmentsBuilder fragmentsBuilder =
-        new TopBoostOnlyFragmentsBuilderAdaptor(
+        new NRTCustomFragmentsBuilderAdaptor(
             settings.isScoreOrdered()
                 ? new ScoreOrderFragmentsBuilder()
                 : new SimpleFragmentsBuilder(),
             boundaryScanner,
-            settings.getTopBoostOnly());
+            settings.getTopBoostOnly(),
+            settings.getMaxNumberOfHighlightedPhrasePerFragment());
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
     try {

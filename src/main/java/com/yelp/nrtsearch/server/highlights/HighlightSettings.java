@@ -39,6 +39,7 @@ public class HighlightSettings {
   private final int boundaryMaxScan;
   private final Locale boundaryScannerLocale;
   private final boolean topBoostOnly;
+  private final int maxNumberOfHighlightedPhrasePerFragment;
 
   public HighlightSettings(
       Highlighter highlighter,
@@ -56,6 +57,7 @@ public class HighlightSettings {
       int boundaryMaxScan,
       Locale boundaryScannerLocale,
       boolean topBoostOnly,
+      int maxNumberOfHighlightedPhrasePerFragment,
       Map<String, Object> customHighlighterParams) {
     this.highlighter = highlighter;
     this.preTags = preTags;
@@ -72,6 +74,7 @@ public class HighlightSettings {
     this.boundaryMaxScan = boundaryMaxScan;
     this.boundaryScannerLocale = boundaryScannerLocale;
     this.topBoostOnly = topBoostOnly;
+    this.maxNumberOfHighlightedPhrasePerFragment = maxNumberOfHighlightedPhrasePerFragment;
     this.customHighlighterParams = customHighlighterParams;
   }
 
@@ -92,6 +95,7 @@ public class HighlightSettings {
         .withBoundaryMaxScan(this.boundaryMaxScan)
         .withBoundaryScannerLocale(this.boundaryScannerLocale)
         .withTopBoostOnly(this.topBoostOnly)
+        .withmaxNumberOfHighlightedPhrasePerFragment(this.maxNumberOfHighlightedPhrasePerFragment)
         .withCustomHighlighterParams(this.customHighlighterParams);
   }
 
@@ -155,6 +159,10 @@ public class HighlightSettings {
     return topBoostOnly;
   }
 
+  public int getMaxNumberOfHighlightedPhrasePerFragment() {
+    return maxNumberOfHighlightedPhrasePerFragment;
+  }
+
   public Map<String, Object> getCustomHighlighterParams() {
     return customHighlighterParams;
   }
@@ -196,6 +204,8 @@ public class HighlightSettings {
         + boundaryScannerLocale
         + ", topBoostOnly="
         + topBoostOnly
+        + ", maxNumberOfHighlightedPhrasePerFragment="
+        + maxNumberOfHighlightedPhrasePerFragment
         + '}';
   }
 
@@ -216,6 +226,7 @@ public class HighlightSettings {
     private int boundaryMaxScan;
     private Locale boundaryScannerLocale;
     private boolean topBoostOnly;
+    private int maxNumberOfHighlightedPhrasePerFragment;
     private Map<String, Object> customHighlighterParams;
 
     public Builder() {}
@@ -295,6 +306,12 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withmaxNumberOfHighlightedPhrasePerFragment(
+        int maxNumberOfHighlightedPhrasePerFragment) {
+      this.maxNumberOfHighlightedPhrasePerFragment = maxNumberOfHighlightedPhrasePerFragment;
+      return this;
+    }
+
     public Builder withCustomHighlighterParams(Map<String, Object> customHighlighterParams) {
       this.customHighlighterParams = customHighlighterParams;
       return this;
@@ -317,6 +334,7 @@ public class HighlightSettings {
           boundaryMaxScan,
           boundaryScannerLocale,
           topBoostOnly,
+          maxNumberOfHighlightedPhrasePerFragment,
           customHighlighterParams);
     }
   }
