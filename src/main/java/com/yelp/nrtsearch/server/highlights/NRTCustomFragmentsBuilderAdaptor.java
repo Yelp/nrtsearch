@@ -98,7 +98,8 @@ public class NRTCustomFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
                               - b.termsOffsets().getFirst().getStartOffset()
                           : Float.compare(b.boost(), a.boost()))
               .limit(maxNumberOfHighlightedPhrasePerFragment)
-              // revert back to the original order as this is required when creating the fragments
+              // Revert back to the original order as this is required when creating the fragments
+              // When the SubInfo list is huge, bucket sort might be faster than sorted twice.
               .sorted(Comparator.comparingInt(a -> a.termsOffsets().getFirst().getStartOffset()));
     }
 

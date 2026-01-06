@@ -60,7 +60,8 @@ public class NRTCustomFragmentsBuilderTest extends ServerTestCase {
                         List.of(
                             "apple apple apple apple apple apple apple apple apple apple apple apple apple",
                             "banana pear banana pear banana pear",
-                            "gold foo diamond foo bar gold bar diamond"))
+                            "gold foo diamond foo bar gold bar diamond",
+                            "alpha beta gamma delta epsilon zeta"))
                     .build())
             .build();
     docs.add(request);
@@ -342,6 +343,66 @@ public class NRTCustomFragmentsBuilderTest extends ServerTestCase {
         // internal design.
         // And the limit is applied to match count.
         .containsExactly("<em>gold</em> foo <em>diamond</em> foo bar gold bar diamond");
+  }
+
+  @Test
+  public void testHighlightWithLimitIncludingDifferentBoosts() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment_multivalue")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("zeta"))
+                                                    .setBoost(5f)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("epsilon"))
+                                                    .setBoost(4f)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("delta"))
+                                                    .setBoost(3f)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("gamma"))
+                                                    .setBoost(2f)))
+                                    .build())
+                            .build())
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(true))
+                    .setMaxNumberOfHighlightedPhrasePerFragment(UInt32Value.of(3)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+    // This test check that the filtering process doesn't alter the original order of subInfos.
+    // Otherwise, substring out of bound error will be raised.
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly("alpha beta gamma <em>delta</em> <em>epsilon</em> <em>zeta</em>");
   }
 
   private String indexName() {
