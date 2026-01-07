@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -37,6 +39,11 @@ import org.junit.Test;
 public class PolygonFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  private PolygonfieldDef createFieldDef(Field field) {
+    return new PolygonfieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);
@@ -330,5 +337,23 @@ public class PolygonFieldDefTest extends ServerTestCase {
     for (SearchResponse.Hit hit : response.getHitsList()) {
       assertTrue(idList.contains(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue()));
     }
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    PolygonfieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof PolygonfieldDef);
+    PolygonfieldDef updatedFieldDef = (PolygonfieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 }

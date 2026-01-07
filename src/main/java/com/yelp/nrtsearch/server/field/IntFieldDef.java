@@ -38,7 +38,24 @@ public class IntFieldDef extends NumberFieldDef<Integer> {
 
   public IntFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, INT_PARSER, context, Integer.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected IntFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      IntFieldDef previousField) {
+    super(name, requestField, INT_PARSER, context, Integer.class, previousField);
   }
 
   @Override
@@ -95,6 +112,12 @@ public class IntFieldDef extends NumberFieldDef<Integer> {
   @Override
   public String getType() {
     return "INT";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new IntFieldDef(name, requestField, context, this);
   }
 
   @Override

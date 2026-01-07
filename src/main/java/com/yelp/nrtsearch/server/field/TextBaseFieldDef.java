@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.analysis.PosIncGapAnalyzerWrapper;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
@@ -59,24 +60,40 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef<String>
   private final Analyzer indexAnalyzer;
   private final Analyzer searchAnalyzer;
   private final boolean eagerFieldGlobalOrdinals;
-
-  public final Map<IndexReader.CacheKey, GlobalOrdinalLookup> ordinalLookupCache = new HashMap<>();
-  private final Object ordinalBuilderLock = new Object();
   private final int ignoreAbove;
+
+  // These members are shared by all instances of the FieldDefs for the same field name
+  public final Map<IndexReader.CacheKey, GlobalOrdinalLookup> ordinalLookupCache;
+  @VisibleForTesting final Object ordinalBuilderLock;
 
   /**
    * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field,
-   * FieldDefCreator.FieldDefCreatorContext, Class)} to do common initialization, then sets up
-   * analyzers. Analyzers are parsed through calls to the protected methods {@link
+   * FieldDefCreator.FieldDefCreatorContext, Class, IndexableFieldDef)} to do common initialization,
+   * then sets up analyzers. Analyzers are parsed through calls to the protected methods {@link
    * #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
    *
    * @param name field name
    * @param requestField field definition from grpc request
    * @param context creation context
+   * @param previousField previous instance of this field definition, or null if there is none
    */
   protected TextBaseFieldDef(
-      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context, String.class);
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      TextBaseFieldDef previousField) {
+    super(name, requestField, context, String.class, previousField);
+
+    // If the previous field exists, we need to copy the ordinal lookup cache and lock from it
+    // since it is a shared resource.
+    if (previousField != null) {
+      ordinalLookupCache = previousField.ordinalLookupCache;
+      ordinalBuilderLock = previousField.ordinalBuilderLock;
+    } else {
+      ordinalLookupCache = new HashMap<>();
+      ordinalBuilderLock = new Object();
+    }
+
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();

@@ -17,7 +17,9 @@ package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -63,6 +65,16 @@ import org.junit.Test;
 public class VectorFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  private VectorFieldDef.FloatVectorFieldDef createFloatFieldDef(Field field) {
+    return new VectorFieldDef.FloatVectorFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
+
+  private VectorFieldDef.ByteVectorFieldDef createByteFieldDef(Field field) {
+    return new VectorFieldDef.ByteVectorFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
 
   public static final String VECTOR_SEARCH_INDEX_NAME = "vector_search_index";
   public static final String NESTED_VECTOR_SEARCH_INDEX_NAME = "nested_vector_search_index";
@@ -2317,6 +2329,54 @@ public class VectorFieldDefTest extends ServerTestCase {
           .getShard(0)
           .release(searcherAndTaxonomy);
     }
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef_float() {
+    VectorFieldDef<?> fieldDef =
+        createFloatFieldDef(
+            Field.newBuilder()
+                .setName("field")
+                .setStoreDocValues(true)
+                .setVectorDimensions(3)
+                .build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).setVectorDimensions(3).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof VectorFieldDef.FloatVectorFieldDef);
+    VectorFieldDef.FloatVectorFieldDef updatedFieldDef =
+        (VectorFieldDef.FloatVectorFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef_byte() {
+    VectorFieldDef<?> fieldDef =
+        createByteFieldDef(
+            Field.newBuilder()
+                .setName("field")
+                .setStoreDocValues(true)
+                .setVectorDimensions(3)
+                .build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).setVectorDimensions(3).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof VectorFieldDef.ByteVectorFieldDef);
+    VectorFieldDef.ByteVectorFieldDef updatedFieldDef =
+        (VectorFieldDef.ByteVectorFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 
   // Tests for similarityThreshold functionality and similarityToScore methods

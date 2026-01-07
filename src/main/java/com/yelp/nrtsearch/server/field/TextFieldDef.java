@@ -40,7 +40,25 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
 
   public TextFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected TextFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      TextFieldDef previousField) {
+    super(name, requestField, context, previousField);
+
     if (requestField.hasIndexPrefixes()) {
       verifySearchable("Prefix query");
       int minChars =
@@ -65,7 +83,10 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
         prefixFieldBuilder.setIndexAnalyzer(requestField.getIndexAnalyzer());
       }
 
-      this.prefixFieldDef = new PrefixFieldDef(getName(), prefixFieldBuilder.build(), context);
+      PrefixFieldDef previousPrefixField =
+          previousField != null ? previousField.getPrefixFieldDef() : null;
+      this.prefixFieldDef =
+          new PrefixFieldDef(getName(), prefixFieldBuilder.build(), context, previousPrefixField);
 
       Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
       childFieldsMap.put(prefixFieldDef.getName(), prefixFieldDef);
@@ -84,6 +105,12 @@ public class TextFieldDef extends TextBaseFieldDef implements PrefixQueryable {
   @Override
   public String getType() {
     return "TEXT";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new TextFieldDef(name, requestField, context, this);
   }
 
   @Override

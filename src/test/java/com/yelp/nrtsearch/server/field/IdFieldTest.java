@@ -16,6 +16,10 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -30,6 +34,10 @@ import org.junit.Test;
 
 public class IdFieldTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  private IdFieldDef createFieldDef(Field field) {
+    return new IdFieldDef("test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
@@ -204,5 +212,23 @@ public class IdFieldTest extends ServerTestCase {
             .sorted()
             .collect(Collectors.toList());
     assertEquals(Arrays.asList(expectedValues), actualValues);
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    IdFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).setStore(true).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof IdFieldDef);
+    IdFieldDef updatedFieldDef = (IdFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 }

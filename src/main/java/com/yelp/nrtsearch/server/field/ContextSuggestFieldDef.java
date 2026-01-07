@@ -41,7 +41,24 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
    */
   protected ContextSuggestFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context, Void.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected ContextSuggestFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      ContextSuggestFieldDef previousField) {
+    super(name, requestField, context, Void.class, previousField);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
     this.postingsFormat = new Completion101PostingsFormat();
@@ -61,6 +78,12 @@ public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
   @Override
   public String getType() {
     return "CONTEXT_SUGGEST";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new ContextSuggestFieldDef(name, requestField, context, this);
   }
 
   @Override

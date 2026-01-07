@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.field;
 
 import static com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector.SUGGEST_KEY_FIELD_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -48,6 +50,19 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   private static final String SINGLE_VALUED_FIELD_NAME = "context_suggest_name";
   private static final String MULTI_VALUED_FIELD_NAME = "context_suggest_name_multi_valued";
   private static final String FIELD_TYPE = "CONTEXT_SUGGEST";
+
+  private ContextSuggestFieldDef createFieldDef(Field field) {
+    return new ContextSuggestFieldDef("test_field", field, createFieldDefCreatorContext());
+  }
+
+  private FieldDefCreator.FieldDefCreatorContext createFieldDefCreatorContext() {
+    FieldDefCreator.FieldDefCreatorContext mockContext =
+        mock(FieldDefCreator.FieldDefCreatorContext.class);
+    NrtsearchConfig config =
+        new NrtsearchConfig(new ByteArrayInputStream("nodeName: node1".getBytes()));
+    when(mockContext.config()).thenReturn(config);
+    return mockContext;
+  }
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
     return getGrpcServer().getGlobalState().getIndexOrThrow(testIndex).getFieldOrThrow(fieldName);
@@ -245,5 +260,21 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
         .setTopHits(5)
         .setQuery(query)
         .build();
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    ContextSuggestFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStore(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field", Field.newBuilder().setStore(false).build(), createFieldDefCreatorContext());
+    assertTrue(updatedField instanceof ContextSuggestFieldDef);
+    ContextSuggestFieldDef updatedFieldDef = (ContextSuggestFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.isStored());
+    assertFalse(updatedFieldDef.isStored());
   }
 }
