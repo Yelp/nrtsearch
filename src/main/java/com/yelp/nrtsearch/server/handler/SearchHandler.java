@@ -151,7 +151,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
       SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResult,
-      ShardState shardState) {}
+      ShardState shardState,
+      TotalHits totalHits) {}
 
   /**
    * Execute the search phase including query execution and rescoring. This method returns
@@ -297,8 +298,14 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
 
+      TotalHits totalHits =
+          TotalHits.newBuilder()
+              .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation().name()))
+              .setValue(hits.totalHits.value())
+              .build();
+
       return new SearchExecutionResult(
-          searchContext, hits, s, diagnostics, profileResultBuilder, shardState);
+          searchContext, hits, s, diagnostics, profileResultBuilder, shardState, totalHits);
     } catch (IOException | InterruptedException e) {
       logger.warn(e.getMessage(), e);
       // Clean up searcher reference if we got one
@@ -332,6 +339,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = execResult.searcherAndTaxonomy();
     SearchResponse.Diagnostics.Builder diagnostics = execResult.diagnostics();
     ProfileResult.Builder profileResultBuilder = execResult.profileResult();
+    searchContext.getResponseBuilder().setTotalHits(execResult.totalHits());
 
     try {
       long t0 = System.nanoTime();
@@ -622,12 +630,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @param hits hits from query
    */
   private static void setResponseHits(SearchContext context, TopDocs hits) {
-    TotalHits totalHits =
-        TotalHits.newBuilder()
-            .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation().name()))
-            .setValue(hits.totalHits.value())
-            .build();
-    context.getResponseBuilder().setTotalHits(totalHits);
     for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
       var hitResponse = context.getResponseBuilder().addHitsBuilder();
       ScoreDoc hit = hits.scoreDocs[hitIndex];
