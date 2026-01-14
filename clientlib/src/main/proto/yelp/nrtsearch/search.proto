@@ -785,6 +785,9 @@ message SearchRequest {
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using
     // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
+    // Provide additional options or hints to use when processing the search request. This is meant to help with the
+    // development of new features or when a top level field is not warranted
+    map<string, string> additionalOptions = 32;
 }
 
 // Last Hit info for search after

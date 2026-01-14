@@ -15,17 +15,20 @@
  */
 package com.yelp.nrtsearch.server.search.collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LazyQueueTopScoreDocCollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +36,9 @@ import org.slf4j.LoggerFactory;
 /** Collector for getting documents ranked by relevance score. */
 public class RelevanceCollector extends DocCollector {
   private static final Logger logger = LoggerFactory.getLogger(RelevanceCollector.class);
+  private static final String PRELOAD_COLLECTOR_QUEUE = "PRELOAD_COLLECTOR_QUEUE";
 
-  private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
+  private final CollectorManager<? extends TopDocsCollector<?>, TopDocs> manager;
 
   public RelevanceCollector(
       CollectorCreatorContext context,
@@ -53,7 +57,18 @@ public class RelevanceCollector extends DocCollector {
     } else if (context.getRequest().getTotalHitsThreshold() != 0) {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
-    manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    boolean preloadQueue = shouldPreloadQueue(context.getRequest().getAdditionalOptionsMap());
+    if (preloadQueue) {
+      manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    } else {
+      manager = new LazyQueueTopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    }
+  }
+
+  @VisibleForTesting
+  static boolean shouldPreloadQueue(Map<String, String> options) {
+    String value = options.getOrDefault(PRELOAD_COLLECTOR_QUEUE, "true");
+    return value.trim().equalsIgnoreCase("true");
   }
 
   @Override
