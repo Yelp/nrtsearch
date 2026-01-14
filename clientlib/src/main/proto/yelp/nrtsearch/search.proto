@@ -786,7 +786,8 @@ message SearchRequest {
     // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
     // Provide additional options or hints to use when processing the search request. This is meant to help with the
-    // development of new features or when a top level field is not warranted
+    // development of new features or when a top level field is not warranted. Possible values:
+    //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
     map<string, string> additionalOptions = 32;
 }
 

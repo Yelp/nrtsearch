@@ -4255,7 +4255,8 @@ type SearchRequest struct {
 	// the boolean query SHOULD logic
 	Knn []*KnnQuery `protobuf:"bytes,31,rep,name=knn,proto3" json:"knn,omitempty"`
 	// Provide additional options or hints to use when processing the search request. This is meant to help with the
-	// development of new features or when a top level field is not warranted
+	// development of new features or when a top level field is not warranted. Possible values:
+	//   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
 	AdditionalOptions map[string]string `protobuf:"bytes,32,rep,name=additionalOptions,proto3" json:"additionalOptions,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

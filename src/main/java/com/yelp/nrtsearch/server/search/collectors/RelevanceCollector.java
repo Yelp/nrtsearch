@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.search.AdditionalOptions;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,6 @@ import org.slf4j.LoggerFactory;
 /** Collector for getting documents ranked by relevance score. */
 public class RelevanceCollector extends DocCollector {
   private static final Logger logger = LoggerFactory.getLogger(RelevanceCollector.class);
-  private static final String PRELOAD_COLLECTOR_QUEUE = "PRELOAD_COLLECTOR_QUEUE";
 
   private final CollectorManager<? extends TopDocsCollector<?>, TopDocs> manager;
 
@@ -67,7 +67,7 @@ public class RelevanceCollector extends DocCollector {
 
   @VisibleForTesting
   static boolean shouldPreloadQueue(Map<String, String> options) {
-    String value = options.getOrDefault(PRELOAD_COLLECTOR_QUEUE, "true");
+    String value = options.getOrDefault(AdditionalOptions.PRELOAD_COLLECTOR_QUEUE.name(), "true");
     return value.trim().equalsIgnoreCase("true");
   }
 
