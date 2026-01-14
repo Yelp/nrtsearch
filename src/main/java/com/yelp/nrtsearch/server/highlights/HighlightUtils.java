@@ -43,6 +43,7 @@ public class HighlightUtils {
   private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
   private static final char[] DEFAULT_BOUNDARY_CHARS = SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
   private static final boolean DEFAULT_TOP_PHRASE_ONCE = false;
+  private static int DEFAULT_MAX_NUMBER_OF_HIGHLIGHTED_PHRASES_PER_SEGMENT = 0;
   private static final int DEFAULT_BOUNDARY_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
   private static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
@@ -130,6 +131,10 @@ public class HighlightUtils {
                     settings.hasTopBoostOnly()
                         ? settings.getTopBoostOnly().getValue()
                         : globalSettings.getTopBoostOnly())
+                .withmaxNumberOfHighlightedPhrasePerFragment(
+                    settings.hasMaxNumberOfHighlightedPhrasePerFragment()
+                        ? settings.getMaxNumberOfHighlightedPhrasePerFragment().getValue()
+                        : globalSettings.getMaxNumberOfHighlightedPhrasePerFragment())
                 .withCustomHighlighterParams(
                     settings.hasCustomHighlighterParams()
                         ? StructValueTransformer.transformStruct(
@@ -209,6 +214,10 @@ public class HighlightUtils {
             settings.hasTopBoostOnly()
                 ? settings.getTopBoostOnly().getValue()
                 : DEFAULT_TOP_PHRASE_ONCE)
+        .withmaxNumberOfHighlightedPhrasePerFragment(
+            settings.hasMaxNumberOfHighlightedPhrasePerFragment()
+                ? settings.getMaxNumberOfHighlightedPhrasePerFragment().getValue()
+                : DEFAULT_MAX_NUMBER_OF_HIGHLIGHTED_PHRASES_PER_SEGMENT)
         .withCustomHighlighterParams(
             settings.hasCustomHighlighterParams()
                 ? StructValueTransformer.transformStruct(settings.getCustomHighlighterParams())

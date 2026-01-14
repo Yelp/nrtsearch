@@ -15,8 +15,9 @@
  */
 package com.yelp.nrtsearch.server.highlights;
 
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
@@ -32,18 +33,22 @@ import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseIn
  * innerBaseFragmentsBuilder is a {@link
  * org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder}.
  */
-public class TopBoostOnlyFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
+public class NRTCustomFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
+
   private final BaseFragmentsBuilder innerBaseFragmentsBuilder;
   private final boolean topBoostOnly;
+  private final int maxNumberOfHighlightedPhrasePerFragment;
 
   /** a constructor. */
-  public TopBoostOnlyFragmentsBuilderAdaptor(
+  public NRTCustomFragmentsBuilderAdaptor(
       BaseFragmentsBuilder baseFragmentsBuilder,
       BoundaryScanner boundaryScanner,
-      boolean topBoostOnly) {
+      boolean topBoostOnly,
+      int maxNumberOfHighlightedPhrasePerFragment) {
     super(boundaryScanner);
     this.innerBaseFragmentsBuilder = baseFragmentsBuilder;
     this.topBoostOnly = topBoostOnly;
+    this.maxNumberOfHighlightedPhrasePerFragment = maxNumberOfHighlightedPhrasePerFragment;
   }
 
   /** Delegates the inner FragmentsBuilder to determine the fragment order. */
@@ -65,7 +70,7 @@ public class TopBoostOnlyFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
       String[] preTags,
       String[] postTags,
       Encoder encoder) {
-    if (!topBoostOnly) {
+    if ((!topBoostOnly) && (maxNumberOfHighlightedPhrasePerFragment < 1)) {
       return super.makeFragment(buffer, index, values, fragInfo, preTags, postTags, encoder);
     }
     StringBuilder fragment = new StringBuilder();
@@ -76,24 +81,27 @@ public class TopBoostOnlyFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
             buffer, index, values, s, fragInfo.getEndOffset(), modifiedStartOffset);
     int srcIndex = 0;
 
-    // filter out the phrases with lower boost at the fragment creation time only
-    float topBoostValue = 0;
-    List<SubInfo> topSubInfoList = new ArrayList<>();
-    for (SubInfo subInfo : fragInfo.getSubInfos()) {
-      float boost = subInfo.boost();
-      if (boost > topBoostValue) {
-        topBoostValue = boost;
-        topSubInfoList.clear();
-        topSubInfoList.add(subInfo);
-      } else if (boost == topBoostValue) {
-        topSubInfoList.add(subInfo);
-      }
+    Stream<SubInfo> subInfoStream = fragInfo.getSubInfos().stream();
+
+    if (topBoostOnly) {
+      float topBoostValue =
+          fragInfo.getSubInfos().stream().map(SubInfo::boost).max(Float::compare).orElse(0f);
+      subInfoStream = subInfoStream.filter(subInfo -> subInfo.boost() >= topBoostValue);
+    }
+    if (maxNumberOfHighlightedPhrasePerFragment > 0) {
+      subInfoStream =
+          subInfoStream
+              .sorted(
+                  Comparator.comparing(SubInfo::boost)
+                      .reversed()
+                      .thenComparing(a -> a.termsOffsets().getFirst().getStartOffset()))
+              .limit(maxNumberOfHighlightedPhrasePerFragment)
+              // Revert back to the original order as this is required when creating the fragments
+              // When the SubInfo list is huge, bucket sort might be faster than sorted twice.
+              .sorted(Comparator.comparing(a -> a.termsOffsets().getFirst().getStartOffset()));
     }
 
-    for (SubInfo subInfo : topSubInfoList) {
-      if (subInfo.boost() < topBoostValue) {
-        continue;
-      }
+    for (SubInfo subInfo : subInfoStream.toList()) {
       for (Toffs to : subInfo.termsOffsets()) {
         fragment
             .append(
