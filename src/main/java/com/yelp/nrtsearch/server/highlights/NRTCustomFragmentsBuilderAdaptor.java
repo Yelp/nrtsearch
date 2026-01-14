@@ -70,7 +70,7 @@ public class NRTCustomFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
       String[] preTags,
       String[] postTags,
       Encoder encoder) {
-    if ((!topBoostOnly) && (maxNumberOfHighlightedPhrasePerFragment == 0)) {
+    if ((!topBoostOnly) && (maxNumberOfHighlightedPhrasePerFragment < 1)) {
       return super.makeFragment(buffer, index, values, fragInfo, preTags, postTags, encoder);
     }
     StringBuilder fragment = new StringBuilder();
@@ -92,11 +92,9 @@ public class NRTCustomFragmentsBuilderAdaptor extends BaseFragmentsBuilder {
       subInfoStream =
           subInfoStream
               .sorted(
-                  (a, b) ->
-                      a.boost() == b.boost()
-                          ? a.termsOffsets().getFirst().getStartOffset()
-                              - b.termsOffsets().getFirst().getStartOffset()
-                          : Float.compare(b.boost(), a.boost()))
+                  Comparator.comparing(SubInfo::boost)
+                      .reversed()
+                      .thenComparing(a -> a.termsOffsets().getFirst().getStartOffset()))
               .limit(maxNumberOfHighlightedPhrasePerFragment)
               // Revert back to the original order as this is required when creating the fragments
               // When the SubInfo list is huge, bucket sort might be faster than sorted twice.

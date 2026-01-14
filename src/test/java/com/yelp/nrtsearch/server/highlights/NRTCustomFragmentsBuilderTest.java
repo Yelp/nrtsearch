@@ -69,6 +69,47 @@ public class NRTCustomFragmentsBuilderTest extends ServerTestCase {
   }
 
   @Test
+  public void testHighlightWithNoLimitNoTopBoostOnly() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment_multivalue")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("gold"))
+                                                    .setBoost(2f)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("diamond"))
+                                                    .setBoost(3f)))
+                                    .build())
+                            .build())
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(true)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly(
+            "<em>gold</em> foo <em>diamond</em> foo bar <em>gold</em> bar <em>diamond</em>");
+  }
+
+  @Test
   public void testHighlightWithLimit() {
     Highlight highlight =
         Highlight.newBuilder()
@@ -223,6 +264,47 @@ public class NRTCustomFragmentsBuilderTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly("<em>banana</em> pear banana pear banana pear");
+  }
+
+  @Test
+  public void testHighlightWithLimitOnDuplicates() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment_multivalue")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("pear"))
+                                                    .setBoost(2f)))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("comment_multivalue")
+                                                            .setTextValue("banana"))
+                                                    .setBoost(2f)))
+                                    .build())
+                            .build())
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(true))
+                    .setMaxNumberOfHighlightedPhrasePerFragment(UInt32Value.of(3)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly("<em>banana</em> <em>pear</em> <em>banana</em> pear banana pear");
   }
 
   @Test

@@ -1469,8 +1469,9 @@ message Highlight {
         google.protobuf.StringValue  boundary_scanner_locale = 16;
         // Only highlight the top matched phrases (with the highest boost value) per fragment. By default, it is false.
         google.protobuf.BoolValue top_boost_only = 17;
-        // Optional limit to the number of phrases to be highlighted in each fragment.
-        // Ordered by boost, then position
+        // Optional limit to the number of phrases or terms to be highlighted in each fragment.
+        // Ordered by boost, then position. If omitted, all matches will be highlighted;
+        // Any non-positive number will be ignored.
         google.protobuf.UInt32Value max_number_of_highlighted_phrase_per_fragment = 18;
     }
 
