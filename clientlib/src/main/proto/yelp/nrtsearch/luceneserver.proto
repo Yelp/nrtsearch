@@ -1197,6 +1197,8 @@ message CopyState {
     repeated string completedMergeFiles = 7;
     // Primary generation
     int64 primaryGen = 8;
+    // Timestamp for this index version (epoch seconds), may be 0 for no timestamp
+    int64 timestampSec = 9;
 }
 
 // Metadata for multiple index files

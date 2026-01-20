@@ -1338,4 +1338,243 @@ public class NrtDataManagerTest {
             new RemoteBackend.UpdateIntervalContext(60, testTimestamp, 0));
     verifyNoMoreInteractions(mockRemoteBackend);
   }
+
+  @Test
+  public void testGetLastPointTimestamp_initiallyNull() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Initially should be null
+    assertNull(nrtDataManager.getLastPointTimestamp());
+  }
+
+  @Test
+  public void testGetLastPointTimestamp_afterRestore() throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 16);
+    CopyState copyState =
+        new CopyState(
+            Map.of("file1", fileMetaData),
+            5,
+            6,
+            new byte[] {1, 2, 3},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    Instant expectedTimestamp = Instant.now();
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), expectedTimestamp));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder()
+            .setServiceName(SERVICE_NAME)
+            .setResourceName(INDEX_NAME)
+            .setDeleteExistingData(false)
+            .build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+
+    // Initially should be null
+    assertNull(nrtDataManager.getLastPointTimestamp());
+
+    nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
+
+    // After restore, should return the timestamp from the restore operation
+    assertEquals(expectedTimestamp, nrtDataManager.getLastPointTimestamp());
+  }
+
+  @Test
+  public void testGetLastPointTimestamp_afterSetLastPointState() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Create test data
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
+    CopyState copyState =
+        new CopyState(
+            Map.of("test_file", fileMetaData),
+            1,
+            3,
+            new byte[] {1, 2, 3, 4, 5},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData =
+        new NrtFileMetaData(fileMetaData, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("test_file", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    Instant expectedTimestamp = Instant.now();
+
+    // Initially should be null
+    assertNull(nrtDataManager.getLastPointTimestamp());
+
+    // Set the point state
+    nrtDataManager.setLastPointState(nrtPointState, expectedTimestamp);
+
+    // Should return the timestamp that was set
+    assertEquals(expectedTimestamp, nrtDataManager.getLastPointTimestamp());
+  }
+
+  @Test
+  public void testGetLastPointTimestamp_multipleSetLastPointState_higherVersion() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Create initial point state with version 1
+    FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
+    CopyState copyState1 =
+        new CopyState(
+            Map.of("file1", fileMetaData1),
+            1, // version 1
+            3,
+            new byte[] {1, 2, 3, 4, 5},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData1 =
+        new NrtFileMetaData(fileMetaData1, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState1 =
+        new NrtPointState(copyState1, Map.of("file1", nrtFileMetaData1), PRIMARY_ID);
+    Instant timestamp1 = Instant.now();
+
+    // Create newer point state with version 2
+    FileMetaData fileMetaData2 = new FileMetaData(new byte[] {5, 6}, new byte[] {7, 8}, 200, 67890);
+    CopyState copyState2 =
+        new CopyState(
+            Map.of("file2", fileMetaData2),
+            2, // version 2
+            4,
+            new byte[] {6, 7, 8, 9, 10},
+            Set.of("merged_file2"),
+            8,
+            null);
+    NrtFileMetaData nrtFileMetaData2 =
+        new NrtFileMetaData(fileMetaData2, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState2 =
+        new NrtPointState(copyState2, Map.of("file2", nrtFileMetaData2), PRIMARY_ID);
+    Instant timestamp2 = timestamp1.plusSeconds(10);
+
+    // Set initial state
+    nrtDataManager.setLastPointState(pointState1, timestamp1);
+    assertEquals(timestamp1, nrtDataManager.getLastPointTimestamp());
+
+    // Set newer state - should update timestamp
+    nrtDataManager.setLastPointState(pointState2, timestamp2);
+    assertEquals(timestamp2, nrtDataManager.getLastPointTimestamp());
+  }
+
+  @Test
+  public void testGetLastPointTimestamp_multipleSetLastPointState_lowerVersion() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Create initial point state with version 2
+    FileMetaData fileMetaData2 = new FileMetaData(new byte[] {5, 6}, new byte[] {7, 8}, 200, 67890);
+    CopyState copyState2 =
+        new CopyState(
+            Map.of("file2", fileMetaData2),
+            2, // version 2
+            4,
+            new byte[] {6, 7, 8, 9, 10},
+            Set.of("merged_file2"),
+            8,
+            null);
+    NrtFileMetaData nrtFileMetaData2 =
+        new NrtFileMetaData(fileMetaData2, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState2 =
+        new NrtPointState(copyState2, Map.of("file2", nrtFileMetaData2), PRIMARY_ID);
+    Instant timestamp2 = Instant.now();
+
+    // Create older point state with version 1
+    FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
+    CopyState copyState1 =
+        new CopyState(
+            Map.of("file1", fileMetaData1),
+            1, // version 1 (lower)
+            3,
+            new byte[] {1, 2, 3, 4, 5},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData1 =
+        new NrtFileMetaData(fileMetaData1, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState1 =
+        new NrtPointState(copyState1, Map.of("file1", nrtFileMetaData1), PRIMARY_ID);
+    Instant timestamp1 = timestamp2.minusSeconds(10);
+
+    // Set newer state first
+    nrtDataManager.setLastPointState(pointState2, timestamp2);
+    assertEquals(timestamp2, nrtDataManager.getLastPointTimestamp());
+
+    // Try to set older state - timestamp should NOT change
+    nrtDataManager.setLastPointState(pointState1, timestamp1);
+    assertEquals(
+        timestamp2, nrtDataManager.getLastPointTimestamp()); // Should still be the newer timestamp
+  }
+
+  @Test
+  public void testGetLastPointTimestamp_multipleSetLastPointState_sameVersion() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+
+    // Create first point state with version 1
+    FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
+    CopyState copyState1 =
+        new CopyState(
+            Map.of("file1", fileMetaData1),
+            1, // version 1
+            3,
+            new byte[] {1, 2, 3, 4, 5},
+            Set.of("merged_file"),
+            7,
+            null);
+    NrtFileMetaData nrtFileMetaData1 =
+        new NrtFileMetaData(fileMetaData1, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState1 =
+        new NrtPointState(copyState1, Map.of("file1", nrtFileMetaData1), PRIMARY_ID);
+    Instant timestamp1 = Instant.now();
+
+    // Create second point state with same version 1
+    FileMetaData fileMetaData2 = new FileMetaData(new byte[] {5, 6}, new byte[] {7, 8}, 200, 67890);
+    CopyState copyState2 =
+        new CopyState(
+            Map.of("file2", fileMetaData2),
+            1, // same version 1
+            4,
+            new byte[] {6, 7, 8, 9, 10},
+            Set.of("merged_file2"),
+            8,
+            null);
+    NrtFileMetaData nrtFileMetaData2 =
+        new NrtFileMetaData(fileMetaData2, PRIMARY_ID, TimeStringUtils.generateTimeStringSec());
+    NrtPointState pointState2 =
+        new NrtPointState(copyState2, Map.of("file2", nrtFileMetaData2), PRIMARY_ID);
+    Instant timestamp2 = timestamp1.plusSeconds(10);
+
+    // Set first state
+    nrtDataManager.setLastPointState(pointState1, timestamp1);
+    assertEquals(timestamp1, nrtDataManager.getLastPointTimestamp());
+
+    // Try to set second state with same version - timestamp should NOT change
+    nrtDataManager.setLastPointState(pointState2, timestamp2);
+    assertEquals(
+        timestamp1, nrtDataManager.getLastPointTimestamp()); // Should still be the first timestamp
+  }
 }

@@ -24,9 +24,11 @@ import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.jobs.CopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
+import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.index.SegmentInfos;
@@ -221,6 +223,14 @@ public class NRTReplicaNode extends ReplicaNode {
           .observe((System.nanoTime() - startNS) / 1000000.0);
       NrtMetrics.nrtPointSize.labelValues(indexName).observe(job.getTotalBytesCopied());
       NrtMetrics.searcherVersion.labelValues(indexName).set(job.getCopyState().version());
+
+      // if the job is a simple copy job, read out the index data timestamp and update the metric
+      if (job instanceof SimpleCopyJob simpleCopyJob) {
+        Instant timestamp = simpleCopyJob.getTimestamp();
+        if (timestamp != null) {
+          NrtMetrics.indexTimestampSec.labelValues(indexName).set(timestamp.getEpochSecond());
+        }
+      }
     }
   }
 
