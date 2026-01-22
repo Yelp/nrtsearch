@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 
 import static com.yelp.nrtsearch.server.nrt.NrtUtils.readFilesMetaData;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
@@ -113,7 +114,8 @@ public class GrpcCopyJobManager implements CopyJobManager {
   }
 
   /** Pulls CopyState off the wire */
-  private static NRTPrimaryNode.CopyStateAndTimestamp readCopyState(
+  @VisibleForTesting
+  static NRTPrimaryNode.CopyStateAndTimestamp readCopyState(
       com.yelp.nrtsearch.server.grpc.CopyState copyState) throws IOException {
 
     // Decode a new CopyState
@@ -130,7 +132,7 @@ public class GrpcCopyJobManager implements CopyJobManager {
     CopyState luceneCopyState =
         new CopyState(files, version, gen, infosBytes, completedMergeFiles, primaryGen, null);
     Instant timestamp =
-        copyState.getTimestampSec() > 0 ? Instant.ofEpochMilli(copyState.getTimestampSec()) : null;
+        copyState.getTimestampSec() > 0 ? Instant.ofEpochSecond(copyState.getTimestampSec()) : null;
     return new NRTPrimaryNode.CopyStateAndTimestamp(luceneCopyState, timestamp);
   }
 
