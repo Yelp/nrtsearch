@@ -1502,10 +1502,12 @@ message KnnQuery {
     optional float similarityThreshold = 8;
 
     enum FilterStrategy {
+      // Currently defaults to FANOUT, this may be changed in future versions
+      DEFAULT = 0;
       // Compare against all vector neighbors, keeping only those that match the filter (default)
-      FANOUT = 0;
+      FANOUT = 1;
       // Compare only against vector neighbors that match the filter
-      ACORN = 1;
+      ACORN = 2;
     }
     // Strategy to use when applying filter
     FilterStrategy filter_strategy = 9;
