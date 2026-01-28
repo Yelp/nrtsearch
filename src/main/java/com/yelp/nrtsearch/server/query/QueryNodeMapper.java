@@ -102,12 +102,11 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    return getQuery(query, state, state.docLookup);
+    return getQuery(query, state.docLookup);
   }
 
-  public Query getQuery(
-      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
-    Query queryNode = getQueryNode(query, state, docLookup);
+  public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, DocLookup docLookup) {
+    Query queryNode = getQueryNode(query, docLookup);
 
     if (query.getBoost() < 0) {
       throw new IllegalArgumentException("Boost must be a positive number");
@@ -129,45 +128,55 @@ public class QueryNodeMapper {
     return builder.build();
   }
 
-  /*
-   * create the query to filter the parent/child document based on the path
-   * */
+  /**
+   * Create the query to filter the parent/child document based on the path.
+   *
+   * @param indexState index state
+   * @param path nested path
+   */
   public Query getNestedPathQuery(IndexState indexState, String path) {
-    return new TermQuery(new Term(IndexState.NESTED_PATH, indexState.resolveQueryNestedPath(path)));
+    return getNestedPathQuery(indexState.docLookup, path);
   }
 
-  private Query getQueryNode(
-      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
+  /**
+   * Create the query to filter the parent/child document based on the path.
+   *
+   * @param docLookup lookup for document field data
+   * @param path nested path
+   */
+  public Query getNestedPathQuery(DocLookup docLookup, String path) {
+    return new TermQuery(
+        new Term(IndexState.NESTED_PATH, IndexState.resolveQueryNestedPath(path, docLookup)));
+  }
+
+  private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, DocLookup docLookup) {
     return switch (query.getQueryNodeCase()) {
-      case BOOLEANQUERY -> getBooleanQuery(query.getBooleanQuery(), state, docLookup);
+      case BOOLEANQUERY -> getBooleanQuery(query.getBooleanQuery(), docLookup);
       case PHRASEQUERY -> getPhraseQuery(query.getPhraseQuery());
-      case FUNCTIONSCOREQUERY ->
-          getFunctionScoreQuery(query.getFunctionScoreQuery(), state, docLookup);
-      case TERMQUERY -> getTermQuery(query.getTermQuery(), state);
-      case TERMINSETQUERY -> getTermInSetQuery(query.getTermInSetQuery(), state);
-      case DISJUNCTIONMAXQUERY ->
-          getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state, docLookup);
-      case MATCHQUERY -> getMatchQuery(query.getMatchQuery(), state);
-      case MATCHPHRASEQUERY -> getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
-      case MULTIMATCHQUERY -> getMultiMatchQuery(query.getMultiMatchQuery(), state);
-      case RANGEQUERY -> getRangeQuery(query.getRangeQuery(), state);
-      case GEOBOUNDINGBOXQUERY -> getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
-      case GEOPOINTQUERY -> getGeoPointQuery(query.getGeoPointQuery(), state);
-      case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), state, docLookup);
-      case EXISTSQUERY -> getExistsQuery(query.getExistsQuery(), state);
-      case GEORADIUSQUERY -> getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
-      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
-      case COMPLETIONQUERY -> getCompletionQuery(query.getCompletionQuery(), state);
+      case FUNCTIONSCOREQUERY -> getFunctionScoreQuery(query.getFunctionScoreQuery(), docLookup);
+      case TERMQUERY -> getTermQuery(query.getTermQuery(), docLookup);
+      case TERMINSETQUERY -> getTermInSetQuery(query.getTermInSetQuery(), docLookup);
+      case DISJUNCTIONMAXQUERY -> getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), docLookup);
+      case MATCHQUERY -> getMatchQuery(query.getMatchQuery(), docLookup);
+      case MATCHPHRASEQUERY -> getMatchPhraseQuery(query.getMatchPhraseQuery(), docLookup);
+      case MULTIMATCHQUERY -> getMultiMatchQuery(query.getMultiMatchQuery(), docLookup);
+      case RANGEQUERY -> getRangeQuery(query.getRangeQuery(), docLookup);
+      case GEOBOUNDINGBOXQUERY -> getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), docLookup);
+      case GEOPOINTQUERY -> getGeoPointQuery(query.getGeoPointQuery(), docLookup);
+      case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), docLookup);
+      case EXISTSQUERY -> getExistsQuery(query.getExistsQuery());
+      case GEORADIUSQUERY -> getGeoRadiusQuery(query.getGeoRadiusQuery(), docLookup);
+      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), docLookup);
+      case COMPLETIONQUERY -> getCompletionQuery(query.getCompletionQuery(), docLookup);
       case MULTIFUNCTIONSCOREQUERY ->
-          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
+          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), docLookup);
       case MATCHPHRASEPREFIXQUERY ->
-          MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
-      case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), state, false);
-      case CONSTANTSCOREQUERY ->
-          getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
-      case SPANQUERY -> getSpanQuery(query.getSpanQuery(), state);
-      case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
-      case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), state);
+          MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), docLookup);
+      case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), docLookup, false);
+      case CONSTANTSCOREQUERY -> getConstantScoreQuery(query.getConstantScoreQuery(), docLookup);
+      case SPANQUERY -> getSpanQuery(query.getSpanQuery(), docLookup);
+      case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), docLookup);
+      case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), docLookup);
       case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
       default ->
           throw new UnsupportedOperationException(
@@ -176,16 +185,18 @@ public class QueryNodeMapper {
   }
 
   private Query getCompletionQuery(
-      com.yelp.nrtsearch.server.grpc.CompletionQuery completionQueryDef, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.CompletionQuery completionQueryDef, DocLookup docLookup) {
+    Analyzer fieldAnalyzer =
+        IndexState.getFieldSearchAnalyzer(completionQueryDef.getField(), docLookup);
     CompletionQuery completionQuery =
         switch (completionQueryDef.getQueryType()) {
           case PREFIX_QUERY ->
               new PrefixCompletionQuery(
-                  state.searchAnalyzer,
+                  fieldAnalyzer,
                   new Term(completionQueryDef.getField(), completionQueryDef.getText()));
           case FUZZY_QUERY ->
               new FuzzyCompletionQuery(
-                  state.searchAnalyzer,
+                  fieldAnalyzer,
                   new Term(completionQueryDef.getField(), completionQueryDef.getText()));
           default ->
               throw new UnsupportedOperationException(
@@ -197,16 +208,14 @@ public class QueryNodeMapper {
   }
 
   private Query getNestedQuery(
-      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery,
-      IndexState state,
-      DocLookup docLookup) {
-    Query childRawQuery = getQuery(nestedQuery.getQuery(), state, docLookup);
+      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, DocLookup docLookup) {
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), docLookup);
     Query childQuery =
         new BooleanQuery.Builder()
-            .add(getNestedPathQuery(state, nestedQuery.getPath()), BooleanClause.Occur.FILTER)
+            .add(getNestedPathQuery(docLookup, nestedQuery.getPath()), BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = getNestedPathQuery(state, IndexState.ROOT);
+    Query parentQuery = getNestedPathQuery(docLookup, IndexState.ROOT);
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
@@ -225,9 +234,7 @@ public class QueryNodeMapper {
   }
 
   private BooleanQuery getBooleanQuery(
-      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery,
-      IndexState state,
-      DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery, DocLookup docLookup) {
     BooleanQuery.Builder builder =
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
@@ -242,7 +249,7 @@ public class QueryNodeMapper {
         .forEach(
             clause -> {
               com.yelp.nrtsearch.server.grpc.BooleanClause.Occur occur = clause.getOccur();
-              builder.add(getQuery(clause.getQuery(), state, docLookup), occurMapping.get(occur));
+              builder.add(getQuery(clause.getQuery(), docLookup), occurMapping.get(occur));
               if (occur != com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.MUST_NOT) {
                 allMustNot.set(false);
               }
@@ -263,32 +270,30 @@ public class QueryNodeMapper {
   }
 
   private FunctionScoreQuery getFunctionScoreQuery(
-      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery,
-      IndexState state,
-      DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, DocLookup docLookup) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
 
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
-        getQuery(functionScoreQuery.getQuery(), state, docLookup),
+        getQuery(functionScoreQuery.getQuery(), docLookup),
         scriptFactory.newFactory(params, docLookup));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
-      FunctionFilterQuery functionFilterQuery, IndexState state) {
+      FunctionFilterQuery functionFilterQuery, DocLookup docLookup) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
-    return new FunctionMatchQuery(
-        scriptFactory.newFactory(params, state.docLookup), score -> score > 0);
+    return new FunctionMatchQuery(scriptFactory.newFactory(params, docLookup), score -> score > 0);
   }
 
-  private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {
+  private Query getTermQuery(
+      com.yelp.nrtsearch.server.grpc.TermQuery termQuery, DocLookup docLookup) {
     String fieldName = termQuery.getField();
-    FieldDef fieldDef = state.getFieldOrThrow(fieldName);
+    FieldDef fieldDef = docLookup.getFieldDefOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable termQueryable) {
       return termQueryable.getTermQuery(termQuery);
@@ -300,9 +305,9 @@ public class QueryNodeMapper {
   }
 
   private Query getTermInSetQuery(
-      com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, DocLookup docLookup) {
     String fieldName = termInSetQuery.getField();
-    FieldDef fieldDef = state.getFieldOrThrow(fieldName);
+    FieldDef fieldDef = docLookup.getFieldDefOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable termQueryable) {
       return termQueryable.getTermInSetQuery(termInSetQuery);
@@ -314,21 +319,19 @@ public class QueryNodeMapper {
   }
 
   private DisjunctionMaxQuery getDisjunctionMaxQuery(
-      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery,
-      IndexState state,
-      DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery, DocLookup docLookup) {
     List<Query> disjuncts =
         disjunctionMaxQuery.getDisjunctsList().stream()
-            .map(query -> getQuery(query, state, docLookup))
+            .map(query -> getQuery(query, docLookup))
             .collect(Collectors.toList());
     return new DisjunctionMaxQuery(disjuncts, disjunctionMaxQuery.getTieBreakerMultiplier());
   }
 
-  private Query getMatchQuery(MatchQuery matchQuery, IndexState state) {
+  private Query getMatchQuery(MatchQuery matchQuery, DocLookup docLookup) {
     Analyzer analyzer =
         isAnalyzerDefined(matchQuery.getAnalyzer())
             ? AnalyzerCreator.getInstance().getAnalyzer(matchQuery.getAnalyzer())
-            : state.searchAnalyzer;
+            : IndexState.getFieldSearchAnalyzer(matchQuery.getField(), docLookup);
 
     QueryBuilder queryBuilder = new MatchQueryBuilder(analyzer, matchQuery.getFuzzyParams());
 
@@ -361,11 +364,11 @@ public class QueryNodeMapper {
     return builder.build();
   }
 
-  private Query getMatchPhraseQuery(MatchPhraseQuery matchPhraseQuery, IndexState state) {
+  private Query getMatchPhraseQuery(MatchPhraseQuery matchPhraseQuery, DocLookup docLookup) {
     Analyzer analyzer =
         isAnalyzerDefined(matchPhraseQuery.getAnalyzer())
             ? AnalyzerCreator.getInstance().getAnalyzer(matchPhraseQuery.getAnalyzer())
-            : state.searchAnalyzer;
+            : IndexState.getFieldSearchAnalyzer(matchPhraseQuery.getField(), docLookup);
 
     QueryBuilder queryBuilder = new QueryBuilder(analyzer);
     // This created query will be TermQuery if only one token is found after analysis, otherwise
@@ -393,19 +396,19 @@ public class QueryNodeMapper {
     return phraseQuery;
   }
 
-  private Query getMultiMatchQuery(MultiMatchQuery multiMatchQuery, IndexState state) {
+  private Query getMultiMatchQuery(MultiMatchQuery multiMatchQuery, DocLookup docLookup) {
     Map<String, Float> fieldBoosts = multiMatchQuery.getFieldBoostsMap();
     Collection<String> fields;
 
     // Take all fields if none are provided
     if (multiMatchQuery.getFieldsList().isEmpty()) {
-      fields = state.getAllFields().keySet();
+      fields = docLookup.getAllFieldNames();
     } else {
       fields = multiMatchQuery.getFieldsList();
     }
 
     if (multiMatchQuery.getType() == MatchType.CROSS_FIELDS) {
-      return getMultiMatchCrossFieldsQuery(fields, multiMatchQuery, state);
+      return getMultiMatchCrossFieldsQuery(fields, multiMatchQuery, docLookup);
     }
 
     List<Query> matchQueries =
@@ -430,7 +433,7 @@ public class QueryNodeMapper {
                                   // all match queries would be more efficient
                                   .setFuzzyParams(multiMatchQuery.getFuzzyParams())
                                   .build();
-                          yield getMatchQuery(matchQuery, state);
+                          yield getMatchQuery(matchQuery, docLookup);
                         }
                         case PHRASE_PREFIX ->
                             MatchPhrasePrefixQuery.build(
@@ -441,7 +444,7 @@ public class QueryNodeMapper {
                                     .setSlop(multiMatchQuery.getSlop())
                                     .setMaxExpansions(multiMatchQuery.getMaxExpansions())
                                     .build(),
-                                state);
+                                docLookup);
                         default ->
                             throw new IllegalArgumentException(
                                 "Unknown multi match type: " + multiMatchQuery.getType());
@@ -464,10 +467,10 @@ public class QueryNodeMapper {
   }
 
   private Query getMultiMatchCrossFieldsQuery(
-      Collection<String> fields, MultiMatchQuery multiMatchQuery, IndexState state) {
+      Collection<String> fields, MultiMatchQuery multiMatchQuery, DocLookup docLookup) {
     Analyzer analyzer = null;
     for (String field : fields) {
-      FieldDef fieldDef = state.getFieldOrThrow(field);
+      FieldDef fieldDef = docLookup.getFieldDefOrThrow(field);
       if (!(fieldDef instanceof TextBaseFieldDef textBaseFieldDef)) {
         throw new IllegalArgumentException("Field must be analyzable: " + field);
       }
@@ -494,9 +497,9 @@ public class QueryNodeMapper {
         analyzer);
   }
 
-  private Query getRangeQuery(RangeQuery rangeQuery, IndexState state) {
+  private Query getRangeQuery(RangeQuery rangeQuery, DocLookup docLookup) {
     String fieldName = rangeQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
 
     if (!(field instanceof RangeQueryable)) {
       throw new IllegalArgumentException("Field: " + fieldName + " does not support RangeQuery");
@@ -505,9 +508,10 @@ public class QueryNodeMapper {
     return ((RangeQueryable) field).getRangeQuery(rangeQuery);
   }
 
-  private Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery, IndexState state) {
+  private Query getGeoBoundingBoxQuery(
+      GeoBoundingBoxQuery geoBoundingBoxQuery, DocLookup docLookup) {
     String fieldName = geoBoundingBoxQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
 
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
@@ -517,9 +521,9 @@ public class QueryNodeMapper {
     return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
   }
 
-  private Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery, IndexState state) {
+  private Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery, DocLookup docLookup) {
     String fieldName = geoRadiusQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
           "Field: " + fieldName + " does not support GeoRadiusQuery");
@@ -527,9 +531,9 @@ public class QueryNodeMapper {
     return ((GeoQueryable) field).getGeoRadiusQuery(geoRadiusQuery);
   }
 
-  private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {
+  private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, DocLookup docLookup) {
     String fieldName = geoPolygonQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
 
     if (!(field instanceof PolygonQueryable)) {
       throw new IllegalArgumentException("Field " + fieldName + "does not support GeoPolygonQuery");
@@ -537,9 +541,9 @@ public class QueryNodeMapper {
     return ((PolygonQueryable) field).getGeoPointQuery(geoPolygonQuery);
   }
 
-  private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, IndexState state) {
+  private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, DocLookup docLookup) {
     String fieldName = geoPolygonQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
 
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
@@ -558,14 +562,14 @@ public class QueryNodeMapper {
             EnumMap::putAll);
   }
 
-  private Query getExistsQuery(ExistsQuery existsQuery, IndexState state) {
+  private Query getExistsQuery(ExistsQuery existsQuery) {
     String fieldName = existsQuery.getField();
     return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
   }
 
   private static Query getPrefixQuery(
-      PrefixQuery prefixQuery, IndexState state, boolean spanQuery) {
-    FieldDef fieldDef = state.getFieldOrThrow(prefixQuery.getField());
+      PrefixQuery prefixQuery, DocLookup docLookup, boolean spanQuery) {
+    FieldDef fieldDef = docLookup.getFieldDefOrThrow(prefixQuery.getField());
 
     if (!(fieldDef instanceof PrefixQueryable)) {
       throw new IllegalArgumentException(
@@ -600,14 +604,13 @@ public class QueryNodeMapper {
 
   private Query getConstantScoreQuery(
       com.yelp.nrtsearch.server.grpc.ConstantScoreQuery constantScoreQueryGrpc,
-      IndexState indexState,
       DocLookup docLookup) {
-    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState, docLookup);
+    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), docLookup);
     return new ConstantScoreQuery(filterQuery);
   }
 
   private SpanQuery getSpanQuery(
-      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, DocLookup docLookup) {
     List<SpanQuery> clauses = new ArrayList<>();
 
     com.yelp.nrtsearch.server.grpc.SpanQuery.QueryCase queryCase = protoSpanQuery.getQueryCase();
@@ -617,7 +620,7 @@ public class QueryNodeMapper {
             protoSpanQuery.getSpanNearQuery();
         for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
             protoSpanNearQuery.getClausesList()) {
-          SpanQuery luceneClause = getSpanQuery(protoClause, state);
+          SpanQuery luceneClause = getSpanQuery(protoClause, docLookup);
           clauses.add(luceneClause);
         }
         SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
@@ -632,14 +635,15 @@ public class QueryNodeMapper {
       case SPANMULTITERMQUERY:
         com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery =
             protoSpanQuery.getSpanMultiTermQuery();
-        return getSpanMultiTermQueryWrapper(protoSpanMultiTermQuery, state);
+        return getSpanMultiTermQueryWrapper(protoSpanMultiTermQuery, docLookup);
       default:
         throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
     }
   }
 
   private SpanMultiTermQueryWrapper<?> getSpanMultiTermQueryWrapper(
-      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery,
+      DocLookup docLookup) {
 
     com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery.WrappedQueryCase wrappedQueryCase =
         protoSpanMultiTermQuery.getWrappedQueryCase();
@@ -662,7 +666,8 @@ public class QueryNodeMapper {
         FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
         return new SpanMultiTermQueryWrapper<>(fuzzyQuery);
       case PREFIXQUERY:
-        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state, true);
+        Query prefixQuery =
+            getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), docLookup, true);
         return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
       case REGEXPQUERY:
         RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);
@@ -762,9 +767,9 @@ public class QueryNodeMapper {
   }
 
   private static Query getExactVectorQuery(
-      com.yelp.nrtsearch.server.grpc.ExactVectorQuery exactVectorQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.ExactVectorQuery exactVectorQuery, DocLookup docLookup) {
     String fieldName = exactVectorQuery.getField();
-    FieldDef field = state.getFieldOrThrow(fieldName);
+    FieldDef field = docLookup.getFieldDefOrThrow(fieldName);
 
     if (field instanceof VectorQueryable vectorQueryable) {
       return vectorQueryable.getExactQuery(exactVectorQuery);

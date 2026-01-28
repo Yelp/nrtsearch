@@ -148,11 +148,11 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    DocLookup docLookup = new DocLookup(queryFields::get);
+    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet);
     contextBuilder.setDocLookup(docLookup);
 
     String rootQueryNestedPath =
-        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+        IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
     Query query =
         extractQuery(
@@ -520,7 +520,7 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, state, docLookup);
+      q = QUERY_NODE_MAPPER.getQuery(query, docLookup);
     }
 
     if (state.hasNestedChildFields()) {
