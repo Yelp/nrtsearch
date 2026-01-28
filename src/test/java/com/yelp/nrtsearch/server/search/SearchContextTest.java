@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.search;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -88,8 +87,7 @@ public class SearchContextTest extends ServerTestCase {
         .setCollector(new DummyCollector())
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setDocLookup(
-            new DocLookup(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX)::getFieldOrThrow))
+        .setDocLookup(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).docLookup)
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 

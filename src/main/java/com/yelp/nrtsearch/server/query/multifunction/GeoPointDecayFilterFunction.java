@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.query.multifunction;
 
 import com.google.type.LatLng;
+import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.SegmentDocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
@@ -23,7 +24,6 @@ import com.yelp.nrtsearch.server.field.LatLonFieldDef;
 import com.yelp.nrtsearch.server.geo.GeoPoint;
 import com.yelp.nrtsearch.server.geo.GeoUtils;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
-import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +40,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
   private final double offset;
   private final double decay;
   private final LatLng origin;
-  private final IndexState indexState;
+  private final DocLookup docLookup;
 
   /**
    * Constructor.
@@ -49,13 +49,13 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
    * @param weight weight multiple to scale the function score
    * @param decayFunction to score a document with a function that decays depending on the distance
    *     between an origin point and a geoPoint doc field value
-   * @param indexState indexState for validation and doc value lookup
+   * @param docLookup lookup for document field data
    */
   public GeoPointDecayFilterFunction(
       Query filterQuery,
       float weight,
       MultiFunctionScoreQuery.DecayFunction decayFunction,
-      IndexState indexState) {
+      DocLookup docLookup) {
     super(filterQuery, weight, decayFunction);
     this.decayFunction = decayFunction;
     this.fieldName = decayFunction.getFieldName();
@@ -68,8 +68,8 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
         !decayFunction.getOffset().isEmpty()
             ? GeoUtils.getDistance(decayFunction.getOffset())
             : 0.0;
-    this.indexState = indexState;
-    validateLatLonField(indexState.getFieldOrThrow(fieldName));
+    this.docLookup = docLookup;
+    validateLatLonField(docLookup.getFieldDefOrThrow(fieldName));
   }
 
   public void validateLatLonField(FieldDef fieldDef) {
@@ -99,7 +99,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
     SegmentDocLookup segmentDocLookup;
 
     public GeoPointDecayLeafFunction(LeafReaderContext context) {
-      segmentDocLookup = indexState.docLookup.getSegmentLookup(context);
+      segmentDocLookup = docLookup.getSegmentLookup(context);
     }
 
     @Override
@@ -174,7 +174,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
   protected FilterFunction doRewrite(boolean filterQueryRewritten, Query rewrittenFilterQuery) {
     if (filterQueryRewritten) {
       return new GeoPointDecayFilterFunction(
-          rewrittenFilterQuery, getWeight(), decayFunction, indexState);
+          rewrittenFilterQuery, getWeight(), decayFunction, docLookup);
     } else {
       return this;
     }

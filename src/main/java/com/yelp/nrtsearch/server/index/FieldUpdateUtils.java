@@ -167,7 +167,10 @@ public class FieldUpdateUtils {
         ScriptService.getInstance().compile(field.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params = ScriptParamsUtils.decodeParams(field.getScript().getParamsMap());
     DoubleValuesSource values =
-        factory.newFactory(params, new DocLookup(fieldStateBuilder.getFields()::get));
+        factory.newFactory(
+            params,
+            new DocLookup(
+                fieldStateBuilder.getFields()::get, fieldStateBuilder.getFields()::keySet));
 
     FieldDef virtualFieldDef = new VirtualFieldDef(field.getName(), values);
     fieldStateBuilder.addField(virtualFieldDef, field);

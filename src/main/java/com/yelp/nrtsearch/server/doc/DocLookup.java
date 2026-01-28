@@ -16,7 +16,9 @@
 package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import java.util.Collection;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.lucene.index.LeafReaderContext;
 
 /**
@@ -25,9 +27,19 @@ import org.apache.lucene.index.LeafReaderContext;
  */
 public class DocLookup {
   private final Function<String, FieldDef> fieldDefLookup;
+  private final Supplier<Collection<String>> allFieldNamesSupplier;
 
-  public DocLookup(Function<String, FieldDef> fieldDefLookup) {
+  /**
+   * Constructor.
+   *
+   * @param fieldDefLookup lookup to produce a field definition from its name
+   * @param allFieldNamesSupplier supplier to produce a collection of all valid field names
+   */
+  public DocLookup(
+      Function<String, FieldDef> fieldDefLookup,
+      Supplier<Collection<String>> allFieldNamesSupplier) {
     this.fieldDefLookup = fieldDefLookup;
+    this.allFieldNamesSupplier = allFieldNamesSupplier;
   }
 
   /**
@@ -48,5 +60,26 @@ public class DocLookup {
    */
   public FieldDef getFieldDef(String fieldName) {
     return fieldDefLookup.apply(fieldName);
+  }
+
+  /**
+   * Get the field definition for the given field name, or throw an exception if the field does not
+   * exist.
+   *
+   * @param fieldName field name
+   * @return field definition
+   * @throws IllegalArgumentException if the field does not exist
+   */
+  public FieldDef getFieldDefOrThrow(String fieldName) {
+    FieldDef fieldDef = getFieldDef(fieldName);
+    if (fieldDef == null) {
+      throw new IllegalArgumentException("field \"" + fieldName + "\" is unknown");
+    }
+    return fieldDef;
+  }
+
+  /** Get a collection of all the existing field names. */
+  public Collection<String> getAllFieldNames() {
+    return allFieldNamesSupplier.get();
   }
 }

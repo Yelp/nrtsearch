@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.query;
 import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.index.IndexState;
@@ -73,13 +74,13 @@ public class MatchPhrasePrefixQuery extends Query {
    * com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery} definition.
    *
    * @param matchPhrasePrefixQueryGrpc grpc query message
-   * @param indexState index state
+   * @param docLookup lookup for document field data
    * @return lucene query
    */
   public static Query build(
       com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery matchPhrasePrefixQueryGrpc,
-      IndexState indexState) {
-    FieldDef fieldDef = indexState.getFieldOrThrow(matchPhrasePrefixQueryGrpc.getField());
+      DocLookup docLookup) {
+    FieldDef fieldDef = docLookup.getFieldDefOrThrow(matchPhrasePrefixQueryGrpc.getField());
     if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
       throw new IllegalArgumentException("MatchPhrasePrefixQuery requires an indexable field");
     }
@@ -90,7 +91,7 @@ public class MatchPhrasePrefixQuery extends Query {
     Analyzer analyzer =
         isAnalyzerDefined(matchPhrasePrefixQueryGrpc.getAnalyzer())
             ? AnalyzerCreator.getInstance().getAnalyzer(matchPhrasePrefixQueryGrpc.getAnalyzer())
-            : indexState.searchAnalyzer;
+            : IndexState.getFieldSearchAnalyzer(matchPhrasePrefixQueryGrpc.getField(), docLookup);
     try (TokenStream stream =
         analyzer.tokenStream(
             matchPhrasePrefixQueryGrpc.getField(), matchPhrasePrefixQueryGrpc.getQuery())) {

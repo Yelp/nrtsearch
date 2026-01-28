@@ -101,7 +101,7 @@ public abstract class IndexState implements Closeable {
   /**
    * Index level doc values lookup. Generates {@link SegmentDocLookup} for a given lucene segment.
    */
-  public final DocLookup docLookup = new DocLookup(this::getField);
+  public final DocLookup docLookup = new DocLookup(this::getField, () -> getAllFields().keySet());
 
   /**
    * Holds the configuration for parallel fetch operations.
@@ -122,25 +122,38 @@ public abstract class IndexState implements Closeable {
       new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
         @Override
         public Analyzer getWrappedAnalyzer(String name) {
-          FieldDef fd = getFieldOrThrow(name);
-          if (fd instanceof TextBaseFieldDef) {
-            Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getSearchAnalyzer();
-            if (maybeAnalyzer.isEmpty()) {
-              throw new IllegalArgumentException(
-                  "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
-            }
-            return maybeAnalyzer.get();
-          } else if (fd instanceof ContextSuggestFieldDef) {
-            Optional<Analyzer> maybeAnalyzer = ((ContextSuggestFieldDef) fd).getSearchAnalyzer();
-            if (maybeAnalyzer.isEmpty()) {
-              throw new IllegalArgumentException(
-                  "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
-            }
-            return maybeAnalyzer.get();
-          }
-          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
+          return getFieldSearchAnalyzer(name, docLookup);
         }
       };
+
+  /**
+   * Get the search time analyzer configured for a given field name.
+   *
+   * @param fieldName field name
+   * @param docLookup lookup for document field data
+   * @return field search analyzer
+   * @throws IllegalArgumentException if field does not exist, or an analyzer is not supported or
+   *     configured
+   */
+  public static Analyzer getFieldSearchAnalyzer(String fieldName, DocLookup docLookup) {
+    FieldDef fd = docLookup.getFieldDefOrThrow(fieldName);
+    if (fd instanceof TextBaseFieldDef) {
+      Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getSearchAnalyzer();
+      if (maybeAnalyzer.isEmpty()) {
+        throw new IllegalArgumentException(
+            "field \"" + fieldName + "\" did not specify analyzer or searchAnalyzer");
+      }
+      return maybeAnalyzer.get();
+    } else if (fd instanceof ContextSuggestFieldDef) {
+      Optional<Analyzer> maybeAnalyzer = ((ContextSuggestFieldDef) fd).getSearchAnalyzer();
+      if (maybeAnalyzer.isEmpty()) {
+        throw new IllegalArgumentException(
+            "field \"" + fieldName + "\" did not specify analyzer or searchAnalyzer");
+      }
+      return maybeAnalyzer.get();
+    }
+    throw new IllegalArgumentException("field \"" + fieldName + "\" does not support analysis");
+  }
 
   /** Per-field wrapper that provides the similarity for searcher */
   public final Similarity searchSimilarity =
@@ -313,14 +326,15 @@ public abstract class IndexState implements Closeable {
    * resolve the nested object path, and do validation if it is not _root.
    *
    * @param path path of the nested object
+   * @param docLookup lookup for document field data
    * @return resolved path
    * @throws IllegalArgumentException if the non-root path is invalid
    */
-  public String resolveQueryNestedPath(String path) {
+  public static String resolveQueryNestedPath(String path, DocLookup docLookup) {
     if (path == null || path.isEmpty() || path.equals(IndexState.ROOT)) {
       return IndexState.ROOT;
     }
-    FieldDef fieldDef = getFieldOrThrow(path);
+    FieldDef fieldDef = docLookup.getFieldDefOrThrow(path);
     if ((fieldDef instanceof ObjectFieldDef) && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
       return path;
     }
