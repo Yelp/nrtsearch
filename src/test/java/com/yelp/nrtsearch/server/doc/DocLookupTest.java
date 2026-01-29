@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +34,7 @@ public class DocLookupTest {
 
   private Function<String, FieldDef> mockFieldDefLookup;
   private Supplier<Collection<String>> mockAllFieldNamesSupplier;
+  private SearcherTaxonomyManager.SearcherAndTaxonomy mockSearcherAndTaxonomy;
   private FieldDef mockFieldDef1;
   private FieldDef mockFieldDef2;
   private DocLookup docLookup;
@@ -42,6 +44,7 @@ public class DocLookupTest {
   public void setUp() {
     mockFieldDefLookup = mock(Function.class);
     mockAllFieldNamesSupplier = mock(Supplier.class);
+    mockSearcherAndTaxonomy = mock(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
     mockFieldDef1 = mock(FieldDef.class);
     mockFieldDef2 = mock(FieldDef.class);
 
@@ -53,7 +56,8 @@ public class DocLookupTest {
     when(mockFieldDef2.getType()).thenReturn("INT");
     when(mockFieldDef2.getFacetValueType()).thenReturn(IndexableFieldDef.FacetValueType.NO_FACETS);
 
-    docLookup = new DocLookup(mockFieldDefLookup, mockAllFieldNamesSupplier);
+    docLookup =
+        new DocLookup(mockFieldDefLookup, mockAllFieldNamesSupplier, mockSearcherAndTaxonomy);
   }
 
   @Test
@@ -217,7 +221,7 @@ public class DocLookupTest {
   public void testConstructor_NullFieldDefLookup() {
     // Act & Assert
     try {
-      new DocLookup(null, mockAllFieldNamesSupplier);
+      new DocLookup(null, mockAllFieldNamesSupplier, null);
       // Constructor doesn't validate null parameters, so this should not throw
     } catch (Exception e) {
       fail("Constructor should not throw for null fieldDefLookup: " + e.getMessage());
@@ -228,10 +232,68 @@ public class DocLookupTest {
   public void testConstructor_NullAllFieldNamesSupplier() {
     // Act & Assert
     try {
-      new DocLookup(mockFieldDefLookup, null);
+      new DocLookup(mockFieldDefLookup, null, null);
       // Constructor doesn't validate null parameters, so this should not throw
     } catch (Exception e) {
       fail("Constructor should not throw for null allFieldNamesSupplier: " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGetSearcherAndTaxonomy_ValidSearcherAndTaxonomy() {
+    // Act
+    SearcherTaxonomyManager.SearcherAndTaxonomy result = docLookup.getSearcherAndTaxonomy();
+
+    // Assert
+    assertEquals(mockSearcherAndTaxonomy, result);
+  }
+
+  @Test
+  public void testGetSearcherAndTaxonomy_NullSearcherAndTaxonomy() {
+    // Arrange
+    DocLookup docLookupWithNull =
+        new DocLookup(mockFieldDefLookup, mockAllFieldNamesSupplier, null);
+
+    // Act
+    SearcherTaxonomyManager.SearcherAndTaxonomy result = docLookupWithNull.getSearcherAndTaxonomy();
+
+    // Assert
+    assertNull(result);
+  }
+
+  @Test
+  public void testGetSearcherAndTaxonomy_MultipleCalls() {
+    // Act
+    SearcherTaxonomyManager.SearcherAndTaxonomy result1 = docLookup.getSearcherAndTaxonomy();
+    SearcherTaxonomyManager.SearcherAndTaxonomy result2 = docLookup.getSearcherAndTaxonomy();
+
+    // Assert
+    assertEquals(mockSearcherAndTaxonomy, result1);
+    assertEquals(mockSearcherAndTaxonomy, result2);
+    assertSame(result1, result2); // Should return the same instance
+  }
+
+  @Test
+  public void testConstructor_NullSearcherAndTaxonomy() {
+    // Act & Assert
+    try {
+      new DocLookup(mockFieldDefLookup, mockAllFieldNamesSupplier, null);
+      // Constructor doesn't validate null parameters, so this should not throw
+    } catch (Exception e) {
+      fail("Constructor should not throw for null searcherAndTaxonomy: " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void testConstructor_AllParameters() {
+    // Act & Assert
+    try {
+      DocLookup testDocLookup =
+          new DocLookup(mockFieldDefLookup, mockAllFieldNamesSupplier, mockSearcherAndTaxonomy);
+      assertNotNull(testDocLookup);
+      assertEquals(mockSearcherAndTaxonomy, testDocLookup.getSearcherAndTaxonomy());
+    } catch (Exception e) {
+      fail("Constructor should not throw for valid parameters: " + e.getMessage());
     }
   }
 }

@@ -135,8 +135,17 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain())
         .setWarming(warming);
 
-    Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
-    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
+    // We do this to make the searcher available to scripting engines, by adding it to the
+    // DocLookup. It would be better to change the script factory interface to take a
+    // context object containing these objects separately. We should consider making
+    // these changes in a future minor version.
+    DocLookup indexLookupWithSearcher =
+        new DocLookup(
+            indexState::getField, () -> indexState.getAllFields().keySet(), searcherAndTaxonomy);
+    Map<String, FieldDef> queryVirtualFields =
+        getVirtualFields(indexLookupWithSearcher, searchRequest);
+    Map<String, FieldDef> queryRuntimeFields =
+        getRuntimeFields(indexLookupWithSearcher, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
 
@@ -148,7 +157,7 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet);
+    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet, searcherAndTaxonomy);
     contextBuilder.setDocLookup(docLookup);
 
     String rootQueryNestedPath =
@@ -363,7 +372,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      IndexState indexState, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
@@ -378,7 +387,7 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -390,7 +399,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple runtime fields with the same name
    */
   private static Map<String, FieldDef> getRuntimeFields(
-      IndexState indexState, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest) {
     if (searchRequest.getRuntimeFieldsList().isEmpty()) {
       return Map.of();
     }
@@ -404,8 +413,7 @@ public class SearchRequestProcessor {
       RuntimeScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
-      RuntimeScript.SegmentFactory segmentFactory =
-          factory.newFactory(params, indexState.docLookup);
+      RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, docLookup);
       FieldDef runtimeField = new RuntimeFieldDef(vf.getName(), segmentFactory);
       runtimeFields.put(vf.getName(), runtimeField);
     }
