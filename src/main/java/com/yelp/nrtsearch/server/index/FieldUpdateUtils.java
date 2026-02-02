@@ -170,7 +170,7 @@ public class FieldUpdateUtils {
         factory.newFactory(
             params,
             new DocLookup(
-                fieldStateBuilder.getFields()::get, fieldStateBuilder.getFields()::keySet));
+                fieldStateBuilder.getFields()::get, fieldStateBuilder.getFields()::keySet, null));
 
     FieldDef virtualFieldDef = new VirtualFieldDef(field.getName(), values);
     fieldStateBuilder.addField(virtualFieldDef, field);

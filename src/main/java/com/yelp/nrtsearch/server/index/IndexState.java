@@ -101,7 +101,8 @@ public abstract class IndexState implements Closeable {
   /**
    * Index level doc values lookup. Generates {@link SegmentDocLookup} for a given lucene segment.
    */
-  public final DocLookup docLookup = new DocLookup(this::getField, () -> getAllFields().keySet());
+  public final DocLookup docLookup =
+      new DocLookup(this::getField, () -> getAllFields().keySet(), null);
 
   /**
    * Holds the configuration for parallel fetch operations.
