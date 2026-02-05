@@ -1791,6 +1791,11 @@
         "topBoostOnly": {
           "type": "boolean",
           "description": "Only highlight the top matched phrases (with the highest boost value) per fragment. By default, it is false."
+        },
+        "maxNumberOfHighlightedPhrasePerFragment": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Optional limit to the number of phrases or terms to be highlighted in each fragment.\nOrdered by boost, then position. If omitted, all matches will be highlighted;\nAny non-positive number will be ignored."
         }
       }
     },
@@ -5510,6 +5515,13 @@
         "terminatedEarly": {
           "type": "boolean",
           "title": "If this query hit the terminateAfter threshold specified in the request"
+        },
+        "extraData": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "description": "Place to put any extra data to return to the caller. This is mainly intended for use by plugins, which may\nneed to return arbitrary values."
         }
       },
       "title": "Response to a search request"
