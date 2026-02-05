@@ -1091,6 +1091,9 @@ message SearchResponse {
     map<string, CollectorResult> collectorResults = 8;
     // If this query hit the terminateAfter threshold specified in the request
     bool terminatedEarly = 9;
+    // Place to put any extra data to return to the caller. This is mainly intended for use by plugins, which may
+    // need to return arbitrary values.
+    map<string, google.protobuf.Value> extraData = 10;
 }
 
 // Define numeric range for facet
