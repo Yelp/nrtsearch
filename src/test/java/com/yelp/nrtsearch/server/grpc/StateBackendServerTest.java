@@ -401,7 +401,7 @@ public class StateBackendServerTest {
     for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
       Field.Builder builder = Field.newBuilder();
       JsonFormat.parser().merge(entry.getValue().toString(), builder);
-      resultsMap.put(entry.key(), builder.build());
+      resultsMap.put(entry.getKey(), builder.build());
     }
     return resultsMap;
   }

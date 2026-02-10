@@ -382,7 +382,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(Set.of("_0.cfe", "_0.si", "_0.cfs"), pointState.files.keySet());
     Set<String> pointBackendFiles =
         pointState.files.entrySet().stream()
-            .map(e -> S3Backend.getIndexBackendFileName(e.key(), e.getValue()))
+            .map(e -> S3Backend.getIndexBackendFileName(e.getKey(), e.getValue()))
             .collect(Collectors.toSet());
 
     Set<String> snapshotFiles =
@@ -428,7 +428,7 @@ public class SnapshotRestoreCommandTest {
         pointState.files.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toSet());
     Set<String> backendPointFiles =
         pointState.files.entrySet().stream()
-            .map(e -> S3Backend.getIndexBackendFileName(e.key(), e.getValue()))
+            .map(e -> S3Backend.getIndexBackendFileName(e.getKey(), e.getValue()))
             .collect(Collectors.toSet());
 
     String restoredDataKeyPrefix = S3Backend.getIndexDataPrefix(serviceName, indexResource);

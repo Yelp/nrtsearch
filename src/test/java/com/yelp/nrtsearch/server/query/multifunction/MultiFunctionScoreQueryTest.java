@@ -1085,7 +1085,7 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
           hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue(), hit.getScore());
     }
     for (Map.Entry<String, Double> entry : scoresMap.entrySet()) {
-      assertEquals(entry.getValue(), responseScoresMap.get(entry.key()), delta);
+      assertEquals(entry.getValue(), responseScoresMap.get(entry.getKey()), delta);
     }
   }
 

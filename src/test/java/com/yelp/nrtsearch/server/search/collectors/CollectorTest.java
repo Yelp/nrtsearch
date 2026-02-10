@@ -207,7 +207,7 @@ public class CollectorTest extends ServerTestCase {
         for (Map.Entry<Integer, Float> entry : topHits) {
           searchResponseBuilder
               .addHitsBuilder()
-              .setLuceneDocId(entry.key())
+              .setLuceneDocId(entry.getKey())
               .setScore(entry.getValue());
         }
         List<SearchResponse.Hit.Builder> hitBuilders =
@@ -236,7 +236,7 @@ public class CollectorTest extends ServerTestCase {
           for (Map.Entry<Integer, PriorityQueue<Map.Entry<Integer, Float>>> entry :
               collector.topHitsByBusiness.entrySet()) {
             for (Map.Entry<Integer, Float> docIdAndScore : entry.getValue()) {
-              Integer businessId = entry.key();
+              Integer businessId = entry.getKey();
               if (!globalTopHitsByBusiness.containsKey(businessId)) {
                 globalTopHitsByBusiness.put(
                     businessId, new PriorityQueue<>(size, Map.Entry.comparingByValue()));

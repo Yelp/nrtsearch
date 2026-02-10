@@ -530,7 +530,7 @@ public abstract class TermsCollectorManagerTestsBase extends ServerTestCase {
     for (ExpectedValues v : expectedValues) {
       Set<String> valueSet = new HashSet<>();
       for (int i = 0; i < v.labels.size(); ++i) {
-        valueSet.add(result.getBuckets(valuesIndex).key());
+        valueSet.add(result.getBuckets(valuesIndex).getKey());
         assertEquals(v.count, result.getBuckets(valuesIndex).getCount(), 0);
         valuesIndex++;
       }
@@ -558,7 +558,7 @@ public abstract class TermsCollectorManagerTestsBase extends ServerTestCase {
 
     assertEquals(expectedValues.length, result.getBucketsCount());
     for (int i = 0; i < expectedValues.length; ++i) {
-      assertEquals(extractLabel(expectedValues[i].labels), result.getBuckets(i).key());
+      assertEquals(extractLabel(expectedValues[i].labels), result.getBuckets(i).getKey());
       assertEquals(expectedValues[i].count, result.getBuckets(i).getCount(), 0);
     }
   }
@@ -725,7 +725,7 @@ public abstract class TermsCollectorManagerTestsBase extends ServerTestCase {
     assertEquals(expectedWithNestedValues.length, bucketCount);
 
     for (int i = 0; i < expectedWithNestedValues.length; ++i) {
-      assertEquals(expectedWithNestedValues[i].label, result.getBuckets(i).key());
+      assertEquals(expectedWithNestedValues[i].label, result.getBuckets(i).getKey());
       assertEquals(expectedWithNestedValues[i].count, result.getBuckets(i).getCount(), 0);
       assertEquals(
           expectedWithNestedValues[i].nested,

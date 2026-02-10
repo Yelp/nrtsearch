@@ -181,7 +181,7 @@ public class EagerFieldOrdinalTest extends ServerTestCase {
     assertTrue(fieldDef instanceof TextBaseFieldDef);
     TextBaseFieldDef textBaseFieldDef = (TextBaseFieldDef) fieldDef;
     GlobalOrdinalLookup lookup =
-        textBaseFieldDef.ordinalLookupCache.get(reader.getReaderCacheHelper().key());
+        textBaseFieldDef.ordinalLookupCache.get(reader.getReaderCacheHelper().getKey());
     assertNull(lookup);
   }
 
@@ -189,7 +189,7 @@ public class EagerFieldOrdinalTest extends ServerTestCase {
     assertTrue(fieldDef instanceof TextBaseFieldDef);
     TextBaseFieldDef textBaseFieldDef = (TextBaseFieldDef) fieldDef;
     GlobalOrdinalLookup lookup =
-        textBaseFieldDef.ordinalLookupCache.get(reader.getReaderCacheHelper().key());
+        textBaseFieldDef.ordinalLookupCache.get(reader.getReaderCacheHelper().getKey());
     assertNotNull(lookup);
   }
 
