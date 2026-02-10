@@ -21,7 +21,6 @@ import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -42,6 +41,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class CleanupSnapshotsCommandTest {
   private static final long HOUR_TO_MS = 60L * 60L * 1000L;
@@ -53,9 +54,9 @@ public class CleanupSnapshotsCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 

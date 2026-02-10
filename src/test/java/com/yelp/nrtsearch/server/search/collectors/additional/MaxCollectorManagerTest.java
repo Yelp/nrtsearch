@@ -138,7 +138,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
     for (Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
       bucketValues.put(
-          bucket.getKey(),
+          bucket.key(),
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
     }
@@ -166,7 +166,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
     List<Double> sortValues = new ArrayList<>();
     for (Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
-      keyOrder.add(bucket.getKey());
+      keyOrder.add(bucket.key());
       sortValues.add(
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
@@ -184,7 +184,7 @@ public class MaxCollectorManagerTest extends CollectorUtilTest {
     sortValues = new ArrayList<>();
     for (Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
-      keyOrder.add(bucket.getKey());
+      keyOrder.add(bucket.key());
       sortValues.add(
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());

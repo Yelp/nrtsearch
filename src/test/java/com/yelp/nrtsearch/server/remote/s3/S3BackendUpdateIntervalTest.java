@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.remote.s3;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
@@ -46,6 +45,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Tests for the S3Backend downloadPointState method with updateIntervalSeconds parameter and
@@ -74,7 +76,7 @@ public class S3BackendUpdateIntervalTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private static AmazonS3 s3;
+  private static S3Client s3;
   private static S3Backend s3Backend;
   private static ExecutorFactory executorFactory;
 
@@ -187,7 +189,9 @@ public class S3BackendUpdateIntervalTest {
 
     // Upload directly without setting as current
     String key1 = prefix + fileName1;
-    s3.putObject(BUCKET_NAME, key1, new String(pointStateBytes1, StandardCharsets.UTF_8));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(key1).build(),
+        RequestBody.fromString(new String(pointStateBytes1, StandardCharsets.UTF_8)));
 
     // Wait to ensure time difference between versions
     try {
@@ -289,7 +293,8 @@ public class S3BackendUpdateIntervalTest {
     byte[] pointStateBytes1 = RemoteUtils.pointStateToUtf8(pointState1);
     String fileName1 = S3Backend.getPointStateFileName(pointState1);
     s3.putObject(
-        BUCKET_NAME, prefix + fileName1, new String(pointStateBytes1, StandardCharsets.UTF_8));
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName1).build(),
+        RequestBody.fromString(new String(pointStateBytes1, StandardCharsets.UTF_8)));
 
     // Wait briefly
     try {
@@ -302,7 +307,8 @@ public class S3BackendUpdateIntervalTest {
     byte[] pointStateBytes2 = RemoteUtils.pointStateToUtf8(pointState2);
     String fileName2 = S3Backend.getPointStateFileName(pointState2);
     s3.putObject(
-        BUCKET_NAME, prefix + fileName2, new String(pointStateBytes2, StandardCharsets.UTF_8));
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName2).build(),
+        RequestBody.fromString(new String(pointStateBytes2, StandardCharsets.UTF_8)));
 
     // Wait briefly
     try {

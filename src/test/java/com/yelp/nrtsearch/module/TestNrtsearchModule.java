@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.module;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
@@ -24,16 +23,17 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.modules.BackendModule;
+import software.amazon.awssdk.services.s3.S3Client;
 
 /** A Guice module to initialize {@link NrtsearchServer} instance for tests. */
 public class TestNrtsearchModule extends AbstractModule {
 
   private final NrtsearchConfig nrtsearchConfig;
-  private final AmazonS3 amazonS3;
+  private final S3Client amazonS3;
   private final ExecutorFactory executorFactory;
 
   public TestNrtsearchModule(
-      NrtsearchConfig nrtsearchConfig, AmazonS3 amazonS3, ExecutorFactory executorFactory) {
+      NrtsearchConfig nrtsearchConfig, S3Client amazonS3, ExecutorFactory executorFactory) {
     this.nrtsearchConfig = nrtsearchConfig;
     this.amazonS3 = amazonS3;
     this.executorFactory = executorFactory;
@@ -53,7 +53,7 @@ public class TestNrtsearchModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected AmazonS3 providesAmazonS3() {
+  protected S3Client providesAmazonS3() {
     return amazonS3;
   }
 

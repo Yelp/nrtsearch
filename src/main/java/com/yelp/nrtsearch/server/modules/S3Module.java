@@ -15,19 +15,19 @@
  */
 package com.yelp.nrtsearch.server.modules;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3Module extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected AmazonS3 providesAmazonS3(NrtsearchConfig configuration) {
+  protected S3Client providesS3Client(NrtsearchConfig configuration) {
     return S3Util.buildS3Client(configuration);
   }
 }

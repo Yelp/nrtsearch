@@ -20,7 +20,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
@@ -49,6 +48,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class WarmerTest {
 
@@ -57,7 +57,7 @@ public class WarmerTest {
   private final String bucketName = "warmer-unittest";
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
-  private AmazonS3 s3;
+  private S3Client s3;
   private Warmer warmer;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();

@@ -19,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend.S3BackendConfig;
@@ -38,6 +37,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3BackendRateLimitTest {
   private static final String BUCKET_NAME = "s3-backend-rate-limit-test";
@@ -48,12 +50,14 @@ public class S3BackendRateLimitTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private static AmazonS3 s3;
+  private static S3Client s3;
 
   @BeforeClass
   public static void setup() {
     s3 = S3_PROVIDER.getAmazonS3();
-    s3.putObject(BUCKET_NAME, KEY, CONTENT);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(KEY).build(),
+        RequestBody.fromString(CONTENT));
   }
 
   @AfterClass

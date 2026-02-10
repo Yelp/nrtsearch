@@ -19,7 +19,6 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGI
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -65,6 +64,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -148,8 +149,8 @@ public class TestServer {
   }
 
   private RemoteBackend createRemoteBackend() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return new S3Backend(configuration, s3, executorFactory);
   }
 

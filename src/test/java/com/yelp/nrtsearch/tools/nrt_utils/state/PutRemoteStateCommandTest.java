@@ -25,7 +25,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
@@ -48,6 +47,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class PutRemoteStateCommandTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -57,9 +58,9 @@ public class PutRemoteStateCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 

@@ -22,7 +22,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
@@ -39,6 +38,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class ListResourceVersionsTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -63,9 +66,9 @@ public class ListResourceVersionsTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 
@@ -93,13 +96,19 @@ public class ListResourceVersionsTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
-    AmazonS3 s3 = getS3();
+    S3Client s3 = getS3();
     String version1 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version1, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version1).build(),
+        RequestBody.fromString("test"));
     String version2 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version2, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version2).build(),
+        RequestBody.fromString("test"));
     String version3 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version3, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version3).build(),
+        RequestBody.fromString("test"));
 
     int exitCode =
         cmd.execute(
@@ -122,15 +131,21 @@ public class ListResourceVersionsTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
-    AmazonS3 s3 = getS3();
+    S3Client s3 = getS3();
     String version1 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version1, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version1).build(),
+        RequestBody.fromString("test"));
     Thread.sleep(2000);
     String version2 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version2, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version2).build(),
+        RequestBody.fromString("test"));
     Thread.sleep(2000);
     String version3 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version3, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version3).build(),
+        RequestBody.fromString("test"));
     String versionPrefix = version2.split("-")[0];
 
     int exitCode =
@@ -155,13 +170,19 @@ public class ListResourceVersionsTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
-    AmazonS3 s3 = getS3();
+    S3Client s3 = getS3();
     String version1 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version1, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version1).build(),
+        RequestBody.fromString("test"));
     String version2 = "unexpected";
-    s3.putObject(TEST_BUCKET, prefix + version2, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version2).build(),
+        RequestBody.fromString("test"));
     String version3 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version3, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version3).build(),
+        RequestBody.fromString("test"));
 
     int exitCode =
         cmd.execute(
@@ -208,13 +229,19 @@ public class ListResourceVersionsTest {
             BackendGlobalState.getUniqueIndexName("test_index", indexId),
             RemoteBackend.IndexResourceType.INDEX_STATE);
     String currentVersion = backend.getCurrentResourceName(prefix);
-    AmazonS3 s3 = getS3();
+    S3Client s3 = getS3();
     String version1 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version1, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version1).build(),
+        RequestBody.fromString("test"));
     String version2 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version2, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version2).build(),
+        RequestBody.fromString("test"));
     String version3 = S3Backend.getIndexStateFileName();
-    s3.putObject(TEST_BUCKET, prefix + version3, "test");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + version3).build(),
+        RequestBody.fromString("test"));
 
     CommandLine cmd = getInjectedCommand();
 

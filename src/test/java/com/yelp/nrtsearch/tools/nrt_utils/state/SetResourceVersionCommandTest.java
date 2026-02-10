@@ -21,7 +21,6 @@ import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
@@ -38,6 +37,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class SetResourceVersionCommandTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -62,9 +65,9 @@ public class SetResourceVersionCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 
@@ -90,7 +93,10 @@ public class SetResourceVersionCommandTest {
     TestServer.initS3(folder);
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -112,7 +118,10 @@ public class SetResourceVersionCommandTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -136,7 +145,10 @@ public class SetResourceVersionCommandTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -160,7 +172,10 @@ public class SetResourceVersionCommandTest {
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -183,7 +198,10 @@ public class SetResourceVersionCommandTest {
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
     s3Backend.setCurrentResource(prefix, "version0");
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -206,7 +224,10 @@ public class SetResourceVersionCommandTest {
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
     s3Backend.setCurrentResource(prefix, "version0");
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -231,7 +252,10 @@ public class SetResourceVersionCommandTest {
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
     s3Backend.setCurrentResource(prefix, "version0");
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -256,7 +280,10 @@ public class SetResourceVersionCommandTest {
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
     s3Backend.setCurrentResource(prefix, "version0");
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -304,7 +331,10 @@ public class SetResourceVersionCommandTest {
             BackendGlobalState.getUniqueIndexName("test_index", indexId),
             RemoteBackend.IndexResourceType.INDEX_STATE);
     String expectedPreviousVersion = s3Backend.getCurrentResourceName(prefix);
-    getS3().putObject(TEST_BUCKET, prefix + "version1", "version_data");
+    getS3()
+        .putObject(
+            PutObjectRequest.builder().bucket(TEST_BUCKET).key(prefix + "version1").build(),
+            RequestBody.fromString("version_data"));
 
     CommandLine cmd = getInjectedCommand();
 

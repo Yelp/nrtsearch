@@ -24,9 +24,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
@@ -48,6 +45,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class CleanupDataCommandTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -57,9 +60,9 @@ public class CleanupDataCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 
@@ -174,7 +177,7 @@ public class CleanupDataCommandTest {
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     String indexResource = server.getGlobalState().getDataResourceForIndex("test_index");
 
     Set<String> initialIndexFiles = getExistingDataFiles(s3Client, indexResource);
@@ -204,7 +207,7 @@ public class CleanupDataCommandTest {
 
   private void assertVersions(String indexResource, List<String> versionNames, int... versions)
       throws IOException {
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     Set<String> expectedVersions = new HashSet<>();
     for (int i : versions) {
       expectedVersions.add(versionNames.get(i));
@@ -218,11 +221,9 @@ public class CleanupDataCommandTest {
     Set<String> requiredIndexFiles = new HashSet<>();
     for (int version : versions) {
       String versionId = versionNames.get(version);
-      byte[] versionData =
-          s3Client
-              .getObject(TEST_BUCKET, versionPrefix + versionId)
-              .getObjectContent()
-              .readAllBytes();
+      GetObjectRequest getRequest =
+          GetObjectRequest.builder().bucket(TEST_BUCKET).key(versionPrefix + versionId).build();
+      byte[] versionData = s3Client.getObject(getRequest).readAllBytes();
       NrtPointState pointState = RemoteUtils.pointStateFromUtf8(versionData);
       Set<String> versionFiles =
           pointState.files.entrySet().stream()
@@ -235,15 +236,17 @@ public class CleanupDataCommandTest {
     assertEquals(requiredIndexFiles, presentIndexFiles);
   }
 
-  private Set<String> getExistingVersions(AmazonS3 s3Client, String indexResource) {
+  private Set<String> getExistingVersions(S3Client s3Client, String indexResource) {
     Set<String> versions = new HashSet<>();
     boolean currentVersionFileSeen = false;
     String versionPrefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, indexResource, RemoteBackend.IndexResourceType.POINT_STATE);
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, versionPrefix);
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(versionPrefix)[1];
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(versionPrefix).build());
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(versionPrefix)[1];
       if (S3Backend.CURRENT_VERSION.equals(baseName)) {
         currentVersionFileSeen = true;
       } else {
@@ -254,12 +257,14 @@ public class CleanupDataCommandTest {
     return versions;
   }
 
-  private Set<String> getExistingDataFiles(AmazonS3 s3Client, String indexResource) {
+  private Set<String> getExistingDataFiles(S3Client s3Client, String indexResource) {
     Set<String> indexFiles = new HashSet<>();
     String indexDataPrefix = S3Backend.getIndexDataPrefix(SERVICE_NAME, indexResource);
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, indexDataPrefix);
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(indexDataPrefix)[1];
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(indexDataPrefix).build());
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(indexDataPrefix)[1];
       indexFiles.add(baseName);
     }
     return indexFiles;

@@ -15,13 +15,13 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.state;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @CommandLine.Command(
     name = PutRemoteStateCommand.PUT_REMOTE_STATE,
@@ -94,10 +94,10 @@ public class PutRemoteStateCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 

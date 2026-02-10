@@ -628,7 +628,7 @@ public class FilterCollectorManagerTest extends ServerTestCase {
 
     Map<String, Integer> valuesMap = new HashMap<>();
     for (Bucket bucket : bucketResult.getBucketsList()) {
-      valuesMap.put(bucket.getKey(), bucket.getCount());
+      valuesMap.put(bucket.key(), bucket.getCount());
     }
     assertEquals(Set.of("2", "3"), valuesMap.keySet());
     assertEquals(1, valuesMap.get("2").intValue());

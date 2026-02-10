@@ -17,12 +17,12 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils.NOT_SET;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @CommandLine.Command(
     name = SetResourceVersionCommand.SET_RESOURCE_VERSION,
@@ -92,10 +92,10 @@ public class SetResourceVersionCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 
@@ -125,7 +125,14 @@ public class SetResourceVersionCommand implements Callable<Integer> {
         previousVersion = s3Backend.getCurrentResourceName(prefix);
       }
     }
-    if (!s3Client.doesObjectExist(bucketName, prefix + resourceVersion)) {
+    try {
+      software.amazon.awssdk.services.s3.model.HeadObjectRequest headRequest =
+          software.amazon.awssdk.services.s3.model.HeadObjectRequest.builder()
+              .bucket(bucketName)
+              .key(prefix + resourceVersion)
+              .build();
+      s3Client.headObject(headRequest);
+    } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
       throw new IllegalArgumentException("Resource version does not exist: " + resourceVersion);
     }
     System.out.println("Previous version: " + previousVersion);

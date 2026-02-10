@@ -20,7 +20,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -70,6 +69,7 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class StateBackendServerTest {
 
@@ -168,7 +168,7 @@ public class StateBackendServerTest {
   private void initRemote() throws IOException {
     Files.createDirectories(getReplicaIndexDir());
 
-    AmazonS3 s3 = s3Provider.getAmazonS3();
+    S3Client s3 = s3Provider.getAmazonS3();
     remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
     remoteBackendReplica = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
   }
@@ -401,7 +401,7 @@ public class StateBackendServerTest {
     for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
       Field.Builder builder = Field.newBuilder();
       JsonFormat.parser().merge(entry.getValue().toString(), builder);
-      resultsMap.put(entry.getKey(), builder.build());
+      resultsMap.put(entry.key(), builder.build());
     }
     return resultsMap;
   }

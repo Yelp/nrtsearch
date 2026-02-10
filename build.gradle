@@ -69,9 +69,10 @@ dependencies {
     implementation libs.commons.csv
 
     // other deps
-    implementation libs.aws.java.sdk.core
-    implementation libs.aws.java.sdk.s3
-    runtimeOnly libs.aws.java.sdk.sts
+    implementation libs.aws.sdk.core
+    implementation libs.aws.s3
+    implementation libs.aws.s3.transfer.manager
+    runtimeOnly libs.aws.sts
     implementation libs.commons.compress
     implementation libs.commons.io
     implementation libs.fastutil

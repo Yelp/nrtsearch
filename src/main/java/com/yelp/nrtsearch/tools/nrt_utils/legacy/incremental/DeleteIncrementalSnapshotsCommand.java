@@ -15,10 +15,6 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
@@ -28,6 +24,11 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @CommandLine.Command(
     name = DeleteIncrementalSnapshotsCommand.DELETE_INCREMENTAL_SNAPSHOTS,
@@ -108,10 +109,10 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 
@@ -159,18 +160,16 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
   }
 
   private void deleteSnapshotIndexData(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String resolvedIndexResource,
       String resolvedSnapshotRoot,
       long minTimestampMs) {
     String dataPrefix = getIndexSnapshotDataPrefix(resolvedSnapshotRoot, resolvedIndexResource);
     ListObjectsV2Request req =
-        new ListObjectsV2Request()
-            .withBucketName(bucketName)
-            .withDelimiter("/")
-            .withPrefix(dataPrefix);
-    ListObjectsV2Result result = s3Client.listObjectsV2(req);
-    List<String> dataPrefixes = result.getCommonPrefixes();
+        ListObjectsV2Request.builder().bucket(bucketName).delimiter("/").prefix(dataPrefix).build();
+    ListObjectsV2Response result = s3Client.listObjectsV2(req);
+    List<String> dataPrefixes =
+        result.commonPrefixes().stream().map(cp -> cp.prefix()).collect(Collectors.toList());
     System.out.println("Data prefixes: " + dataPrefixes);
 
     List<String> deletePrefixes = new ArrayList<>();
@@ -184,20 +183,24 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
     deletePrefixes(s3Client, deletePrefixes);
   }
 
-  private void deletePrefixes(AmazonS3 s3Client, List<String> prefixes) {
+  private void deletePrefixes(S3Client s3Client, List<String> prefixes) {
     List<String> deleteList = new ArrayList<>(DELETE_BATCH_SIZE);
     for (String prefix : prefixes) {
       System.out.println("Deleting data prefix: " + prefix);
-      ListObjectsV2Request req =
-          new ListObjectsV2Request().withBucketName(bucketName).withPrefix(prefix);
-      ListObjectsV2Result result;
+      ListObjectsV2Request.Builder reqBuilder =
+          ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix);
+      ListObjectsV2Response result;
+      String continuationToken = null;
 
       do {
-        result = s3Client.listObjectsV2(req);
+        if (continuationToken != null) {
+          reqBuilder.continuationToken(continuationToken);
+        }
+        result = s3Client.listObjectsV2(reqBuilder.build());
 
-        for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-          System.out.println("Delete: " + objectSummary.getKey());
-          deleteList.add(objectSummary.getKey());
+        for (S3Object s3Object : result.contents()) {
+          System.out.println("Delete: " + s3Object.key());
+          deleteList.add(s3Object.key());
           if (deleteList.size() == DELETE_BATCH_SIZE) {
             if (!dryRun) {
               IncrementalDataCleanupCommand.deleteObjects(s3Client, bucketName, deleteList);
@@ -205,8 +208,7 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
             deleteList.clear();
           }
         }
-        String token = result.getNextContinuationToken();
-        req.setContinuationToken(token);
+        continuationToken = result.nextContinuationToken();
       } while (result.isTruncated());
     }
     if (!deleteList.isEmpty() && !dryRun) {
@@ -215,7 +217,7 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
   }
 
   private void deleteSnapshotMetadata(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String resolvedIndexResource,
       String resolvedSnapshotRoot,
       List<Long> versions) {
@@ -225,30 +227,33 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
               resolvedSnapshotRoot, resolvedIndexResource, version);
       System.out.println("Deleting snapshot metadata: " + key);
       if (!dryRun) {
-        s3Client.deleteObject(bucketName, key);
+        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(key).build());
       }
     }
   }
 
   private List<Long> getSnapshotTimestamps(
-      AmazonS3 s3Client, String resolvedIndexResource, String resolvedSnapshotRoot) {
+      S3Client s3Client, String resolvedIndexResource, String resolvedSnapshotRoot) {
     String metadataPrefix =
         getIndexSnapshotMetadataPrefix(resolvedSnapshotRoot, resolvedIndexResource);
     List<Long> snapshotTimestamps = new ArrayList<>();
 
-    ListObjectsV2Request req =
-        new ListObjectsV2Request().withBucketName(bucketName).withPrefix(metadataPrefix);
-    ListObjectsV2Result result;
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(metadataPrefix);
+    ListObjectsV2Response result;
+    String continuationToken = null;
 
     do {
-      result = s3Client.listObjectsV2(req);
+      if (continuationToken != null) {
+        reqBuilder.continuationToken(continuationToken);
+      }
+      result = s3Client.listObjectsV2(reqBuilder.build());
 
-      for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-        String snapshotSuffix = objectSummary.getKey().split(metadataPrefix)[1];
+      for (S3Object s3Object : result.contents()) {
+        String snapshotSuffix = s3Object.key().split(metadataPrefix)[1];
         snapshotTimestamps.add(Long.parseLong(snapshotSuffix));
       }
-      String token = result.getNextContinuationToken();
-      req.setContinuationToken(token);
+      continuationToken = result.nextContinuationToken();
     } while (result.isTruncated());
 
     snapshotTimestamps.sort(Comparator.comparingLong(e -> e));

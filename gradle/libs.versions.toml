@@ -1,5 +1,5 @@
 [versions]
-aws = "1.12.768"
+aws = "2.29.0"
 grpc = "1.66.0"
 jackson = "2.19.1"
 log4j = "2.23.1"
@@ -8,9 +8,10 @@ prometheus = "1.3.1"
 protobuf = "3.25.3"
 
 [libraries]
-aws-java-sdk-core = { module = "com.amazonaws:aws-java-sdk-core", version.ref = "aws" }
-aws-java-sdk-s3 = { module = "com.amazonaws:aws-java-sdk-s3", version.ref = "aws" }
-aws-java-sdk-sts = { module = "com.amazonaws:aws-java-sdk-sts", version.ref = "aws" }
+aws-sdk-core = { module = "software.amazon.awssdk:sdk-core", version.ref = "aws" }
+aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws" }
+aws-sts = { module = "software.amazon.awssdk:sts", version.ref = "aws" }
+aws-s3-transfer-manager = { module = "software.amazon.awssdk:s3-transfer-manager", version.ref = "aws" }
 commons-compress = { module = "org.apache.commons:commons-compress", version = "1.27.0" }
 commons-csv = { module = "org.apache.commons:commons-csv", version = "1.11.0" }
 commons-io = { module = "commons-io:commons-io", version = "2.16.1" }

@@ -23,7 +23,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -69,6 +68,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @RunWith(JUnit4.class)
 public class NrtsearchServerTest {
@@ -118,7 +118,7 @@ public class NrtsearchServerTest {
   private PrometheusRegistry prometheusRegistry;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
-  private AmazonS3 s3;
+  private S3Client s3;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After

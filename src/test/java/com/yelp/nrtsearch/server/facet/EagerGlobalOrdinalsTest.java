@@ -137,7 +137,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
             .getIndexOrThrow(DEFAULT_TEST_INDEX)
             .getShard(0)
             .ssdvStates
-            .get(reader.getReaderCacheHelper().getKey());
+            .get(reader.getReaderCacheHelper().key());
 
     if (readerSSDVStates != null) {
       FacetsConfig.DimConfig dimConfig =
@@ -156,7 +156,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
             .getIndexOrThrow(DEFAULT_TEST_INDEX)
             .getShard(0)
             .ssdvStates
-            .get(reader.getReaderCacheHelper().getKey());
+            .get(reader.getReaderCacheHelper().key());
     assertNotNull(readerSSDVStates);
 
     FacetsConfig.DimConfig dimConfig =

@@ -23,13 +23,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.UploadPartRequest;
-import com.amazonaws.services.s3.model.UploadPartResult;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
@@ -66,6 +59,18 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 public class S3BackendTest {
   private static final String BUCKET_NAME = "s3-backend-test";
@@ -76,7 +81,7 @@ public class S3BackendTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private static AmazonS3 s3;
+  private static S3Client s3;
   private static S3Backend s3Backend;
   private static ExecutorFactory executorFactory;
 
@@ -85,9 +90,14 @@ public class S3BackendTest {
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    s3 = S3_PROVIDER.getAmazonS3();
+    s3 = S3_PROVIDER.getS3Client();
     s3Backend = new S3Backend(config, s3, executorFactory);
-    s3.putObject(BUCKET_NAME, KEY, CONTENT);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(KEY)
+            .build(),
+        RequestBody.fromString(CONTENT));
   }
 
   @AfterClass
@@ -139,7 +149,7 @@ public class S3BackendTest {
   @Test
   public void testDefaultExecutor() {
     try (S3Backend s3Backend =
-        new S3Backend(BUCKET_NAME, false, S3Backend.DEFAULT_CONFIG, mock(AmazonS3.class))) {
+        new S3Backend(BUCKET_NAME, false, S3Backend.DEFAULT_CONFIG, mock(S3Client.class))) {
       ThreadPoolExecutor executor = (ThreadPoolExecutor) s3Backend.getExecutor();
       assertNotSame(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE), executor);
       assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, executor.getCorePoolSize());
@@ -164,7 +174,12 @@ public class S3BackendTest {
             "exist_service" + resourceName, "exist_index", resourceType);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
 
     assertTrue(s3Backend.exists("exist_service" + resourceName, "exist_index", indexResourceType));
     assertFalse(
@@ -178,7 +193,12 @@ public class S3BackendTest {
     String prefix = S3Backend.getGlobalStateResourcePrefix("global_exist_service");
     String fileName = S3Backend.getGlobalStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
 
     assertTrue(
         s3Backend.exists("global_exist_service", RemoteBackend.GlobalResourceType.GLOBAL_STATE));
@@ -191,8 +211,18 @@ public class S3BackendTest {
     String prefix = S3Backend.getGlobalStateResourcePrefix("download_global_service");
     String fileName = S3Backend.getGlobalStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(prefix + fileName)
+            .build(),
+        RequestBody.fromString("resource_data"));
 
     InputStream downloadStream = s3Backend.downloadGlobalState("download_global_service");
     assertEquals("resource_data", convertToString(downloadStream));
@@ -203,7 +233,12 @@ public class S3BackendTest {
     String prefix = S3Backend.getGlobalStateResourcePrefix("download_global_service_2");
     String fileName = S3Backend.getGlobalStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
     putMultiPart(prefix + fileName, List.of("aaaa", "bbbb", "cccc", "dddd"));
 
     InputStream downloadStream = s3Backend.downloadGlobalState("download_global_service_2");
@@ -224,7 +259,12 @@ public class S3BackendTest {
     String prefix = S3Backend.getGlobalStateResourcePrefix("download_global_service_3");
     String fileName = S3Backend.getGlobalStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
 
     try {
       s3Backend.downloadGlobalState("download_global_service_3");
@@ -243,16 +283,27 @@ public class S3BackendTest {
     String prefix = S3Backend.getGlobalStateResourcePrefix("download_global_service_4");
     String fileName = S3Backend.getGlobalStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data_1");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName).build(),
+        RequestBody.fromString("resource_data_1"));
 
     InputStream downloadStream = s3Backend.downloadGlobalState("download_global_service_4");
     assertEquals("resource_data_1", convertToString(downloadStream));
 
     // update resource data
     String fileName2 = S3Backend.getGlobalStateFileName();
-    s3.putObject(BUCKET_NAME, prefix + fileName2, "resource_data_2");
-    s3.putObject(BUCKET_NAME, currentKey, fileName2);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName2).build(),
+        RequestBody.fromString("resource_data_2"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+        RequestBody.fromString(fileName2));
 
     downloadStream = s3Backend.downloadGlobalState("download_global_service_4");
     assertEquals("resource_data_2", convertToString(downloadStream));
@@ -265,11 +316,19 @@ public class S3BackendTest {
 
     String prefix = S3Backend.getGlobalStateResourcePrefix("upload_global_service");
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertGlobalStateVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data", contents);
   }
 
@@ -280,11 +339,19 @@ public class S3BackendTest {
 
     String prefix = S3Backend.getGlobalStateResourcePrefix("upload_global_service_1");
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertGlobalStateVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_1", contents);
 
     // update data
@@ -292,11 +359,19 @@ public class S3BackendTest {
 
     s3Backend.uploadGlobalState("upload_global_service_1", data);
 
-    contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertGlobalStateVersion(contents);
 
     versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_2", contents);
   }
 
@@ -326,8 +401,18 @@ public class S3BackendTest {
             "download_index_state_service", "download_index", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(prefix + fileName)
+            .build(),
+        RequestBody.fromString("resource_data"));
 
     InputStream downloadStream =
         s3Backend.downloadIndexState("download_index_state_service", "download_index");
@@ -341,7 +426,12 @@ public class S3BackendTest {
             "download_index_state_service_2", "download_index_2", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
     putMultiPart(prefix + fileName, List.of("aaaa", "bbbb", "cccc", "dddd"));
 
     InputStream downloadStream =
@@ -365,7 +455,12 @@ public class S3BackendTest {
             "download_index_state_service_3", "download_index_3", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
 
     try {
       s3Backend.downloadIndexState("download_index_state_service_3", "download_index_3");
@@ -386,8 +481,15 @@ public class S3BackendTest {
             "download_index_state_service_4", "download_index_4", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data_1");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName).build(),
+        RequestBody.fromString("resource_data_1"));
 
     InputStream downloadStream =
         s3Backend.downloadIndexState("download_index_state_service_4", "download_index_4");
@@ -395,8 +497,12 @@ public class S3BackendTest {
 
     // update resource data
     String fileName2 = S3Backend.getIndexStateFileName();
-    s3.putObject(BUCKET_NAME, prefix + fileName2, "resource_data_2");
-    s3.putObject(BUCKET_NAME, currentKey, fileName2);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName2).build(),
+        RequestBody.fromString("resource_data_2"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+        RequestBody.fromString(fileName2));
 
     downloadStream =
         s3Backend.downloadIndexState("download_index_state_service_4", "download_index_4");
@@ -412,11 +518,19 @@ public class S3BackendTest {
         S3Backend.getIndexResourcePrefix(
             "upload_index_state_service", "upload_index", IndexResourceType.INDEX_STATE);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertIndexStateVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data", contents);
   }
 
@@ -429,11 +543,19 @@ public class S3BackendTest {
         S3Backend.getIndexResourcePrefix(
             "upload_index_state_service_1", "upload_index_1", IndexResourceType.INDEX_STATE);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertIndexStateVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_1", contents);
 
     // update data
@@ -441,11 +563,19 @@ public class S3BackendTest {
 
     s3Backend.uploadIndexState("upload_index_state_service_1", "upload_index_1", data);
 
-    contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertIndexStateVersion(contents);
 
     versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_2", contents);
   }
 
@@ -477,8 +607,18 @@ public class S3BackendTest {
             "download_warming_service", "download_index", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(prefix + fileName)
+            .build(),
+        RequestBody.fromString("resource_data"));
 
     InputStream downloadStream =
         s3Backend.downloadWarmingQueries("download_warming_service", "download_index");
@@ -492,7 +632,12 @@ public class S3BackendTest {
             "download_warming_service_2", "download_index_2", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
     putMultiPart(prefix + fileName, List.of("aaaa", "bbbb", "cccc", "dddd"));
 
     InputStream downloadStream =
@@ -516,7 +661,12 @@ public class S3BackendTest {
             "download_warming_service_3", "download_index_3", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
 
     try {
       s3Backend.downloadWarmingQueries("download_warming_service_3", "download_index_3");
@@ -537,8 +687,15 @@ public class S3BackendTest {
             "download_warming_service_4", "download_index_4", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    s3.putObject(BUCKET_NAME, currentKey, fileName);
-    s3.putObject(BUCKET_NAME, prefix + fileName, "resource_data_1");
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName).build(),
+        RequestBody.fromString("resource_data_1"));
 
     InputStream downloadStream =
         s3Backend.downloadWarmingQueries("download_warming_service_4", "download_index_4");
@@ -546,8 +703,12 @@ public class S3BackendTest {
 
     // update resource data
     String fileName2 = S3Backend.getWarmingQueriesFileName();
-    s3.putObject(BUCKET_NAME, prefix + fileName2, "resource_data_2");
-    s3.putObject(BUCKET_NAME, currentKey, fileName2);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName2).build(),
+        RequestBody.fromString("resource_data_2"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+        RequestBody.fromString(fileName2));
 
     downloadStream =
         s3Backend.downloadWarmingQueries("download_warming_service_4", "download_index_4");
@@ -563,11 +724,19 @@ public class S3BackendTest {
         S3Backend.getIndexResourcePrefix(
             "upload_warming_service", "upload_index", IndexResourceType.WARMING_QUERIES);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertWarmingVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data", contents);
   }
 
@@ -580,11 +749,19 @@ public class S3BackendTest {
         S3Backend.getIndexResourcePrefix(
             "upload_warming_service_1", "upload_index_1", IndexResourceType.WARMING_QUERIES);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
-    String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    String contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertWarmingVersion(contents);
 
     String versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_1", contents);
 
     // update data
@@ -592,11 +769,19 @@ public class S3BackendTest {
 
     s3Backend.uploadWarmingQueries("upload_warming_service_1", "upload_index_1", data);
 
-    contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(currentKey).build(),
+                ResponseTransformer.toInputStream()));
     assertWarmingVersion(contents);
 
     versionKey = prefix + contents;
-    contents = convertToString(s3.getObject(BUCKET_NAME, versionKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(versionKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file_data_2", contents);
   }
 
@@ -645,9 +830,16 @@ public class S3BackendTest {
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
     String contents =
-        convertToString(s3.getObject(BUCKET_NAME, keyPrefix + filename1).getObjectContent());
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename1).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file1_data", contents);
-    contents = convertToString(s3.getObject(BUCKET_NAME, keyPrefix + filename2).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename2).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("file2_data", contents);
   }
 
@@ -692,8 +884,12 @@ public class S3BackendTest {
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
-    s3.putObject(BUCKET_NAME, keyPrefix + filename1, "file1_data");
-    s3.putObject(BUCKET_NAME, keyPrefix + filename2, "file2_data");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename1).build(),
+        RequestBody.fromString("file1_data"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename2).build(),
+        RequestBody.fromString("file2_data"));
 
     s3Backend.downloadIndexFiles(
         "download_index_service",
@@ -722,8 +918,12 @@ public class S3BackendTest {
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
-    s3.putObject(BUCKET_NAME, keyPrefix + filename1, "file1_data");
-    s3.putObject(BUCKET_NAME, keyPrefix + filename2, "file2_data");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename1).build(),
+        RequestBody.fromString("file1_data"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename2).build(),
+        RequestBody.fromString("file2_data"));
 
     try {
       s3Backend.downloadIndexFiles(
@@ -782,11 +982,18 @@ public class S3BackendTest {
             "upload_point_service", "upload_point_index", IndexResourceType.POINT_STATE);
     String fileName = S3Backend.getPointStateFileName(pointState);
     String contents =
-        convertToString(s3.getObject(BUCKET_NAME, keyPrefix + fileName).getObjectContent());
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + fileName).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals(getPointStateJson(), contents);
 
     String latestKey = keyPrefix + S3Backend.CURRENT_VERSION;
-    contents = convertToString(s3.getObject(BUCKET_NAME, latestKey).getObjectContent());
+    contents =
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder().bucket(BUCKET_NAME).key(latestKey).build(),
+                ResponseTransformer.toInputStream()));
     assertEquals(fileName, contents);
   }
 
@@ -797,8 +1004,15 @@ public class S3BackendTest {
         S3Backend.getIndexResourcePrefix(
             "download_point_service", "download_point_index", IndexResourceType.POINT_STATE);
     String fileName = S3Backend.getPointStateFileName(pointState);
-    s3.putObject(BUCKET_NAME, keyPrefix + fileName, getPointStateJson());
-    s3.putObject(BUCKET_NAME, keyPrefix + S3Backend.CURRENT_VERSION, fileName);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + fileName).build(),
+        RequestBody.fromString(getPointStateJson()));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.CURRENT_VERSION)
+            .build(),
+        RequestBody.fromString(fileName));
 
     RemoteBackend.InputStreamWithTimestamp inputStreamWithTimestamp =
         s3Backend.downloadPointState("download_point_service", "download_point_index", null);
@@ -860,7 +1074,12 @@ public class S3BackendTest {
   @Test
   public void testGetCurrentResourceName() throws IOException {
     String prefix = "service_get_current/resource/";
-    s3.putObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION, "current_version_name");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(prefix + S3Backend.CURRENT_VERSION)
+            .build(),
+        RequestBody.fromString("current_version_name"));
     assertEquals("current_version_name", s3Backend.getCurrentResourceName(prefix));
   }
 
@@ -883,7 +1102,12 @@ public class S3BackendTest {
     s3Backend.setCurrentResource(prefix, "current_version_name");
     String contents =
         convertToString(
-            s3.getObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION).getObjectContent());
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(prefix + S3Backend.CURRENT_VERSION)
+                    .build(),
+                ResponseTransformer.toInputStream()));
     assertEquals("current_version_name", contents);
   }
 
@@ -891,7 +1115,12 @@ public class S3BackendTest {
   public void testCurrentResourceExists() {
     String prefix = "service_current_exists/resource/";
     assertFalse(s3Backend.currentResourceExists(prefix));
-    s3.putObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION, "current_version_name");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(prefix + S3Backend.CURRENT_VERSION)
+            .build(),
+        RequestBody.fromString("current_version_name"));
     assertTrue(s3Backend.currentResourceExists(prefix));
   }
 
@@ -911,7 +1140,9 @@ public class S3BackendTest {
     String backendKey = backendPrefix + backendFileName;
 
     // Put the test content in S3
-    s3.putObject(BUCKET_NAME, backendKey, testContent);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(backendKey).build(),
+        RequestBody.fromString(testContent));
 
     // Download the file using the method under test
     InputStream downloadStream =
@@ -1096,27 +1327,33 @@ public class S3BackendTest {
   }
 
   private void putMultiPart(String key, List<String> partsData) {
-    InitiateMultipartUploadRequest initRequest =
-        new InitiateMultipartUploadRequest(BUCKET_NAME, key);
-    InitiateMultipartUploadResult initResponse = s3.initiateMultipartUpload(initRequest);
+    CreateMultipartUploadRequest initRequest =
+        CreateMultipartUploadRequest.builder().bucket(BUCKET_NAME).key(key).build();
+    CreateMultipartUploadResponse initResponse = s3.createMultipartUpload(initRequest);
 
-    List<PartETag> partETags = new ArrayList<>();
+    List<CompletedPart> completedParts = new ArrayList<>();
     for (int i = 0; i < partsData.size(); ++i) {
       UploadPartRequest uploadRequest =
-          new UploadPartRequest()
-              .withBucketName(BUCKET_NAME)
-              .withKey(key)
-              .withUploadId(initResponse.getUploadId())
-              .withPartNumber(i + 1)
-              .withInputStream(new ByteArrayInputStream(partsData.get(i).getBytes()))
-              .withPartSize(partsData.get(i).length());
+          UploadPartRequest.builder()
+              .bucket(BUCKET_NAME)
+              .key(key)
+              .uploadId(initResponse.uploadId())
+              .partNumber(i + 1)
+              .build();
 
-      UploadPartResult uploadResult = s3.uploadPart(uploadRequest);
-      partETags.add(uploadResult.getPartETag());
+      UploadPartResponse uploadResult =
+          s3.uploadPart(uploadRequest, RequestBody.fromBytes(partsData.get(i).getBytes()));
+      completedParts.add(
+          CompletedPart.builder().partNumber(i + 1).eTag(uploadResult.eTag()).build());
     }
 
     CompleteMultipartUploadRequest compRequest =
-        new CompleteMultipartUploadRequest(BUCKET_NAME, key, initResponse.getUploadId(), partETags);
+        CompleteMultipartUploadRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(key)
+            .uploadId(initResponse.uploadId())
+            .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())
+            .build();
     s3.completeMultipartUpload(compRequest);
   }
 

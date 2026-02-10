@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.test_utils;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.yelp.nrtsearch.module.TestNrtsearchModule;
@@ -25,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import java.io.IOException;
 import org.junit.rules.ExternalResource;
+import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * A JUnit {@link org.junit.Rule} that creates a {@link NrtsearchServer} instance and starts the
@@ -33,12 +33,12 @@ import org.junit.rules.ExternalResource;
 public class TestNrtsearchServer extends ExternalResource {
 
   private final NrtsearchConfig configuration;
-  private final AmazonS3 amazonS3;
+  private final S3Client amazonS3;
   private final ExecutorFactory executorFactory;
   private NrtsearchServer server;
   private NrtsearchClient client;
 
-  public TestNrtsearchServer(NrtsearchConfig configuration, AmazonS3 amazonS3) {
+  public TestNrtsearchServer(NrtsearchConfig configuration, S3Client amazonS3) {
     this.configuration = configuration;
     this.amazonS3 = amazonS3;
     this.executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());

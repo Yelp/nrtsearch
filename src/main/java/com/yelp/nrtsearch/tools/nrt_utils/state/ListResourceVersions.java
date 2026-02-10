@@ -15,15 +15,15 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.state;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 
 @CommandLine.Command(
     name = ListResourceVersions.LIST_RESOURCE_VERSIONS,
@@ -94,10 +94,10 @@ public class ListResourceVersions implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 
@@ -130,16 +130,17 @@ public class ListResourceVersions implements Callable<Integer> {
             + MAX_LIST_SIZE
             + ")");
     ListObjectsRequest listObjectsRequest =
-        new ListObjectsRequest()
-            .withBucketName(bucketName)
-            .withPrefix(listPrefix)
-            .withMaxKeys(MAX_LIST_SIZE);
-    ObjectListing listing = s3Backend.getS3().listObjects(listObjectsRequest);
+        ListObjectsRequest.builder()
+            .bucket(bucketName)
+            .prefix(listPrefix)
+            .maxKeys(MAX_LIST_SIZE)
+            .build();
+    ListObjectsResponse listing = s3Backend.getS3().listObjects(listObjectsRequest);
     listing
-        .getObjectSummaries()
+        .contents()
         .forEach(
             object -> {
-              String suffix = object.getKey().split(prefix)[1];
+              String suffix = object.key().split(prefix)[1];
               printVersion(suffix);
             });
     return 0;

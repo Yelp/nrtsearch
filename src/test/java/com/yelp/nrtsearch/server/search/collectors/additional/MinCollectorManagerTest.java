@@ -119,7 +119,7 @@ public class MinCollectorManagerTest extends CollectorUtilTest {
     for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
       bucketValues.put(
-          bucket.getKey(),
+          bucket.key(),
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
     }
@@ -147,7 +147,7 @@ public class MinCollectorManagerTest extends CollectorUtilTest {
     List<Double> sortValues = new ArrayList<>();
     for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
-      keyOrder.add(bucket.getKey());
+      keyOrder.add(bucket.key());
       sortValues.add(
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
@@ -165,7 +165,7 @@ public class MinCollectorManagerTest extends CollectorUtilTest {
     sortValues = new ArrayList<>();
     for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
-      keyOrder.add(bucket.getKey());
+      keyOrder.add(bucket.key());
       sortValues.add(
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());

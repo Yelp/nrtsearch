@@ -17,13 +17,6 @@ package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.toUTF8;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.transfer.Copy;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -32,7 +25,6 @@ import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +34,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.CompletedCopy;
+import software.amazon.awssdk.transfer.s3.model.Copy;
+import software.amazon.awssdk.transfer.s3.model.CopyRequest;
 
 @CommandLine.Command(
     name = SnapshotCommand.SNAPSHOT,
@@ -108,10 +109,10 @@ public class SnapshotCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 
@@ -180,45 +181,50 @@ public class SnapshotCommand implements Callable<Integer> {
     long totalDataSizeBytes = 0;
 
     ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard()
-            .withS3Client(s3Client)
-            .withExecutorFactory(() -> executor)
-            .withShutDownThreadPools(true)
+    software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
+        software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
+            .credentialsProvider(
+                s3Backend.getS3().serviceClientConfiguration().credentialsProvider())
+            .region(s3Backend.getS3().serviceClientConfiguration().region())
             .build();
+    S3TransferManager transferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
     try {
       List<Copy> copyJobs = new ArrayList<>();
       for (String fileName : indexDataFiles) {
         String sourceKey = indexDataKeyPrefix + fileName;
-        totalDataSizeBytes +=
-            s3Backend.getS3().getObjectMetadata(bucketName, sourceKey).getContentLength();
+        HeadObjectRequest headRequest =
+            HeadObjectRequest.builder().bucket(bucketName).key(sourceKey).build();
+        totalDataSizeBytes += s3Backend.getS3().headObject(headRequest).contentLength();
         CopyObjectRequest copyObjectRequest =
-            new CopyObjectRequest(
-                bucketName, sourceKey, bucketName, snapshotIndexDataRoot + fileName);
+            CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(snapshotIndexDataRoot + fileName)
+                .build();
         final String finalFileName = fileName;
         Copy copy =
             transferManager.copy(
-                copyObjectRequest,
-                (transfer, state) ->
-                    System.out.println("Transfer: " + finalFileName + ", state: " + state));
+                CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
         copyJobs.add(copy);
+        System.out.println("Started copy: " + finalFileName);
       }
       for (Copy copyJob : copyJobs) {
-        copyJob.waitForCopyResult();
+        CompletedCopy completedCopy = copyJob.completionFuture().join();
+        System.out.println("Completed copy");
       }
     } finally {
-      transferManager.shutdownNow(false);
+      transferManager.close();
+      executor.shutdown();
     }
 
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(pointStateBytes.length);
     PutObjectRequest putObjectRequest =
-        new PutObjectRequest(
-            bucketName,
-            snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_POINT_STATE,
-            new ByteArrayInputStream(pointStateBytes),
-            metadata);
-    s3Backend.getS3().putObject(putObjectRequest);
+        PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_POINT_STATE)
+            .contentLength((long) pointStateBytes.length)
+            .build();
+    s3Backend.getS3().putObject(putObjectRequest, RequestBody.fromBytes(pointStateBytes));
     return totalDataSizeBytes;
   }
 
@@ -235,13 +241,14 @@ public class SnapshotCommand implements Callable<Integer> {
     String currentStateVersion = s3Backend.getCurrentResourceName(prefix);
     System.out.println("Current index state version: " + currentStateVersion);
 
-    s3Backend
-        .getS3()
-        .copyObject(
-            bucketName,
-            prefix + currentStateVersion,
-            bucketName,
-            snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_INDEX_STATE);
+    CopyObjectRequest copyRequest =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(prefix + currentStateVersion)
+            .destinationBucket(bucketName)
+            .destinationKey(snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_INDEX_STATE)
+            .build();
+    s3Backend.getS3().copyObject(copyRequest);
   }
 
   private void copyWarmingQueries(
@@ -255,29 +262,32 @@ public class SnapshotCommand implements Callable<Integer> {
       String currentWarmingQueriesVersion = s3Backend.getCurrentResourceName(resourcePrefix);
       System.out.println("Current warming queries version: " + currentWarmingQueriesVersion);
 
-      s3Backend
-          .getS3()
-          .copyObject(
-              bucketName,
-              resourcePrefix + currentWarmingQueriesVersion,
-              bucketName,
-              snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_WARMING_QUERIES);
+      CopyObjectRequest copyRequest =
+          CopyObjectRequest.builder()
+              .sourceBucket(bucketName)
+              .sourceKey(resourcePrefix + currentWarmingQueriesVersion)
+              .destinationBucket(bucketName)
+              .destinationKey(snapshotIndexDataRoot + BackupCommandUtils.SNAPSHOT_WARMING_QUERIES)
+              .build();
+      s3Backend.getS3().copyObject(copyRequest);
     } else {
       System.out.println("No warming queries present for index, skipping copy");
     }
   }
 
   private void writeMetadataFile(
-      AmazonS3 s3Client, String bucketName, String metadataFileKey, SnapshotMetadata metadata)
+      S3Client s3Client, String bucketName, String metadataFileKey, SnapshotMetadata metadata)
       throws IOException {
     String metadataFileStr = OBJECT_MAPPER.writeValueAsString(metadata);
     System.out.println(
         "Writing metadata file key: " + metadataFileKey + ", content: " + metadataFileStr);
     byte[] fileData = toUTF8(metadataFileStr);
-    ObjectMetadata objectMetadata = new ObjectMetadata();
-    objectMetadata.setContentLength(fileData.length);
-    s3Client.putObject(
-        new PutObjectRequest(
-            bucketName, metadataFileKey, new ByteArrayInputStream(fileData), objectMetadata));
+    PutObjectRequest putObjectRequest =
+        PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(metadataFileKey)
+            .contentLength((long) fileData.length)
+            .build();
+    s3Client.putObject(putObjectRequest, RequestBody.fromBytes(fileData));
   }
 }

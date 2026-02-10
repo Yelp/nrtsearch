@@ -326,7 +326,7 @@ public class NestedCollectorOrderTest extends ServerTestCase {
 
     for (int i = 0; i < bucketCount; ++i) {
       Bucket bucket = result.getBuckets(i);
-      assertEquals(keys.get(i), bucket.getKey());
+      assertEquals(keys.get(i), bucket.key());
       assertEquals(20, bucket.getCount());
       assertEquals(
           nestedValues.get(i),

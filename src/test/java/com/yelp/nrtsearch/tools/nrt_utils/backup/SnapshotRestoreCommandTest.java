@@ -22,10 +22,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
@@ -58,6 +54,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class SnapshotRestoreCommandTest {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -68,9 +70,9 @@ public class SnapshotRestoreCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 
@@ -364,7 +366,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertSnapshotFiles(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot, boolean withWarming)
+      S3Client s3Client, String indexResource, String snapshotRoot, boolean withWarming)
       throws IOException {
     List<String> timeStrings = getSnapshotTimeStrings(s3Client, indexResource, snapshotRoot);
     assertEquals(1, timeStrings.size());
@@ -380,7 +382,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(Set.of("_0.cfe", "_0.si", "_0.cfs"), pointState.files.keySet());
     Set<String> pointBackendFiles =
         pointState.files.entrySet().stream()
-            .map(e -> S3Backend.getIndexBackendFileName(e.getKey(), e.getValue()))
+            .map(e -> S3Backend.getIndexBackendFileName(e.key(), e.getValue()))
             .collect(Collectors.toSet());
 
     Set<String> snapshotFiles =
@@ -400,7 +402,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertSnapshotMetadata(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot, String snapshotTimeString) {
+      S3Client s3Client, String indexResource, String snapshotRoot, String snapshotTimeString) {
     SnapshotMetadata snapshotMetadata =
         getSnapshotMetadata(s3Client, indexResource, snapshotTimeString, snapshotRoot);
     assertEquals(SERVICE_NAME, snapshotMetadata.getServiceName());
@@ -410,7 +412,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertRestoreFiles(
-      AmazonS3 s3Client, String serviceName, String indexResource, boolean withWarming)
+      S3Client s3Client, String serviceName, String indexResource, boolean withWarming)
       throws IOException {
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Client);
     Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs");
@@ -426,7 +428,7 @@ public class SnapshotRestoreCommandTest {
         pointState.files.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toSet());
     Set<String> backendPointFiles =
         pointState.files.entrySet().stream()
-            .map(e -> S3Backend.getIndexBackendFileName(e.getKey(), e.getValue()))
+            .map(e -> S3Backend.getIndexBackendFileName(e.key(), e.getValue()))
             .collect(Collectors.toSet());
 
     String restoredDataKeyPrefix = S3Backend.getIndexDataPrefix(serviceName, indexResource);
@@ -451,27 +453,34 @@ public class SnapshotRestoreCommandTest {
           S3Backend.getIndexResourcePrefix(
               serviceName, indexResource, RemoteBackend.IndexResourceType.WARMING_QUERIES);
       String warmingQueriesVersionId = s3Backend.getCurrentResourceName(warmingQueriesPrefix);
-      assertTrue(
-          s3Client.doesObjectExist(TEST_BUCKET, warmingQueriesPrefix + warmingQueriesVersionId));
+      try {
+        s3Client.headObject(
+            builder ->
+                builder.bucket(TEST_BUCKET).key(warmingQueriesPrefix + warmingQueriesVersionId));
+        assertTrue(true);
+      } catch (Exception e) {
+        assertTrue(false);
+      }
     } else {
       assertFalse(warmingQueriesExist);
     }
   }
 
   private Set<String> getSnapshotFiles(
-      AmazonS3 s3Client, String indexResource, String timeString, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String timeString, String snapshotRoot) {
     String snapshotKeyPrefix = String.join("/", snapshotRoot, indexResource, timeString, "");
     return getFiles(s3Client, snapshotKeyPrefix);
   }
 
   private SnapshotMetadata getSnapshotMetadata(
-      AmazonS3 s3Client, String indexResource, String timeString, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String timeString, String snapshotRoot) {
     String snapshotMetadataKey =
         String.join("/", snapshotRoot, BackupCommandUtils.METADATA_DIR, indexResource, timeString);
-    S3Object stateObject = s3Client.getObject(TEST_BUCKET, snapshotMetadataKey);
+    ResponseInputStream<GetObjectResponse> stateObject =
+        s3Client.getObject(builder -> builder.bucket(TEST_BUCKET).key(snapshotMetadataKey));
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     try {
-      IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
+      IOUtils.copy(stateObject, byteArrayOutputStream);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -484,23 +493,26 @@ public class SnapshotRestoreCommandTest {
   }
 
   private List<String> getSnapshotTimeStrings(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String snapshotRoot) {
     String indexMetadataKeyPrefix =
         String.join("/", snapshotRoot, BackupCommandUtils.METADATA_DIR, indexResource, "");
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, indexMetadataKeyPrefix);
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            builder -> builder.bucket(TEST_BUCKET).prefix(indexMetadataKeyPrefix));
     List<String> timeStrings = new ArrayList<>();
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(indexMetadataKeyPrefix)[1];
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(indexMetadataKeyPrefix)[1];
       timeStrings.add(baseName);
     }
     return timeStrings;
   }
 
-  private Set<String> getFiles(AmazonS3 s3Client, String prefix) {
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, prefix);
+  private Set<String> getFiles(S3Client s3Client, String prefix) {
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(builder -> builder.bucket(TEST_BUCKET).prefix(prefix));
     Set<String> files = new HashSet<>();
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(prefix)[1];
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(prefix)[1];
       files.add(baseName);
     }
     return files;
