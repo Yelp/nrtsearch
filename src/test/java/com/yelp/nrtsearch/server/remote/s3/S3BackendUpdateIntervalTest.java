@@ -86,7 +86,13 @@ public class S3BackendUpdateIntervalTest {
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     s3 = S3_PROVIDER.getAmazonS3();
-    s3Backend = new S3Backend(config, s3, executorFactory);
+    s3Backend =
+        new S3Backend(
+            config,
+            s3,
+            S3_PROVIDER.getS3AsyncClient(),
+            S3_PROVIDER.getS3TransferManager(),
+            executorFactory);
   }
 
   @AfterClass

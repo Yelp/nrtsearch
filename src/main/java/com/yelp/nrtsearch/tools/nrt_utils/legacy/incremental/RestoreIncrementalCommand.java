@@ -40,7 +40,6 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
-import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedCopy;
 import software.amazon.awssdk.transfer.s3.model.Copy;
 import software.amazon.awssdk.transfer.s3.model.CopyRequest;
@@ -131,10 +130,22 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   private int maxRetry;
 
   private S3Client s3Client;
+  private software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient;
+  private software.amazon.awssdk.transfer.s3.S3TransferManager transferManager;
 
   @VisibleForTesting
   void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
+  }
+
+  @VisibleForTesting
+  void setS3AsyncClient(software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient) {
+    this.s3AsyncClient = s3AsyncClient;
+  }
+
+  @VisibleForTesting
+  void setTransferManager(software.amazon.awssdk.transfer.s3.S3TransferManager transferManager) {
+    this.transferManager = transferManager;
   }
 
   @Override
@@ -202,13 +213,22 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
             s3Client, bucketName, restoreServiceName, restoreIndexDataResource, fileListId);
     System.out.println("Restoring index data: " + indexFiles);
 
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
-    software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
-        software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
-            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
-            .region(s3Client.serviceClientConfiguration().region())
-            .build();
-    S3TransferManager transferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
+    software.amazon.awssdk.transfer.s3.S3TransferManager transferManagerToUse =
+        this.transferManager;
+    boolean shouldCloseTransferManager = false;
+    if (transferManagerToUse == null) {
+      ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
+      software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
+          software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
+              .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+              .region(s3Client.serviceClientConfiguration().region())
+              .build();
+      transferManagerToUse =
+          software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+              .s3Client(s3AsyncClient)
+              .build();
+      shouldCloseTransferManager = true;
+    }
     try {
       List<Copy> copyJobs = new ArrayList<>();
       for (String fileName : indexFiles) {
@@ -221,7 +241,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
                 .build();
         final String finalFileName = fileName;
         Copy copy =
-            transferManager.copy(
+            transferManagerToUse.copy(
                 CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
         copyJobs.add(copy);
         System.out.println("Started copy: " + finalFileName);
@@ -231,8 +251,9 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
         System.out.println("Completed copy");
       }
     } finally {
-      transferManager.close();
-      executor.shutdown();
+      if (shouldCloseTransferManager) {
+        transferManagerToUse.close();
+      }
     }
     versionManager.blessVersion(restoreServiceName, restoreIndexDataResource, fileListId);
   }

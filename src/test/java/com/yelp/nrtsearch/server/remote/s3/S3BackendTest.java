@@ -91,7 +91,13 @@ public class S3BackendTest {
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     s3 = S3_PROVIDER.getS3Client();
-    s3Backend = new S3Backend(config, s3, executorFactory);
+    s3Backend =
+        new S3Backend(
+            config,
+            s3,
+            S3_PROVIDER.getS3AsyncClient(),
+            S3_PROVIDER.getS3TransferManager(),
+            executorFactory);
     s3.putObject(
         software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
             .bucket(BUCKET_NAME)
@@ -867,7 +873,13 @@ public class S3BackendTest {
               "file1", fileMetaData1, "not_exist", fileMetaDataNotExist, "file2", fileMetaData2));
       fail();
     } catch (IOException e) {
-      assertTrue(e.getCause().getMessage().contains("No such file or directory"));
+      // AWS SDK v2 may have different error messages
+      String errorMsg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+      assertTrue(
+          "Expected error about missing file, got: " + errorMsg,
+          errorMsg.contains("No such file")
+              || errorMsg.contains("does not exist")
+              || errorMsg.contains("NoSuchFileException"));
     }
   }
 
@@ -934,7 +946,13 @@ public class S3BackendTest {
               "file1", fileMetaData1, "not_exist", fileMetaDataNotExist, "file2", fileMetaData2));
       fail();
     } catch (IOException e) {
-      assertTrue(e.getCause().getMessage().contains("Not Found"));
+      // AWS SDK v2 may have different error messages
+      String errorMsg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+      assertTrue(
+          "Expected error about missing file, got: " + errorMsg,
+          errorMsg.contains("Not Found")
+              || errorMsg.contains("NoSuchKey")
+              || errorMsg.contains("does not exist"));
     }
   }
 

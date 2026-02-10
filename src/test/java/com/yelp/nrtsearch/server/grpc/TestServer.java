@@ -151,7 +151,11 @@ public class TestServer {
   private RemoteBackend createRemoteBackend() {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
-    return new S3Backend(configuration, s3, executorFactory);
+    software.amazon.awssdk.services.s3.S3AsyncClient s3Async =
+        AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+    software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
+        software.amazon.awssdk.transfer.s3.S3TransferManager.builder().s3Client(s3Async).build();
+    return new S3Backend(configuration, s3, s3Async, transferManager, executorFactory);
   }
 
   public void restart() throws IOException {

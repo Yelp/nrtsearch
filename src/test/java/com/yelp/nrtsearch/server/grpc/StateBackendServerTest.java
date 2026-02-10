@@ -110,16 +110,22 @@ public class StateBackendServerTest {
     if (primaryServer != null) {
       primaryServer.shutdown();
       try {
-        primaryServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!primaryServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          primaryServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        primaryServer.shutdownNow();
       }
       primaryServer = null;
     }
     if (primaryReplicationServer != null) {
       primaryReplicationServer.shutdown();
       try {
-        primaryReplicationServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!primaryReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          primaryReplicationServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        primaryReplicationServer.shutdownNow();
       }
       primaryReplicationServer = null;
     }
@@ -143,16 +149,22 @@ public class StateBackendServerTest {
     if (replicaServer != null) {
       replicaServer.shutdown();
       try {
-        replicaServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!replicaServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          replicaServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        replicaServer.shutdownNow();
       }
       replicaServer = null;
     }
     if (replicaReplicationServer != null) {
       replicaReplicationServer.shutdown();
       try {
-        replicaReplicationServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!replicaReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          replicaReplicationServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        replicaReplicationServer.shutdownNow();
       }
       replicaReplicationServer = null;
     }
@@ -169,8 +181,22 @@ public class StateBackendServerTest {
     Files.createDirectories(getReplicaIndexDir());
 
     S3Client s3 = s3Provider.getAmazonS3();
-    remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
-    remoteBackendReplica = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
+    remoteBackendPrimary =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            s3,
+            s3Provider.getS3AsyncClient(),
+            s3Provider.getS3TransferManager());
+    remoteBackendReplica =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            s3,
+            s3Provider.getS3AsyncClient(),
+            s3Provider.getS3TransferManager());
   }
 
   private NrtsearchConfig getPrimaryConfig() {

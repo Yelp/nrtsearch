@@ -65,7 +65,13 @@ public class RemoteStateBackendTest {
   @Before
   public void setup() throws IOException {
     remoteBackend =
-        new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Provider.getAmazonS3());
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            s3Provider.getAmazonS3(),
+            s3Provider.getS3AsyncClient(),
+            s3Provider.getS3TransferManager());
   }
 
   private NrtsearchConfig getConfig(boolean readOnly) throws IOException {

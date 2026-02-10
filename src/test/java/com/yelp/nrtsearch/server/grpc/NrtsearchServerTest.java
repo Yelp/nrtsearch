@@ -157,7 +157,12 @@ public class NrtsearchServerTest {
   private RemoteBackend setUpRemoteBackend(
       NrtsearchConfig configuration, ExecutorFactory executorFactory) throws IOException {
     s3 = s3Provider.getAmazonS3();
-    return new S3Backend(configuration, s3, executorFactory);
+    return new S3Backend(
+        configuration,
+        s3,
+        s3Provider.getS3AsyncClient(),
+        s3Provider.getS3TransferManager(),
+        executorFactory);
   }
 
   private void setUpWarmer() throws IOException {

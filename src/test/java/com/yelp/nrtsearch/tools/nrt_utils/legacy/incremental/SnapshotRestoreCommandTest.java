@@ -65,12 +65,16 @@ public class SnapshotRestoreCommandTest {
   private CommandLine getInjectedSnapshotCommand() {
     SnapshotIncrementalCommand command = new SnapshotIncrementalCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(s3Provider.getS3AsyncClient());
+    command.setTransferManager(s3Provider.getS3TransferManager());
     return new CommandLine(command);
   }
 
   private CommandLine getInjectedRestoreCommand() {
     RestoreIncrementalCommand command = new RestoreIncrementalCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(s3Provider.getS3AsyncClient());
+    command.setTransferManager(s3Provider.getS3TransferManager());
     return new CommandLine(command);
   }
 

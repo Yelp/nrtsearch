@@ -64,6 +64,16 @@ public class PutRemoteStateCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
+  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
+    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+        .s3Client(getS3Async())
+        .build();
+  }
+
   private CommandLine getInjectedCommand() {
     PutRemoteStateCommand command = new PutRemoteStateCommand();
     command.setS3Client(getS3());
@@ -81,7 +91,8 @@ public class PutRemoteStateCommandTest {
   }
 
   private S3Backend getRemoteBackend() {
-    return new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    return new S3Backend(
+        TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3(), getS3Async(), getTransferManager());
   }
 
   @Test

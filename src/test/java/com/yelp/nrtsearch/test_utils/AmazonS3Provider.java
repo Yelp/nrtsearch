@@ -21,8 +21,10 @@ import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 /**
  * A JUnit {@link org.junit.Rule} for mock S3 tests. It provides a mock S3 client which stores any
@@ -51,10 +53,21 @@ public class AmazonS3Provider extends ExternalResource {
   private final TemporaryFolder temporaryFolder;
   private S3Mock api;
   private S3Client s3;
+  private S3AsyncClient s3Async;
+  private S3TransferManager transferManager;
   private String s3Path;
 
   public static S3Client createTestS3Client(String endpoint) {
     return S3Client.builder()
+        .credentialsProvider(AnonymousCredentialsProvider.create())
+        .region(Region.US_EAST_1)
+        .endpointOverride(URI.create(endpoint))
+        .forcePathStyle(true)
+        .build();
+  }
+
+  public static S3AsyncClient createTestS3AsyncClient(String endpoint) {
+    return S3AsyncClient.builder()
         .credentialsProvider(AnonymousCredentialsProvider.create())
         .region(Region.US_EAST_1)
         .endpointOverride(URI.create(endpoint))
@@ -75,13 +88,24 @@ public class AmazonS3Provider extends ExternalResource {
     int port = PortUtils.findAvailablePort();
     api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
     api.start();
-    s3 = createTestS3Client(String.format("http://127.0.0.1:%d", port));
+    String endpoint = String.format("http://127.0.0.1:%d", port);
+    s3 = createTestS3Client(endpoint);
+    s3Async = createTestS3AsyncClient(endpoint);
+    transferManager = S3TransferManager.builder().s3Client(s3Async).build();
     s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
   }
 
   @Override
   protected void after() {
-    s3.close();
+    if (transferManager != null) {
+      transferManager.close();
+    }
+    if (s3Async != null) {
+      s3Async.close();
+    }
+    if (s3 != null) {
+      s3.close();
+    }
     if (api != null) {
       api.shutdown();
     }
@@ -97,6 +121,16 @@ public class AmazonS3Provider extends ExternalResource {
   @Deprecated
   public S3Client getAmazonS3() {
     return s3;
+  }
+
+  /** Get the test S3 async client */
+  public S3AsyncClient getS3AsyncClient() {
+    return s3Async;
+  }
+
+  /** Get the test S3 transfer manager */
+  public S3TransferManager getS3TransferManager() {
+    return transferManager;
   }
 
   /** Get the local directory path where mock S3 files are stored */

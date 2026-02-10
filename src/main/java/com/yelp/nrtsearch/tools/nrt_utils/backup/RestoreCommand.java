@@ -32,8 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import picocli.CommandLine;
@@ -139,10 +137,22 @@ public class RestoreCommand implements Callable<Integer> {
   private int maxRetry;
 
   private S3Client s3Client;
+  private software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient;
+  private S3TransferManager transferManager;
 
   @VisibleForTesting
   void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
+  }
+
+  @VisibleForTesting
+  void setS3AsyncClient(software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient) {
+    this.s3AsyncClient = s3AsyncClient;
+  }
+
+  @VisibleForTesting
+  void setTransferManager(S3TransferManager transferManager) {
+    this.transferManager = transferManager;
   }
 
   @Override
@@ -151,7 +161,19 @@ public class RestoreCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend;
+    if (s3AsyncClient != null && transferManager != null) {
+      s3Backend =
+          new S3Backend(
+              bucketName,
+              false,
+              S3Backend.DEFAULT_CONFIG,
+              s3Client,
+              s3AsyncClient,
+              transferManager);
+    } else {
+      s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    }
 
     String resolvedSnapshotRoot =
         BackupCommandUtils.getSnapshotRoot(snapshotRoot, snapshotServiceName);
@@ -213,37 +235,25 @@ public class RestoreCommand implements Callable<Integer> {
 
     System.out.println("Restoring index data: " + backendIndexFiles);
 
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
-    software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
-        software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
-            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
-            .region(s3Client.serviceClientConfiguration().region())
-            .build();
-    S3TransferManager transferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
-    try {
-      List<Copy> copyJobs = new ArrayList<>();
-      for (String fileName : backendIndexFiles) {
-        CopyObjectRequest copyObjectRequest =
-            CopyObjectRequest.builder()
-                .sourceBucket(bucketName)
-                .sourceKey(snapshotDataRoot + fileName)
-                .destinationBucket(bucketName)
-                .destinationKey(restoreDataPrefix + fileName)
-                .build();
-        final String finalFileName = fileName;
-        Copy copy =
-            transferManager.copy(
-                CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
-        copyJobs.add(copy);
-        System.out.println("Started copy: " + finalFileName);
-      }
-      for (Copy copyJob : copyJobs) {
-        CompletedCopy completedCopy = copyJob.completionFuture().join();
-        System.out.println("Completed copy");
-      }
-    } finally {
-      transferManager.close();
-      executor.shutdown();
+    S3TransferManager transferManager = s3Backend.getTransferManager();
+    List<Copy> copyJobs = new ArrayList<>();
+    for (String fileName : backendIndexFiles) {
+      CopyObjectRequest copyObjectRequest =
+          CopyObjectRequest.builder()
+              .sourceBucket(bucketName)
+              .sourceKey(snapshotDataRoot + fileName)
+              .destinationBucket(bucketName)
+              .destinationKey(restoreDataPrefix + fileName)
+              .build();
+      final String finalFileName = fileName;
+      Copy copy =
+          transferManager.copy(CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
+      copyJobs.add(copy);
+      System.out.println("Started copy: " + finalFileName);
+    }
+    for (Copy copyJob : copyJobs) {
+      CompletedCopy completedCopy = copyJob.completionFuture().join();
+      System.out.println("Completed copy");
     }
     s3Backend.setCurrentResource(restorePointStatePrefix, pointStateFileName);
   }

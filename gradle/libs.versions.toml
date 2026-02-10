@@ -12,6 +12,7 @@ aws-sdk-core = { module = "software.amazon.awssdk:sdk-core", version.ref = "aws"
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws" }
 aws-sts = { module = "software.amazon.awssdk:sts", version.ref = "aws" }
 aws-s3-transfer-manager = { module = "software.amazon.awssdk:s3-transfer-manager", version.ref = "aws" }
+aws-crt = { module = "software.amazon.awssdk.crt:aws-crt", version = "0.33.5" }
 commons-compress = { module = "org.apache.commons:commons-compress", version = "1.27.0" }
 commons-csv = { module = "org.apache.commons:commons-csv", version = "1.11.0" }
 commons-io = { module = "commons-io:commons-io", version = "2.16.1" }

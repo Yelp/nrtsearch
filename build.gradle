@@ -72,6 +72,7 @@ dependencies {
     implementation libs.aws.sdk.core
     implementation libs.aws.s3
     implementation libs.aws.s3.transfer.manager
+    implementation libs.aws.crt
     runtimeOnly libs.aws.sts
     implementation libs.commons.compress
     implementation libs.commons.io
@@ -209,6 +210,8 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
+    // Run tests sequentially to avoid S3Mock port conflicts
+    maxParallelForks = 1
     // Used by NrtsearchConfigTest
     environment(Map.of('CUSTOM_HOST', 'my_custom_host', 'VAR1', 'v1', 'VAR2', 'v2', 'VAR3', 'v3'))
     if (project.hasProperty('longRunningTestsOnly')) {

@@ -76,15 +76,29 @@ public class SnapshotRestoreCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
+  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
+    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+        .s3Client(getS3Async())
+        .build();
+  }
+
   private CommandLine getInjectedSnapshotCommand() {
     SnapshotCommand command = new SnapshotCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(getS3Async());
+    command.setTransferManager(getTransferManager());
     return new CommandLine(command);
   }
 
   private CommandLine getInjectedRestoreCommand() {
     RestoreCommand command = new RestoreCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(getS3Async());
+    command.setTransferManager(getTransferManager());
     return new CommandLine(command);
   }
 
@@ -372,7 +386,14 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            s3Client,
+            getS3Async(),
+            getTransferManager());
     NrtPointState pointState =
         RemoteUtils.pointStateFromUtf8(
             s3Backend
@@ -414,7 +435,14 @@ public class SnapshotRestoreCommandTest {
   private void assertRestoreFiles(
       S3Client s3Client, String serviceName, String indexResource, boolean withWarming)
       throws IOException {
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            s3Client,
+            getS3Async(),
+            getTransferManager());
     Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs");
 
     NrtPointState pointState =

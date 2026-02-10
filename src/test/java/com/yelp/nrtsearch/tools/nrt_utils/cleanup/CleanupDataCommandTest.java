@@ -66,6 +66,16 @@ public class CleanupDataCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
+  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
+    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+        .s3Client(getS3Async())
+        .build();
+  }
+
   private CommandLine getInjectedCommand() {
     CleanupDataCommand command = new CleanupDataCommand();
     command.setS3Client(getS3());
@@ -113,7 +123,14 @@ public class CleanupDataCommandTest {
   @Test
   public void testKeepsRecentVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -133,7 +150,14 @@ public class CleanupDataCommandTest {
   @Test
   public void testDeletesUnneededVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -152,7 +176,14 @@ public class CleanupDataCommandTest {
   @Test
   public void testKeepsFutureVersions() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -174,7 +205,14 @@ public class CleanupDataCommandTest {
   @Test
   public void testGracePeriod() throws IOException {
     TestServer server = getTestServer();
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
     S3Client s3Client = getS3();

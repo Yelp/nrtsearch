@@ -69,7 +69,13 @@ public class WarmerTest {
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
     executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    remoteBackend = new S3Backend(config, s3, executorFactory);
+    remoteBackend =
+        new S3Backend(
+            config,
+            s3,
+            s3Provider.getS3AsyncClient(),
+            s3Provider.getS3TransferManager(),
+            executorFactory);
     warmer = new Warmer(remoteBackend, service, index, 4);
   }
 

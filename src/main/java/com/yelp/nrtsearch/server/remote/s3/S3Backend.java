@@ -239,6 +239,36 @@ public class S3Backend implements RemoteBackend {
   }
 
   /**
+   * Constructor for testing with pre-configured S3AsyncClient and TransferManager.
+   *
+   * @param configuration configuration
+   * @param s3 s3 client
+   * @param s3Async s3 async client
+   * @param transferManager s3 transfer manager
+   * @param executorFactory executor factory
+   */
+  public S3Backend(
+      NrtsearchConfig configuration,
+      S3Client s3,
+      S3AsyncClient s3Async,
+      S3TransferManager transferManager,
+      ExecutorFactory executorFactory) {
+    this(
+        configuration.getBucketName(),
+        configuration.getSavePluginBeforeUnzip(),
+        S3BackendConfig.fromConfig(configuration),
+        s3,
+        s3Async,
+        transferManager,
+        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
+        configuration
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
+            .maxThreads(),
+        false);
+  }
+
+  /**
    * Constructor.
    *
    * @param serviceBucket bucket name
@@ -261,6 +291,35 @@ public class S3Backend implements RemoteBackend {
         true);
   }
 
+  /**
+   * Constructor for testing with pre-configured S3AsyncClient and TransferManager.
+   *
+   * @param serviceBucket bucket name
+   * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3BackendConfig s3 backend configuration
+   * @param s3 s3 client
+   * @param s3Async s3 async client
+   * @param transferManager s3 transfer manager
+   */
+  public S3Backend(
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      S3BackendConfig s3BackendConfig,
+      S3Client s3,
+      S3AsyncClient s3Async,
+      S3TransferManager transferManager) {
+    this(
+        serviceBucket,
+        savePluginBeforeUnzip,
+        s3BackendConfig,
+        s3,
+        s3Async,
+        transferManager,
+        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
+        true);
+  }
+
   private S3Backend(
       String serviceBucket,
       boolean savePluginBeforeUnzip,
@@ -277,13 +336,52 @@ public class S3Backend implements RemoteBackend {
     this.serviceBucket = serviceBucket;
 
     // Create S3AsyncClient for TransferManager
-    this.s3Async =
-        S3AsyncClient.crtBuilder()
-            .credentialsProvider(s3.serviceClientConfiguration().credentialsProvider())
-            .region(s3.serviceClientConfiguration().region())
-            .build();
+    // Check if serviceClientConfiguration() is available (may be null for mock objects in tests)
+    if (s3.serviceClientConfiguration() != null) {
+      this.s3Async =
+          S3AsyncClient.crtBuilder()
+              .credentialsProvider(s3.serviceClientConfiguration().credentialsProvider())
+              .region(s3.serviceClientConfiguration().region())
+              .build();
+      this.transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+    } else {
+      // For tests or cases where service configuration is not available
+      this.s3Async = null;
+      this.transferManager = null;
+    }
 
-    this.transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+    this.s3Metrics = s3BackendConfig.metrics;
+    if (s3BackendConfig.getRateLimitBytes() > 0) {
+      logger.info(
+          "Enabling S3 download rate limit: {} bytes per second, window: {} seconds",
+          s3BackendConfig.getRateLimitBytes(),
+          s3BackendConfig.getRateLimitWindowSeconds());
+      this.rateLimiter =
+          new GlobalWindowRateLimiter(
+              s3BackendConfig.getRateLimitBytes(), s3BackendConfig.getRateLimitWindowSeconds());
+    } else {
+      this.rateLimiter = null;
+    }
+  }
+
+  private S3Backend(
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      S3BackendConfig s3BackendConfig,
+      S3Client s3,
+      S3AsyncClient s3Async,
+      S3TransferManager transferManager,
+      ExecutorService executor,
+      int maxExecutorParallelism,
+      boolean shutdownExecutor) {
+    this.s3 = s3;
+    this.s3Async = s3Async;
+    this.transferManager = transferManager;
+    this.executor = executor;
+    this.maxExecutorParallelism = maxExecutorParallelism;
+    this.shutdownExecutor = shutdownExecutor;
+    this.saveBeforeUnzip = savePluginBeforeUnzip;
+    this.serviceBucket = serviceBucket;
 
     this.s3Metrics = s3BackendConfig.metrics;
     if (s3BackendConfig.getRateLimitBytes() > 0) {
@@ -301,6 +399,14 @@ public class S3Backend implements RemoteBackend {
 
   public S3Client getS3() {
     return s3;
+  }
+
+  public S3AsyncClient getS3Async() {
+    return s3Async;
+  }
+
+  public S3TransferManager getTransferManager() {
+    return transferManager;
   }
 
   @VisibleForTesting
@@ -458,8 +564,12 @@ public class S3Backend implements RemoteBackend {
 
   @Override
   public void close() {
-    transferManager.close();
-    s3Async.close();
+    if (transferManager != null) {
+      transferManager.close();
+    }
+    if (s3Async != null) {
+      s3Async.close();
+    }
     if (shutdownExecutor) {
       try {
         executor.shutdown();
@@ -600,6 +710,10 @@ public class S3Backend implements RemoteBackend {
                   new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"))
               .build();
       try {
+        if (transferManager == null) {
+          throw new IllegalStateException(
+              "TransferManager is not available. Ensure S3Client is properly configured.");
+        }
         FileUpload upload = transferManager.uploadFile(request);
         uploadList.add(upload);
       } catch (Throwable t) {
@@ -651,6 +765,10 @@ public class S3Backend implements RemoteBackend {
                   new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"))
               .build();
       try {
+        if (transferManager == null) {
+          throw new IllegalStateException(
+              "TransferManager is not available. Ensure S3Client is properly configured.");
+        }
         FileDownload download = transferManager.downloadFile(request);
         downloadList.add(download);
       } catch (Throwable t) {

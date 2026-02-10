@@ -387,6 +387,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testIndexIdFromGlobalState() throws IOException {
+    TestServer.initS3(folder);
     TestServer server = TestServer.builder(folder).withRemoteStateBackend(false).build();
     server.createIndex("test_index");
     String indexUniqueName = server.getGlobalState().getDataResourceForIndex("test_index");

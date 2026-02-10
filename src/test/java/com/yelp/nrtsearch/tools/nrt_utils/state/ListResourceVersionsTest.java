@@ -72,6 +72,16 @@ public class ListResourceVersionsTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
+  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
+    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+        .s3Client(getS3Async())
+        .build();
+  }
+
   private CommandLine getInjectedCommand() {
     ListResourceVersions command = new ListResourceVersions();
     command.setS3Client(getS3());
@@ -221,7 +231,14 @@ public class ListResourceVersionsTest {
   public void testListResourceVersionsFromGlobalState() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(

@@ -71,6 +71,16 @@ public class SetResourceVersionCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
+  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
+    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+        .s3Client(getS3Async())
+        .build();
+  }
+
   private CommandLine getInjectedCommand() {
     SetResourceVersionCommand command = new SetResourceVersionCommand();
     command.setS3Client(getS3());
@@ -91,7 +101,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testSetResourceVersion_globalState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
     getS3()
         .putObject(
@@ -114,7 +131,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testSetResourceVersion_indexState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
@@ -141,7 +165,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testSetResourceVersion_pointState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
@@ -168,7 +199,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testSetResourceVersion_warmingQueries() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
@@ -195,7 +233,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testUpdateResourceVersion_globalState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
     s3Backend.setCurrentResource(prefix, "version0");
     getS3()
@@ -219,7 +264,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testUpdateResourceVersion_indexState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
@@ -247,7 +299,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testUpdateResourceVersion_pointState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
@@ -275,7 +334,14 @@ public class SetResourceVersionCommandTest {
   @Test
   public void testUpdateResourceVersion_warmingQueries() throws IOException {
     TestServer.initS3(folder);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
@@ -323,7 +389,14 @@ public class SetResourceVersionCommandTest {
   public void testSetResourceFromGlobalState() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
-    S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend s3Backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            getS3(),
+            getS3Async(),
+            getTransferManager());
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(
