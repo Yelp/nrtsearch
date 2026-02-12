@@ -39,11 +39,16 @@ import org.apache.lucene.search.TopDocs;
 /** Abstract base for classes that manage the collection of documents when executing queries. */
 public abstract class DocCollector {
 
-  private final SearchRequest request;
   private final IndexState indexState;
   private final List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       additionalCollectors;
   private final int numHitsToCollect;
+  private final double timeoutSec;
+  private final int timeoutCheckEvery;
+  private final int terminateAfter;
+  private final int terminateAfterMaxRecallCount;
+  private final boolean disallowPartialResults;
+  private final boolean profile;
   private boolean hadTimeout = false;
   private boolean terminatedEarly = false;
   private SearchStatsWrapper<? extends Collector> statsWrapper = null;
@@ -59,11 +64,15 @@ public abstract class DocCollector {
       CollectorCreatorContext context,
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
-    this.request = context.getRequest();
     this.indexState = context.getIndexState();
     this.additionalCollectors = additionalCollectors;
-
-    numHitsToCollect = computeNumHitsToCollect(request);
+    this.numHitsToCollect = context.getNumHitsToCollect();
+    this.timeoutSec = context.getTimeoutSec();
+    this.timeoutCheckEvery = context.getTimeoutCheckEvery();
+    this.terminateAfter = context.getTerminateAfter();
+    this.terminateAfterMaxRecallCount = context.getTerminateAfterMaxRecallCount();
+    this.disallowPartialResults = context.getDisallowPartialResults();
+    this.profile = context.getProfile();
   }
 
   public static int computeNumHitsToCollect(SearchRequest request) {
@@ -172,38 +181,22 @@ public abstract class DocCollector {
   <C extends Collector> CollectorManager<? extends Collector, SearcherResult> wrapManager(
       CollectorManager<C, SearcherResult> manager) {
     CollectorManager<? extends Collector, SearcherResult> wrapped = manager;
-    double timeout =
-        request.getTimeoutSec() > 0.0
-            ? request.getTimeoutSec()
-            : indexState.getDefaultSearchTimeoutSec();
-    int terminateAfter =
-        request.getTerminateAfter() > 0
-            ? request.getTerminateAfter()
-            : indexState.getDefaultTerminateAfter();
-    int terminateAfterMaxRecallCount =
-        request.getTerminateAfterMaxRecallCount() > 0
-            ? request.getTerminateAfterMaxRecallCount()
-            : indexState.getDefaultTerminateAfterMaxRecallCount();
     if (terminateAfter > 0) {
       wrapped =
           new TerminateAfterWrapper<>(
               wrapped, terminateAfter, terminateAfterMaxRecallCount, () -> terminatedEarly = true);
     }
-    if (timeout > 0.0) {
-      int timeoutCheckEvery =
-          request.getTimeoutCheckEvery() > 0
-              ? request.getTimeoutCheckEvery()
-              : indexState.getDefaultSearchTimeoutCheckEvery();
+    if (timeoutSec > 0.0) {
       hadTimeout = false;
       wrapped =
           new SearchCutoffWrapper<>(
               wrapped,
-              timeout,
+              timeoutSec,
               timeoutCheckEvery,
-              request.getDisallowPartialResults(),
+              disallowPartialResults,
               () -> hadTimeout = true);
     }
-    if (request.getProfile()) {
+    if (profile) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);
       wrapped = statsWrapper;
     }
@@ -216,7 +209,7 @@ public abstract class DocCollector {
    */
   List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       wrappedCollectors() {
-    if (!additionalCollectors.isEmpty() && request.getProfile()) {
+    if (!additionalCollectors.isEmpty() && profile) {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           wrappedCollectors = new ArrayList<>(additionalCollectors.size());
       // hold the stats wrappers to fill profiling info later
