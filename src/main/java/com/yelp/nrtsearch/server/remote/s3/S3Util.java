@@ -118,21 +118,45 @@ public class S3Util {
   }
 
   /**
+   * Parsed S3 URI components.
+   *
+   * @param bucket S3 bucket name
+   * @param key S3 object key
+   */
+  public record S3UriComponents(String bucket, String key) {}
+
+  /**
+   * Parse an S3 URI path into bucket and key components.
+   *
+   * <p>This method replaces the old AmazonS3URI usage from AWS SDK v1.
+   *
+   * @param s3Path Complete S3 URI path (e.g., s3://bucket-name/path/to/object)
+   * @return S3UriComponents containing bucket and key
+   * @throws IllegalArgumentException if the path is not a valid S3 URI
+   */
+  public static S3UriComponents parseS3Uri(String s3Path) {
+    if (s3Path == null || !s3Path.startsWith("s3://")) {
+      throw new IllegalArgumentException("Invalid S3 URI: " + s3Path);
+    }
+    String withoutProtocol = s3Path.substring(5);
+    int firstSlash = withoutProtocol.indexOf('/');
+    if (firstSlash < 0) {
+      // No key, just bucket
+      return new S3UriComponents(withoutProtocol, "");
+    }
+    String bucket = withoutProtocol.substring(0, firstSlash);
+    String key = withoutProtocol.substring(firstSlash + 1);
+    return new S3UriComponents(bucket, key);
+  }
+
+  /**
    * Parse S3 URI and extract the key.
    *
    * @param path S3 URI path (e.g., s3://bucket/key)
    * @return S3 key
    */
   private static String parseS3Key(String path) {
-    if (path == null || !path.startsWith("s3://")) {
-      throw new IllegalArgumentException("Invalid S3 URI: " + path);
-    }
-    String withoutProtocol = path.substring(5); // Remove "s3://"
-    int firstSlash = withoutProtocol.indexOf('/');
-    if (firstSlash < 0) {
-      return ""; // No key, just bucket
-    }
-    return withoutProtocol.substring(firstSlash + 1);
+    return parseS3Uri(path).key();
   }
 
   /**

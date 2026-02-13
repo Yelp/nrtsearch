@@ -113,6 +113,16 @@ public class S3Backend implements RemoteBackend {
   record FileNamePair(String fileName, String backendFileName) {}
 
   /**
+   * Container for S3 clients used by S3Backend.
+   *
+   * @param s3Client synchronous S3 client
+   * @param s3AsyncClient asynchronous S3 client for transfer manager
+   * @param transferManager S3 transfer manager for file uploads/downloads
+   */
+  record S3ClientBundle(
+      S3Client s3Client, S3AsyncClient s3AsyncClient, S3TransferManager transferManager) {}
+
+  /**
    * Configuration for S3 backend.
    *
    * <p>Includes metrics and rate limiting settings.
@@ -229,7 +239,7 @@ public class S3Backend implements RemoteBackend {
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
-        s3,
+        createS3ClientBundle(s3),
         executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
         configuration
             .getThreadPoolConfiguration()
@@ -257,9 +267,7 @@ public class S3Backend implements RemoteBackend {
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
-        s3,
-        s3Async,
-        transferManager,
+        new S3ClientBundle(s3, s3Async, transferManager),
         executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
         configuration
             .getThreadPoolConfiguration()
@@ -285,7 +293,7 @@ public class S3Backend implements RemoteBackend {
         serviceBucket,
         savePluginBeforeUnzip,
         s3BackendConfig,
-        s3,
+        createS3ClientBundle(s3),
         Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
         ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
         true);
@@ -312,55 +320,31 @@ public class S3Backend implements RemoteBackend {
         serviceBucket,
         savePluginBeforeUnzip,
         s3BackendConfig,
-        s3,
-        s3Async,
-        transferManager,
+        new S3ClientBundle(s3, s3Async, transferManager),
         Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
         ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
         true);
   }
 
-  private S3Backend(
-      String serviceBucket,
-      boolean savePluginBeforeUnzip,
-      S3BackendConfig s3BackendConfig,
-      S3Client s3,
-      ExecutorService executor,
-      int maxExecutorParallelism,
-      boolean shutdownExecutor) {
-    this.s3 = s3;
-    this.executor = executor;
-    this.maxExecutorParallelism = maxExecutorParallelism;
-    this.shutdownExecutor = shutdownExecutor;
-    this.saveBeforeUnzip = savePluginBeforeUnzip;
-    this.serviceBucket = serviceBucket;
-
-    // Create S3AsyncClient for TransferManager
+  /**
+   * Create S3 clients (async client and transfer manager) from a synchronous S3 client.
+   *
+   * @param s3 synchronous S3 client
+   * @return S3ClientBundle record containing all necessary clients
+   */
+  private static S3ClientBundle createS3ClientBundle(S3Client s3) {
     // Check if serviceClientConfiguration() is available (may be null for mock objects in tests)
     if (s3.serviceClientConfiguration() != null) {
-      this.s3Async =
+      S3AsyncClient s3Async =
           S3AsyncClient.crtBuilder()
               .credentialsProvider(s3.serviceClientConfiguration().credentialsProvider())
               .region(s3.serviceClientConfiguration().region())
               .build();
-      this.transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+      S3TransferManager transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+      return new S3ClientBundle(s3, s3Async, transferManager);
     } else {
       // For tests or cases where service configuration is not available
-      this.s3Async = null;
-      this.transferManager = null;
-    }
-
-    this.s3Metrics = s3BackendConfig.metrics;
-    if (s3BackendConfig.getRateLimitBytes() > 0) {
-      logger.info(
-          "Enabling S3 download rate limit: {} bytes per second, window: {} seconds",
-          s3BackendConfig.getRateLimitBytes(),
-          s3BackendConfig.getRateLimitWindowSeconds());
-      this.rateLimiter =
-          new GlobalWindowRateLimiter(
-              s3BackendConfig.getRateLimitBytes(), s3BackendConfig.getRateLimitWindowSeconds());
-    } else {
-      this.rateLimiter = null;
+      return new S3ClientBundle(s3, null, null);
     }
   }
 
@@ -368,15 +352,13 @@ public class S3Backend implements RemoteBackend {
       String serviceBucket,
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
-      S3Client s3,
-      S3AsyncClient s3Async,
-      S3TransferManager transferManager,
+      S3ClientBundle s3ClientBundle,
       ExecutorService executor,
       int maxExecutorParallelism,
       boolean shutdownExecutor) {
-    this.s3 = s3;
-    this.s3Async = s3Async;
-    this.transferManager = transferManager;
+    this.s3 = s3ClientBundle.s3Client();
+    this.s3Async = s3ClientBundle.s3AsyncClient();
+    this.transferManager = s3ClientBundle.transferManager();
     this.executor = executor;
     this.maxExecutorParallelism = maxExecutorParallelism;
     this.shutdownExecutor = shutdownExecutor;
@@ -433,14 +415,8 @@ public class S3Backend implements RemoteBackend {
    * @throws IllegalArgumentException if bucket or path not found
    */
   public InputStream downloadFromS3Path(String s3Path) {
-    if (s3Path == null || !s3Path.startsWith("s3://")) {
-      throw new IllegalArgumentException("Invalid S3 URI: " + s3Path);
-    }
-    String withoutProtocol = s3Path.substring(5);
-    int firstSlash = withoutProtocol.indexOf('/');
-    String bucket = withoutProtocol.substring(0, firstSlash);
-    String key = withoutProtocol.substring(firstSlash + 1);
-    return downloadFromS3Path(bucket, key, true);
+    S3Util.S3UriComponents components = S3Util.parseS3Uri(s3Path);
+    return downloadFromS3Path(components.bucket(), components.key(), true);
   }
 
   /**

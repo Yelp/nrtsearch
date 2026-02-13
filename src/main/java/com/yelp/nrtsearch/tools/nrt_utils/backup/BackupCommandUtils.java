@@ -15,12 +15,17 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class BackupCommandUtils {
   public static final String SNAPSHOT_INDEX_STATE = "index_state";
@@ -131,5 +136,57 @@ public class BackupCommandUtils {
       case 'd' -> TimeUnit.DAYS.toMillis(numberVal);
       default -> throw new IllegalArgumentException("Unknown time unit: " + endChar);
     };
+  }
+
+  /**
+   * Extract unique directory prefixes from S3 objects under a given prefix.
+   *
+   * <p>This method provides a workaround for S3Mock 0.2.6, which doesn't properly support
+   * commonPrefixes with AWS SDK v2. Instead of using delimiter-based listing, this method lists all
+   * objects and manually extracts unique directory prefixes.
+   *
+   * <p>For production S3, consider using delimiter-based listing for better performance:
+   *
+   * <pre>
+   * ListObjectsV2Request.builder()
+   *     .bucket(bucket)
+   *     .prefix(prefix)
+   *     .delimiter("/")
+   *     .build()
+   * </pre>
+   *
+   * @param s3Client S3 client to use for listing
+   * @param bucketName S3 bucket name
+   * @param prefix Base prefix to list under
+   * @return Set of directory prefixes (each ending with "/")
+   */
+  public static Set<String> extractDirectoryPrefixes(
+      S3Client s3Client, String bucketName, String prefix) {
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix);
+    ListObjectsV2Response result;
+    Set<String> directoryPrefixes = new HashSet<>();
+
+    do {
+      result = s3Client.listObjectsV2(reqBuilder.build());
+      // Extract directory prefixes from object keys
+      for (S3Object s3Object : result.contents()) {
+        String key = s3Object.key();
+        // Remove the base prefix to get the relative path
+        if (key.startsWith(prefix) && key.length() > prefix.length()) {
+          String relativePath = key.substring(prefix.length());
+          // Get the first directory component (timestamp directory)
+          int slashIndex = relativePath.indexOf('/');
+          if (slashIndex > 0) {
+            String firstComponent = relativePath.substring(0, slashIndex);
+            directoryPrefixes.add(prefix + firstComponent + "/");
+          }
+        }
+      }
+      String token = result.nextContinuationToken();
+      reqBuilder.continuationToken(token);
+    } while (result.isTruncated());
+
+    return directoryPrefixes;
   }
 }

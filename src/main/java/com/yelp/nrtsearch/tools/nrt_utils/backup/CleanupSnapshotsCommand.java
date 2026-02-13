@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -167,32 +166,10 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
       long minTimestampMs) {
     String dataPrefix = getIndexSnapshotDataPrefix(resolvedSnapshotRoot, resolvedIndexResource);
 
-    // Workaround: S3Mock (0.2.6) doesn't properly support commonPrefixes with AWS SDK v2
-    // List all objects and manually extract unique directory prefixes
-    ListObjectsV2Request.Builder reqBuilder =
-        ListObjectsV2Request.builder().bucket(bucketName).prefix(dataPrefix);
-    ListObjectsV2Response result;
-    Set<String> dataPrefixes = new HashSet<>();
-
-    do {
-      result = s3Client.listObjectsV2(reqBuilder.build());
-      // Extract directory prefixes from object keys
-      for (S3Object s3Object : result.contents()) {
-        String key = s3Object.key();
-        // Remove the base prefix to get the relative path
-        if (key.startsWith(dataPrefix) && key.length() > dataPrefix.length()) {
-          String relativePath = key.substring(dataPrefix.length());
-          // Get the first directory component (timestamp directory)
-          int slashIndex = relativePath.indexOf('/');
-          if (slashIndex > 0) {
-            String timeString = relativePath.substring(0, slashIndex);
-            dataPrefixes.add(dataPrefix + timeString + "/");
-          }
-        }
-      }
-      String token = result.nextContinuationToken();
-      reqBuilder.continuationToken(token);
-    } while (result.isTruncated());
+    // Use utility method to extract directory prefixes
+    // This works around S3Mock 0.2.6 limitation with commonPrefixes
+    Set<String> dataPrefixes =
+        BackupCommandUtils.extractDirectoryPrefixes(s3Client, bucketName, dataPrefix);
 
     List<String> deletePrefixes = new ArrayList<>();
     for (String prefix : dataPrefixes) {

@@ -26,6 +26,11 @@ import software.amazon.awssdk.transfer.s3.progress.TransferListener;
 /**
  * {@link TransferListener} that logs the status of a s3 transfer using the {@link
  * software.amazon.awssdk.transfer.s3.S3TransferManager}.
+ *
+ * <p>Note on progress tracking semantics: The AWS SDK v2's {@code
+ * progressSnapshot().transferredBytes()} returns incremental bytes transferred since the last event
+ * (delta), not cumulative total. This class maintains a cumulative total via {@code
+ * totalBytesTransferred} for accurate progress reporting.
  */
 public class S3ProgressListenerImpl implements TransferListener {
   private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
@@ -50,6 +55,7 @@ public class S3ProgressListenerImpl implements TransferListener {
 
   @Override
   public void bytesTransferred(Context.BytesTransferred context) {
+    // AWS SDK v2 returns incremental bytes (delta) per event, not cumulative
     long bytesTransferred = context.progressSnapshot().transferredBytes();
     long totalBytes = totalBytesTransferred.addAndGet(bytesTransferred);
 
