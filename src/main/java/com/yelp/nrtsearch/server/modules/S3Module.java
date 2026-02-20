@@ -27,7 +27,14 @@ public class S3Module extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected S3Client providesS3Client(NrtsearchConfig configuration) {
-    return S3Util.buildS3Client(configuration);
+  protected S3Util.S3ClientBundle providesS3ClientBundle(NrtsearchConfig configuration) {
+    return S3Util.buildS3ClientBundle(configuration);
+  }
+
+  @Inject
+  @Singleton
+  @Provides
+  protected S3Client providesS3Client(S3Util.S3ClientBundle bundle) {
+    return bundle.s3Client();
   }
 }

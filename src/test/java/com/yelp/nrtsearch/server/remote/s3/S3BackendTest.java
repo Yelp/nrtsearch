@@ -155,7 +155,11 @@ public class S3BackendTest {
   @Test
   public void testDefaultExecutor() {
     try (S3Backend s3Backend =
-        new S3Backend(BUCKET_NAME, false, S3Backend.DEFAULT_CONFIG, mock(S3Client.class))) {
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
       ThreadPoolExecutor executor = (ThreadPoolExecutor) s3Backend.getExecutor();
       assertNotSame(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE), executor);
       assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, executor.getCorePoolSize());

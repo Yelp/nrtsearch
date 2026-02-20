@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.backup.BackupCommandUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
@@ -129,7 +130,9 @@ public class CleanupDataCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(
+            bucketName, false, S3Backend.DEFAULT_CONFIG, new S3Util.S3ClientBundle(s3Client, null));
 
     String resolvedIndexResource =
         StateCommandUtils.getResourceName(s3Backend, serviceName, indexName, exactResourceName);

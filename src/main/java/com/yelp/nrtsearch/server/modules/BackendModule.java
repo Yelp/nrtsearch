@@ -20,7 +20,7 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import software.amazon.awssdk.services.s3.S3Client;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 
 public class BackendModule extends AbstractModule {
 
@@ -28,7 +28,9 @@ public class BackendModule extends AbstractModule {
   @Singleton
   @Provides
   protected RemoteBackend providesRemoteBackend(
-      NrtsearchConfig configuration, S3Client s3, ExecutorFactory executorFactory) {
-    return new S3Backend(configuration, s3, executorFactory);
+      NrtsearchConfig configuration,
+      S3Util.S3ClientBundle s3ClientBundle,
+      ExecutorFactory executorFactory) {
+    return new S3Backend(configuration, s3ClientBundle, executorFactory);
   }
 }

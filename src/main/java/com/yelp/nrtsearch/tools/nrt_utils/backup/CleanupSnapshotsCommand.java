@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.util.ArrayList;
@@ -125,7 +126,9 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(
+            bucketName, false, S3Backend.DEFAULT_CONFIG, new S3Util.S3ClientBundle(s3Client, null));
 
     long deleteAfterMs = BackupCommandUtils.getTimeIntervalMs(deleteAfter);
     long minTimestampMs = System.currentTimeMillis() - deleteAfterMs;

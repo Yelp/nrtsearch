@@ -75,9 +75,9 @@ dependencies {
     implementation libs.aws.crt
     runtimeOnly libs.aws.sts
     // AWS SDK v1 for backward compatibility with existing plugins
-    implementation libs.aws.java.sdk.core
-    implementation libs.aws.java.sdk.s3
-    runtimeOnly libs.aws.java.sdk.sts
+    implementation libs.aws.java.sdk.core.legacy
+    implementation libs.aws.java.sdk.s3.legacy
+    runtimeOnly libs.aws.java.sdk.sts.legacy
     implementation libs.commons.compress
     implementation libs.commons.io
     implementation libs.fastutil

@@ -29,6 +29,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
@@ -40,12 +41,20 @@ public class S3Util {
   private S3Util() {}
 
   /**
-   * Create a new s3 client from the given configuration.
+   * Container for S3 clients.
+   *
+   * @param s3Client synchronous S3 client
+   * @param s3AsyncClient asynchronous S3 client
+   */
+  public record S3ClientBundle(S3Client s3Client, S3AsyncClient s3AsyncClient) {}
+
+  /**
+   * Create a new S3 client bundle from the given configuration.
    *
    * @param configuration server configuration
-   * @return s3 client
+   * @return S3ClientBundle containing sync and async clients
    */
-  public static S3Client buildS3Client(NrtsearchConfig configuration) {
+  public static S3ClientBundle buildS3ClientBundle(NrtsearchConfig configuration) {
     AwsCredentialsProvider awsCredentialsProvider;
     if (configuration.getBotoCfgPath() == null) {
       awsCredentialsProvider = DefaultCredentialsProvider.create();
@@ -96,11 +105,13 @@ public class S3Util {
               + ". This could be caused by missing credentials and/or regions, or wrong bucket name.",
           sdkClientException);
       logger.info("return a dummy S3Client.");
-      return S3Client.builder()
-          .credentialsProvider(AnonymousCredentialsProvider.create())
-          .region(Region.US_EAST_1)
-          .endpointOverride(URI.create("https://dummyService"))
-          .build();
+      S3Client dummyClient =
+          S3Client.builder()
+              .credentialsProvider(AnonymousCredentialsProvider.create())
+              .region(Region.US_EAST_1)
+              .endpointOverride(URI.create("https://dummyService"))
+              .build();
+      return new S3ClientBundle(dummyClient, null);
     }
 
     int maxRetries = configuration.getMaxS3ClientRetries();
@@ -114,7 +125,13 @@ public class S3Util {
       clientBuilder.overrideConfiguration(overrideConfig);
     }
 
-    return clientBuilder.build();
+    S3Client s3Client = clientBuilder.build();
+    S3AsyncClient s3AsyncClient =
+        S3AsyncClient.crtBuilder()
+            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+            .region(s3Client.serviceClientConfiguration().region())
+            .build();
+    return new S3ClientBundle(s3Client, s3AsyncClient);
   }
 
   /**

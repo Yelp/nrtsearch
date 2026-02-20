@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.modules.BackendModule;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** A Guice module to initialize {@link NrtsearchServer} instance for tests. */
@@ -55,6 +56,13 @@ public class TestNrtsearchModule extends AbstractModule {
   @Provides
   protected S3Client providesAmazonS3() {
     return amazonS3;
+  }
+
+  @Inject
+  @Singleton
+  @Provides
+  protected S3Util.S3ClientBundle providesS3ClientBundle() {
+    return new S3Util.S3ClientBundle(amazonS3, null);
   }
 
   @Inject

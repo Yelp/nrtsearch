@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
@@ -172,7 +173,12 @@ public class RestoreCommand implements Callable<Integer> {
               s3AsyncClient,
               transferManager);
     } else {
-      s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+      s3Backend =
+          new S3Backend(
+              bucketName,
+              false,
+              S3Backend.DEFAULT_CONFIG,
+              new S3Util.S3ClientBundle(s3Client, null));
     }
 
     String resolvedSnapshotRoot =

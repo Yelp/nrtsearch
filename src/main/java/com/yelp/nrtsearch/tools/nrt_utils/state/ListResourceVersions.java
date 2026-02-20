@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -107,7 +108,9 @@ public class ListResourceVersions implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(
+            bucketName, false, S3Backend.DEFAULT_CONFIG, new S3Util.S3ClientBundle(s3Client, null));
     String resolvedResourceName =
         StateCommandUtils.getResourceName(s3Backend, serviceName, resourceName, exactResourceName);
 
