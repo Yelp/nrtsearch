@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LazyQueueTopScoreDocCollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -45,7 +44,11 @@ public class RelevanceCollector extends DocCollector {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
     super(context, additionalCollectors);
-    FieldDoc searchAfter = null;
+    ScoreDoc searchAfter = null;
+    if (context.getRequest().hasSearchAfter()) {
+      LastHitInfo lastHitInfo = context.getRequest().getSearchAfter();
+      searchAfter = new ScoreDoc(lastHitInfo.getLastDocId(), lastHitInfo.getLastScore());
+    }
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
     // if there are additional collectors, we cannot skip any recalled docs
