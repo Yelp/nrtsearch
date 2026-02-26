@@ -574,10 +574,9 @@ public class SearchRequestProcessor {
    * @return collector
    */
   private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
-    SearchRequest searchRequest = collectorCreatorContext.getRequest();
     List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
         additionalCollectors =
-            searchRequest.getCollectorsMap().entrySet().stream()
+            collectorCreatorContext.getCollectors().entrySet().stream()
                 .map(
                     e ->
                         CollectorCreator.getInstance()
@@ -586,13 +585,13 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    int numHitsToCollect = DocCollector.computeNumHitsToCollect(searchRequest);
+    int numHitsToCollect = collectorCreatorContext.getNumHitsToCollect();
     // If we don't need hits, just count recalled docs
     if (numHitsToCollect == 0) {
       docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuery().hasCompletionQuery()) {
+    } else if (collectorCreatorContext.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+    } else if (collectorCreatorContext.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
     } else {
       docCollector = new SortFieldCollector(collectorCreatorContext, additionalCollectors);

@@ -50,24 +50,24 @@ public class SortFieldCollector extends DocCollector {
     int totalHitsThreshold = SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
 
     FieldDoc searchAfter = null;
-    LastHitInfo lastHitInfo = context.getRequest().getSearchAfter();
+    LastHitInfo lastHitInfo = context.getSearchAfter();
     if (lastHitInfo != null && lastHitInfo.getLastFieldValuesCount() > 0) {
       searchAfter =
           SortParser.parseLastHitInfo(
-              lastHitInfo, context.getRequest().getQuerySort(), context.getQueryFields());
+              lastHitInfo, context.getQuerySort(), context.getQueryFields());
     }
 
     // if there are additional collectors, we cannot skip any recalled docs
     if (!additionalCollectors.isEmpty()) {
       totalHitsThreshold = Integer.MAX_VALUE;
-      if (context.getRequest().getTotalHitsThreshold() != 0) {
+      if (context.getTotalHitsThreshold() != 0) {
         logger.warn("Query totalHitsThreshold ignored when using additional collectors");
       }
-    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
+    } else if (context.getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getTotalHitsThreshold();
     }
 
-    sortContext = new SortContext(context.getRequest().getQuerySort(), context.getQueryFields());
+    sortContext = new SortContext(context.getQuerySort(), context.getQueryFields());
     manager =
         new TopFieldCollectorManager(
             sortContext.getSort(), topHits, searchAfter, totalHitsThreshold);
