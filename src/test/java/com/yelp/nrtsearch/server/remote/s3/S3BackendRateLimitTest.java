@@ -19,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend.S3BackendConfig;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
@@ -74,11 +73,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager(),
-            new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -104,11 +99,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager(),
-            new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -148,11 +139,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager(),
-            new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Download a file - this should work normally since our test file is small
     // and the rate limit is high enough
@@ -181,9 +168,7 @@ public class S3BackendRateLimitTest {
             BUCKET_NAME,
             false,
             customConfig,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager());
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -219,9 +204,7 @@ public class S3BackendRateLimitTest {
             BUCKET_NAME,
             false,
             customConfig,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager());
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private s3Metrics field
     Field s3MetricsField = S3Backend.class.getDeclaredField("s3Metrics");

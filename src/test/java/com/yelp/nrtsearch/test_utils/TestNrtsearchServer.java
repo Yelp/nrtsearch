@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import java.io.IOException;
 import org.junit.rules.ExternalResource;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
@@ -34,13 +35,16 @@ public class TestNrtsearchServer extends ExternalResource {
 
   private final NrtsearchConfig configuration;
   private final S3Client amazonS3;
+  private final S3AsyncClient amazonS3Async;
   private final ExecutorFactory executorFactory;
   private NrtsearchServer server;
   private NrtsearchClient client;
 
-  public TestNrtsearchServer(NrtsearchConfig configuration, S3Client amazonS3) {
+  public TestNrtsearchServer(
+      NrtsearchConfig configuration, S3Client amazonS3, S3AsyncClient amazonS3Async) {
     this.configuration = configuration;
     this.amazonS3 = amazonS3;
+    this.amazonS3Async = amazonS3Async;
     this.executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
   }
 
@@ -68,7 +72,8 @@ public class TestNrtsearchServer extends ExternalResource {
 
   private NrtsearchServer createTestServer() throws IOException {
     Injector injector =
-        Guice.createInjector(new TestNrtsearchModule(configuration, amazonS3, executorFactory));
+        Guice.createInjector(
+            new TestNrtsearchModule(configuration, amazonS3, amazonS3Async, executorFactory));
     NrtsearchServer server = injector.getInstance(NrtsearchServer.class);
     server.start();
     return server;

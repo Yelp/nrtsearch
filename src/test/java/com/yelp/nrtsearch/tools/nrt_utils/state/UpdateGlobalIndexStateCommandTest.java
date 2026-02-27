@@ -26,6 +26,7 @@ import static org.junit.Assert.assertTrue;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import org.junit.After;
@@ -51,9 +52,13 @@ public class UpdateGlobalIndexStateCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
   private CommandLine getInjectedCommand() {
     UpdateGlobalIndexStateCommand command = new UpdateGlobalIndexStateCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 

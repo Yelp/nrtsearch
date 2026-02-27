@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -68,15 +69,9 @@ public class PutRemoteStateCommandTest {
     return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
-  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
-    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
-        .s3Client(getS3Async())
-        .build();
-  }
-
   private CommandLine getInjectedCommand() {
     PutRemoteStateCommand command = new PutRemoteStateCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -92,7 +87,10 @@ public class PutRemoteStateCommandTest {
 
   private S3Backend getRemoteBackend() {
     return new S3Backend(
-        TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3(), getS3Async(), getTransferManager());
+        TEST_BUCKET,
+        false,
+        S3Backend.DEFAULT_CONFIG,
+        new S3Util.S3ClientBundle(getS3(), getS3Async()));
   }
 
   @Test

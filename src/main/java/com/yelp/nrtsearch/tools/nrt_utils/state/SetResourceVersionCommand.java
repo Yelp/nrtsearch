@@ -93,22 +93,23 @@ public class SetResourceVersionCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private S3Client s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(S3Client s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
+    S3Client s3Client = s3ClientBundle.s3Client();
     S3Backend s3Backend =
-        new S3Backend(
-            bucketName, false, S3Backend.DEFAULT_CONFIG, new S3Util.S3ClientBundle(s3Client, null));
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
     String resolvedResourceName =
         StateCommandUtils.getResourceName(s3Backend, serviceName, resourceName, exactResourceName);
 

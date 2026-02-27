@@ -21,7 +21,6 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
-import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3Module extends AbstractModule {
   @Inject
@@ -29,12 +28,5 @@ public class S3Module extends AbstractModule {
   @Provides
   protected S3Util.S3ClientBundle providesS3ClientBundle(NrtsearchConfig configuration) {
     return S3Util.buildS3ClientBundle(configuration);
-  }
-
-  @Inject
-  @Singleton
-  @Provides
-  protected S3Client providesS3Client(S3Util.S3ClientBundle bundle) {
-    return bundle.s3Client();
   }
 }

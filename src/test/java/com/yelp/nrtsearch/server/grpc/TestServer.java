@@ -37,6 +37,7 @@ import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -155,7 +156,7 @@ public class TestServer {
         AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
     software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
         software.amazon.awssdk.transfer.s3.S3TransferManager.builder().s3Client(s3Async).build();
-    return new S3Backend(configuration, s3, s3Async, transferManager, executorFactory);
+    return new S3Backend(configuration, new S3Util.S3ClientBundle(s3, s3Async));
   }
 
   public void restart() throws IOException {

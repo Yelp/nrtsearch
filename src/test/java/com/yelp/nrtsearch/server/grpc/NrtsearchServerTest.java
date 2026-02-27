@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
@@ -158,11 +159,7 @@ public class NrtsearchServerTest {
       NrtsearchConfig configuration, ExecutorFactory executorFactory) throws IOException {
     s3 = s3Provider.getAmazonS3();
     return new S3Backend(
-        configuration,
-        s3,
-        s3Provider.getS3AsyncClient(),
-        s3Provider.getS3TransferManager(),
-        executorFactory);
+        configuration, new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
   }
 
   private void setUpWarmer() throws IOException {

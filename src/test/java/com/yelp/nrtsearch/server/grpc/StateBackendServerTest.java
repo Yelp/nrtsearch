@@ -40,6 +40,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.Server;
@@ -186,17 +187,13 @@ public class StateBackendServerTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            s3,
-            s3Provider.getS3AsyncClient(),
-            s3Provider.getS3TransferManager());
+            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
     remoteBackendReplica =
         new S3Backend(
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            s3,
-            s3Provider.getS3AsyncClient(),
-            s3Provider.getS3TransferManager());
+            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
   }
 
   private NrtsearchConfig getPrimaryConfig() {

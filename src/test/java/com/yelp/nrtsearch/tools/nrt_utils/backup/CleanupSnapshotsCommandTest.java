@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.File;
@@ -60,9 +61,13 @@ public class CleanupSnapshotsCommandTest {
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
   private CommandLine getInjectedCommand() {
     CleanupSnapshotsCommand command = new CleanupSnapshotsCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 

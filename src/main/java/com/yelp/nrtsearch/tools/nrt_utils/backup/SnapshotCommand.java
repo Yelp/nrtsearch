@@ -108,49 +108,22 @@ public class SnapshotCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private S3Client s3Client;
-  private software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient;
-  private S3TransferManager transferManager;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(S3Client s3Client) {
-    this.s3Client = s3Client;
-  }
-
-  @VisibleForTesting
-  void setS3AsyncClient(software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient) {
-    this.s3AsyncClient = s3AsyncClient;
-  }
-
-  @VisibleForTesting
-  void setTransferManager(S3TransferManager transferManager) {
-    this.transferManager = transferManager;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend;
-    if (s3AsyncClient != null && transferManager != null) {
-      s3Backend =
-          new S3Backend(
-              bucketName,
-              false,
-              S3Backend.DEFAULT_CONFIG,
-              s3Client,
-              s3AsyncClient,
-              transferManager);
-    } else {
-      s3Backend =
-          new S3Backend(
-              bucketName,
-              false,
-              S3Backend.DEFAULT_CONFIG,
-              new S3Util.S3ClientBundle(s3Client, null));
-    }
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     String resolvedIndexResource =
         StateCommandUtils.getResourceName(s3Backend, serviceName, indexName, exactResourceName);
@@ -175,7 +148,7 @@ public class SnapshotCommand implements Callable<Integer> {
     SnapshotMetadata metadata =
         new SnapshotMetadata(serviceName, resolvedIndexResource, timeStringMs, indexDataSizeBytes);
     writeMetadataFile(
-        s3Client,
+        s3ClientBundle.s3Client(),
         bucketName,
         BackupCommandUtils.getSnapshotIndexMetadataKey(
             resolvedSnapshotRoot, resolvedIndexResource, timeStringMs),

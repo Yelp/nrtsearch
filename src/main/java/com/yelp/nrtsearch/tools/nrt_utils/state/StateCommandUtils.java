@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import java.io.File;
@@ -35,6 +36,7 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
@@ -111,6 +113,28 @@ public class StateCommandUtils {
         .region(Region.of(clientRegion))
         .endpointOverride(URI.create(serviceEndpoint))
         .build();
+  }
+
+  /**
+   * Get an S3 client bundle usable for remote state operations.
+   *
+   * @param bucketName s3 bucket
+   * @param region aws region, such as us-west-2, or null to detect
+   * @param credsFile file containing aws credentials, or null for default
+   * @param credsProfile profile to use from credentials file
+   * @param maxRetry maximum number of retry attempts
+   * @return S3ClientBundle containing sync and async clients
+   */
+  public static S3Util.S3ClientBundle createS3ClientBundle(
+      String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
+    S3Client s3Client = createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    S3AsyncClient s3AsyncClient =
+        S3AsyncClient.crtBuilder()
+            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+            .region(s3Client.serviceClientConfiguration().region())
+            .endpointOverride(s3Client.serviceClientConfiguration().endpointOverride().orElse(null))
+            .build();
+    return new S3Util.S3ClientBundle(s3Client, s3AsyncClient);
   }
 
   /**

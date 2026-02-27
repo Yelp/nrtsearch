@@ -46,14 +46,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -93,9 +91,7 @@ public class S3Backend implements RemoteBackend {
   private static final String ZIP_EXTENSION = ".zip";
   private static final int SECONDS_PER_DAY = 60 * 60 * 24;
 
-  private final ExecutorService executor;
-  private final int maxExecutorParallelism;
-  private final boolean shutdownExecutor;
+  private final int maxParallelism;
   private final boolean saveBeforeUnzip;
   private final S3Client s3;
   private final S3AsyncClient s3Async;
@@ -222,52 +218,17 @@ public class S3Backend implements RemoteBackend {
    *
    * @param configuration configuration
    * @param s3ClientBundle s3 client bundle
-   * @param executorFactory executor factory
    */
-  public S3Backend(
-      NrtsearchConfig configuration,
-      S3Util.S3ClientBundle s3ClientBundle,
-      ExecutorFactory executorFactory) {
+  public S3Backend(NrtsearchConfig configuration, S3Util.S3ClientBundle s3ClientBundle) {
     this(
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
         s3ClientBundle,
-        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
         configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
-            .maxThreads(),
-        false);
-  }
-
-  /**
-   * Constructor for testing with pre-configured S3AsyncClient and TransferManager.
-   *
-   * @param configuration configuration
-   * @param s3 s3 client
-   * @param s3Async s3 async client
-   * @param transferManager s3 transfer manager
-   * @param executorFactory executor factory
-   */
-  public S3Backend(
-      NrtsearchConfig configuration,
-      S3Client s3,
-      S3AsyncClient s3Async,
-      S3TransferManager transferManager,
-      ExecutorFactory executorFactory) {
-    this(
-        configuration.getBucketName(),
-        configuration.getSavePluginBeforeUnzip(),
-        S3BackendConfig.fromConfig(configuration),
-        new S3Util.S3ClientBundle(s3, s3Async),
-        transferManager,
-        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
-        configuration
-            .getThreadPoolConfiguration()
-            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
-            .maxThreads(),
-        false);
+            .maxThreads());
   }
 
   /**
@@ -288,37 +249,7 @@ public class S3Backend implements RemoteBackend {
         savePluginBeforeUnzip,
         s3BackendConfig,
         s3ClientBundle,
-        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
-        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
-        true);
-  }
-
-  /**
-   * Constructor for testing with pre-configured S3AsyncClient and TransferManager.
-   *
-   * @param serviceBucket bucket name
-   * @param savePluginBeforeUnzip save plugin before unzipping
-   * @param s3BackendConfig s3 backend configuration
-   * @param s3 s3 client
-   * @param s3Async s3 async client
-   * @param transferManager s3 transfer manager
-   */
-  public S3Backend(
-      String serviceBucket,
-      boolean savePluginBeforeUnzip,
-      S3BackendConfig s3BackendConfig,
-      S3Client s3,
-      S3AsyncClient s3Async,
-      S3TransferManager transferManager) {
-    this(
-        serviceBucket,
-        savePluginBeforeUnzip,
-        s3BackendConfig,
-        new S3Util.S3ClientBundle(s3, s3Async),
-        transferManager,
-        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
-        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
-        true);
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
   }
 
   private S3Backend(
@@ -326,37 +257,14 @@ public class S3Backend implements RemoteBackend {
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
       S3Util.S3ClientBundle s3ClientBundle,
-      ExecutorService executor,
-      int maxExecutorParallelism,
-      boolean shutdownExecutor) {
-    this(
-        serviceBucket,
-        savePluginBeforeUnzip,
-        s3BackendConfig,
-        s3ClientBundle,
-        s3ClientBundle.s3AsyncClient() != null
-            ? S3TransferManager.builder().s3Client(s3ClientBundle.s3AsyncClient()).build()
-            : null,
-        executor,
-        maxExecutorParallelism,
-        shutdownExecutor);
-  }
-
-  private S3Backend(
-      String serviceBucket,
-      boolean savePluginBeforeUnzip,
-      S3BackendConfig s3BackendConfig,
-      S3Util.S3ClientBundle s3ClientBundle,
-      S3TransferManager transferManager,
-      ExecutorService executor,
-      int maxExecutorParallelism,
-      boolean shutdownExecutor) {
+      int maxParallelism) {
     this.s3 = s3ClientBundle.s3Client();
     this.s3Async = s3ClientBundle.s3AsyncClient();
-    this.transferManager = transferManager;
-    this.executor = executor;
-    this.maxExecutorParallelism = maxExecutorParallelism;
-    this.shutdownExecutor = shutdownExecutor;
+    this.transferManager =
+        s3ClientBundle.s3AsyncClient() != null
+            ? S3TransferManager.builder().s3Client(s3ClientBundle.s3AsyncClient()).build()
+            : null;
+    this.maxParallelism = maxParallelism;
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
 
@@ -387,8 +295,8 @@ public class S3Backend implements RemoteBackend {
   }
 
   @VisibleForTesting
-  ExecutorService getExecutor() {
-    return executor;
+  int getMaxParallelism() {
+    return maxParallelism;
   }
 
   @Override
@@ -481,10 +389,15 @@ public class S3Backend implements RemoteBackend {
   }
 
   private Enumeration<InputStream> getObjectEnum(String bucketName, String key, int numParts) {
+    return getObjectEnumAsync(bucketName, key, numParts);
+  }
+
+  private Enumeration<InputStream> getObjectEnumAsync(String bucketName, String key, int numParts) {
     return new Enumeration<>() {
       final long STATUS_INTERVAL_MS = 5000;
       long lastStatusTimeMs = System.currentTimeMillis();
-      final LinkedList<Future<InputStream>> pendingParts = new LinkedList<>();
+      final LinkedList<CompletableFuture<ResponseInputStream<GetObjectResponse>>> pendingParts =
+          new LinkedList<>();
       int currentPart = 1;
       int queuedPart = 1;
 
@@ -496,20 +409,16 @@ public class S3Backend implements RemoteBackend {
       @Override
       public InputStream nextElement() {
         // top off the work queue so parts can download in parallel
-        while (pendingParts.size() < maxExecutorParallelism && queuedPart <= numParts) {
-          // set to final variable for use in lambda
+        while (pendingParts.size() < maxParallelism && queuedPart <= numParts) {
           final int finalPart = queuedPart;
           pendingParts.add(
-              executor.submit(
-                  () -> {
-                    GetObjectRequest getRequest =
-                        GetObjectRequest.builder()
-                            .bucket(bucketName)
-                            .key(key)
-                            .partNumber(finalPart)
-                            .build();
-                    return s3.getObject(getRequest);
-                  }));
+              s3Async.getObject(
+                  GetObjectRequest.builder()
+                      .bucket(bucketName)
+                      .key(key)
+                      .partNumber(finalPart)
+                      .build(),
+                  AsyncResponseTransformer.toBlockingInputStream()));
           queuedPart++;
         }
 
@@ -541,14 +450,6 @@ public class S3Backend implements RemoteBackend {
     if (s3Async != null) {
       s3Async.close();
     }
-    if (shutdownExecutor) {
-      try {
-        executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    }
     s3.close();
   }
 
@@ -558,7 +459,7 @@ public class S3Backend implements RemoteBackend {
         switch (resourceType) {
           case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
         };
-    return currentResourceExists(prefix);
+    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
   }
 
   @Override
@@ -570,7 +471,7 @@ public class S3Backend implements RemoteBackend {
           case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
           case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
         };
-    return currentResourceExists(prefix);
+    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
   }
 
   /**
@@ -1128,23 +1029,6 @@ public class S3Backend implements RemoteBackend {
             .build();
     s3.putObject(request, RequestBody.fromBytes(bytes));
     logger.info("Set current resource - prefix: {}, version: {}", prefix, version);
-  }
-
-  boolean currentResourceExists(String prefix) {
-    String key = prefix + CURRENT_VERSION;
-    try {
-      HeadObjectRequest request =
-          HeadObjectRequest.builder().bucket(serviceBucket).key(key).build();
-      s3.headObject(request);
-      return true;
-    } catch (NoSuchKeyException e) {
-      return false;
-    } catch (S3Exception e) {
-      if (isNotFoundException(e)) {
-        return false;
-      }
-      throw e;
-    }
   }
 
   private boolean isNotFoundException(S3Exception e) {

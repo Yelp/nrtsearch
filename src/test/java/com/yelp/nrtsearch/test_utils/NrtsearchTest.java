@@ -53,7 +53,8 @@ public class NrtsearchTest {
 
   @Rule
   public final TestNrtsearchServer testServer =
-      new TestNrtsearchServer(getConfig(), S3_PROVIDER.getAmazonS3());
+      new TestNrtsearchServer(
+          getConfig(), S3_PROVIDER.getAmazonS3(), S3_PROVIDER.getS3AsyncClient());
 
   public NrtsearchTest() throws IOException {}
 

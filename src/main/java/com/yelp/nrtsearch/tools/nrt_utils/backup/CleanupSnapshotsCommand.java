@@ -111,24 +111,25 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private S3Client s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   record TimestampAndTimeString(long timestampMs, String timeString) {}
 
   @VisibleForTesting
-  void setS3Client(S3Client s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
+    S3Client s3Client = s3ClientBundle.s3Client();
     S3Backend s3Backend =
-        new S3Backend(
-            bucketName, false, S3Backend.DEFAULT_CONFIG, new S3Util.S3ClientBundle(s3Client, null));
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     long deleteAfterMs = BackupCommandUtils.getTimeIntervalMs(deleteAfter);
     long minTimestampMs = System.currentTimeMillis() - deleteAfterMs;
@@ -174,6 +175,7 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
     Set<String> dataPrefixes =
         BackupCommandUtils.extractDirectoryPrefixes(s3Client, bucketName, dataPrefix);
 
+    System.out.println("Data prefixes: " + dataPrefixes);
     List<String> deletePrefixes = new ArrayList<>();
     for (String prefix : dataPrefixes) {
       String[] splits = prefix.split("/");

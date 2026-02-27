@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
@@ -70,15 +71,9 @@ public class CleanupDataCommandTest {
     return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
-  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
-    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
-        .s3Client(getS3Async())
-        .build();
-  }
-
   private CommandLine getInjectedCommand() {
     CleanupDataCommand command = new CleanupDataCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -128,9 +123,7 @@ public class CleanupDataCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -155,9 +148,7 @@ public class CleanupDataCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -181,9 +172,7 @@ public class CleanupDataCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
 
@@ -210,9 +199,7 @@ public class CleanupDataCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     List<String> versions = initIndex(server, s3Backend);
     CommandLine cmd = getInjectedCommand();
     S3Client s3Client = getS3();

@@ -36,6 +36,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
@@ -80,25 +81,15 @@ public class SnapshotRestoreCommandTest {
     return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
-  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
-    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
-        .s3Client(getS3Async())
-        .build();
-  }
-
   private CommandLine getInjectedSnapshotCommand() {
     SnapshotCommand command = new SnapshotCommand();
-    command.setS3Client(getS3());
-    command.setS3AsyncClient(getS3Async());
-    command.setTransferManager(getTransferManager());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
   private CommandLine getInjectedRestoreCommand() {
     RestoreCommand command = new RestoreCommand();
-    command.setS3Client(getS3());
-    command.setS3AsyncClient(getS3Async());
-    command.setTransferManager(getTransferManager());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -391,9 +382,7 @@ public class SnapshotRestoreCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            s3Client,
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(s3Client, getS3Async()));
     NrtPointState pointState =
         RemoteUtils.pointStateFromUtf8(
             s3Backend
@@ -440,9 +429,7 @@ public class SnapshotRestoreCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            s3Client,
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(s3Client, getS3Async()));
     Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs");
 
     NrtPointState pointState =

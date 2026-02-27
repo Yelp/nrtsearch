@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.modules.BackendModule;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** A Guice module to initialize {@link NrtsearchServer} instance for tests. */
@@ -31,12 +32,17 @@ public class TestNrtsearchModule extends AbstractModule {
 
   private final NrtsearchConfig nrtsearchConfig;
   private final S3Client amazonS3;
+  private final S3AsyncClient amazonS3Async;
   private final ExecutorFactory executorFactory;
 
   public TestNrtsearchModule(
-      NrtsearchConfig nrtsearchConfig, S3Client amazonS3, ExecutorFactory executorFactory) {
+      NrtsearchConfig nrtsearchConfig,
+      S3Client amazonS3,
+      S3AsyncClient amazonS3Async,
+      ExecutorFactory executorFactory) {
     this.nrtsearchConfig = nrtsearchConfig;
     this.amazonS3 = amazonS3;
+    this.amazonS3Async = amazonS3Async;
     this.executorFactory = executorFactory;
   }
 
@@ -54,15 +60,8 @@ public class TestNrtsearchModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected S3Client providesAmazonS3() {
-    return amazonS3;
-  }
-
-  @Inject
-  @Singleton
-  @Provides
   protected S3Util.S3ClientBundle providesS3ClientBundle() {
-    return new S3Util.S3ClientBundle(amazonS3, null);
+    return new S3Util.S3ClientBundle(amazonS3, amazonS3Async);
   }
 
   @Inject

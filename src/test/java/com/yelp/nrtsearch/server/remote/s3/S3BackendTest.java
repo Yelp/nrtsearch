@@ -17,13 +17,10 @@ package com.yelp.nrtsearch.server.remote.s3;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
@@ -49,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -83,21 +79,14 @@ public class S3BackendTest {
 
   private static S3Client s3;
   private static S3Backend s3Backend;
-  private static ExecutorFactory executorFactory;
 
   @BeforeClass
   public static void setup() throws IOException {
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-    executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     s3 = S3_PROVIDER.getS3Client();
     s3Backend =
-        new S3Backend(
-            config,
-            s3,
-            S3_PROVIDER.getS3AsyncClient(),
-            S3_PROVIDER.getS3TransferManager(),
-            executorFactory);
+        new S3Backend(config, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
     s3.putObject(
         software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
             .bucket(BUCKET_NAME)
@@ -147,25 +136,14 @@ public class S3BackendTest {
   }
 
   @Test
-  public void testUsesRemoteExecutor() {
-    assertSame(
-        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE), s3Backend.getExecutor());
-  }
-
-  @Test
-  public void testDefaultExecutor() {
+  public void testDefaultParallelism() {
     try (S3Backend s3Backend =
         new S3Backend(
             BUCKET_NAME,
             false,
             S3Backend.DEFAULT_CONFIG,
             new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
-      ThreadPoolExecutor executor = (ThreadPoolExecutor) s3Backend.getExecutor();
-      assertNotSame(executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE), executor);
-      assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, executor.getCorePoolSize());
-      assertEquals(
-          ThreadPoolConfiguration.DEFAULT_REMOTE_BUFFERED_ITEMS,
-          executor.getQueue().remainingCapacity());
+      assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, s3Backend.getMaxParallelism());
     }
   }
 
@@ -1136,14 +1114,14 @@ public class S3BackendTest {
   @Test
   public void testCurrentResourceExists() {
     String prefix = "service_current_exists/resource/";
-    assertFalse(s3Backend.currentResourceExists(prefix));
+    assertFalse(S3Util.currentResourceExists(s3, BUCKET_NAME, prefix, S3Backend.CURRENT_VERSION));
     s3.putObject(
         PutObjectRequest.builder()
             .bucket(BUCKET_NAME)
             .key(prefix + S3Backend.CURRENT_VERSION)
             .build(),
         RequestBody.fromString("current_version_name"));
-    assertTrue(s3Backend.currentResourceExists(prefix));
+    assertTrue(S3Util.currentResourceExists(s3, BUCKET_NAME, prefix, S3Backend.CURRENT_VERSION));
   }
 
   @Test

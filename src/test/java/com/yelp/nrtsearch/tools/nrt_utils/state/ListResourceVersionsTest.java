@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayOutputStream;
@@ -76,15 +77,9 @@ public class ListResourceVersionsTest {
     return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
-  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
-    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
-        .s3Client(getS3Async())
-        .build();
-  }
-
   private CommandLine getInjectedCommand() {
     ListResourceVersions command = new ListResourceVersions();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -236,9 +231,7 @@ public class ListResourceVersionsTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(

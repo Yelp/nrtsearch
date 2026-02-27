@@ -137,49 +137,22 @@ public class RestoreCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private S3Client s3Client;
-  private software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient;
-  private S3TransferManager transferManager;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(S3Client s3Client) {
-    this.s3Client = s3Client;
-  }
-
-  @VisibleForTesting
-  void setS3AsyncClient(software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient) {
-    this.s3AsyncClient = s3AsyncClient;
-  }
-
-  @VisibleForTesting
-  void setTransferManager(S3TransferManager transferManager) {
-    this.transferManager = transferManager;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend;
-    if (s3AsyncClient != null && transferManager != null) {
-      s3Backend =
-          new S3Backend(
-              bucketName,
-              false,
-              S3Backend.DEFAULT_CONFIG,
-              s3Client,
-              s3AsyncClient,
-              transferManager);
-    } else {
-      s3Backend =
-          new S3Backend(
-              bucketName,
-              false,
-              S3Backend.DEFAULT_CONFIG,
-              new S3Util.S3ClientBundle(s3Client, null));
-    }
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     String resolvedSnapshotRoot =
         BackupCommandUtils.getSnapshotRoot(snapshotRoot, snapshotServiceName);
@@ -196,9 +169,9 @@ public class RestoreCommand implements Callable<Integer> {
             + ", restoreIndex: "
             + restoreIndexResource);
 
-    checkRestoreIndexNotExists(s3Client, restoreIndexResource);
+    checkRestoreIndexNotExists(s3ClientBundle.s3Client(), restoreIndexResource);
 
-    SnapshotMetadata metadata = loadMetadata(s3Client, resolvedSnapshotRoot);
+    SnapshotMetadata metadata = loadMetadata(s3ClientBundle.s3Client(), resolvedSnapshotRoot);
     restoreIndexData(s3Backend, restoreIndexResource, snapshotDataRoot);
     restoreIndexState(s3Backend, restoreIndexResource, snapshotDataRoot);
     maybeRestoreWarmingQueries(s3Backend, restoreIndexResource, snapshotDataRoot);
@@ -215,7 +188,7 @@ public class RestoreCommand implements Callable<Integer> {
             .bucket(bucketName)
             .key(snapshotDataRoot + BackupCommandUtils.SNAPSHOT_POINT_STATE)
             .build();
-    byte[] pointStateBytes = IOUtils.toByteArray(s3Client.getObject(getRequest));
+    byte[] pointStateBytes = IOUtils.toByteArray(s3ClientBundle.s3Client().getObject(getRequest));
     NrtPointState nrtPointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
     String pointStateFileName = S3Backend.getPointStateFileName(nrtPointState);
     String restorePointStatePrefix =
@@ -237,7 +210,7 @@ public class RestoreCommand implements Callable<Integer> {
             .key(restorePointStatePrefix + pointStateFileName)
             .contentLength((long) pointStateBytes.length)
             .build();
-    s3Client.putObject(putRequest, RequestBody.fromBytes(pointStateBytes));
+    s3ClientBundle.s3Client().putObject(putRequest, RequestBody.fromBytes(pointStateBytes));
 
     System.out.println("Restoring index data: " + backendIndexFiles);
 
@@ -280,7 +253,7 @@ public class RestoreCommand implements Callable<Integer> {
             .destinationBucket(bucketName)
             .destinationKey(restoreIndexStatePrefix + stateFileName)
             .build();
-    s3Client.copyObject(copyRequest);
+    s3ClientBundle.s3Client().copyObject(copyRequest);
     s3Backend.setCurrentResource(restoreIndexStatePrefix, stateFileName);
   }
 
@@ -289,8 +262,13 @@ public class RestoreCommand implements Callable<Integer> {
     String snapshotWarmingQueriesKey =
         snapshotDataRoot + BackupCommandUtils.SNAPSHOT_WARMING_QUERIES;
     try {
-      s3Client.headObject(
-          HeadObjectRequest.builder().bucket(bucketName).key(snapshotWarmingQueriesKey).build());
+      s3ClientBundle
+          .s3Client()
+          .headObject(
+              HeadObjectRequest.builder()
+                  .bucket(bucketName)
+                  .key(snapshotWarmingQueriesKey)
+                  .build());
     } catch (NoSuchKeyException e) {
       System.out.println("Warming queries not present in snapshot, skipping");
       return;
@@ -313,7 +291,7 @@ public class RestoreCommand implements Callable<Integer> {
             .destinationBucket(bucketName)
             .destinationKey(restoreWarmingQueriesPrefix + warmingQueriesFilename)
             .build();
-    s3Client.copyObject(copyRequest);
+    s3ClientBundle.s3Client().copyObject(copyRequest);
     s3Backend.setCurrentResource(restoreWarmingQueriesPrefix, warmingQueriesFilename);
   }
 

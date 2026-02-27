@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayOutputStream;
@@ -73,15 +74,9 @@ public class GetResourceVersionCommandTest {
     return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
-  private software.amazon.awssdk.transfer.s3.S3TransferManager getTransferManager() {
-    return software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
-        .s3Client(getS3Async())
-        .build();
-  }
-
   private CommandLine getInjectedCommand() {
     GetResourceVersionCommand command = new GetResourceVersionCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -166,9 +161,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
     backend.setCurrentResource(prefix, "version1");
 
@@ -191,9 +184,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
@@ -220,9 +211,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
@@ -249,9 +238,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
@@ -279,9 +266,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(
@@ -310,9 +295,7 @@ public class GetResourceVersionCommandTest {
             TEST_BUCKET,
             false,
             S3Backend.DEFAULT_CONFIG,
-            getS3(),
-            getS3Async(),
-            getTransferManager());
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.remote.s3;
 
 import com.google.common.base.Strings;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import java.net.URI;
 import java.nio.file.Paths;
@@ -33,6 +34,9 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /** Utility class for working with S3. */
 public class S3Util {
@@ -126,10 +130,16 @@ public class S3Util {
     }
 
     S3Client s3Client = clientBuilder.build();
+    int maxConcurrency =
+        configuration
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
+            .maxThreads();
     S3AsyncClient s3AsyncClient =
         S3AsyncClient.crtBuilder()
             .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
             .region(s3Client.serviceClientConfiguration().region())
+            .maxConcurrency(maxConcurrency)
             .build();
     return new S3ClientBundle(s3Client, s3AsyncClient);
   }
@@ -209,5 +219,31 @@ public class S3Util {
 
   private static boolean isKeyValidForFile(String key) {
     return !Strings.isNullOrEmpty(key) && !key.endsWith("/");
+  }
+
+  /**
+   * Check if a current resource exists in S3 for the given prefix.
+   *
+   * @param s3Client S3 client
+   * @param bucket S3 bucket name
+   * @param prefix resource prefix
+   * @param currentVersion suffix key for the current version object
+   * @return true if the current resource exists, false otherwise
+   */
+  public static boolean currentResourceExists(
+      S3Client s3Client, String bucket, String prefix, String currentVersion) {
+    String key = prefix + currentVersion;
+    try {
+      HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+      s3Client.headObject(request);
+      return true;
+    } catch (NoSuchKeyException e) {
+      return false;
+    } catch (S3Exception e) {
+      if (e.statusCode() == 404) {
+        return false;
+      }
+      throw e;
+    }
   }
 }
