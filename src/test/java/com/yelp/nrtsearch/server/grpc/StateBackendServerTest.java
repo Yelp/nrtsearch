@@ -20,7 +20,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -41,6 +40,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.Server;
@@ -70,6 +70,7 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class StateBackendServerTest {
 
@@ -110,16 +111,22 @@ public class StateBackendServerTest {
     if (primaryServer != null) {
       primaryServer.shutdown();
       try {
-        primaryServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!primaryServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          primaryServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        primaryServer.shutdownNow();
       }
       primaryServer = null;
     }
     if (primaryReplicationServer != null) {
       primaryReplicationServer.shutdown();
       try {
-        primaryReplicationServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!primaryReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          primaryReplicationServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        primaryReplicationServer.shutdownNow();
       }
       primaryReplicationServer = null;
     }
@@ -143,16 +150,22 @@ public class StateBackendServerTest {
     if (replicaServer != null) {
       replicaServer.shutdown();
       try {
-        replicaServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!replicaServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          replicaServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        replicaServer.shutdownNow();
       }
       replicaServer = null;
     }
     if (replicaReplicationServer != null) {
       replicaReplicationServer.shutdown();
       try {
-        replicaReplicationServer.awaitTermination(5, TimeUnit.SECONDS);
+        if (!replicaReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
+          replicaReplicationServer.shutdownNow();
+        }
       } catch (InterruptedException ignore) {
+        replicaReplicationServer.shutdownNow();
       }
       replicaReplicationServer = null;
     }
@@ -168,9 +181,19 @@ public class StateBackendServerTest {
   private void initRemote() throws IOException {
     Files.createDirectories(getReplicaIndexDir());
 
-    AmazonS3 s3 = s3Provider.getAmazonS3();
-    remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
-    remoteBackendReplica = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3);
+    S3Client s3 = s3Provider.getAmazonS3();
+    remoteBackendPrimary =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
+    remoteBackendReplica =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
   }
 
   private NrtsearchConfig getPrimaryConfig() {

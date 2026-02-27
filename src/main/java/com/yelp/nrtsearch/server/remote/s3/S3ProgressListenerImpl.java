@@ -15,21 +15,24 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
-import com.amazonaws.event.ProgressEvent;
-import com.amazonaws.services.s3.transfer.PersistableTransfer;
-import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.transfer.s3.progress.TransferListener;
 
 /**
- * {@link S3ProgressListener} that logs the status of a s3 transfer using the {@link
- * com.amazonaws.services.s3.transfer.TransferManager}.
+ * {@link TransferListener} that logs the status of a s3 transfer using the {@link
+ * software.amazon.awssdk.transfer.s3.S3TransferManager}.
+ *
+ * <p>Note on progress tracking semantics: The AWS SDK v2's {@code
+ * progressSnapshot().transferredBytes()} returns incremental bytes transferred since the last event
+ * (delta), not cumulative total. This class maintains a cumulative total via {@code
+ * totalBytesTransferred} for accurate progress reporting.
  */
-public class S3ProgressListenerImpl implements S3ProgressListener {
+public class S3ProgressListenerImpl implements TransferListener {
   private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
 
   private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
@@ -51,17 +54,16 @@ public class S3ProgressListenerImpl implements S3ProgressListener {
   }
 
   @Override
-  public void onPersistableTransfer(PersistableTransfer persistableTransfer) {}
-
-  @Override
-  public void progressChanged(ProgressEvent progressEvent) {
-    long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
+  public void bytesTransferred(Context.BytesTransferred context) {
+    // AWS SDK v2 returns incremental bytes (delta) per event, not cumulative
+    long bytesTransferred = context.progressSnapshot().transferredBytes();
+    long totalBytes = totalBytesTransferred.addAndGet(bytesTransferred);
 
     boolean acquired = lock.tryAcquire();
 
     if (acquired) {
       try {
-        bytesTransferredSinceLastLog += progressEvent.getBytesTransferred();
+        bytesTransferredSinceLastLog += bytesTransferred;
         long secondsSinceLastLog =
             Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
 

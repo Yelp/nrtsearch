@@ -19,7 +19,6 @@ import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.SnapshotRest
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -28,6 +27,7 @@ import java.io.IOException;
 import java.util.UUID;
 import org.junit.Rule;
 import org.junit.Test;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class LegacyStateCommandUtilsTest {
   private static final String TEST_BUCKET = "test-bucket";
@@ -38,7 +38,7 @@ public class LegacyStateCommandUtilsTest {
 
   @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private AmazonS3 getS3() {
+  private S3Client getS3() {
     return s3Provider.getAmazonS3();
   }
 

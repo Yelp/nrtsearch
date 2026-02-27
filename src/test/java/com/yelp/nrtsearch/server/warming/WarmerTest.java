@@ -20,8 +20,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
@@ -32,6 +30,7 @@ import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -44,20 +43,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
 
 public class WarmerTest {
 
   private final String service = "test_service";
   private final String index = "test_index";
   private final String bucketName = "warmer-unittest";
-  private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
-  private AmazonS3 s3;
+  private S3Client s3;
   private Warmer warmer;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -68,14 +66,9 @@ public class WarmerTest {
     String configStr = "bucketName: " + bucketName;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
-    executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    remoteBackend = new S3Backend(config, s3, executorFactory);
+    remoteBackend =
+        new S3Backend(config, new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
     warmer = new Warmer(remoteBackend, service, index, 4);
-  }
-
-  @After
-  public void teardown() throws IOException {
-    executorFactory.close();
   }
 
   @Test

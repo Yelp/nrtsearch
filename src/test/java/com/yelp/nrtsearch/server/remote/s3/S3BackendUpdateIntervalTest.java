@@ -18,8 +18,6 @@ package com.yelp.nrtsearch.server.remote.s3;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -46,6 +44,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Tests for the S3Backend downloadPointState method with updateIntervalSeconds parameter and
@@ -74,23 +75,21 @@ public class S3BackendUpdateIntervalTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private static AmazonS3 s3;
+  private static S3Client s3;
   private static S3Backend s3Backend;
-  private static ExecutorFactory executorFactory;
 
   @BeforeClass
   public static void setup() throws IOException {
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-    executorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
     s3 = S3_PROVIDER.getAmazonS3();
-    s3Backend = new S3Backend(config, s3, executorFactory);
+    s3Backend =
+        new S3Backend(config, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
   }
 
   @AfterClass
   public static void cleanUp() throws IOException {
     s3Backend.close();
-    executorFactory.close();
   }
 
   /**
@@ -187,7 +186,9 @@ public class S3BackendUpdateIntervalTest {
 
     // Upload directly without setting as current
     String key1 = prefix + fileName1;
-    s3.putObject(BUCKET_NAME, key1, new String(pointStateBytes1, StandardCharsets.UTF_8));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(key1).build(),
+        RequestBody.fromString(new String(pointStateBytes1, StandardCharsets.UTF_8)));
 
     // Wait to ensure time difference between versions
     try {
@@ -289,7 +290,8 @@ public class S3BackendUpdateIntervalTest {
     byte[] pointStateBytes1 = RemoteUtils.pointStateToUtf8(pointState1);
     String fileName1 = S3Backend.getPointStateFileName(pointState1);
     s3.putObject(
-        BUCKET_NAME, prefix + fileName1, new String(pointStateBytes1, StandardCharsets.UTF_8));
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName1).build(),
+        RequestBody.fromString(new String(pointStateBytes1, StandardCharsets.UTF_8)));
 
     // Wait briefly
     try {
@@ -302,7 +304,8 @@ public class S3BackendUpdateIntervalTest {
     byte[] pointStateBytes2 = RemoteUtils.pointStateToUtf8(pointState2);
     String fileName2 = S3Backend.getPointStateFileName(pointState2);
     s3.putObject(
-        BUCKET_NAME, prefix + fileName2, new String(pointStateBytes2, StandardCharsets.UTF_8));
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(prefix + fileName2).build(),
+        RequestBody.fromString(new String(pointStateBytes2, StandardCharsets.UTF_8)));
 
     // Wait briefly
     try {

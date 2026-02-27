@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
@@ -65,7 +66,11 @@ public class RemoteStateBackendTest {
   @Before
   public void setup() throws IOException {
     remoteBackend =
-        new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, s3Provider.getAmazonS3());
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(s3Provider.getAmazonS3(), s3Provider.getS3AsyncClient()));
   }
 
   private NrtsearchConfig getConfig(boolean readOnly) throws IOException {

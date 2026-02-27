@@ -15,13 +15,13 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.state;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
@@ -87,11 +87,11 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @VisibleForTesting
@@ -116,11 +116,13 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
     if (!validateParams(started, dateTimeString)) {
       return 1;
     }
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     String stateFileContents = StateCommandUtils.getGlobalStateFileContents(s3Backend, serviceName);
     if (stateFileContents == null) {

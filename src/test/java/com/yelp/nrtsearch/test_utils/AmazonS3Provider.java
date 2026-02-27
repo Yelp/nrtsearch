@@ -15,14 +15,16 @@
  */
 package com.yelp.nrtsearch.test_utils;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import io.findify.s3mock.S3Mock;
+import java.net.URI;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 /**
  * A JUnit {@link org.junit.Rule} for mock S3 tests. It provides a mock S3 client which stores any
@@ -38,8 +40,8 @@ import org.junit.rules.TemporaryFolder;
  *
  *  &#064;Test
  *  public void testUsingS3() throws IOException {
- *      AmazonS3 s3Client = s3Provider.getAmazonS3();
- *      s3Client.putObject("test_bucket", "key", file);
+ *      S3Client s3Client = s3Provider.getS3Client();
+ *      s3Client.putObject(...);
  *      // ...
  *     }
  * }
@@ -50,13 +52,26 @@ public class AmazonS3Provider extends ExternalResource {
   private final String bucketName;
   private final TemporaryFolder temporaryFolder;
   private S3Mock api;
-  private AmazonS3 s3;
+  private S3Client s3;
+  private S3AsyncClient s3Async;
+  private S3TransferManager transferManager;
   private String s3Path;
 
-  public static AmazonS3 createTestS3Client(String endpoint) {
-    return AmazonS3ClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-        .withEndpointConfiguration(new EndpointConfiguration(endpoint, ""))
+  public static S3Client createTestS3Client(String endpoint) {
+    return S3Client.builder()
+        .credentialsProvider(AnonymousCredentialsProvider.create())
+        .region(Region.US_EAST_1)
+        .endpointOverride(URI.create(endpoint))
+        .forcePathStyle(true)
+        .build();
+  }
+
+  public static S3AsyncClient createTestS3AsyncClient(String endpoint) {
+    return S3AsyncClient.builder()
+        .credentialsProvider(AnonymousCredentialsProvider.create())
+        .region(Region.US_EAST_1)
+        .endpointOverride(URI.create(endpoint))
+        .forcePathStyle(true)
         .build();
   }
 
@@ -73,13 +88,24 @@ public class AmazonS3Provider extends ExternalResource {
     int port = PortUtils.findAvailablePort();
     api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
     api.start();
-    s3 = createTestS3Client(String.format("http://127.0.0.1:%d", port));
-    s3.createBucket(bucketName);
+    String endpoint = String.format("http://127.0.0.1:%d", port);
+    s3 = createTestS3Client(endpoint);
+    s3Async = createTestS3AsyncClient(endpoint);
+    transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+    s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
   }
 
   @Override
   protected void after() {
-    s3.shutdown();
+    if (transferManager != null) {
+      transferManager.close();
+    }
+    if (s3Async != null) {
+      s3Async.close();
+    }
+    if (s3 != null) {
+      s3.close();
+    }
     if (api != null) {
       api.shutdown();
     }
@@ -87,8 +113,24 @@ public class AmazonS3Provider extends ExternalResource {
   }
 
   /** Get the test S3 client */
-  public AmazonS3 getAmazonS3() {
+  public S3Client getS3Client() {
     return s3;
+  }
+
+  /** Get the test S3 client (deprecated, use getS3Client() instead) */
+  @Deprecated
+  public S3Client getAmazonS3() {
+    return s3;
+  }
+
+  /** Get the test S3 async client */
+  public S3AsyncClient getS3AsyncClient() {
+    return s3Async;
+  }
+
+  /** Get the test S3 transfer manager */
+  public S3TransferManager getS3TransferManager() {
+    return transferManager;
   }
 
   /** Get the local directory path where mock S3 files are stored */

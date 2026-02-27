@@ -17,14 +17,6 @@ package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.fromUTF8;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.services.s3.transfer.Copy;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
@@ -37,6 +29,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.commons.io.IOUtils;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.transfer.s3.model.CompletedCopy;
+import software.amazon.awssdk.transfer.s3.model.Copy;
+import software.amazon.awssdk.transfer.s3.model.CopyRequest;
 
 @CommandLine.Command(
     name = RestoreIncrementalCommand.RESTORE_INCREMENTAL,
@@ -123,11 +129,23 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
+  private software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient;
+  private software.amazon.awssdk.transfer.s3.S3TransferManager transferManager;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
+  }
+
+  @VisibleForTesting
+  void setS3AsyncClient(software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient) {
+    this.s3AsyncClient = s3AsyncClient;
+  }
+
+  @VisibleForTesting
+  void setTransferManager(software.amazon.awssdk.transfer.s3.S3TransferManager transferManager) {
+    this.transferManager = transferManager;
   }
 
   @Override
@@ -169,7 +187,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   }
 
   private void restoreIndexData(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
@@ -181,52 +199,67 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
     String restoreDataKeyPrefix = restoreRoot + restoreIndexDataResource + "/";
 
     System.out.println("Restoring index data to version key: " + restoreDataKeyPrefix + fileListId);
-    s3Client.copyObject(
-        bucketName,
-        snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_FILES,
-        bucketName,
-        restoreDataKeyPrefix + fileListId);
+    CopyObjectRequest copyRequest1 =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_FILES)
+            .destinationBucket(bucketName)
+            .destinationKey(restoreDataKeyPrefix + fileListId)
+            .build();
+    s3Client.copyObject(copyRequest1);
 
     Set<String> indexFiles =
         IncrementalCommandUtils.getVersionFiles(
             s3Client, bucketName, restoreServiceName, restoreIndexDataResource, fileListId);
     System.out.println("Restoring index data: " + indexFiles);
 
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard()
-            .withS3Client(s3Client)
-            .withExecutorFactory(() -> executor)
-            .withShutDownThreadPools(true)
-            .build();
+    software.amazon.awssdk.transfer.s3.S3TransferManager transferManagerToUse =
+        this.transferManager;
+    boolean shouldCloseTransferManager = false;
+    if (transferManagerToUse == null) {
+      ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
+      software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
+          software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
+              .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+              .region(s3Client.serviceClientConfiguration().region())
+              .build();
+      transferManagerToUse =
+          software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
+              .s3Client(s3AsyncClient)
+              .build();
+      shouldCloseTransferManager = true;
+    }
     try {
       List<Copy> copyJobs = new ArrayList<>();
       for (String fileName : indexFiles) {
         CopyObjectRequest copyObjectRequest =
-            new CopyObjectRequest(
-                bucketName,
-                snapshotDataRoot + fileName,
-                bucketName,
-                restoreDataKeyPrefix + fileName);
+            CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(snapshotDataRoot + fileName)
+                .destinationBucket(bucketName)
+                .destinationKey(restoreDataKeyPrefix + fileName)
+                .build();
         final String finalFileName = fileName;
         Copy copy =
-            transferManager.copy(
-                copyObjectRequest,
-                (transfer, state) ->
-                    System.out.println("Transfer: " + finalFileName + ", state: " + state));
+            transferManagerToUse.copy(
+                CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
         copyJobs.add(copy);
+        System.out.println("Started copy: " + finalFileName);
       }
       for (Copy copyJob : copyJobs) {
-        copyJob.waitForCopyResult();
+        CompletedCopy completedCopy = copyJob.completionFuture().join();
+        System.out.println("Completed copy");
       }
     } finally {
-      transferManager.shutdownNow(false);
+      if (shouldCloseTransferManager) {
+        transferManagerToUse.close();
+      }
     }
     versionManager.blessVersion(restoreServiceName, restoreIndexDataResource, fileListId);
   }
 
   private void restoreIndexState(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
@@ -238,23 +271,26 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
     String restoreStateKey = restoreRoot + restoreIndexStateResource + "/" + stateFileId;
 
     System.out.println("Restoring index state to key: " + restoreStateKey);
-    s3Client.copyObject(
-        bucketName,
-        snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_STATE_FILE,
-        bucketName,
-        restoreStateKey);
+    CopyObjectRequest copyRequest2 =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_STATE_FILE)
+            .destinationBucket(bucketName)
+            .destinationKey(restoreStateKey)
+            .build();
+    s3Client.copyObject(copyRequest2);
     versionManager.blessVersion(restoreServiceName, restoreIndexStateResource, stateFileId);
   }
 
   private void maybeRestoreWarmingQueries(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
       String snapshotDataRoot) {
     String snapshotWarmingQueriesKey =
         snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_WARMING_QUERIES;
-    if (!s3Client.doesObjectExist(bucketName, snapshotWarmingQueriesKey)) {
+    if (!objectExists(s3Client, bucketName, snapshotWarmingQueriesKey)) {
       System.out.println("Warming queries not present in snapshot, skipping");
       return;
     }
@@ -265,36 +301,61 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
         restoreRoot + restoreWarmingQueriesResource + "/" + warmingQueriesFileId;
 
     System.out.println("Restoring warming queries to key: " + restoreWarmingQueriesKey);
-    s3Client.copyObject(
-        bucketName, snapshotWarmingQueriesKey, bucketName, restoreWarmingQueriesKey);
+    CopyObjectRequest copyRequest3 =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(snapshotWarmingQueriesKey)
+            .destinationBucket(bucketName)
+            .destinationKey(restoreWarmingQueriesKey)
+            .build();
+    s3Client.copyObject(copyRequest3);
     versionManager.blessVersion(
         restoreServiceName, restoreWarmingQueriesResource, warmingQueriesFileId);
   }
 
-  private SnapshotMetadata loadMetadata(AmazonS3 s3Client, String snapshotRoot) throws IOException {
+  private SnapshotMetadata loadMetadata(S3Client s3Client, String snapshotRoot) throws IOException {
     String metadataFileKey =
         IncrementalCommandUtils.getSnapshotIndexMetadataKey(
             snapshotRoot, snapshotIndexIdentifier, snapshotTimestamp);
-    if (!s3Client.doesObjectExist(bucketName, metadataFileKey)) {
+    if (!objectExists(s3Client, bucketName, metadataFileKey)) {
       throw new IllegalArgumentException("Metadata file does not exist: " + metadataFileKey);
     }
     System.out.println("Loading metadata key: " + metadataFileKey);
-    S3Object stateObject = s3Client.getObject(bucketName, metadataFileKey);
+    GetObjectRequest getRequest =
+        GetObjectRequest.builder().bucket(bucketName).key(metadataFileKey).build();
+    ResponseInputStream<GetObjectResponse> stateObject = s3Client.getObject(getRequest);
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-    IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
+    IOUtils.copy(stateObject, byteArrayOutputStream);
     String fileContent = fromUTF8(byteArrayOutputStream.toByteArray());
     System.out.println("Contents: " + fileContent);
     return OBJECT_MAPPER.readValue(fileContent, SnapshotMetadata.class);
   }
 
   private void checkRestoreIndexNotExists(
-      AmazonS3 s3Client, String restoreRoot, String restoreIndexResource) {
+      S3Client s3Client, String restoreRoot, String restoreIndexResource) {
     String restorePrefix = restoreRoot + restoreIndexResource;
-    ListObjectsV2Result result = s3Client.listObjectsV2(bucketName, restorePrefix);
-    List<S3ObjectSummary> objects = result.getObjectSummaries();
+    ListObjectsV2Request listRequest =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(restorePrefix).build();
+    ListObjectsV2Response result = s3Client.listObjectsV2(listRequest);
+    List<S3Object> objects = result.contents();
     if (!objects.isEmpty()) {
       throw new IllegalArgumentException(
-          "Data exists at restore location, found: " + objects.get(0).getKey());
+          "Data exists at restore location, found: " + objects.get(0).key());
+    }
+  }
+
+  private boolean objectExists(S3Client s3Client, String bucket, String key) {
+    try {
+      HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+      s3Client.headObject(request);
+      return true;
+    } catch (NoSuchKeyException e) {
+      return false;
+    } catch (S3Exception e) {
+      if (e.statusCode() == 404) {
+        return false;
+      }
+      throw e;
     }
   }
 

@@ -15,20 +15,23 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @CommandLine.Command(
     name = CleanupSnapshotsCommand.CLEANUP_SNAPSHOTS,
@@ -108,22 +111,25 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   record TimestampAndTimeString(long timestampMs, String timeString) {}
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Client s3Client = s3ClientBundle.s3Client();
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     long deleteAfterMs = BackupCommandUtils.getTimeIntervalMs(deleteAfter);
     long minTimestampMs = System.currentTimeMillis() - deleteAfterMs;
@@ -158,20 +164,18 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
   }
 
   private void deleteSnapshotIndexData(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String resolvedIndexResource,
       String resolvedSnapshotRoot,
       long minTimestampMs) {
     String dataPrefix = getIndexSnapshotDataPrefix(resolvedSnapshotRoot, resolvedIndexResource);
-    ListObjectsV2Request req =
-        new ListObjectsV2Request()
-            .withBucketName(bucketName)
-            .withDelimiter("/")
-            .withPrefix(dataPrefix);
-    ListObjectsV2Result result = s3Client.listObjectsV2(req);
-    List<String> dataPrefixes = result.getCommonPrefixes();
-    System.out.println("Data prefixes: " + dataPrefixes);
 
+    // Use utility method to extract directory prefixes
+    // This works around S3Mock 0.2.6 limitation with commonPrefixes
+    Set<String> dataPrefixes =
+        BackupCommandUtils.extractDirectoryPrefixes(s3Client, bucketName, dataPrefix);
+
+    System.out.println("Data prefixes: " + dataPrefixes);
     List<String> deletePrefixes = new ArrayList<>();
     for (String prefix : dataPrefixes) {
       String[] splits = prefix.split("/");
@@ -188,20 +192,20 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
     deletePrefixes(s3Client, deletePrefixes);
   }
 
-  private void deletePrefixes(AmazonS3 s3Client, List<String> prefixes) {
+  private void deletePrefixes(S3Client s3Client, List<String> prefixes) {
     List<String> deleteList = new ArrayList<>(DELETE_BATCH_SIZE);
     for (String prefix : prefixes) {
       System.out.println("Deleting data prefix: " + prefix);
-      ListObjectsV2Request req =
-          new ListObjectsV2Request().withBucketName(bucketName).withPrefix(prefix);
-      ListObjectsV2Result result;
+      ListObjectsV2Request.Builder reqBuilder =
+          ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix);
+      ListObjectsV2Response result;
 
       do {
-        result = s3Client.listObjectsV2(req);
+        result = s3Client.listObjectsV2(reqBuilder.build());
 
-        for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-          System.out.println("Delete: " + objectSummary.getKey());
-          deleteList.add(objectSummary.getKey());
+        for (S3Object s3Object : result.contents()) {
+          System.out.println("Delete: " + s3Object.key());
+          deleteList.add(s3Object.key());
           if (deleteList.size() == DELETE_BATCH_SIZE) {
             if (!dryRun) {
               BackupCommandUtils.deleteObjects(s3Client, bucketName, deleteList);
@@ -209,8 +213,8 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
             deleteList.clear();
           }
         }
-        String token = result.getNextContinuationToken();
-        req.setContinuationToken(token);
+        String token = result.nextContinuationToken();
+        reqBuilder.continuationToken(token);
       } while (result.isTruncated());
     }
     if (!deleteList.isEmpty() && !dryRun) {
@@ -219,7 +223,7 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
   }
 
   private void deleteSnapshotMetadata(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String resolvedIndexResource,
       String resolvedSnapshotRoot,
       List<TimestampAndTimeString> versions) {
@@ -229,27 +233,29 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
               resolvedSnapshotRoot, resolvedIndexResource, version.timeString);
       System.out.println("Deleting snapshot metadata: " + key);
       if (!dryRun) {
-        s3Client.deleteObject(bucketName, key);
+        DeleteObjectRequest deleteRequest =
+            DeleteObjectRequest.builder().bucket(bucketName).key(key).build();
+        s3Client.deleteObject(deleteRequest);
       }
     }
   }
 
   private List<TimestampAndTimeString> getSnapshotTimestamps(
-      AmazonS3 s3Client, String resolvedIndexResource, String resolvedSnapshotRoot) {
+      S3Client s3Client, String resolvedIndexResource, String resolvedSnapshotRoot) {
     String metadataPrefix =
         BackupCommandUtils.getSnapshotIndexMetadataPrefix(
             resolvedSnapshotRoot, resolvedIndexResource);
     List<TimestampAndTimeString> snapshotTimestamps = new ArrayList<>();
 
-    ListObjectsV2Request req =
-        new ListObjectsV2Request().withBucketName(bucketName).withPrefix(metadataPrefix);
-    ListObjectsV2Result result;
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(metadataPrefix);
+    ListObjectsV2Response result;
 
     do {
-      result = s3Client.listObjectsV2(req);
+      result = s3Client.listObjectsV2(reqBuilder.build());
 
-      for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-        String snapshotSuffix = objectSummary.getKey().split(metadataPrefix)[1];
+      for (S3Object s3Object : result.contents()) {
+        String snapshotSuffix = s3Object.key().split(metadataPrefix)[1];
         if (TimeStringUtils.isTimeStringMs(snapshotSuffix)) {
           long timestampMs = TimeStringUtils.parseTimeStringMs(snapshotSuffix).toEpochMilli();
           snapshotTimestamps.add(new TimestampAndTimeString(timestampMs, snapshotSuffix));
@@ -257,8 +263,8 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
           System.out.println("Skipping invalid timestamp: " + snapshotSuffix);
         }
       }
-      String token = result.getNextContinuationToken();
-      req.setContinuationToken(token);
+      String token = result.nextContinuationToken();
+      reqBuilder.continuationToken(token);
     } while (result.isTruncated());
 
     snapshotTimestamps.sort(Comparator.comparingLong(e -> e.timestampMs));

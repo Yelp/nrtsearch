@@ -18,20 +18,6 @@ package com.yelp.nrtsearch.server.remote.s3;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtils.formatTimeStringSec;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringSec;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.transfer.Download;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
-import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
@@ -47,7 +33,6 @@ import com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -61,13 +46,29 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.DownloadFileRequest;
+import software.amazon.awssdk.transfer.s3.model.FileDownload;
+import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 
 /** Backend implementation that stored data in amazon s3 object storage. */
 public class S3Backend implements RemoteBackend {
@@ -90,13 +91,12 @@ public class S3Backend implements RemoteBackend {
   private static final String ZIP_EXTENSION = ".zip";
   private static final int SECONDS_PER_DAY = 60 * 60 * 24;
 
-  private final ExecutorService executor;
-  private final int maxExecutorParallelism;
-  private final boolean shutdownExecutor;
+  private final int maxParallelism;
   private final boolean saveBeforeUnzip;
-  private final AmazonS3 s3;
+  private final S3Client s3;
+  private final S3AsyncClient s3Async;
   private final String serviceBucket;
-  private final TransferManager transferManager;
+  private final S3TransferManager transferManager;
   private final boolean s3Metrics;
   private final GlobalWindowRateLimiter rateLimiter;
 
@@ -217,21 +217,18 @@ public class S3Backend implements RemoteBackend {
    * Constructor.
    *
    * @param configuration configuration
-   * @param s3 s3 client
-   * @param executorFactory executor factory
+   * @param s3ClientBundle s3 client bundle
    */
-  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3, ExecutorFactory executorFactory) {
+  public S3Backend(NrtsearchConfig configuration, S3Util.S3ClientBundle s3ClientBundle) {
     this(
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
-        s3,
-        executorFactory.getExecutor(ExecutorFactory.ExecutorType.REMOTE),
+        s3ClientBundle,
         configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
-            .maxThreads(),
-        false);
+            .maxThreads());
   }
 
   /**
@@ -240,43 +237,37 @@ public class S3Backend implements RemoteBackend {
    * @param serviceBucket bucket name
    * @param savePluginBeforeUnzip save plugin before unzipping
    * @param s3BackendConfig s3 backend configuration
-   * @param s3 s3 client
+   * @param s3ClientBundle s3 client bundle
    */
   public S3Backend(
       String serviceBucket,
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
-      AmazonS3 s3) {
+      S3Util.S3ClientBundle s3ClientBundle) {
     this(
         serviceBucket,
         savePluginBeforeUnzip,
         s3BackendConfig,
-        s3,
-        Executors.newFixedThreadPool(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS),
-        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
-        true);
+        s3ClientBundle,
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
   }
 
   private S3Backend(
       String serviceBucket,
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
-      AmazonS3 s3,
-      ExecutorService executor,
-      int maxExecutorParallelism,
-      boolean shutdownExecutor) {
-    this.s3 = s3;
-    this.executor = executor;
-    this.maxExecutorParallelism = maxExecutorParallelism;
-    this.shutdownExecutor = shutdownExecutor;
+      S3Util.S3ClientBundle s3ClientBundle,
+      int maxParallelism) {
+    this.s3 = s3ClientBundle.s3Client();
+    this.s3Async = s3ClientBundle.s3AsyncClient();
+    this.transferManager =
+        s3ClientBundle.s3AsyncClient() != null
+            ? S3TransferManager.builder().s3Client(s3ClientBundle.s3AsyncClient()).build()
+            : null;
+    this.maxParallelism = maxParallelism;
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
-    this.transferManager =
-        TransferManagerBuilder.standard()
-            .withS3Client(s3)
-            .withExecutorFactory(() -> executor)
-            .withShutDownThreadPools(false)
-            .build();
+
     this.s3Metrics = s3BackendConfig.metrics;
     if (s3BackendConfig.getRateLimitBytes() > 0) {
       logger.info(
@@ -291,13 +282,21 @@ public class S3Backend implements RemoteBackend {
     }
   }
 
-  public AmazonS3 getS3() {
+  public S3Client getS3() {
     return s3;
   }
 
+  public S3AsyncClient getS3Async() {
+    return s3Async;
+  }
+
+  public S3TransferManager getTransferManager() {
+    return transferManager;
+  }
+
   @VisibleForTesting
-  ExecutorService getExecutor() {
-    return executor;
+  int getMaxParallelism() {
+    return maxParallelism;
   }
 
   @Override
@@ -319,8 +318,8 @@ public class S3Backend implements RemoteBackend {
    * @throws IllegalArgumentException if bucket or path not found
    */
   public InputStream downloadFromS3Path(String s3Path) {
-    AmazonS3URI s3URI = new AmazonS3URI(s3Path);
-    return downloadFromS3Path(s3URI.getBucket(), s3URI.getKey(), true);
+    S3Util.S3UriComponents components = S3Util.parseS3Uri(s3Path);
+    return downloadFromS3Path(components.bucket(), components.key(), true);
   }
 
   /**
@@ -339,13 +338,16 @@ public class S3Backend implements RemoteBackend {
     }
     final InputStream s3InputStream;
     // Stream the file download from s3 instead of writing to a file first
-    GetObjectMetadataRequest metadataRequest =
-        new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
+    HeadObjectRequest headRequest =
+        HeadObjectRequest.builder().bucket(bucketName).key(absoluteResourcePath).build();
     long fullObjectSize;
     try {
-      ObjectMetadata fullMetadata = s3.getObjectMetadata(metadataRequest);
-      fullObjectSize = fullMetadata.getContentLength();
-    } catch (AmazonS3Exception e) {
+      HeadObjectResponse headResponse = s3.headObject(headRequest);
+      fullObjectSize = headResponse.contentLength();
+    } catch (NoSuchKeyException e) {
+      String error = String.format("Object s3://%s/%s not found", bucketName, absoluteResourcePath);
+      throw new IllegalArgumentException(error, e);
+    } catch (S3Exception e) {
       if (isNotFoundException(e)) {
         String error =
             String.format("Object s3://%s/%s not found", bucketName, absoluteResourcePath);
@@ -361,8 +363,14 @@ public class S3Backend implements RemoteBackend {
     }
 
     // get metadata for the 1st file part, needed to find the total number of parts
-    ObjectMetadata partMetadata = s3.getObjectMetadata(metadataRequest.withPartNumber(1));
-    int numParts = partMetadata.getPartCount() != null ? partMetadata.getPartCount() : 1;
+    HeadObjectRequest partHeadRequest =
+        HeadObjectRequest.builder()
+            .bucket(bucketName)
+            .key(absoluteResourcePath)
+            .partNumber(1)
+            .build();
+    HeadObjectResponse partMetadata = s3.headObject(partHeadRequest);
+    int numParts = partMetadata.partsCount() != null ? partMetadata.partsCount() : 1;
     if (verbose) {
       logger.info("Object parts: " + numParts);
     }
@@ -381,10 +389,15 @@ public class S3Backend implements RemoteBackend {
   }
 
   private Enumeration<InputStream> getObjectEnum(String bucketName, String key, int numParts) {
+    return getObjectEnumAsync(bucketName, key, numParts);
+  }
+
+  private Enumeration<InputStream> getObjectEnumAsync(String bucketName, String key, int numParts) {
     return new Enumeration<>() {
       final long STATUS_INTERVAL_MS = 5000;
       long lastStatusTimeMs = System.currentTimeMillis();
-      final LinkedList<Future<InputStream>> pendingParts = new LinkedList<>();
+      final LinkedList<CompletableFuture<ResponseInputStream<GetObjectResponse>>> pendingParts =
+          new LinkedList<>();
       int currentPart = 1;
       int queuedPart = 1;
 
@@ -396,17 +409,16 @@ public class S3Backend implements RemoteBackend {
       @Override
       public InputStream nextElement() {
         // top off the work queue so parts can download in parallel
-        while (pendingParts.size() < maxExecutorParallelism && queuedPart <= numParts) {
-          // set to final variable for use in lambda
+        while (pendingParts.size() < maxParallelism && queuedPart <= numParts) {
           final int finalPart = queuedPart;
           pendingParts.add(
-              executor.submit(
-                  () -> {
-                    GetObjectRequest getRequest =
-                        new GetObjectRequest(bucketName, key).withPartNumber(finalPart);
-                    S3Object s3Object = s3.getObject(getRequest);
-                    return s3Object.getObjectContent();
-                  }));
+              s3Async.getObject(
+                  GetObjectRequest.builder()
+                      .bucket(bucketName)
+                      .key(key)
+                      .partNumber(finalPart)
+                      .build(),
+                  AsyncResponseTransformer.toBlockingInputStream()));
           queuedPart++;
         }
 
@@ -432,16 +444,13 @@ public class S3Backend implements RemoteBackend {
 
   @Override
   public void close() {
-    transferManager.shutdownNow(false);
-    if (shutdownExecutor) {
-      try {
-        executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
+    if (transferManager != null) {
+      transferManager.close();
     }
-    s3.shutdown();
+    if (s3Async != null) {
+      s3Async.close();
+    }
+    s3.close();
   }
 
   @Override
@@ -450,7 +459,7 @@ public class S3Backend implements RemoteBackend {
         switch (resourceType) {
           case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
         };
-    return currentResourceExists(prefix);
+    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
   }
 
   @Override
@@ -462,7 +471,7 @@ public class S3Backend implements RemoteBackend {
           case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
           case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
         };
-    return currentResourceExists(prefix);
+    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
   }
 
   /**
@@ -558,18 +567,26 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
-    List<Upload> uploadList = new LinkedList<>();
+    List<FileUpload> uploadList = new LinkedList<>();
     boolean hasFailure = false;
     Throwable failureCause = null;
     for (FileNamePair pair : fileList) {
       String backendKey = backendPrefix + pair.backendFileName;
       Path localFile = indexDir.resolve(pair.fileName);
-      PutObjectRequest request =
-          new PutObjectRequest(serviceBucket, backendKey, localFile.toFile());
-      request.setGeneralProgressListener(
-          new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"));
+      UploadFileRequest request =
+          UploadFileRequest.builder()
+              .putObjectRequest(
+                  PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+              .source(localFile)
+              .addTransferListener(
+                  new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"))
+              .build();
       try {
-        Upload upload = transferManager.upload(request);
+        if (transferManager == null) {
+          throw new IllegalStateException(
+              "TransferManager is not available. Ensure S3Client is properly configured.");
+        }
+        FileUpload upload = transferManager.uploadFile(request);
         uploadList.add(upload);
       } catch (Throwable t) {
         hasFailure = true;
@@ -578,12 +595,16 @@ public class S3Backend implements RemoteBackend {
       }
     }
 
-    for (Upload upload : uploadList) {
+    for (FileUpload upload : uploadList) {
       if (hasFailure) {
-        upload.abort();
+        // SDK v2 doesn't have an abort method on FileUpload, just let it complete or fail
+        try {
+          upload.completionFuture().cancel(true);
+        } catch (Exception ignored) {
+        }
       } else {
         try {
-          upload.waitForUploadResult();
+          upload.completionFuture().join();
         } catch (Throwable t) {
           hasFailure = true;
           failureCause = t;
@@ -591,7 +612,7 @@ public class S3Backend implements RemoteBackend {
       }
     }
     if (hasFailure) {
-      throw new IOException("Error while downloading index files from s3. ", failureCause);
+      throw new IOException("Error while uploading index files to s3. ", failureCause);
     }
   }
 
@@ -601,17 +622,26 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
-    List<Download> downloadList = new LinkedList<>();
+    List<FileDownload> downloadList = new LinkedList<>();
     boolean hasFailure = false;
     Throwable failureCause = null;
     for (FileNamePair pair : fileList) {
       String backendKey = backendPrefix + pair.backendFileName;
       Path localFile = indexDir.resolve(pair.fileName);
-      GetObjectRequest request = new GetObjectRequest(serviceBucket, backendKey);
-      request.setGeneralProgressListener(
-          new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"));
+      DownloadFileRequest request =
+          DownloadFileRequest.builder()
+              .getObjectRequest(
+                  GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+              .destination(localFile)
+              .addTransferListener(
+                  new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"))
+              .build();
       try {
-        Download download = transferManager.download(request, localFile.toFile());
+        if (transferManager == null) {
+          throw new IllegalStateException(
+              "TransferManager is not available. Ensure S3Client is properly configured.");
+        }
+        FileDownload download = transferManager.downloadFile(request);
         downloadList.add(download);
       } catch (Throwable t) {
         hasFailure = true;
@@ -620,12 +650,16 @@ public class S3Backend implements RemoteBackend {
       }
     }
 
-    for (Download download : downloadList) {
+    for (FileDownload download : downloadList) {
       if (hasFailure) {
-        download.abort();
+        // SDK v2 doesn't have an abort method on FileDownload, just let it complete or fail
+        try {
+          download.completionFuture().cancel(true);
+        } catch (Exception ignored) {
+        }
       } else {
         try {
-          download.waitForCompletion();
+          download.completionFuture().join();
         } catch (Throwable t) {
           hasFailure = true;
           failureCause = t;
@@ -693,13 +727,13 @@ public class S3Backend implements RemoteBackend {
     String prefix = getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.POINT_STATE);
     String fileName = getPointStateFileName(nrtPointState);
     String backendKey = prefix + fileName;
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(data.length);
     PutObjectRequest request =
-        new PutObjectRequest(serviceBucket, backendKey, new ByteArrayInputStream(data), metadata);
-    request.setGeneralProgressListener(
-        new S3ProgressListenerImpl(service, indexIdentifier, "upload_point_state"));
-    s3.putObject(request);
+        PutObjectRequest.builder()
+            .bucket(serviceBucket)
+            .key(backendKey)
+            .contentLength((long) data.length)
+            .build();
+    s3.putObject(request, RequestBody.fromBytes(data));
 
     setCurrentResource(prefix, fileName);
   }
@@ -845,16 +879,17 @@ public class S3Backend implements RemoteBackend {
   private String getFirstKeyAfter(String bucket, String prefix, String timeString)
       throws IOException {
     ListObjectsV2Request req =
-        new ListObjectsV2Request()
-            .withBucketName(bucket)
-            .withPrefix(prefix)
-            .withStartAfter(prefix + timeString)
-            .withMaxKeys(1);
-    ListObjectsV2Result result = s3.listObjectsV2(req);
-    if (result.getKeyCount() == 0) {
+        ListObjectsV2Request.builder()
+            .bucket(bucket)
+            .prefix(prefix)
+            .startAfter(prefix + timeString)
+            .maxKeys(1)
+            .build();
+    ListObjectsV2Response result = s3.listObjectsV2(req);
+    if (result.keyCount() == 0) {
       return null;
     }
-    String objectKey = result.getObjectSummaries().get(0).getKey();
+    String objectKey = result.contents().get(0).key();
     if (objectKey.endsWith(CURRENT_VERSION)) {
       return null;
     }
@@ -865,18 +900,13 @@ public class S3Backend implements RemoteBackend {
       String prefix, String fileName, String service, String progressIdentifier, byte[] data)
       throws IOException {
     String backendKey = prefix + fileName;
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(data.length);
     PutObjectRequest request =
-        new PutObjectRequest(serviceBucket, backendKey, new ByteArrayInputStream(data), metadata);
-    request.setGeneralProgressListener(
-        new S3ProgressListenerImpl(service, progressIdentifier, "upload_data"));
-    Upload upload = transferManager.upload(request);
-    try {
-      upload.waitForUploadResult();
-    } catch (InterruptedException e) {
-      throw new IOException("Error uploading to S3", e);
-    }
+        PutObjectRequest.builder()
+            .bucket(serviceBucket)
+            .key(backendKey)
+            .contentLength((long) data.length)
+            .build();
+    s3.putObject(request, RequestBody.fromBytes(data));
 
     setCurrentResource(prefix, fileName);
   }
@@ -966,10 +996,14 @@ public class S3Backend implements RemoteBackend {
   public String getCurrentResourceName(String prefix) throws IOException {
     String key = prefix + CURRENT_VERSION;
     try {
-      S3Object s3Object = s3.getObject(serviceBucket, key);
-      byte[] versionBytes = IOUtils.toByteArray(s3Object.getObjectContent());
+      GetObjectRequest request = GetObjectRequest.builder().bucket(serviceBucket).key(key).build();
+      ResponseInputStream<GetObjectResponse> responseStream = s3.getObject(request);
+      byte[] versionBytes = IOUtils.toByteArray(responseStream);
       return StateUtils.fromUTF8(versionBytes);
-    } catch (AmazonS3Exception e) {
+    } catch (NoSuchKeyException e) {
+      String error = String.format("Object s3://%s/%s not found", serviceBucket, key);
+      throw new IllegalArgumentException(error, e);
+    } catch (S3Exception e) {
       if (isNotFoundException(e)) {
         String error = String.format("Object s3://%s/%s not found", serviceBucket, key);
         throw new IllegalArgumentException(error, e);
@@ -987,20 +1021,17 @@ public class S3Backend implements RemoteBackend {
   public void setCurrentResource(String prefix, String version) {
     String key = prefix + CURRENT_VERSION;
     byte[] bytes = StateUtils.toUTF8(version);
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(bytes.length);
     PutObjectRequest request =
-        new PutObjectRequest(serviceBucket, key, new ByteArrayInputStream(bytes), metadata);
-    s3.putObject(request);
+        PutObjectRequest.builder()
+            .bucket(serviceBucket)
+            .key(key)
+            .contentLength((long) bytes.length)
+            .build();
+    s3.putObject(request, RequestBody.fromBytes(bytes));
     logger.info("Set current resource - prefix: {}, version: {}", prefix, version);
   }
 
-  boolean currentResourceExists(String prefix) {
-    String key = prefix + CURRENT_VERSION;
-    return s3.doesObjectExist(serviceBucket, key);
-  }
-
-  private boolean isNotFoundException(AmazonS3Exception e) {
-    return e.getStatusCode() == 404;
+  private boolean isNotFoundException(S3Exception e) {
+    return e.statusCode() == 404;
   }
 }

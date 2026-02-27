@@ -17,22 +17,12 @@ package com.yelp.nrtsearch.tools.nrt_utils.legacy.state;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.fromUTF8;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.auth.profile.ProfilesConfigFile;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.retry.PredefinedRetryPolicies;
-import com.amazonaws.retry.RetryPolicy;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.S3Object;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import java.io.*;
+import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
@@ -43,6 +33,21 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.io.IOUtils;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.profiles.ProfileFile;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 public class LegacyStateCommandUtils {
   private static final String INDEX_STATE_SUFFIX = "-state";
@@ -60,46 +65,54 @@ public class LegacyStateCommandUtils {
    * @param credsProfile profile to use from credentials file
    * @return s3 client
    */
-  public static AmazonS3 createS3Client(
+  public static S3Client createS3Client(
       String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
-    AWSCredentialsProvider awsCredentialsProvider;
+    AwsCredentialsProvider awsCredentialsProvider;
     if (credsFile != null) {
       Path botoCfgPath = Paths.get(credsFile);
-      ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      awsCredentialsProvider = new ProfileCredentialsProvider(profilesConfigFile, credsProfile);
+      ProfileFile profileFile = ProfileFile.builder().content(botoCfgPath).build();
+      awsCredentialsProvider =
+          ProfileCredentialsProvider.builder()
+              .profileFile(profileFile)
+              .profileName(credsProfile)
+              .build();
     } else {
-      awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
+      awsCredentialsProvider = DefaultCredentialsProvider.create();
     }
 
     String clientRegion;
     if (region == null) {
-      AmazonS3 s3ClientInterim =
-          AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
-      clientRegion = s3ClientInterim.getBucketLocation(bucketName);
-      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
-      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
-      // However, this causes an UnknownHostException so we override it to the full region name
-      if (clientRegion.equals("US")) {
+      S3Client s3ClientInterim =
+          S3Client.builder().credentialsProvider(awsCredentialsProvider).build();
+      String bucketLocation =
+          s3ClientInterim
+              .getBucketLocation(GetBucketLocationRequest.builder().bucket(bucketName).build())
+              .locationConstraintAsString();
+      // In useast-1, the region is returned as empty string or "us-east-1"
+      // Handle the empty string case
+      if (bucketLocation == null || bucketLocation.isEmpty()) {
         clientRegion = "us-east-1";
+      } else {
+        clientRegion = bucketLocation;
       }
+      s3ClientInterim.close();
     } else {
       clientRegion = region;
     }
-    String serviceEndpoint = String.format("s3.%s.amazonaws.com", clientRegion);
+    String serviceEndpoint = String.format("https://s3.%s.amazonaws.com", clientRegion);
     System.out.printf("S3 ServiceEndpoint: %s%n", serviceEndpoint);
     RetryPolicy retryPolicy =
-        new RetryPolicy(
-            PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
-            PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
-            maxRetry,
-            true);
-    ClientConfiguration clientConfiguration =
-        new ClientConfiguration().withRetryPolicy(retryPolicy);
-    return AmazonS3ClientBuilder.standard()
-        .withCredentials(awsCredentialsProvider)
-        .withClientConfiguration(clientConfiguration)
-        .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, clientRegion))
+        RetryPolicy.builder()
+            .numRetries(maxRetry)
+            .retryCondition(RetryCondition.defaultRetryCondition())
+            .backoffStrategy(BackoffStrategy.defaultStrategy())
+            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+            .build();
+    return S3Client.builder()
+        .credentialsProvider(awsCredentialsProvider)
+        .region(Region.of(clientRegion))
+        .endpointOverride(URI.create(serviceEndpoint))
+        .overrideConfiguration(c -> c.retryPolicy(retryPolicy))
         .build();
   }
 
@@ -134,9 +147,15 @@ public class LegacyStateCommandUtils {
     System.out.println("Version string: " + versionStr);
 
     String absoluteResourcePath = getStateKey(serviceName, backendResourceName, versionStr);
-    if (!versionManager
-        .getS3()
-        .doesObjectExist(versionManager.getBucketName(), absoluteResourcePath)) {
+    try {
+      versionManager
+          .getS3()
+          .headObject(
+              HeadObjectRequest.builder()
+                  .bucket(versionManager.getBucketName())
+                  .key(absoluteResourcePath)
+                  .build());
+    } catch (NoSuchKeyException e) {
       System.out.println("Resource does not exist: " + absoluteResourcePath);
       return null;
     }
@@ -164,12 +183,14 @@ public class LegacyStateCommandUtils {
    * @throws IOException
    */
   public static String getStateFileContentsFromS3(
-      AmazonS3 s3Client, String bucketName, String key, String stateFileName) throws IOException {
-    S3Object stateObject = s3Client.getObject(bucketName, key);
-    InputStream contents = stateObject.getObjectContent();
+      S3Client s3Client, String bucketName, String key, String stateFileName) throws IOException {
+    GetObjectRequest getObjectRequest =
+        GetObjectRequest.builder().bucket(bucketName).key(key).build();
+    ResponseInputStream<GetObjectResponse> responseInputStream =
+        s3Client.getObject(getObjectRequest);
     String stateStr = null;
     try (TarArchiveInputStream tarArchiveInputStream =
-        new TarArchiveInputStream(new LZ4FrameInputStream(contents))) {
+        new TarArchiveInputStream(new LZ4FrameInputStream(responseInputStream))) {
       for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextEntry();
           tarArchiveEntry != null;
           tarArchiveEntry = tarArchiveInputStream.getNextEntry()) {

@@ -17,36 +17,39 @@ package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.fromUTF8;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.services.s3.transfer.Copy;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.CompletedCopy;
+import software.amazon.awssdk.transfer.s3.model.Copy;
+import software.amazon.awssdk.transfer.s3.model.CopyRequest;
 
 @CommandLine.Command(
     name = RestoreCommand.RESTORE,
@@ -134,20 +137,22 @@ public class RestoreCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
   public Integer call() throws Exception {
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     String resolvedSnapshotRoot =
         BackupCommandUtils.getSnapshotRoot(snapshotRoot, snapshotServiceName);
@@ -164,9 +169,9 @@ public class RestoreCommand implements Callable<Integer> {
             + ", restoreIndex: "
             + restoreIndexResource);
 
-    checkRestoreIndexNotExists(s3Client, restoreIndexResource);
+    checkRestoreIndexNotExists(s3ClientBundle.s3Client(), restoreIndexResource);
 
-    SnapshotMetadata metadata = loadMetadata(s3Client, resolvedSnapshotRoot);
+    SnapshotMetadata metadata = loadMetadata(s3ClientBundle.s3Client(), resolvedSnapshotRoot);
     restoreIndexData(s3Backend, restoreIndexResource, snapshotDataRoot);
     restoreIndexState(s3Backend, restoreIndexResource, snapshotDataRoot);
     maybeRestoreWarmingQueries(s3Backend, restoreIndexResource, snapshotDataRoot);
@@ -178,9 +183,12 @@ public class RestoreCommand implements Callable<Integer> {
   private void restoreIndexData(
       S3Backend s3Backend, String restoreIndexResource, String snapshotDataRoot)
       throws IOException, InterruptedException {
-    S3Object pointStateObject =
-        s3Client.getObject(bucketName, snapshotDataRoot + BackupCommandUtils.SNAPSHOT_POINT_STATE);
-    byte[] pointStateBytes = IOUtils.toByteArray(pointStateObject.getObjectContent());
+    GetObjectRequest getRequest =
+        GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(snapshotDataRoot + BackupCommandUtils.SNAPSHOT_POINT_STATE)
+            .build();
+    byte[] pointStateBytes = IOUtils.toByteArray(s3ClientBundle.s3Client().getObject(getRequest));
     NrtPointState nrtPointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
     String pointStateFileName = S3Backend.getPointStateFileName(nrtPointState);
     String restorePointStatePrefix =
@@ -196,42 +204,35 @@ public class RestoreCommand implements Callable<Integer> {
 
     System.out.println(
         "Restoring point state to key: " + restorePointStatePrefix + pointStateFileName);
-    ObjectMetadata objectMetadata = new ObjectMetadata();
-    objectMetadata.setContentLength(pointStateBytes.length);
-    s3Client.putObject(
-        bucketName,
-        restorePointStatePrefix + pointStateFileName,
-        new ByteArrayInputStream(pointStateBytes),
-        objectMetadata);
+    PutObjectRequest putRequest =
+        PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(restorePointStatePrefix + pointStateFileName)
+            .contentLength((long) pointStateBytes.length)
+            .build();
+    s3ClientBundle.s3Client().putObject(putRequest, RequestBody.fromBytes(pointStateBytes));
 
     System.out.println("Restoring index data: " + backendIndexFiles);
 
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard()
-            .withS3Client(s3Client)
-            .withExecutorFactory(() -> executor)
-            .withShutDownThreadPools(true)
-            .build();
-    try {
-      List<Copy> copyJobs = new ArrayList<>();
-      for (String fileName : backendIndexFiles) {
-        CopyObjectRequest copyObjectRequest =
-            new CopyObjectRequest(
-                bucketName, snapshotDataRoot + fileName, bucketName, restoreDataPrefix + fileName);
-        final String finalFileName = fileName;
-        Copy copy =
-            transferManager.copy(
-                copyObjectRequest,
-                (transfer, state) ->
-                    System.out.println("Transfer: " + finalFileName + ", state: " + state));
-        copyJobs.add(copy);
-      }
-      for (Copy copyJob : copyJobs) {
-        copyJob.waitForCopyResult();
-      }
-    } finally {
-      transferManager.shutdownNow(false);
+    S3TransferManager transferManager = s3Backend.getTransferManager();
+    List<Copy> copyJobs = new ArrayList<>();
+    for (String fileName : backendIndexFiles) {
+      CopyObjectRequest copyObjectRequest =
+          CopyObjectRequest.builder()
+              .sourceBucket(bucketName)
+              .sourceKey(snapshotDataRoot + fileName)
+              .destinationBucket(bucketName)
+              .destinationKey(restoreDataPrefix + fileName)
+              .build();
+      final String finalFileName = fileName;
+      Copy copy =
+          transferManager.copy(CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
+      copyJobs.add(copy);
+      System.out.println("Started copy: " + finalFileName);
+    }
+    for (Copy copyJob : copyJobs) {
+      CompletedCopy completedCopy = copyJob.completionFuture().join();
+      System.out.println("Completed copy");
     }
     s3Backend.setCurrentResource(restorePointStatePrefix, pointStateFileName);
   }
@@ -245,11 +246,14 @@ public class RestoreCommand implements Callable<Integer> {
     String stateFileName = S3Backend.getIndexStateFileName();
 
     System.out.println("Restoring index state to key: " + restoreIndexStatePrefix + stateFileName);
-    s3Client.copyObject(
-        bucketName,
-        snapshotDataRoot + BackupCommandUtils.SNAPSHOT_INDEX_STATE,
-        bucketName,
-        restoreIndexStatePrefix + stateFileName);
+    CopyObjectRequest copyRequest =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(snapshotDataRoot + BackupCommandUtils.SNAPSHOT_INDEX_STATE)
+            .destinationBucket(bucketName)
+            .destinationKey(restoreIndexStatePrefix + stateFileName)
+            .build();
+    s3ClientBundle.s3Client().copyObject(copyRequest);
     s3Backend.setCurrentResource(restoreIndexStatePrefix, stateFileName);
   }
 
@@ -257,7 +261,15 @@ public class RestoreCommand implements Callable<Integer> {
       S3Backend s3Backend, String restoreIndexResource, String snapshotDataRoot) {
     String snapshotWarmingQueriesKey =
         snapshotDataRoot + BackupCommandUtils.SNAPSHOT_WARMING_QUERIES;
-    if (!s3Client.doesObjectExist(bucketName, snapshotWarmingQueriesKey)) {
+    try {
+      s3ClientBundle
+          .s3Client()
+          .headObject(
+              HeadObjectRequest.builder()
+                  .bucket(bucketName)
+                  .key(snapshotWarmingQueriesKey)
+                  .build());
+    } catch (NoSuchKeyException e) {
       System.out.println("Warming queries not present in snapshot, skipping");
       return;
     }
@@ -272,37 +284,46 @@ public class RestoreCommand implements Callable<Integer> {
         "Restoring warming queries to key: "
             + restoreWarmingQueriesPrefix
             + warmingQueriesFilename);
-    s3Client.copyObject(
-        bucketName,
-        snapshotWarmingQueriesKey,
-        bucketName,
-        restoreWarmingQueriesPrefix + warmingQueriesFilename);
+    CopyObjectRequest copyRequest =
+        CopyObjectRequest.builder()
+            .sourceBucket(bucketName)
+            .sourceKey(snapshotWarmingQueriesKey)
+            .destinationBucket(bucketName)
+            .destinationKey(restoreWarmingQueriesPrefix + warmingQueriesFilename)
+            .build();
+    s3ClientBundle.s3Client().copyObject(copyRequest);
     s3Backend.setCurrentResource(restoreWarmingQueriesPrefix, warmingQueriesFilename);
   }
 
-  private SnapshotMetadata loadMetadata(AmazonS3 s3Client, String snapshotRoot) throws IOException {
+  private SnapshotMetadata loadMetadata(S3Client s3Client, String snapshotRoot) throws IOException {
     String metadataFileKey =
         BackupCommandUtils.getSnapshotIndexMetadataKey(
             snapshotRoot, snapshotIndexIdentifier, snapshotTimeString);
-    if (!s3Client.doesObjectExist(bucketName, metadataFileKey)) {
+    try {
+      s3Client.headObject(
+          HeadObjectRequest.builder().bucket(bucketName).key(metadataFileKey).build());
+    } catch (NoSuchKeyException e) {
       throw new IllegalArgumentException("Metadata file does not exist: " + metadataFileKey);
     }
     System.out.println("Loading metadata key: " + metadataFileKey);
-    S3Object stateObject = s3Client.getObject(bucketName, metadataFileKey);
+    GetObjectRequest getRequest =
+        GetObjectRequest.builder().bucket(bucketName).key(metadataFileKey).build();
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-    IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
+    IOUtils.copy(s3Client.getObject(getRequest), byteArrayOutputStream);
     String fileContent = fromUTF8(byteArrayOutputStream.toByteArray());
     System.out.println("Contents: " + fileContent);
     return OBJECT_MAPPER.readValue(fileContent, SnapshotMetadata.class);
   }
 
-  private void checkRestoreIndexNotExists(AmazonS3 s3Client, String restoreIndexResource) {
+  private void checkRestoreIndexNotExists(S3Client s3Client, String restoreIndexResource) {
     String restorePrefix = restoreServiceName + "/" + restoreIndexResource;
-    ListObjectsV2Result result = s3Client.listObjectsV2(bucketName, restorePrefix);
-    List<S3ObjectSummary> objects = result.getObjectSummaries();
+    ListObjectsV2Request listRequest =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(restorePrefix).build();
+    ListObjectsV2Response result = s3Client.listObjectsV2(listRequest);
+    List<S3Object> objects = result.contents();
     if (!objects.isEmpty()) {
       throw new IllegalArgumentException(
-          "Data exists at restore location, found: " + objects.get(0).getKey());
+          "Data exists at restore location, found: " + objects.get(0).key());
     }
   }
 

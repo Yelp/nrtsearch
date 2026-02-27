@@ -19,14 +19,11 @@ import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalC
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,6 +39,9 @@ import java.util.stream.Stream;
 import org.junit.Rule;
 import org.junit.Test;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class DeleteIncrementalSnapshotsCommandTest {
   private static final String TEST_BUCKET = "test-bucket";
@@ -51,7 +51,7 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private AmazonS3 getS3() {
+  private S3Client getS3() {
     return s3Provider.getAmazonS3();
   }
 
@@ -369,7 +369,7 @@ public class DeleteIncrementalSnapshotsCommandTest {
     String indexName = "test_index";
     String indexId = "test_id";
     String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId);
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     String stateFileId = UUID.randomUUID().toString();
     GlobalStateInfo globalStateInfo =
         GlobalStateInfo.newBuilder()
@@ -380,23 +380,34 @@ public class DeleteIncrementalSnapshotsCommandTest {
     byte[] stateData =
         LegacyStateCommandUtils.buildStateFileArchive(
             GLOBAL_STATE_RESOURCE, "state.json", toUTF8(stateStr));
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(stateData.length);
 
-    s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + stateFileId,
-        new ByteArrayInputStream(stateData),
-        metadata);
-    s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + "1",
-        stateFileId);
-    s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+    PutObjectRequest putRequest1 =
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + stateFileId)
+            .contentLength((long) stateData.length)
+            .build();
+    s3Client.putObject(putRequest1, RequestBody.fromBytes(stateData));
+
+    PutObjectRequest putRequest2 =
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + "1")
+            .build();
+    s3Client.putObject(putRequest2, RequestBody.fromString(stateFileId));
+
+    PutObjectRequest putRequest3 =
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build();
+    s3Client.putObject(putRequest3, RequestBody.fromString("1"));
 
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 

@@ -19,7 +19,6 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGI
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -38,6 +37,7 @@ import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -65,6 +65,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -148,9 +150,13 @@ public class TestServer {
   }
 
   private RemoteBackend createRemoteBackend() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
-    return new S3Backend(configuration, s3, executorFactory);
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+    software.amazon.awssdk.services.s3.S3AsyncClient s3Async =
+        AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+    software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
+        software.amazon.awssdk.transfer.s3.S3TransferManager.builder().s3Client(s3Async).build();
+    return new S3Backend(configuration, new S3Util.S3ClientBundle(s3, s3Async));
   }
 
   public void restart() throws IOException {

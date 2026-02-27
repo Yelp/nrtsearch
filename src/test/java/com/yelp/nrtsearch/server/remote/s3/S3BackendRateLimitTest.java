@@ -19,8 +19,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend.S3BackendConfig;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
@@ -38,6 +36,9 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3BackendRateLimitTest {
   private static final String BUCKET_NAME = "s3-backend-rate-limit-test";
@@ -48,12 +49,14 @@ public class S3BackendRateLimitTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private static AmazonS3 s3;
+  private static S3Client s3;
 
   @BeforeClass
   public static void setup() {
     s3 = S3_PROVIDER.getAmazonS3();
-    s3.putObject(BUCKET_NAME, KEY, CONTENT);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(KEY).build(),
+        RequestBody.fromString(CONTENT));
   }
 
   @AfterClass
@@ -70,7 +73,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -96,7 +99,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -136,7 +139,7 @@ public class S3BackendRateLimitTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend s3Backend =
         new S3Backend(
-            nrtsearchConfig, s3, new ExecutorFactory(nrtsearchConfig.getThreadPoolConfiguration()));
+            nrtsearchConfig, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Download a file - this should work normally since our test file is small
     // and the rate limit is high enough
@@ -160,7 +163,12 @@ public class S3BackendRateLimitTest {
             false, 2 * 1024 * 1024, 10); // 2MB/s, 10 second window, metrics disabled
 
     // Create S3Backend with custom config
-    S3Backend s3Backend = new S3Backend(BUCKET_NAME, false, customConfig, s3);
+    S3Backend s3Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            customConfig,
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private rateLimiter field
     Field rateLimiterField = S3Backend.class.getDeclaredField("rateLimiter");
@@ -191,7 +199,12 @@ public class S3BackendRateLimitTest {
         new S3BackendConfig(true, 0, 1); // No rate limit, metrics enabled
 
     // Create S3Backend with custom config
-    S3Backend s3Backend = new S3Backend(BUCKET_NAME, false, customConfig, s3);
+    S3Backend s3Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            customConfig,
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     // Use reflection to access the private s3Metrics field
     Field s3MetricsField = S3Backend.class.getDeclaredField("s3Metrics");

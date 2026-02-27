@@ -17,16 +17,13 @@ package com.yelp.nrtsearch.tools.nrt_utils.cleanup;
 
 import static com.yelp.nrtsearch.tools.nrt_utils.backup.BackupCommandUtils.deleteObjects;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.backup.BackupCommandUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
@@ -37,6 +34,11 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @CommandLine.Command(
     name = CleanupDataCommand.CLEANUP_DATA,
@@ -112,11 +114,11 @@ public class CleanupDataCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Util.S3ClientBundle s3ClientBundle;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
-    this.s3Client = s3Client;
+  void setS3ClientBundle(S3Util.S3ClientBundle s3ClientBundle) {
+    this.s3ClientBundle = s3ClientBundle;
   }
 
   @Override
@@ -124,11 +126,14 @@ public class CleanupDataCommand implements Callable<Integer> {
     long deleteAfterMs = BackupCommandUtils.getTimeIntervalMs(deleteAfter);
     long gracePeriodMs = BackupCommandUtils.getTimeIntervalMs(gracePeriod);
 
-    if (s3Client == null) {
-      s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+    if (s3ClientBundle == null) {
+      s3ClientBundle =
+          StateCommandUtils.createS3ClientBundle(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    S3Backend s3Backend = new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3Client);
+    S3Client s3Client = s3ClientBundle.s3Client();
+    S3Backend s3Backend =
+        new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
 
     String resolvedIndexResource =
         StateCommandUtils.getResourceName(s3Backend, serviceName, indexName, exactResourceName);
@@ -178,17 +183,19 @@ public class CleanupDataCommand implements Callable<Integer> {
             - gracePeriodMs;
 
     // get all the S3 files referenced by the first and last retained point state versions
-    byte[] currentPointStateData =
-        s3Client
-            .getObject(bucketName, pointStatePrefix + currentPointStateVersion)
-            .getObjectContent()
-            .readAllBytes();
+    GetObjectRequest currentRequest =
+        GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(pointStatePrefix + currentPointStateVersion)
+            .build();
+    byte[] currentPointStateData = s3Client.getObject(currentRequest).readAllBytes();
     NrtPointState currentPointState = RemoteUtils.pointStateFromUtf8(currentPointStateData);
-    byte[] oldestPointStateData =
-        s3Client
-            .getObject(bucketName, pointStatePrefix + oldestRetainedPointFile)
-            .getObjectContent()
-            .readAllBytes();
+    GetObjectRequest oldestRequest =
+        GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(pointStatePrefix + oldestRetainedPointFile)
+            .build();
+    byte[] oldestPointStateData = s3Client.getObject(oldestRequest).readAllBytes();
     NrtPointState oldestPointState = RemoteUtils.pointStateFromUtf8(oldestPointStateData);
 
     Set<String> currentPointStateFiles = getPointStateFiles(currentPointState);
@@ -387,30 +394,27 @@ public class CleanupDataCommand implements Callable<Integer> {
    * @param dryRun skip sending actual deletion requests to s3
    */
   static void cleanupS3Files(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String bucketName,
       String keyPrefix,
       FileDeletionDecider deletionDecider,
       boolean dryRun) {
-    ListObjectsV2Request req =
-        new ListObjectsV2Request().withBucketName(bucketName).withPrefix(keyPrefix);
-    ListObjectsV2Result result;
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(keyPrefix);
+    ListObjectsV2Response result;
 
     List<String> deleteList = new ArrayList<>(DELETE_BATCH_SIZE);
 
     do {
-      result = s3Client.listObjectsV2(req);
+      result = s3Client.listObjectsV2(reqBuilder.build());
 
-      for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-        String objFileName = objectSummary.getKey().split(keyPrefix)[1];
-        long versionTimestampMs = objectSummary.getLastModified().getTime();
+      for (S3Object s3Object : result.contents()) {
+        String objFileName = s3Object.key().split(keyPrefix)[1];
+        long versionTimestampMs = s3Object.lastModified().toEpochMilli();
         if (deletionDecider.shouldDelete(objFileName, versionTimestampMs)) {
           System.out.println(
-              "Deleting object - key: "
-                  + objectSummary.getKey()
-                  + ", timestampMs: "
-                  + versionTimestampMs);
-          deleteList.add(objectSummary.getKey());
+              "Deleting object - key: " + s3Object.key() + ", timestampMs: " + versionTimestampMs);
+          deleteList.add(s3Object.key());
           if (deleteList.size() == DELETE_BATCH_SIZE) {
             if (!dryRun) {
               deleteObjects(s3Client, bucketName, deleteList);
@@ -425,8 +429,8 @@ public class CleanupDataCommand implements Callable<Integer> {
       if (deletionDecider.isDone()) {
         break;
       }
-      String token = result.getNextContinuationToken();
-      req.setContinuationToken(token);
+      String token = result.nextContinuationToken();
+      reqBuilder.continuationToken(token);
     } while (result.isTruncated());
 
     if (!deleteList.isEmpty() && !dryRun) {
