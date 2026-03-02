@@ -26,8 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import picocli.CommandLine;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -197,11 +195,11 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     S3TransferManager transferManagerToUse = this.transferManager;
     boolean shouldCloseTransferManager = false;
     if (transferManagerToUse == null) {
-      ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
       software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
           software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
               .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
               .region(s3Client.serviceClientConfiguration().region())
+              .maxConcurrency(copyThreads)
               .build();
       transferManagerToUse = S3TransferManager.builder().s3Client(s3AsyncClient).build();
       shouldCloseTransferManager = true;

@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalC
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import java.io.*;
 import java.net.URI;
@@ -46,8 +47,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 public class LegacyStateCommandUtils {
   private static final String INDEX_STATE_SUFFIX = "-state";
@@ -147,15 +146,8 @@ public class LegacyStateCommandUtils {
     System.out.println("Version string: " + versionStr);
 
     String absoluteResourcePath = getStateKey(serviceName, backendResourceName, versionStr);
-    try {
-      versionManager
-          .getS3()
-          .headObject(
-              HeadObjectRequest.builder()
-                  .bucket(versionManager.getBucketName())
-                  .key(absoluteResourcePath)
-                  .build());
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(
+        versionManager.getS3(), versionManager.getBucketName(), absoluteResourcePath)) {
       System.out.println("Resource does not exist: " + absoluteResourcePath);
       return null;
     }

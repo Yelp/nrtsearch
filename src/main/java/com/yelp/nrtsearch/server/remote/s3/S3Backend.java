@@ -459,7 +459,7 @@ public class S3Backend implements RemoteBackend {
         switch (resourceType) {
           case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
         };
-    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
+    return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
   }
 
   @Override
@@ -471,7 +471,7 @@ public class S3Backend implements RemoteBackend {
           case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
           case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
         };
-    return S3Util.currentResourceExists(s3, serviceBucket, prefix, CURRENT_VERSION);
+    return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
   }
 
   /**

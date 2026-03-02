@@ -222,17 +222,14 @@ public class S3Util {
   }
 
   /**
-   * Check if a current resource exists in S3 for the given prefix.
+   * Check if a key exists in S3.
    *
    * @param s3Client S3 client
    * @param bucket S3 bucket name
-   * @param prefix resource prefix
-   * @param currentVersion suffix key for the current version object
-   * @return true if the current resource exists, false otherwise
+   * @param key S3 object key
+   * @return true if the key exists, false otherwise
    */
-  public static boolean currentResourceExists(
-      S3Client s3Client, String bucket, String prefix, String currentVersion) {
-    String key = prefix + currentVersion;
+  public static boolean doesKeyExist(S3Client s3Client, String bucket, String key) {
     try {
       HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
       s3Client.headObject(request);

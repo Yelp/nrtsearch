@@ -120,7 +120,7 @@ public class SnapshotCommand implements Callable<Integer> {
     if (s3ClientBundle == null) {
       s3ClientBundle =
           StateCommandUtils.createS3ClientBundle(
-              bucketName, region, credsFile, credsProfile, maxRetry);
+              bucketName, region, credsFile, credsProfile, maxRetry, copyThreads);
     }
     S3Backend s3Backend =
         new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);

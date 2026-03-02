@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.tools.nrt_utils.legacy;
 
 import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
@@ -25,8 +26,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class LegacyVersionManager {
@@ -71,16 +70,14 @@ public class LegacyVersionManager {
   long getListedLatestVersionNumber(String versionPath) throws IOException {
     long version = -1;
     String latestVersionFile = String.format("%s/_latest_version", versionPath);
-    try {
-      s3.headObject(HeadObjectRequest.builder().bucket(bucketName).key(latestVersionFile).build());
-      GetObjectRequest getObjectRequest =
-          GetObjectRequest.builder().bucket(bucketName).key(latestVersionFile).build();
-      final String versionString =
-          IOUtils.toString(s3.getObject(getObjectRequest), StandardCharsets.UTF_8);
-      return Integer.parseInt(versionString);
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3, bucketName, latestVersionFile)) {
       return version;
     }
+    GetObjectRequest getObjectRequest =
+        GetObjectRequest.builder().bucket(bucketName).key(latestVersionFile).build();
+    final String versionString =
+        IOUtils.toString(s3.getObject(getObjectRequest), StandardCharsets.UTF_8);
+    return Integer.parseInt(versionString);
   }
 
   /*
@@ -95,9 +92,7 @@ public class LegacyVersionManager {
     while (true) {
       versionProbe += 1;
       String probeVersion = String.format("%s/%s", versionPath, versionProbe);
-      try {
-        s3.headObject(HeadObjectRequest.builder().bucket(bucketName).key(probeVersion).build());
-      } catch (NoSuchKeyException e) {
+      if (!S3Util.doesKeyExist(s3, bucketName, probeVersion)) {
         break;
       }
     }
@@ -115,13 +110,12 @@ public class LegacyVersionManager {
   /* Blesses a particular version of a resource. */
   public boolean blessVersion(String serviceName, String resourceName, String resourceHash) {
     final String resourceKey = String.format("%s/%s/%s", serviceName, resourceName, resourceHash);
-    try {
-      s3.headObject(HeadObjectRequest.builder().bucket(bucketName).key(resourceKey).build());
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3, bucketName, resourceKey)) {
       logger.error(
-          String.format(
-              "bless_version -- %s/%s/%s does not exist in s3",
-              serviceName, resourceName, resourceHash));
+          "bless_version -- {}/{}/{} does not exist in s3",
+          serviceName,
+          resourceName,
+          resourceHash);
       return false;
     }
     long newVersion;
@@ -155,9 +149,7 @@ public class LegacyVersionManager {
   /* Deletes a particular version of a resource. */
   public boolean deleteVersion(String serviceName, String resourceName, String resourceHash) {
     final String resourceKey = String.format("%s/%s/%s", serviceName, resourceName, resourceHash);
-    try {
-      s3.headObject(HeadObjectRequest.builder().bucket(bucketName).key(resourceKey).build());
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3, bucketName, resourceKey)) {
       logger.error(
           "Unable to delete object: {}/{}/{} does not exist in s3",
           serviceName,

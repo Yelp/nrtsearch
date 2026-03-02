@@ -1112,16 +1112,13 @@ public class S3BackendTest {
   }
 
   @Test
-  public void testCurrentResourceExists() {
-    String prefix = "service_current_exists/resource/";
-    assertFalse(S3Util.currentResourceExists(s3, BUCKET_NAME, prefix, S3Backend.CURRENT_VERSION));
+  public void testDoesKeyExist() {
+    String key = "service_current_exists/resource/" + S3Backend.CURRENT_VERSION;
+    assertFalse(S3Util.doesKeyExist(s3, BUCKET_NAME, key));
     s3.putObject(
-        PutObjectRequest.builder()
-            .bucket(BUCKET_NAME)
-            .key(prefix + S3Backend.CURRENT_VERSION)
-            .build(),
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(key).build(),
         RequestBody.fromString("current_version_name"));
-    assertTrue(S3Util.currentResourceExists(s3, BUCKET_NAME, prefix, S3Backend.CURRENT_VERSION));
+    assertTrue(S3Util.doesKeyExist(s3, BUCKET_NAME, key));
   }
 
   @Test

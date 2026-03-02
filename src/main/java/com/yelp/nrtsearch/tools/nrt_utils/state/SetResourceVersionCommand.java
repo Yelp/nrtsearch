@@ -129,14 +129,7 @@ public class SetResourceVersionCommand implements Callable<Integer> {
         previousVersion = s3Backend.getCurrentResourceName(prefix);
       }
     }
-    try {
-      software.amazon.awssdk.services.s3.model.HeadObjectRequest headRequest =
-          software.amazon.awssdk.services.s3.model.HeadObjectRequest.builder()
-              .bucket(bucketName)
-              .key(prefix + resourceVersion)
-              .build();
-      s3Client.headObject(headRequest);
-    } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3Client, bucketName, prefix + resourceVersion)) {
       throw new IllegalArgumentException("Resource version does not exist: " + resourceVersion);
     }
     System.out.println("Previous version: " + previousVersion);

@@ -19,14 +19,13 @@ import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalC
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.commons.io.IOUtils;
 import picocli.CommandLine;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -34,11 +33,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.transfer.s3.model.CompletedCopy;
 import software.amazon.awssdk.transfer.s3.model.Copy;
@@ -217,11 +213,11 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
         this.transferManager;
     boolean shouldCloseTransferManager = false;
     if (transferManagerToUse == null) {
-      ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
       software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
           software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
               .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
               .region(s3Client.serviceClientConfiguration().region())
+              .maxConcurrency(copyThreads)
               .build();
       transferManagerToUse =
           software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
@@ -290,7 +286,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
       String snapshotDataRoot) {
     String snapshotWarmingQueriesKey =
         snapshotDataRoot + IncrementalCommandUtils.SNAPSHOT_WARMING_QUERIES;
-    if (!objectExists(s3Client, bucketName, snapshotWarmingQueriesKey)) {
+    if (!S3Util.doesKeyExist(s3Client, bucketName, snapshotWarmingQueriesKey)) {
       System.out.println("Warming queries not present in snapshot, skipping");
       return;
     }
@@ -317,7 +313,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
     String metadataFileKey =
         IncrementalCommandUtils.getSnapshotIndexMetadataKey(
             snapshotRoot, snapshotIndexIdentifier, snapshotTimestamp);
-    if (!objectExists(s3Client, bucketName, metadataFileKey)) {
+    if (!S3Util.doesKeyExist(s3Client, bucketName, metadataFileKey)) {
       throw new IllegalArgumentException("Metadata file does not exist: " + metadataFileKey);
     }
     System.out.println("Loading metadata key: " + metadataFileKey);
@@ -341,21 +337,6 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
     if (!objects.isEmpty()) {
       throw new IllegalArgumentException(
           "Data exists at restore location, found: " + objects.get(0).key());
-    }
-  }
-
-  private boolean objectExists(S3Client s3Client, String bucket, String key) {
-    try {
-      HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
-      s3Client.headObject(request);
-      return true;
-    } catch (NoSuchKeyException e) {
-      return false;
-    } catch (S3Exception e) {
-      if (e.statusCode() == 404) {
-        return false;
-      }
-      throw e;
     }
   }
 

@@ -40,10 +40,8 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
@@ -149,7 +147,7 @@ public class RestoreCommand implements Callable<Integer> {
     if (s3ClientBundle == null) {
       s3ClientBundle =
           StateCommandUtils.createS3ClientBundle(
-              bucketName, region, credsFile, credsProfile, maxRetry);
+              bucketName, region, credsFile, credsProfile, maxRetry, copyThreads);
     }
     S3Backend s3Backend =
         new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
@@ -261,15 +259,7 @@ public class RestoreCommand implements Callable<Integer> {
       S3Backend s3Backend, String restoreIndexResource, String snapshotDataRoot) {
     String snapshotWarmingQueriesKey =
         snapshotDataRoot + BackupCommandUtils.SNAPSHOT_WARMING_QUERIES;
-    try {
-      s3ClientBundle
-          .s3Client()
-          .headObject(
-              HeadObjectRequest.builder()
-                  .bucket(bucketName)
-                  .key(snapshotWarmingQueriesKey)
-                  .build());
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3ClientBundle.s3Client(), bucketName, snapshotWarmingQueriesKey)) {
       System.out.println("Warming queries not present in snapshot, skipping");
       return;
     }
@@ -299,10 +289,7 @@ public class RestoreCommand implements Callable<Integer> {
     String metadataFileKey =
         BackupCommandUtils.getSnapshotIndexMetadataKey(
             snapshotRoot, snapshotIndexIdentifier, snapshotTimeString);
-    try {
-      s3Client.headObject(
-          HeadObjectRequest.builder().bucket(bucketName).key(metadataFileKey).build());
-    } catch (NoSuchKeyException e) {
+    if (!S3Util.doesKeyExist(s3Client, bucketName, metadataFileKey)) {
       throw new IllegalArgumentException("Metadata file does not exist: " + metadataFileKey);
     }
     System.out.println("Loading metadata key: " + metadataFileKey);

@@ -38,6 +38,7 @@ import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 
@@ -127,14 +128,38 @@ public class StateCommandUtils {
    */
   public static S3Util.S3ClientBundle createS3ClientBundle(
       String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
+    return createS3ClientBundle(bucketName, region, credsFile, credsProfile, maxRetry, 0);
+  }
+
+  /**
+   * Get an S3 client bundle usable for remote state operations.
+   *
+   * @param bucketName s3 bucket
+   * @param region aws region, such as us-west-2, or null to detect
+   * @param credsFile file containing aws credentials, or null for default
+   * @param credsProfile profile to use from credentials file
+   * @param maxRetry maximum number of retry attempts
+   * @param maxConcurrency maximum number of concurrent async S3 requests, or 0 to use SDK default
+   * @return S3ClientBundle containing sync and async clients
+   */
+  public static S3Util.S3ClientBundle createS3ClientBundle(
+      String bucketName,
+      String region,
+      String credsFile,
+      String credsProfile,
+      int maxRetry,
+      int maxConcurrency) {
     S3Client s3Client = createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
-    S3AsyncClient s3AsyncClient =
+    S3CrtAsyncClientBuilder crtBuilder =
         S3AsyncClient.crtBuilder()
             .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
             .region(s3Client.serviceClientConfiguration().region())
-            .endpointOverride(s3Client.serviceClientConfiguration().endpointOverride().orElse(null))
-            .build();
-    return new S3Util.S3ClientBundle(s3Client, s3AsyncClient);
+            .endpointOverride(
+                s3Client.serviceClientConfiguration().endpointOverride().orElse(null));
+    if (maxConcurrency > 0) {
+      crtBuilder.maxConcurrency(maxConcurrency);
+    }
+    return new S3Util.S3ClientBundle(s3Client, crtBuilder.build());
   }
 
   /**
