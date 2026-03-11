@@ -19,26 +19,29 @@ import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalC
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import org.apache.commons.io.IOUtils;
 import org.junit.Rule;
 import org.junit.Test;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class IncrementalDataCleanupCommandTest {
   private static final String TEST_BUCKET = "test-bucket";
@@ -47,7 +50,7 @@ public class IncrementalDataCleanupCommandTest {
 
   @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private AmazonS3 getS3() {
+  private S3Client getS3() {
     return s3Provider.getAmazonS3();
   }
 
@@ -58,7 +61,7 @@ public class IncrementalDataCleanupCommandTest {
   }
 
   private void setUpIndex() throws IOException {
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     String stateFileId = UUID.randomUUID().toString();
     GlobalStateInfo globalStateInfo =
         GlobalStateInfo.newBuilder()
@@ -70,23 +73,31 @@ public class IncrementalDataCleanupCommandTest {
     byte[] stateData =
         LegacyStateCommandUtils.buildStateFileArchive(
             GLOBAL_STATE_RESOURCE, "state.json", toUTF8(stateStr));
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(stateData.length);
 
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + stateFileId,
-        new ByteArrayInputStream(stateData),
-        metadata);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + stateFileId)
+            .build(),
+        RequestBody.fromBytes(stateData));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + "1",
-        stateFileId);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + "1")
+            .build(),
+        RequestBody.fromString(stateFileId));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
 
     writeVersion(0);
     for (int i = 0; i < 5; ++i) {
@@ -100,7 +111,7 @@ public class IncrementalDataCleanupCommandTest {
 
   private void writeVersion(int version) {
     String indexUniqueId = getUniqueIndexName();
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     Set<String> indexFiles = new HashSet<>();
     indexFiles.add(String.format("segments_%d", version + 1));
     if (version > 0) {
@@ -113,57 +124,85 @@ public class IncrementalDataCleanupCommandTest {
     String versionId = UUID.randomUUID().toString();
     for (String indexFile : indexFiles) {
       s3Client.putObject(
-          TEST_BUCKET,
-          IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + indexFile,
-          "index_data");
+          PutObjectRequest.builder()
+              .bucket(TEST_BUCKET)
+              .key(
+                  IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource)
+                      + indexFile)
+              .build(),
+          RequestBody.fromString("index_data"));
     }
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + versionId,
-        String.join("\n", indexFiles));
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + versionId)
+            .build(),
+        RequestBody.fromString(String.join("\n", indexFiles)));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + version,
-        versionId);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + version)
+            .build(),
+        RequestBody.fromString(versionId));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        String.valueOf(version));
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString(String.valueOf(version)));
   }
 
   private String getUniqueIndexName() {
     return LegacyStateCommandUtils.getUniqueIndexName("test_index", "test_id");
   }
 
-  private void setCurrentVersion(AmazonS3 s3Client, int currentVersion) {
+  private void setCurrentVersion(S3Client s3Client, int currentVersion) {
     String indexResource = getUniqueIndexName();
     String versionPrefix =
         IncrementalCommandUtils.getVersionKeyPrefix(
             SERVICE_NAME, IncrementalCommandUtils.getIndexDataResource(indexResource));
     String currentVersionKey = versionPrefix + IncrementalDataCleanupCommand.LATEST_VERSION_FILE;
-    s3Client.putObject(TEST_BUCKET, currentVersionKey, String.valueOf(currentVersion));
+    s3Client.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(currentVersionKey).build(),
+        RequestBody.fromString(String.valueOf(currentVersion)));
   }
 
-  private String getAndDeleteVersion(AmazonS3 s3Client, int currentVersion) throws IOException {
+  private String getAndDeleteVersion(S3Client s3Client, int currentVersion) throws IOException {
     String indexResource = getUniqueIndexName();
     String versionPrefix =
         IncrementalCommandUtils.getVersionKeyPrefix(
             SERVICE_NAME, IncrementalCommandUtils.getIndexDataResource(indexResource));
-    String currentId =
-        IOUtils.toString(
-            s3Client.getObject(TEST_BUCKET, versionPrefix + currentVersion).getObjectContent(),
-            StandardCharsets.UTF_8);
-    s3Client.deleteObject(TEST_BUCKET, versionPrefix + currentVersion);
-    return currentId;
+    byte[] currentIdBytes =
+        s3Client
+            .getObject(
+                GetObjectRequest.builder()
+                    .bucket(TEST_BUCKET)
+                    .key(versionPrefix + currentVersion)
+                    .build(),
+                ResponseTransformer.toInputStream())
+            .readAllBytes();
+    s3Client.deleteObject(
+        DeleteObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(versionPrefix + currentVersion)
+            .build());
+    return new String(currentIdBytes, StandardCharsets.UTF_8);
   }
 
-  private void putVersion(AmazonS3 s3Client, int version, String id) {
+  private void putVersion(S3Client s3Client, int version, String id) {
     String indexResource = getUniqueIndexName();
     String versionPrefix =
         IncrementalCommandUtils.getVersionKeyPrefix(
             SERVICE_NAME, IncrementalCommandUtils.getIndexDataResource(indexResource));
-    s3Client.putObject(TEST_BUCKET, versionPrefix + version, id);
+    s3Client.putObject(
+        PutObjectRequest.builder().bucket(TEST_BUCKET).key(versionPrefix + version).build(),
+        RequestBody.fromString(id));
   }
 
   @Test
@@ -206,7 +245,7 @@ public class IncrementalDataCleanupCommandTest {
   public void testKeepsFutureVersions() throws IOException {
     setUpIndex();
     CommandLine cmd = getInjectedCommand();
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
 
     // VersionManager will automatically advance back to the latest, so delete the next
     // version and replace after cleanup
@@ -250,7 +289,7 @@ public class IncrementalDataCleanupCommandTest {
   public void testGracePeriod() throws IOException {
     setUpIndex();
     CommandLine cmd = getInjectedCommand();
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(getUniqueIndexName());
 
     Set<String> initialIndexFiles = getExistingDataFiles(s3Client, indexDataResource);
@@ -282,7 +321,7 @@ public class IncrementalDataCleanupCommandTest {
 
   private void assertVersions(String indexResource, int... versions) throws IOException {
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(indexResource);
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     Set<Integer> expectedVersions = new HashSet<>();
     for (int i : versions) {
       expectedVersions.add(i);
@@ -291,9 +330,11 @@ public class IncrementalDataCleanupCommandTest {
     boolean latestVersionFileSeen = false;
     String versionPrefix =
         IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource);
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, versionPrefix);
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(versionPrefix)[1];
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(versionPrefix).build());
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(versionPrefix)[1];
       if (IncrementalDataCleanupCommand.LATEST_VERSION_FILE.equals(baseName)) {
         latestVersionFileSeen = true;
       } else {
@@ -318,14 +359,16 @@ public class IncrementalDataCleanupCommandTest {
     assertEquals(requiredIndexFiles, presentIndexFiles);
   }
 
-  private Set<Integer> getExistingVersions(AmazonS3 s3Client, String indexDataResource) {
+  private Set<Integer> getExistingVersions(S3Client s3Client, String indexDataResource) {
     Set<Integer> versions = new HashSet<>();
     boolean latestVersionFileSeen = false;
     String versionPrefix =
         IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource);
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, versionPrefix);
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(versionPrefix)[1];
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(versionPrefix).build());
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(versionPrefix)[1];
       if (IncrementalDataCleanupCommand.LATEST_VERSION_FILE.equals(baseName)) {
         latestVersionFileSeen = true;
       } else {
@@ -336,13 +379,15 @@ public class IncrementalDataCleanupCommandTest {
     return versions;
   }
 
-  private Set<String> getExistingDataFiles(AmazonS3 s3Client, String indexDataResource) {
+  private Set<String> getExistingDataFiles(S3Client s3Client, String indexDataResource) {
     Set<String> indexFiles = new HashSet<>();
     String indexDataPrefix =
         IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource);
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, indexDataPrefix);
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(indexDataPrefix)[1];
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(indexDataPrefix).build());
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(indexDataPrefix)[1];
       if (!IncrementalCommandUtils.isManifestFile(baseName)) {
         indexFiles.add(baseName);
       }

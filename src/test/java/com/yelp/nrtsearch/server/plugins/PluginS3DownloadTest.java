@@ -27,6 +27,8 @@ import java.nio.file.Paths;
 import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Test that a plugin can be downloaded from S3 and loaded in Nrtsearch when it's complete S3 path
@@ -42,14 +44,13 @@ public class PluginS3DownloadTest extends NrtsearchTest {
   public static void addPluginToS3() {
     getS3Client()
         .putObject(
-            getS3BucketName(),
-            PLUGIN_S3_KEY,
-            Paths.get(
+            PutObjectRequest.builder().bucket(getS3BucketName()).key(PLUGIN_S3_KEY).build(),
+            RequestBody.fromFile(
+                Paths.get(
                     PluginS3DownloadTest.class
                         .getClassLoader()
                         .getResource("util/example-plugin-0.0.1.zip")
-                        .getPath())
-                .toFile());
+                        .getPath())));
   }
 
   @Override

@@ -17,10 +17,6 @@ package com.yelp.nrtsearch.tools.nrt_utils.legacy;
 
 import static org.junit.Assert.*;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.util.IOUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,11 +26,20 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class LegacyVersionManagerTest {
   private final String BUCKET_NAME = "version-manager-unittest";
   private LegacyVersionManager versionManager;
-  private AmazonS3 s3;
+  private S3Client s3;
   private Path archiverDirectory;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -56,48 +61,111 @@ public class LegacyVersionManagerTest {
 
   @Test
   public void blessVersionWhenNoPrior() throws IOException {
-    s3.putObject(BUCKET_NAME, "testservice/testresource/abcdef", "foo");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/testresource/abcdef")
+            .build(),
+        RequestBody.fromString("foo"));
     boolean result = versionManager.blessVersion("testservice", "testresource", "abcdef");
     assertEquals(true, result);
 
-    S3Object s3Object =
-        s3.getObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version");
-    assertEquals("0", IOUtils.toString(s3Object.getObjectContent()));
+    ResponseInputStream<GetObjectResponse> response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/_latest_version")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("0", new String(response.readAllBytes()));
 
-    s3Object = s3.getObject(BUCKET_NAME, "testservice/_version/testresource/0");
-    assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
+    response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/0")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("abcdef", new String(response.readAllBytes()));
   }
 
   @Test
   public void blessVersionWhenPrior() throws IOException {
-    s3.putObject(BUCKET_NAME, "testservice/testresource/abcdef", "foo");
-    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "0");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/testresource/abcdef")
+            .build(),
+        RequestBody.fromString("foo"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/_version/testresource/_latest_version")
+            .build(),
+        RequestBody.fromString("0"));
     boolean result = versionManager.blessVersion("testservice", "testresource", "abcdef");
     assertEquals(true, result);
 
-    S3Object s3Object =
-        s3.getObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version");
-    assertEquals("1", IOUtils.toString(s3Object.getObjectContent()));
+    ResponseInputStream<GetObjectResponse> response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/_latest_version")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("1", new String(response.readAllBytes()));
 
-    s3Object = s3.getObject(BUCKET_NAME, "testservice/_version/testresource/1");
-    assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
+    response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/1")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("abcdef", new String(response.readAllBytes()));
   }
 
   @Test
   public void blessVersionWhenLatestVersionBehind() throws IOException {
-    s3.putObject(BUCKET_NAME, "testservice/testresource/abcdef", "foo");
-    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "0");
-    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "ghijkl");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/testresource/abcdef")
+            .build(),
+        RequestBody.fromString("foo"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/_version/testresource/_latest_version")
+            .build(),
+        RequestBody.fromString("0"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/_version/testresource/1")
+            .build(),
+        RequestBody.fromString("ghijkl"));
 
     boolean result = versionManager.blessVersion("testservice", "testresource", "abcdef");
     assertEquals(true, result);
 
-    S3Object s3Object =
-        s3.getObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version");
-    assertEquals("2", IOUtils.toString(s3Object.getObjectContent()));
+    ResponseInputStream<GetObjectResponse> response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/_latest_version")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("2", new String(response.readAllBytes()));
 
-    s3Object = s3.getObject(BUCKET_NAME, "testservice/_version/testresource/2");
-    assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
+    response =
+        s3.getObject(
+            GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key("testservice/_version/testresource/2")
+                .build(),
+            ResponseTransformer.toInputStream());
+    assertEquals("abcdef", new String(response.readAllBytes()));
   }
 
   @Test
@@ -110,16 +178,24 @@ public class LegacyVersionManagerTest {
   public void deleteVersionWhenExists() throws IOException {
     String key1 = "testservice/testresource/abcdef";
     String key2 = "testservice/testresource/other_version";
-    s3.putObject(BUCKET_NAME, key1, "foo");
-    s3.putObject(BUCKET_NAME, key2, "boo");
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(key1).build(),
+        RequestBody.fromString("foo"));
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(key2).build(),
+        RequestBody.fromString("boo"));
     boolean result = versionManager.deleteVersion("testservice", "testresource", "abcdef");
     assertEquals(true, result);
 
-    List<S3ObjectSummary> objects =
-        s3.listObjects(BUCKET_NAME, "testservice/testresource/").getObjectSummaries();
+    List<S3Object> objects =
+        s3.listObjects(
+                ListObjectsRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .prefix("testservice/testresource/")
+                    .build())
+            .contents();
 
-    List<String> objectKeys =
-        objects.stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
+    List<String> objectKeys = objects.stream().map(S3Object::key).collect(Collectors.toList());
 
     assertTrue(objectKeys.contains(key2));
     assertFalse(objectKeys.contains(key1));
@@ -127,11 +203,21 @@ public class LegacyVersionManagerTest {
 
   @Test
   public void getVersionString() throws IOException {
-    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/versionHash", "0");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/_version/testresource/versionHash")
+            .build(),
+        RequestBody.fromString("0"));
     String result = versionManager.getVersionString("testservice", "testresource", "versionHash");
     assertEquals("0", result);
 
-    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/versionHash", "2");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key("testservice/_version/testresource/versionHash")
+            .build(),
+        RequestBody.fromString("2"));
     result = versionManager.getVersionString("testservice", "testresource", "versionHash");
     assertEquals("2", result);
   }

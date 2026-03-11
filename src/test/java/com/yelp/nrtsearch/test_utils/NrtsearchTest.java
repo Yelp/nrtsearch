@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.test_utils;
 
 import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.S3_BUCKET_NAME;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.module.TestNrtsearchModule;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
@@ -34,6 +33,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * Base class for tests which need to initialize an Nrtsearch instance. Unlike {@link
@@ -53,7 +53,8 @@ public class NrtsearchTest {
 
   @Rule
   public final TestNrtsearchServer testServer =
-      new TestNrtsearchServer(getConfig(), S3_PROVIDER.getAmazonS3());
+      new TestNrtsearchServer(
+          getConfig(), S3_PROVIDER.getAmazonS3(), S3_PROVIDER.getS3AsyncClient());
 
   public NrtsearchTest() throws IOException {}
 
@@ -162,7 +163,7 @@ public class NrtsearchTest {
    *
    * @return mocked {@link AmazonS3} client
    */
-  protected static AmazonS3 getS3Client() {
+  protected static S3Client getS3Client() {
     return S3_PROVIDER.getAmazonS3();
   }
 

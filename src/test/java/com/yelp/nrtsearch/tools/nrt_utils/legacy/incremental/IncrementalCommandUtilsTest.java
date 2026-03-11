@@ -20,8 +20,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
@@ -30,6 +28,10 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.Rule;
 import org.junit.Test;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class IncrementalCommandUtilsTest {
   private static final String TEST_BUCKET = "test-bucket";
@@ -37,7 +39,7 @@ public class IncrementalCommandUtilsTest {
 
   @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private AmazonS3 getS3() {
+  private S3Client getS3() {
     return s3Provider.getAmazonS3();
   }
 
@@ -146,28 +148,39 @@ public class IncrementalCommandUtilsTest {
     String indexDataResource =
         IncrementalCommandUtils.getIndexDataResource(
             LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId));
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_2");
     for (String file : expectedIndexFiles) {
       s3Client.putObject(
-          TEST_BUCKET,
-          IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + file,
-          "");
+          PutObjectRequest.builder()
+              .bucket(TEST_BUCKET)
+              .key(IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + file)
+              .build(),
+          RequestBody.fromString(""));
     }
     String manifestFile = UUID.randomUUID().toString();
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + manifestFile,
-        String.join("\n", expectedIndexFiles));
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + manifestFile)
+            .build(),
+        RequestBody.fromString(String.join("\n", expectedIndexFiles)));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1",
-        manifestFile);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1")
+            .build(),
+        RequestBody.fromString(manifestFile));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
 
     LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, TEST_BUCKET);
     long indexVersion = versionManager.getLatestVersionNumber(SERVICE_NAME, indexDataResource);
@@ -186,7 +199,7 @@ public class IncrementalCommandUtilsTest {
       IncrementalCommandUtils.getVersionFiles(
           getS3(), TEST_BUCKET, SERVICE_NAME, "test_index", "not_exist");
       fail();
-    } catch (AmazonS3Exception e) {
+    } catch (S3Exception e) {
       assertTrue(e.getMessage().startsWith("The resource you requested does not exist"));
     }
   }
