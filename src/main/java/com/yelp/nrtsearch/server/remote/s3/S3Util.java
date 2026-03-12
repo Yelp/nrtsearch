@@ -26,7 +26,7 @@ import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
@@ -102,7 +102,7 @@ public class S3Util {
       logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
       clientBuilder.region(region).endpointOverride(URI.create(serviceEndpoint));
       s3ClientInterim.close();
-    } catch (SdkClientException sdkClientException) {
+    } catch (SdkException sdkClientException) {
       logger.warn(
           "failed to get the location of S3 bucket: "
               + configuration.getBucketName()
