@@ -16,10 +16,12 @@
 package com.yelp.nrtsearch.server.search.collectors;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import java.util.Collections;
@@ -290,6 +292,41 @@ public class RelevanceCollectorTest {
     assertTrue(
         "RelevanceCollector should create LazyQueueTopScoreDocCollectorManager when mixed with other options",
         collector.getManager() instanceof LazyQueueTopScoreDocCollectorManager);
+  }
+
+  @Test
+  public void testRelevanceCollectorWithSearchAfter() {
+    LastHitInfo searchAfter = LastHitInfo.newBuilder().setLastDocId(5).setLastScore(1.5f).build();
+    SearchRequest request =
+        SearchRequest.newBuilder().setTopHits(10).setSearchAfter(searchAfter).build();
+
+    IndexState mockIndexState = createMockIndexState();
+    CollectorCreatorContext context =
+        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+
+    RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
+
+    assertNotNull(
+        "RelevanceCollector with searchAfter should create a non-null manager",
+        collector.getManager());
+    assertTrue(
+        "RelevanceCollector with searchAfter should create TopScoreDocCollectorManager by default",
+        collector.getManager() instanceof TopScoreDocCollectorManager);
+  }
+
+  @Test
+  public void testRelevanceCollectorWithoutSearchAfter() {
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+
+    IndexState mockIndexState = createMockIndexState();
+    CollectorCreatorContext context =
+        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+
+    RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
+
+    assertNotNull(
+        "RelevanceCollector without searchAfter should create a non-null manager",
+        collector.getManager());
   }
 
   /**

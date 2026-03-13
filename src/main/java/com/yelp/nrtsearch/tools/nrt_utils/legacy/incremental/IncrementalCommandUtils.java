@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.S3Object;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -26,6 +24,8 @@ import java.nio.charset.*;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 public class IncrementalCommandUtils {
   private static final String INDEX_DATA_SUFFIX = "_data_index_data";
@@ -182,19 +182,20 @@ public class IncrementalCommandUtils {
    * @throws IOException
    */
   public static Set<String> getVersionFiles(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String bucketName,
       String serviceName,
       String indexDataResource,
       String versionId)
       throws IOException {
     String versionPath = String.format("%s/%s/%s", serviceName, indexDataResource, versionId);
-    S3Object s3Object = s3Client.getObject(bucketName, versionPath);
+    GetObjectRequest getObjectRequest =
+        GetObjectRequest.builder().bucket(bucketName).key(versionPath).build();
 
     String indexFileName;
     Set<String> indexFileNames = new HashSet<>();
     try (BufferedReader br =
-        new BufferedReader(new InputStreamReader(s3Object.getObjectContent()))) {
+        new BufferedReader(new InputStreamReader(s3Client.getObject(getObjectRequest)))) {
       while ((indexFileName = br.readLine()) != null) {
         indexFileNames.add(indexFileName);
       }

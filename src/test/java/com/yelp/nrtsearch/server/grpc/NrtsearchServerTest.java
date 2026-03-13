@@ -23,7 +23,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
@@ -32,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
@@ -69,6 +69,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @RunWith(JUnit4.class)
 public class NrtsearchServerTest {
@@ -118,7 +119,7 @@ public class NrtsearchServerTest {
   private PrometheusRegistry prometheusRegistry;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
-  private AmazonS3 s3;
+  private S3Client s3;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After
@@ -157,7 +158,8 @@ public class NrtsearchServerTest {
   private RemoteBackend setUpRemoteBackend(
       NrtsearchConfig configuration, ExecutorFactory executorFactory) throws IOException {
     s3 = s3Provider.getAmazonS3();
-    return new S3Backend(configuration, s3, executorFactory);
+    return new S3Backend(
+        configuration, new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
   }
 
   private void setUpWarmer() throws IOException {

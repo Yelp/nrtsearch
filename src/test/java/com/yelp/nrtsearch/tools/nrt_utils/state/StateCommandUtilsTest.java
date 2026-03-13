@@ -30,7 +30,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -43,6 +42,7 @@ import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -56,6 +56,8 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class StateCommandUtilsTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -65,14 +67,22 @@ public class StateCommandUtilsTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
   }
 
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
+  }
+
   private S3Backend getRemoteBackend() {
-    return new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    return new S3Backend(
+        TEST_BUCKET,
+        false,
+        S3Backend.DEFAULT_CONFIG,
+        new S3Util.S3ClientBundle(getS3(), getS3Async()));
   }
 
   private TestServer getTestServer() throws IOException {

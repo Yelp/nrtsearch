@@ -20,11 +20,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
@@ -45,6 +40,15 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Rule;
 import org.junit.Test;
 import picocli.CommandLine;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class SnapshotRestoreCommandTest {
   private static final String TEST_BUCKET = "test-bucket";
@@ -54,19 +58,23 @@ public class SnapshotRestoreCommandTest {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private AmazonS3 getS3() {
+  private S3Client getS3() {
     return s3Provider.getAmazonS3();
   }
 
   private CommandLine getInjectedSnapshotCommand() {
     SnapshotIncrementalCommand command = new SnapshotIncrementalCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(s3Provider.getS3AsyncClient());
+    command.setTransferManager(s3Provider.getS3TransferManager());
     return new CommandLine(command);
   }
 
   private CommandLine getInjectedRestoreCommand() {
     RestoreIncrementalCommand command = new RestoreIncrementalCommand();
     command.setS3Client(getS3());
+    command.setS3AsyncClient(s3Provider.getS3AsyncClient());
+    command.setTransferManager(s3Provider.getS3TransferManager());
     return new CommandLine(command);
   }
 
@@ -74,7 +82,7 @@ public class SnapshotRestoreCommandTest {
     return createIndex(getS3(), indexId);
   }
 
-  public static String createIndex(AmazonS3 s3Client, String indexId) throws IOException {
+  public static String createIndex(S3Client s3Client, String indexId) throws IOException {
     String indexName = "test_index";
     String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId);
     String stateFileId = UUID.randomUUID().toString();
@@ -87,23 +95,32 @@ public class SnapshotRestoreCommandTest {
     byte[] stateData =
         LegacyStateCommandUtils.buildStateFileArchive(
             GLOBAL_STATE_RESOURCE, "state.json", toUTF8(stateStr));
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(stateData.length);
 
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + stateFileId,
-        new ByteArrayInputStream(stateData),
-        metadata);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + stateFileId)
+            .contentLength((long) stateData.length)
+            .build(),
+        RequestBody.fromInputStream(new ByteArrayInputStream(stateData), stateData.length));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + "1",
-        stateFileId);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + "1")
+            .build(),
+        RequestBody.fromString(stateFileId));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
 
     IndexStateInfo indexStateInfo =
         IndexStateInfo.newBuilder()
@@ -116,70 +133,102 @@ public class SnapshotRestoreCommandTest {
     stateData =
         LegacyStateCommandUtils.buildStateFileArchive(
             indexUniqueName, "index_state.json", toUTF8(stateStr));
-    metadata = new ObjectMetadata();
-    metadata.setContentLength(stateData.length);
 
     String indexStateResource = LegacyStateCommandUtils.getIndexStateResource(indexUniqueName);
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexStateResource) + stateFileId,
-        new ByteArrayInputStream(stateData),
-        metadata);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexStateResource)
+                    + stateFileId)
+            .contentLength((long) stateData.length)
+            .build(),
+        RequestBody.fromInputStream(new ByteArrayInputStream(stateData), stateData.length));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource) + "1",
-        stateFileId);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource) + "1")
+            .build(),
+        RequestBody.fromString(stateFileId));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
 
     Set<String> indexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_2");
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(indexUniqueName);
     for (String indexFile : indexFiles) {
       s3Client.putObject(
-          TEST_BUCKET,
-          IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + indexFile,
-          "index_data");
+          PutObjectRequest.builder()
+              .bucket(TEST_BUCKET)
+              .key(
+                  IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource)
+                      + indexFile)
+              .build(),
+          RequestBody.fromString("index_data"));
     }
     String manifestFile = UUID.randomUUID().toString();
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + manifestFile,
-        String.join("\n", indexFiles));
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + manifestFile)
+            .build(),
+        RequestBody.fromString(String.join("\n", indexFiles)));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1",
-        manifestFile);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1")
+            .build(),
+        RequestBody.fromString(manifestFile));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
 
     return indexUniqueName;
   }
 
   private void createWarmingQueries(String indexId) {
-    AmazonS3 s3Client = getS3();
+    S3Client s3Client = getS3();
     String fileId = UUID.randomUUID().toString();
     String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName("test_index", indexId);
     String indexWarmingResource =
         IncrementalCommandUtils.getWarmingQueriesResource(indexUniqueName);
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexWarmingResource) + fileId,
-        "");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexWarmingResource)
+                    + fileId)
+            .build(),
+        RequestBody.fromString(""));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource) + "1",
-        fileId);
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource)
+                    + "1")
+            .build(),
+        RequestBody.fromString(fileId));
     s3Client.putObject(
-        TEST_BUCKET,
-        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource)
-            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
-        "1");
+        PutObjectRequest.builder()
+            .bucket(TEST_BUCKET)
+            .key(
+                IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource)
+                    + IncrementalDataCleanupCommand.LATEST_VERSION_FILE)
+            .build(),
+        RequestBody.fromString("1"));
   }
 
   @Test
@@ -361,7 +410,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertSnapshotFiles(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot, boolean withWarming) {
+      S3Client s3Client, String indexResource, String snapshotRoot, boolean withWarming) {
     List<String> timestamps = getSnapshotTimestamps(s3Client, indexResource, snapshotRoot);
     assertEquals(1, timestamps.size());
     String snapshotTimestamp = timestamps.get(0);
@@ -386,7 +435,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertSnapshotMetadata(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot, String snapshotTimestamp) {
+      S3Client s3Client, String indexResource, String snapshotRoot, String snapshotTimestamp) {
     SnapshotMetadata snapshotMetadata =
         getSnapshotMetadata(s3Client, indexResource, snapshotTimestamp, snapshotRoot);
     assertEquals(SERVICE_NAME, snapshotMetadata.getServiceName());
@@ -396,7 +445,7 @@ public class SnapshotRestoreCommandTest {
   }
 
   private void assertRestoreFiles(
-      AmazonS3 s3Client, String serviceName, String indexResource, boolean withWarming)
+      S3Client s3Client, String serviceName, String indexResource, boolean withWarming)
       throws IOException {
     LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, TEST_BUCKET);
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(indexResource);
@@ -445,27 +494,34 @@ public class SnapshotRestoreCommandTest {
           IncrementalCommandUtils.getWarmingQueriesKeyPrefix(
                   serviceName, indexWarmingQueriesResource)
               + warmingQueriesVersionId;
-      assertTrue(s3Client.doesObjectExist(TEST_BUCKET, warmingQueriesKey));
+      try {
+        s3Client.headObject(builder -> builder.bucket(TEST_BUCKET).key(warmingQueriesKey));
+        assertTrue(true);
+      } catch (Exception e) {
+        assertTrue(false);
+      }
     } else {
       assertEquals(-1, warmingQueriesVersion);
     }
   }
 
   private Set<String> getSnapshotFiles(
-      AmazonS3 s3Client, String indexResource, String timestamp, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String timestamp, String snapshotRoot) {
     String snapshotKeyPrefix = String.join("/", snapshotRoot, indexResource, timestamp, "");
     return getFiles(s3Client, snapshotKeyPrefix);
   }
 
   private SnapshotMetadata getSnapshotMetadata(
-      AmazonS3 s3Client, String indexResource, String timestamp, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String timestamp, String snapshotRoot) {
     String snapshotMetadataKey =
         String.join(
             "/", snapshotRoot, IncrementalCommandUtils.METADATA_DIR, indexResource, timestamp);
-    S3Object stateObject = s3Client.getObject(TEST_BUCKET, snapshotMetadataKey);
+    ResponseInputStream<GetObjectResponse> stateObject =
+        s3Client.getObject(
+            GetObjectRequest.builder().bucket(TEST_BUCKET).key(snapshotMetadataKey).build());
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     try {
-      IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
+      IOUtils.copy(stateObject, byteArrayOutputStream);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -478,23 +534,30 @@ public class SnapshotRestoreCommandTest {
   }
 
   private List<String> getSnapshotTimestamps(
-      AmazonS3 s3Client, String indexResource, String snapshotRoot) {
+      S3Client s3Client, String indexResource, String snapshotRoot) {
     String indexMetadataKeyPrefix =
         String.join("/", snapshotRoot, IncrementalCommandUtils.METADATA_DIR, indexResource, "");
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, indexMetadataKeyPrefix);
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder()
+                .bucket(TEST_BUCKET)
+                .prefix(indexMetadataKeyPrefix)
+                .build());
     List<String> timestamps = new ArrayList<>();
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(indexMetadataKeyPrefix)[1];
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(indexMetadataKeyPrefix)[1];
       timestamps.add(baseName);
     }
     return timestamps;
   }
 
-  private Set<String> getFiles(AmazonS3 s3Client, String prefix) {
-    ListObjectsV2Result result = s3Client.listObjectsV2(TEST_BUCKET, prefix);
+  private Set<String> getFiles(S3Client s3Client, String prefix) {
+    ListObjectsV2Response result =
+        s3Client.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET).prefix(prefix).build());
     Set<String> files = new HashSet<>();
-    for (S3ObjectSummary summary : result.getObjectSummaries()) {
-      String baseName = summary.getKey().split(prefix)[1];
+    for (S3Object summary : result.contents()) {
+      String baseName = summary.key().split(prefix)[1];
       files.add(baseName);
     }
     return files;

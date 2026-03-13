@@ -157,4 +157,32 @@ public class SearchStateTest extends ServerTestCase {
     assertEquals("10", searchState.getLastFieldValues(0));
     assertEquals("10", searchState.getLastHitInfo().getLastFieldValues(0));
   }
+
+  @Test
+  public void testSearchStateRelevanceSearchAfter() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .setTopHits(2)
+            .addRetrieveFields("doc_id")
+            .setQuery(
+                Query.newBuilder()
+                    .setTermQuery(
+                        TermQuery.newBuilder()
+                            .setField("vendor_name")
+                            .setTextValue("vendor")
+                            .build())
+                    .build())
+            .build();
+    SearchResponse firstResponse = getGrpcServer().getBlockingStub().search(request);
+    System.out.println("First response: " + firstResponse);
+
+    assertEquals("Query should match both docs", 2, firstResponse.getHitsCount());
+    LastHitInfo lastHitInfo = firstResponse.getSearchState().getLastHitInfo();
+    assertEquals(firstResponse.getSearchState().getLastDocId(), 1);
+    assertEquals(firstResponse.getSearchState().getLastHitInfo().getLastDocId(), 1);
+    assertEquals(firstResponse.getSearchState().getLastScore(), 0.0766056, 0.0000001);
+    assertEquals(
+        firstResponse.getSearchState().getLastHitInfo().getLastScore(), 0.0766056, 0.0000001);
+  }
 }

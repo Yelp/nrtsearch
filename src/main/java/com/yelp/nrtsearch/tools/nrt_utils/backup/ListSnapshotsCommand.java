@@ -15,15 +15,15 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.backup;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.time.format.DateTimeParseException;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @CommandLine.Command(
     name = ListSnapshotsCommand.LIST_SNAPSHOTS,
@@ -79,7 +79,7 @@ public class ListSnapshotsCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    AmazonS3 s3Client =
+    S3Client s3Client =
         StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
 
     String resolvedSnapshotRoot = BackupCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);
@@ -89,24 +89,24 @@ public class ListSnapshotsCommand implements Callable<Integer> {
   }
 
   static void listSnapshots(
-      AmazonS3 s3Client, String bucketName, String snapshotRoot, String keyPrefix) {
-    ListObjectsV2Request req =
-        new ListObjectsV2Request().withBucketName(bucketName).withPrefix(keyPrefix);
-    ListObjectsV2Result result;
+      S3Client s3Client, String bucketName, String snapshotRoot, String keyPrefix) {
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(keyPrefix);
+    ListObjectsV2Response result;
     String metadataPrefix = getMetadataKeyPrefix(snapshotRoot);
 
     System.out.println("Listing snapshots for prefix: " + keyPrefix);
     do {
-      result = s3Client.listObjectsV2(req);
+      result = s3Client.listObjectsV2(reqBuilder.build());
 
-      for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-        String snapshotSuffix = objectSummary.getKey().split(metadataPrefix)[1];
+      for (S3Object s3Object : result.contents()) {
+        String snapshotSuffix = s3Object.key().split(metadataPrefix)[1];
         String timestampStr = getTimestampStr(snapshotSuffix);
         String outputSuffix = timestampStr == null ? "" : " (" + timestampStr + ")";
         System.out.println(snapshotSuffix + outputSuffix);
       }
-      String token = result.getNextContinuationToken();
-      req.setContinuationToken(token);
+      String token = result.nextContinuationToken();
+      reqBuilder.continuationToken(token);
     } while (result.isTruncated());
   }
 
