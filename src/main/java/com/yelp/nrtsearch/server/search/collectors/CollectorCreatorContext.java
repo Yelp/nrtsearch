@@ -93,7 +93,7 @@ public class CollectorCreatorContext {
     this.disallowPartialResults = request.getDisallowPartialResults();
     this.profile = request.getProfile();
     this.totalHitsThreshold = request.getTotalHitsThreshold();
-    this.searchAfter = request.getSearchAfter();
+    this.searchAfter = request.hasSearchAfter() ? request.getSearchAfter() : null;
     this.querySort = request.getQuerySort();
     this.additionalOptions = request.getAdditionalOptionsMap();
     this.collectors = request.getCollectorsMap();

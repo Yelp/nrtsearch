@@ -45,8 +45,8 @@ public class RelevanceCollector extends DocCollector {
           additionalCollectors) {
     super(context, additionalCollectors);
     ScoreDoc searchAfter = null;
-    if (context.getRequest().hasSearchAfter()) {
-      LastHitInfo lastHitInfo = context.getRequest().getSearchAfter();
+    LastHitInfo lastHitInfo = context.getSearchAfter();
+    if (lastHitInfo != null) {
       searchAfter = new ScoreDoc(lastHitInfo.getLastDocId(), lastHitInfo.getLastScore());
     }
     int topHits = getNumHitsToCollect();
