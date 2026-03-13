@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
+import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import io.grpc.testing.GrpcCleanupRule;
@@ -43,10 +44,10 @@ public class SearchContextTest extends ServerTestCase {
 
   public static class DummyCollector extends DocCollector {
 
-    public DummyCollector() {
+    public DummyCollector(IndexState indexState) {
       super(
           new CollectorCreatorContext(
-              SearchRequest.newBuilder().build(), null, null, Collections.emptyMap(), null),
+              SearchRequest.newBuilder().build(), indexState, null, Collections.emptyMap(), null),
           Collections.emptyList());
     }
 
@@ -73,9 +74,10 @@ public class SearchContextTest extends ServerTestCase {
   }
 
   private SearchContext.Builder getCompleteBuilder() throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     return SearchContext.newBuilder()
-        .setIndexState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX))
-        .setShardState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0))
+        .setIndexState(indexState)
+        .setShardState(indexState.getShard(0))
         .setSearcherAndTaxonomy(new SearcherAndTaxonomy(null, null))
         .setResponseBuilder(SearchResponse.newBuilder())
         .setTimestampSec(1)
@@ -84,10 +86,10 @@ public class SearchContextTest extends ServerTestCase {
         .setQueryFields(Collections.emptyMap())
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
-        .setCollector(new DummyCollector())
+        .setCollector(new DummyCollector(indexState))
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setDocLookup(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).docLookup)
+        .setDocLookup(indexState.docLookup)
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 
