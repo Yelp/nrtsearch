@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.retriever.MultiRetrieverContext;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,6 +58,9 @@ public class SearchContext implements FieldFetchContext {
     HYBRID
   }
 
+  // Populated only when the request contains a multi_retriever field; null otherwise.
+  private final MultiRetrieverContext multiRetrieverContext;
+
   private final boolean explain;
   private final boolean warming;
 
@@ -78,6 +82,7 @@ public class SearchContext implements FieldFetchContext {
     this.sharedDocContext = builder.sharedDocContext;
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
+    this.multiRetrieverContext = builder.multiRetrieverContext;
     this.explain = builder.explain;
     this.warming = builder.warming;
 
@@ -188,6 +193,14 @@ public class SearchContext implements FieldFetchContext {
     return queryNestedPath;
   }
 
+  /**
+   * Get the multi-retriever context. Present only when the request contains a {@code
+   * multi_retriever} field; {@code null} otherwise.
+   */
+  public MultiRetrieverContext getMultiRetrieverContext() {
+    return multiRetrieverContext;
+  }
+
   /** Get the boolean flat whether to return the lucene explain */
   @Override
   public boolean isExplain() {
@@ -254,6 +267,7 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
+    private MultiRetrieverContext multiRetrieverContext;
     private boolean explain;
     private boolean warming;
 
@@ -359,6 +373,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setQueryNestedPath(String queryNestedPath) {
       this.queryNestedPath = queryNestedPath;
+      return this;
+    }
+
+    public Builder setMultiRetrieverContext(MultiRetrieverContext multiRetrieverContext) {
+      this.multiRetrieverContext = multiRetrieverContext;
       return this;
     }
 

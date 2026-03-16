@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
+
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
@@ -27,9 +29,11 @@ import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.InnerHit;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
+import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
+import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.RuntimeField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -42,9 +46,7 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
-import com.yelp.nrtsearch.server.query.MinThresholdQuery;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
-import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
@@ -60,6 +62,8 @@ import com.yelp.nrtsearch.server.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.search.retriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.retriever.RetrieverContext;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,6 +125,19 @@ public class SearchRequestProcessor {
       boolean warming)
       throws IOException {
 
+    // Validate mutual exclusion: multi_retriever cannot be combined with query/queryText/knn
+    if (searchRequest.hasMultiRetriever()) {
+      if (searchRequest.hasQuery()
+          || !searchRequest.getQueryText().isEmpty()
+          || !searchRequest.getKnnList().isEmpty()) {
+        throw new IllegalArgumentException(
+            "multi_retriever cannot be combined with query, queryText, or knn fields");
+      }
+      if (searchRequest.getMultiRetriever().getRetrieversCount() == 0) {
+        throw new IllegalArgumentException("multi_retriever must contain at least one retriever");
+      }
+    }
+
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
     SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
 
@@ -163,20 +180,69 @@ public class SearchRequestProcessor {
     String rootQueryNestedPath =
         IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
-    Query query =
-        extractQuery(
-            indexState,
-            searchRequest.getQueryText(),
-            searchRequest.getQuery(),
-            rootQueryNestedPath,
-            docLookup);
-    if (profileResult != null) {
-      profileResult.setParsedQuery(query.toString());
-    }
 
-    query = searcherAndTaxonomy.searcher().rewrite(query);
-    if (profileResult != null) {
-      profileResult.setRewrittenQuery(query.toString());
+    Query query;
+    if (searchRequest.hasMultiRetriever()) {
+      // Multi-retriever path: build per-retriever contexts; the top-level query is not used for
+      // retrieval. A MatchAllDocsQuery is set as a placeholder to satisfy SearchContext validation
+      // and to serve as the base for facet drill-downs.
+      query =
+          buildMultiRetrieverContext(
+              searchRequest.getMultiRetriever(),
+              indexState,
+              searcherAndTaxonomy,
+              rootQueryNestedPath,
+              docLookup,
+              contextBuilder);
+    } else {
+      // Standard single-query path
+      Query parsedQuery =
+          extractQuery(
+              indexState,
+              searchRequest.getQueryText(),
+              searchRequest.getQuery(),
+              rootQueryNestedPath,
+              docLookup);
+      if (profileResult != null) {
+        profileResult.setParsedQuery(parsedQuery.toString());
+      }
+
+      parsedQuery = searcherAndTaxonomy.searcher().rewrite(parsedQuery);
+      if (profileResult != null) {
+        profileResult.setRewrittenQuery(parsedQuery.toString());
+      }
+
+      // build and execute vector queries and combine results with main query
+      if (!searchRequest.getKnnList().isEmpty()) {
+        List<Query> knnQueries = new ArrayList<>();
+        List<Float> knnBoosts = new ArrayList<>();
+        for (KnnQuery knnQuery : searchRequest.getKnnList()) {
+          knnQueries.add(buildKnnQuery(knnQuery, indexState));
+          knnBoosts.add(knnQuery.getBoost() > 0 ? knnQuery.getBoost() : 1.0f);
+        }
+
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        // Add main query if specified, otherwise this is a pure vector search
+        if (!searchRequest.getQueryText().isEmpty() || searchRequest.hasQuery()) {
+          queryBuilder.add(parsedQuery, BooleanClause.Occur.SHOULD);
+        }
+
+        // Add vector query results
+        for (int i = 0; i < knnQueries.size(); ++i) {
+          SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnostics =
+              SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+          Query resolvedKnnQuery =
+              resolveKnnQueryAndBoost(
+                  knnQueries.get(i),
+                  knnBoosts.get(i),
+                  searcherAndTaxonomy.searcher(),
+                  vectorDiagnostics);
+          diagnostics.addVectorDiagnostics(vectorDiagnostics);
+          queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
+        }
+        parsedQuery = queryBuilder.build();
+      }
+      query = parsedQuery;
     }
 
     Highlight highlight = searchRequest.getHighlight();
@@ -229,31 +295,6 @@ public class SearchRequestProcessor {
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
-
-    // build and execute vector queries and combine results with main query
-    if (!searchRequest.getKnnList().isEmpty()) {
-      List<Query> knnQueries = new ArrayList<>();
-      List<Float> knnBoosts = new ArrayList<>();
-      for (KnnQuery knnQuery : searchRequest.getKnnList()) {
-        knnQueries.add(buildKnnQuery(knnQuery, indexState));
-        knnBoosts.add(knnQuery.getBoost() > 0 ? knnQuery.getBoost() : 1.0f);
-      }
-
-      BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-      // Add main query if specified, otherwise this is a pure vector search
-      if (!searchRequest.getQueryText().isEmpty() || searchRequest.hasQuery()) {
-        queryBuilder.add(query, BooleanClause.Occur.SHOULD);
-      }
-
-      // Add vector query results
-      for (int i = 0; i < knnQueries.size(); ++i) {
-        Query resolvedKnnQuery =
-            resolveKnnQueryAndBoost(
-                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher(), diagnostics);
-        queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
-      }
-      query = queryBuilder.build();
-    }
 
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);
@@ -311,59 +352,6 @@ public class SearchRequestProcessor {
       }
     }
     return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
-  }
-
-  /**
-   * Resolve (execute) the knn query and apply the boost. Resolving the query produces a new query
-   * that matches the vector top hits. The boost is applied to this new query.
-   *
-   * @param knnQuery lucene knn query
-   * @param boost boost to apply to the query
-   * @param indexSearcher index searcher
-   * @param diagnostics diagnostics builder to add vector diagnostics
-   * @return vector search results query with boost applied
-   * @throws IOException
-   */
-  private static Query resolveKnnQueryAndBoost(
-      Query knnQuery,
-      float boost,
-      IndexSearcher indexSearcher,
-      SearchResponse.Diagnostics.Builder diagnostics)
-      throws IOException {
-    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
-        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
-    long vectorSearchStart = System.nanoTime();
-    // Rewriting the query executes the vector search using the executor from the index searcher
-    Query rewrittenQuery = knnQuery.rewrite(indexSearcher);
-
-    // fill diagnostic info
-    vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
-    setVectorTotalHits(knnQuery, vectorDiagnosticsBuilder);
-    diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
-
-    if (boost != 1.0f) {
-      rewrittenQuery = new BoostQuery(rewrittenQuery, boost);
-    }
-    return rewrittenQuery;
-  }
-
-  private static void setVectorTotalHits(
-      Query knnQuery,
-      SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
-    Query vectorQuery = knnQuery;
-    if (vectorQuery instanceof MinThresholdQuery minThresholdQuery) {
-      vectorQuery = minThresholdQuery.getWrapped();
-    }
-    if (vectorQuery instanceof WithVectorTotalHits withVectorTotalHits) {
-      TotalHits vectorTotalHits = withVectorTotalHits.getTotalHits();
-      vectorDiagnosticsBuilder.setTotalHits(
-          com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
-              .setRelation(
-                  com.yelp.nrtsearch.server.grpc.TotalHits.Relation.valueOf(
-                      vectorTotalHits.relation().name()))
-              .setValue(vectorTotalHits.value())
-              .build());
-    }
   }
 
   /**
@@ -562,6 +550,66 @@ public class SearchRequestProcessor {
     }
   }
 
+  /**
+   * Build a {@link MultiRetrieverContext} from a {@link MultiRetrieverRequest} and set it on the
+   * context builder. Each retriever's query is resolved and rewritten. Returns a {@link
+   * MatchAllDocsQuery} placeholder for the top-level {@link SearchContext} query, which is used
+   * only for facet drill-downs and fetch tasks when multi-retriever is active.
+   */
+  private static Query buildMultiRetrieverContext(
+      MultiRetrieverRequest multiRetrieverRequest,
+      IndexState indexState,
+      SearcherAndTaxonomy searcherAndTaxonomy,
+      String rootQueryNestedPath,
+      DocLookup docLookup,
+      SearchContext.Builder contextBuilder)
+      throws IOException {
+    MultiRetrieverContext.Builder multiRetrieverContextBuilder = MultiRetrieverContext.newBuilder();
+    BooleanQuery.Builder unionQueryBuilder = new BooleanQuery.Builder();
+    for (Retriever retriever : multiRetrieverRequest.getRetrieversList()) {
+      RetrieverContext.Builder retrieverContextBuilder =
+          RetrieverContext.newBuilder()
+              .setName(retriever.getName())
+              .setStartHit(retriever.getStartHit())
+              .setTopHits(retriever.getTopHits())
+              .setBoost(retriever.getBoost() > 0 ? retriever.getBoost() : 1.0f)
+              .setQuerySort(retriever.hasQuerySort() ? retriever.getQuerySort() : null);
+      final Query retrieverQuery;
+      switch (retriever.getRetrieverTypeCase()) {
+        case TEXTRETRIEVER -> {
+          String retrieverNestedPath = retriever.getTextRetriever().getQueryNestedPath();
+          String nestedPath =
+              retrieverNestedPath.isEmpty()
+                  ? rootQueryNestedPath
+                  : IndexState.resolveQueryNestedPath(retrieverNestedPath, docLookup);
+          Query query =
+              extractQuery(
+                  indexState,
+                  /* queryText= */ "",
+                  retriever.getTextRetriever().getQuery(),
+                  nestedPath,
+                  docLookup);
+          retrieverQuery = searcherAndTaxonomy.searcher().rewrite(query);
+        }
+        case KNNRETRIEVER ->
+            // Only construct the Lucene kNN query here. resolveKnnQueryAndBoost (which executes
+            // the kNN search eagerly) is deferred to the handler at retrieval time.
+            retrieverQuery = buildKnnQuery(retriever.getKnnRetriever().getKnnQuery(), indexState);
+        default ->
+            throw new IllegalArgumentException(
+                "Retriever '"
+                    + retriever.getName()
+                    + "' must specify exactly one of text_retriever or knn_retriever");
+      }
+      retrieverContextBuilder.setQuery(retrieverQuery);
+      unionQueryBuilder.add(retrieverQuery, BooleanClause.Occur.SHOULD);
+      multiRetrieverContextBuilder.addRetrieverContext(retrieverContextBuilder.build());
+    }
+    multiRetrieverContextBuilder.setBlender(multiRetrieverRequest.getBlender());
+    contextBuilder.setMultiRetrieverContext(multiRetrieverContextBuilder.build());
+    return unionQueryBuilder.build();
+  }
+
   /** Fold in any drillDowns requests into the query. */
   private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
     return new DrillDownQuery(state.getFacetsConfig(), q);
@@ -573,11 +621,10 @@ public class SearchRequestProcessor {
    *
    * @return collector
    */
-  private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
-    SearchRequest searchRequest = collectorCreatorContext.getRequest();
+  static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
     List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
         additionalCollectors =
-            searchRequest.getCollectorsMap().entrySet().stream()
+            collectorCreatorContext.getCollectors().entrySet().stream()
                 .map(
                     e ->
                         CollectorCreator.getInstance()
@@ -586,18 +633,46 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    int numHitsToCollect = DocCollector.computeNumHitsToCollect(searchRequest);
+    int numHitsToCollect = collectorCreatorContext.getNumHitsToCollect();
     // If we don't need hits, just count recalled docs
     if (numHitsToCollect == 0) {
       docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuery().hasCompletionQuery()) {
+    } else if (collectorCreatorContext.getQuery() != null
+        && collectorCreatorContext.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+    } else if (collectorCreatorContext.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
     } else {
       docCollector = new SortFieldCollector(collectorCreatorContext, additionalCollectors);
     }
     return docCollector;
+  }
+
+  /**
+   * Build a {@link DocCollector} for a retriever. Only {@link RelevanceCollector} and {@link
+   * SortFieldCollector} are supported — {@link HitCountCollector} and {@link
+   * MyTopSuggestDocsCollector} are not applicable to retrievers and are excluded explicitly.
+   *
+   * @param retrieverContext the retriever context
+   * @param indexState index state
+   * @param queryFields all possible fields usable for this query
+   * @param searcherAndTaxonomy searcher for query
+   * @return collector
+   */
+  public static DocCollector buildDocCollectorForRetriever(
+      RetrieverContext retrieverContext,
+      IndexState indexState,
+      Map<String, FieldDef> queryFields,
+      SearcherAndTaxonomy searcherAndTaxonomy) {
+    CollectorCreatorContext ctx =
+        CollectorCreatorContext.fromRetrieverContext(
+            retrieverContext, indexState, queryFields, searcherAndTaxonomy);
+    // Retrievers never use additional collectors.
+    if (ctx.getQuerySort() != null
+        && !ctx.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+      return new SortFieldCollector(ctx, Collections.emptyList());
+    }
+    return new RelevanceCollector(ctx, Collections.emptyList());
   }
 
   /** Parses rescorers defined in this search request. */
