@@ -789,6 +789,9 @@ message SearchRequest {
     // development of new features or when a top level field is not warranted. Possible values:
     //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
     map<string, string> additionalOptions = 32;
+    // Multi-retriever configuration. When set, the top-level query, queryText, and knn fields are ignored for
+    // retrieval. All other fields (facets, collectors, rescorers, retrieveFields, etc.) still apply.
+    MultiRetrieverRequest multiRetriever = 33;
 }
 
 // Last Hit info for search after
@@ -992,6 +995,12 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
+        // Per-retriever execution times in ms. Key = retriever name, value = time in ms.
+        // Only populated when multi_retriever is used.
+        map<string, double> retrieverTimeMs = 16;
+        // Time to blend retriever results in ms.
+        // Only populated when multi_retriever is used.
+        double blendTimeMs = 17;
     }
 
     // Message for query document hit
@@ -1055,6 +1064,9 @@ message SearchResponse {
         string explain = 6;
         // InnerHits for each hit
         map<string, HitsResult> innerHits = 7;
+        // Per-retriever scores. Key = retriever name, value = score.
+        // Only populated when multi_retriever is used.
+        map<string, double> retrieverScores = 8;
     }
 
     // State for use in subsequent searches (search after)
@@ -1511,4 +1523,104 @@ message KnnQuery {
     // greater than or equal to this value will be returned. If unset, all results are returned.
     // Note: This value is specified as the raw similarity, not the normalized/boosted score.
     optional float similarityThreshold = 8;
+}
+
+// Multi-retriever request configuration. When set on a SearchRequest, the top-level query, queryText,
+// and knn fields are ignored for retrieval.
+message MultiRetrieverRequest {
+    // Ordered list of retrievers to execute
+    repeated Retriever retrievers = 1;
+    // The blender that merges retriever results
+    Blender blender = 2;
+}
+
+// A single retriever within a multi-retriever request
+message Retriever {
+    // Unique name used in diagnostics, per-retriever scores, and blender weight keys
+    string name = 1;
+    // The retriever implementation
+    oneof retriever_type {
+        TextRetriever textRetriever = 2;
+        KnnRetriever knnRetriever = 3;
+    }
+    // Which hit to start from (for pagination); default: 0
+    int32 start_hit = 4;
+    // Maximum top documents to retrieve from this source
+    int32 top_hits = 5;
+    // Boost applied to all scores from this retriever before blending; default: 1.0
+    float boost = 6;
+    // Optional sort configuration; if unset, results are ranked by relevance score
+    QuerySortField query_sort = 7;
+}
+
+// Text query retriever
+message TextRetriever {
+    // Query to execute
+    Query query = 1;
+    // Optional nested path to query child documents
+    string query_nested_path = 2;
+}
+
+// kNN vector search retriever
+message KnnRetriever {
+    // kNN query to execute
+    KnnQuery knn_query = 1;
+}
+
+// Blender that merges results from multiple retrievers into a single ranked list
+message Blender {
+    // The blender implementation
+    oneof blender_type {
+        WeightedRrfBlender weighted_rrf = 1;
+        FlatMapBlender flat_map = 2;
+        PluginBlender plugin = 3;
+    }
+    // Which hit to start from in the blended results (for pagination); default: 0
+    int32 start_hit = 4;
+    // Maximum number of hits to return from the blended results
+    int32 top_hits = 5;
+}
+
+// Weighted Reciprocal Rank Fusion blender. Ignores raw scores and uses rank position,
+// then weights each retriever's contribution by its configured weight.
+message WeightedRrfBlender {
+    // Rank constant to avoid high impact of top ranked documents; default: 60
+    int32 rank_constant_k = 1;
+    // Per-retriever weights keyed by retriever name; unspecified retrievers default to 1.0
+    map<string, float> retriever_weights = 2;
+}
+
+// Flat-map blender. Merges results from multiple retrievers into a single list.
+message FlatMapBlender {
+    // Controls how results from multiple retrievers are merged and whether duplicates are removed.
+    enum MergeMode {
+        // Deduplicate across retrievers and order final results by score descending.
+        // When a document appears in multiple retrievers, keep the occurrence with the highest score.
+        // This is the default when merge_mode is unset.
+        SCORE_ORDER_DEDUP = 0;
+        // Append all results from each retriever in retriever declaration order, without deduplication.
+        // The same document may appear multiple times if returned by multiple retrievers.
+        APPEND = 1;
+        // Deduplicate across retrievers and order final results by rank position ascending.
+        // When a document appears in multiple retrievers, keep the occurrence with the best (lowest) rank.
+        RANK_ORDER_DEDUP = 2;
+        // Deduplicate across retrievers and order final results by an explicit retriever priority list.
+        // All results from the highest-priority retriever come first, then the next, and so on.
+        // When a document appears in multiple retrievers, keep the occurrence from the highest-priority retriever.
+        // Requires retriever_priority_order to be set.
+        PRIORITY_ORDER_DEDUP = 3;
+    }
+    // Merge mode to apply; default: SCORE_ORDER_DEDUP
+    MergeMode merge_mode = 1;
+    // Retriever names in descending priority order, used when merge_mode is PRIORITY_ORDER_DEDUP.
+    // Retrievers not listed are treated as lowest priority, in declaration order.
+    repeated string retriever_priority_order = 2;
+}
+
+// Plugin blender. Delegates blending to a registered plugin implementation.
+message PluginBlender {
+    // Registered blender plugin name
+    string name = 1;
+    // Arbitrary plugin parameters
+    google.protobuf.Struct params = 2;
 }

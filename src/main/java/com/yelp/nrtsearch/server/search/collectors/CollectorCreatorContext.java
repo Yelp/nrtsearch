@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.SearchContext;
+import com.yelp.nrtsearch.server.search.retriever.RetrieverContext;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
@@ -229,5 +230,38 @@ public class CollectorCreatorContext {
   /** Get query */
   public Query getQuery() {
     return query;
+  }
+
+  /**
+   * Create a {@link CollectorCreatorContext} from a {@link RetrieverContext}. Uses the retriever's
+   * topHits, querySort, and index state defaults for timeout/terminate settings. Additional
+   * collectors and profiling are not supported for retrievers.
+   *
+   * @param retrieverContext the retriever context
+   * @param indexState index state
+   * @param queryFields all possible fields usable for this query
+   * @param searcherAndTaxonomy searcher for query
+   * @return a new CollectorCreatorContext configured for the retriever
+   */
+  public static CollectorCreatorContext fromRetrieverContext(
+      RetrieverContext retrieverContext,
+      IndexState indexState,
+      Map<String, FieldDef> queryFields,
+      SearcherAndTaxonomy searcherAndTaxonomy) {
+    if (retrieverContext.getTopHits() <= 0) {
+      throw new IllegalArgumentException(
+          "Retriever '"
+              + retrieverContext.getName()
+              + "' must have top_hits > 0, got: "
+              + retrieverContext.getTopHits());
+    }
+    return new CollectorCreatorContext(
+        indexState,
+        queryFields,
+        searcherAndTaxonomy,
+        retrieverContext.getTopHits(),
+        /* totalHitsThreshold= */ 0,
+        /* searchAfter= */ null,
+        retrieverContext.getQuerySort());
   }
 }

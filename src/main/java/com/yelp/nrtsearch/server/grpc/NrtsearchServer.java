@@ -106,6 +106,7 @@ import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreator;
+import com.yelp.nrtsearch.server.search.retriever.BlenderCreator;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.tools.cli.VersionProvider;
@@ -466,6 +467,7 @@ public class NrtsearchServer {
     private void initExtendableComponents(NrtsearchConfig configuration, List<Plugin> plugins) {
       // this block should be in alphabetical order
       AnalyzerCreator.initialize(configuration, plugins);
+      BlenderCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
