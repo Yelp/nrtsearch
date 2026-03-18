@@ -121,7 +121,6 @@ public class CollectorCreatorContext {
     this.query = request.getQuery();
   }
 
-
   /** Get index state */
   public IndexState getIndexState() {
     return indexState;
@@ -323,8 +322,8 @@ public class CollectorCreatorContext {
      * Builds a {@link CollectorCreatorContext}. Fields not explicitly set are resolved against
      * {@code indexState} defaults: timeoutSec, timeoutCheckEvery, terminateAfter, and
      * terminateAfterMaxRecallCount fall back to their respective index-level defaults when the
-     * builder value is 0/0.0. disallowPartialResults and profile default to false, additionalOptions
-     * and collectors default to empty maps, and query defaults to null.
+     * builder value is 0/0.0. disallowPartialResults and profile default to false,
+     * additionalOptions and collectors default to empty maps, and query defaults to null.
      *
      * @throws IllegalArgumentException if indexState is null
      */
