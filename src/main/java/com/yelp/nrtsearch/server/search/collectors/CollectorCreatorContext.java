@@ -121,51 +121,6 @@ public class CollectorCreatorContext {
     this.query = request.getQuery();
   }
 
-  /**
-   * Constructor for retriever use without SearchRequest. This constructor is designed for use cases
-   * like retrievers that only need RelevanceCollector or SortFieldCollector without additional
-   * collectors.
-   *
-   * @param indexState index state (must not be null)
-   * @param queryFields all possible fields usable for this query
-   * @param searcherAndTaxonomy searcher for query
-   * @param numHitsToCollect number of hits to collect
-   * @param totalHitsThreshold total hits threshold for search accuracy
-   * @param searchAfter search after info for pagination (null if not paginating)
-   * @param querySort sort configuration (null for relevance-based search)
-   */
-  public CollectorCreatorContext(
-      IndexState indexState,
-      Map<String, FieldDef> queryFields,
-      SearcherAndTaxonomy searcherAndTaxonomy,
-      int numHitsToCollect,
-      int totalHitsThreshold,
-      LastHitInfo searchAfter,
-      QuerySortField querySort) {
-    if (indexState == null) {
-      throw new IllegalArgumentException("indexState cannot be null");
-    }
-    this.indexState = indexState;
-    this.shardState = null;
-    this.queryFields = queryFields;
-    this.searcherAndTaxonomy = searcherAndTaxonomy;
-    this.numHitsToCollect = numHitsToCollect;
-    this.totalHitsThreshold = totalHitsThreshold;
-    this.searchAfter = searchAfter;
-    this.querySort = querySort;
-    // Use index state defaults for timeout/terminate settings
-    this.timeoutSec = indexState.getDefaultSearchTimeoutSec();
-    this.timeoutCheckEvery = indexState.getDefaultSearchTimeoutCheckEvery();
-    this.terminateAfter = indexState.getDefaultTerminateAfter();
-    this.terminateAfterMaxRecallCount = indexState.getDefaultTerminateAfterMaxRecallCount();
-    // Retriever defaults - no profiling, no partial results restriction
-    this.disallowPartialResults = false;
-    this.profile = false;
-    // Not used for retrievers
-    this.additionalOptions = Collections.emptyMap();
-    this.collectors = Collections.emptyMap();
-    this.query = null;
-  }
 
   /** Get index state */
   public IndexState getIndexState() {
@@ -365,13 +320,29 @@ public class CollectorCreatorContext {
     }
 
     /**
-     * Builds a {@link CollectorCreatorContext}.
+     * Builds a {@link CollectorCreatorContext}. Fields not explicitly set are resolved against
+     * {@code indexState} defaults: timeoutSec, timeoutCheckEvery, terminateAfter, and
+     * terminateAfterMaxRecallCount fall back to their respective index-level defaults when the
+     * builder value is 0/0.0. disallowPartialResults and profile default to false, additionalOptions
+     * and collectors default to empty maps, and query defaults to null.
      *
      * @throws IllegalArgumentException if indexState is null
      */
     public CollectorCreatorContext build() {
       if (indexState == null) {
         throw new IllegalArgumentException("indexState cannot be null");
+      }
+      if (timeoutSec == 0.0) {
+        timeoutSec = indexState.getDefaultSearchTimeoutSec();
+      }
+      if (timeoutCheckEvery == 0) {
+        timeoutCheckEvery = indexState.getDefaultSearchTimeoutCheckEvery();
+      }
+      if (terminateAfter == 0) {
+        terminateAfter = indexState.getDefaultTerminateAfter();
+      }
+      if (terminateAfterMaxRecallCount == 0) {
+        terminateAfterMaxRecallCount = indexState.getDefaultTerminateAfterMaxRecallCount();
       }
       return new CollectorCreatorContext(this);
     }
