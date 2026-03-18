@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.SearchContext;
+import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
@@ -50,6 +51,26 @@ public class CollectorCreatorContext {
   private final Map<String, String> additionalOptions;
   private final Map<String, Collector> collectors;
   private final Query query;
+
+  private CollectorCreatorContext(Builder builder) {
+    this.indexState = builder.indexState;
+    this.shardState = builder.shardState;
+    this.queryFields = builder.queryFields;
+    this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
+    this.numHitsToCollect = builder.numHitsToCollect;
+    this.timeoutSec = builder.timeoutSec;
+    this.timeoutCheckEvery = builder.timeoutCheckEvery;
+    this.terminateAfter = builder.terminateAfter;
+    this.terminateAfterMaxRecallCount = builder.terminateAfterMaxRecallCount;
+    this.disallowPartialResults = builder.disallowPartialResults;
+    this.profile = builder.profile;
+    this.totalHitsThreshold = builder.totalHitsThreshold;
+    this.searchAfter = builder.searchAfter;
+    this.querySort = builder.querySort;
+    this.additionalOptions = builder.additionalOptions;
+    this.collectors = builder.collectors;
+    this.query = builder.query;
+  }
 
   /**
    * Constructor for use with SearchRequest.
@@ -141,8 +162,8 @@ public class CollectorCreatorContext {
     this.disallowPartialResults = false;
     this.profile = false;
     // Not used for retrievers
-    this.additionalOptions = java.util.Collections.emptyMap();
-    this.collectors = java.util.Collections.emptyMap();
+    this.additionalOptions = Collections.emptyMap();
+    this.collectors = Collections.emptyMap();
     this.query = null;
   }
 
@@ -229,5 +250,130 @@ public class CollectorCreatorContext {
   /** Get query */
   public Query getQuery() {
     return query;
+  }
+
+  /** Returns a new {@link Builder} for {@link CollectorCreatorContext}. */
+  public static Builder newBuilder() {
+    return new Builder();
+  }
+
+  /** Builder for {@link CollectorCreatorContext}. */
+  public static final class Builder {
+    private IndexState indexState;
+    private ShardState shardState;
+    private Map<String, FieldDef> queryFields;
+    private SearcherAndTaxonomy searcherAndTaxonomy;
+    private int numHitsToCollect;
+    private double timeoutSec;
+    private int timeoutCheckEvery;
+    private int terminateAfter;
+    private int terminateAfterMaxRecallCount;
+    private boolean disallowPartialResults;
+    private boolean profile;
+    private int totalHitsThreshold;
+    private LastHitInfo searchAfter;
+    private QuerySortField querySort;
+    private Map<String, String> additionalOptions = Collections.emptyMap();
+    private Map<String, Collector> collectors = Collections.emptyMap();
+    private Query query;
+
+    private Builder() {}
+
+    public Builder withIndexState(IndexState indexState) {
+      this.indexState = indexState;
+      return this;
+    }
+
+    public Builder withShardState(ShardState shardState) {
+      this.shardState = shardState;
+      return this;
+    }
+
+    public Builder withQueryFields(Map<String, FieldDef> queryFields) {
+      this.queryFields = queryFields;
+      return this;
+    }
+
+    public Builder withSearcherAndTaxonomy(SearcherAndTaxonomy searcherAndTaxonomy) {
+      this.searcherAndTaxonomy = searcherAndTaxonomy;
+      return this;
+    }
+
+    public Builder withNumHitsToCollect(int numHitsToCollect) {
+      this.numHitsToCollect = numHitsToCollect;
+      return this;
+    }
+
+    public Builder withTimeoutSec(double timeoutSec) {
+      this.timeoutSec = timeoutSec;
+      return this;
+    }
+
+    public Builder withTimeoutCheckEvery(int timeoutCheckEvery) {
+      this.timeoutCheckEvery = timeoutCheckEvery;
+      return this;
+    }
+
+    public Builder withTerminateAfter(int terminateAfter) {
+      this.terminateAfter = terminateAfter;
+      return this;
+    }
+
+    public Builder withTerminateAfterMaxRecallCount(int terminateAfterMaxRecallCount) {
+      this.terminateAfterMaxRecallCount = terminateAfterMaxRecallCount;
+      return this;
+    }
+
+    public Builder withDisallowPartialResults(boolean disallowPartialResults) {
+      this.disallowPartialResults = disallowPartialResults;
+      return this;
+    }
+
+    public Builder withProfile(boolean profile) {
+      this.profile = profile;
+      return this;
+    }
+
+    public Builder withTotalHitsThreshold(int totalHitsThreshold) {
+      this.totalHitsThreshold = totalHitsThreshold;
+      return this;
+    }
+
+    public Builder withSearchAfter(LastHitInfo searchAfter) {
+      this.searchAfter = searchAfter;
+      return this;
+    }
+
+    public Builder withQuerySort(QuerySortField querySort) {
+      this.querySort = querySort;
+      return this;
+    }
+
+    public Builder withAdditionalOptions(Map<String, String> additionalOptions) {
+      this.additionalOptions = additionalOptions;
+      return this;
+    }
+
+    public Builder withCollectors(Map<String, Collector> collectors) {
+      this.collectors = collectors;
+      return this;
+    }
+
+    public Builder withQuery(Query query) {
+      this.query = query;
+      return this;
+    }
+
+    /**
+     * Builds a {@link CollectorCreatorContext}.
+     *
+     * @throws IllegalArgumentException if indexState is null
+     */
+    public CollectorCreatorContext build() {
+      if (indexState == null) {
+        throw new IllegalArgumentException("indexState cannot be null");
+      }
+      return new CollectorCreatorContext(this);
+    }
   }
 }
