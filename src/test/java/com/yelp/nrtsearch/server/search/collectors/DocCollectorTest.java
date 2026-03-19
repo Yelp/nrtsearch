@@ -58,7 +58,11 @@ public class DocCollectorTest {
 
     public TestDocCollector(SearchRequest request, IndexState indexState) {
       super(
-          CollectorCreatorContext.fromRequest(request, indexState, null, Collections.emptyMap(), null),
+          CollectorCreatorContext.newBuilder()
+              .withIndexState(indexState)
+              .withQueryFields(Collections.emptyMap())
+              .withRequest(request)
+              .build(),
           Collections.emptyList());
       manager = new TestCollectorManager();
     }

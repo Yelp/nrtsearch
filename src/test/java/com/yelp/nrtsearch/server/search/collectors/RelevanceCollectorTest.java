@@ -172,7 +172,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -191,7 +195,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -207,7 +215,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -226,7 +238,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -245,7 +261,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -264,7 +284,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -285,7 +309,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -302,7 +330,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -320,7 +352,11 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.newBuilder()
+            .withIndexState(mockIndexState)
+            .withQueryFields(Collections.emptyMap())
+            .withRequest(request)
+            .build();
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
