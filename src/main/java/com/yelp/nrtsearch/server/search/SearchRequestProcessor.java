@@ -219,7 +219,7 @@ public class SearchRequestProcessor {
             hitsLoggerFetchTask));
 
     CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(
+        CollectorCreatorContext.fromRequest(
             searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
     DocCollector docCollector = buildDocCollector(collectorCreatorContext);
     contextBuilder.setCollector(docCollector);

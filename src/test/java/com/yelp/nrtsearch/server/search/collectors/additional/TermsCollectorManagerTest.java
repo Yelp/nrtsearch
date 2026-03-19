@@ -48,7 +48,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(
+          CollectorCreatorContext.fromRequest(
               SearchRequest.newBuilder().build(),
               indexState,
               shardState,
@@ -82,7 +82,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(
+          CollectorCreatorContext.fromRequest(
               SearchRequest.newBuilder().build(),
               indexState,
               shardState,

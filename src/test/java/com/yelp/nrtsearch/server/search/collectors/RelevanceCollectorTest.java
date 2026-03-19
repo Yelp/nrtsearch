@@ -172,7 +172,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -191,7 +191,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -207,7 +207,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -226,7 +226,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -245,7 +245,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -264,7 +264,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -285,7 +285,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -302,7 +302,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 
@@ -320,7 +320,7 @@ public class RelevanceCollectorTest {
 
     IndexState mockIndexState = createMockIndexState();
     CollectorCreatorContext context =
-        new CollectorCreatorContext(request, mockIndexState, null, Collections.emptyMap(), null);
+        CollectorCreatorContext.fromRequest(request, mockIndexState, null, Collections.emptyMap(), null);
 
     RelevanceCollector collector = new RelevanceCollector(context, Collections.emptyList());
 

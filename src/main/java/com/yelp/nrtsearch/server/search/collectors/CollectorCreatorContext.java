@@ -73,7 +73,7 @@ public class CollectorCreatorContext {
   }
 
   /**
-   * Constructor for use with SearchRequest.
+   * Creates a {@link CollectorCreatorContext} from a {@link SearchRequest}.
    *
    * @param request search request
    * @param indexState index state (must not be null)
@@ -81,44 +81,19 @@ public class CollectorCreatorContext {
    * @param queryFields all possible fields usable for this query
    * @param searcherAndTaxonomy searcher for query
    */
-  public CollectorCreatorContext(
+  public static CollectorCreatorContext fromRequest(
       SearchRequest request,
       IndexState indexState,
       ShardState shardState,
       Map<String, FieldDef> queryFields,
       SearcherAndTaxonomy searcherAndTaxonomy) {
-    if (indexState == null) {
-      throw new IllegalArgumentException("indexState cannot be null");
-    }
-    this.indexState = indexState;
-    this.shardState = shardState;
-    this.queryFields = queryFields;
-    this.searcherAndTaxonomy = searcherAndTaxonomy;
-    this.numHitsToCollect = DocCollector.computeNumHitsToCollect(request);
-    this.timeoutSec =
-        request.getTimeoutSec() > 0.0
-            ? request.getTimeoutSec()
-            : indexState.getDefaultSearchTimeoutSec();
-    this.timeoutCheckEvery =
-        request.getTimeoutCheckEvery() > 0
-            ? request.getTimeoutCheckEvery()
-            : indexState.getDefaultSearchTimeoutCheckEvery();
-    this.terminateAfter =
-        request.getTerminateAfter() > 0
-            ? request.getTerminateAfter()
-            : indexState.getDefaultTerminateAfter();
-    this.terminateAfterMaxRecallCount =
-        request.getTerminateAfterMaxRecallCount() > 0
-            ? request.getTerminateAfterMaxRecallCount()
-            : indexState.getDefaultTerminateAfterMaxRecallCount();
-    this.disallowPartialResults = request.getDisallowPartialResults();
-    this.profile = request.getProfile();
-    this.totalHitsThreshold = request.getTotalHitsThreshold();
-    this.searchAfter = request.hasSearchAfter() ? request.getSearchAfter() : null;
-    this.querySort = request.getQuerySort();
-    this.additionalOptions = request.getAdditionalOptionsMap();
-    this.collectors = request.getCollectorsMap();
-    this.query = request.getQuery();
+    return newBuilder()
+        .withIndexState(indexState)
+        .withShardState(shardState)
+        .withQueryFields(queryFields)
+        .withSearcherAndTaxonomy(searcherAndTaxonomy)
+        .withRequest(request)
+        .build();
   }
 
   /** Get index state */
@@ -230,8 +205,19 @@ public class CollectorCreatorContext {
     private Map<String, String> additionalOptions = Collections.emptyMap();
     private Map<String, Collector> collectors = Collections.emptyMap();
     private Query query;
+    private SearchRequest request;
 
     private Builder() {}
+
+    /**
+     * Populates all request-derived fields from the given {@link SearchRequest}. When {@link
+     * #build()} is called, timeout and terminate-after values from the request are used when
+     * positive, falling back to {@code indexState} defaults otherwise.
+     */
+    public Builder withRequest(SearchRequest request) {
+      this.request = request;
+      return this;
+    }
 
     public Builder withIndexState(IndexState indexState) {
       this.indexState = indexState;
@@ -319,11 +305,16 @@ public class CollectorCreatorContext {
     }
 
     /**
-     * Builds a {@link CollectorCreatorContext}. Fields not explicitly set are resolved against
-     * {@code indexState} defaults: timeoutSec, timeoutCheckEvery, terminateAfter, and
-     * terminateAfterMaxRecallCount fall back to their respective index-level defaults when the
-     * builder value is 0/0.0. disallowPartialResults and profile default to false,
-     * additionalOptions and collectors default to empty maps, and query defaults to null.
+     * Builds a {@link CollectorCreatorContext}.
+     *
+     * <p>When a {@link SearchRequest} was supplied via {@link #withRequest}, all request-derived
+     * fields are populated from it: timeout and terminate-after values use the request value when
+     * positive, falling back to {@code indexState} defaults otherwise.
+     *
+     * <p>Without a request, fields not explicitly set fall back to {@code indexState} defaults for
+     * timeoutSec, timeoutCheckEvery, terminateAfter, and terminateAfterMaxRecallCount (when 0/0.0),
+     * while disallowPartialResults and profile default to false, additionalOptions and collectors
+     * default to empty maps, and query defaults to null.
      *
      * @throws IllegalArgumentException if indexState is null
      */
@@ -331,17 +322,45 @@ public class CollectorCreatorContext {
       if (indexState == null) {
         throw new IllegalArgumentException("indexState cannot be null");
       }
-      if (timeoutSec == 0.0) {
-        timeoutSec = indexState.getDefaultSearchTimeoutSec();
-      }
-      if (timeoutCheckEvery == 0) {
-        timeoutCheckEvery = indexState.getDefaultSearchTimeoutCheckEvery();
-      }
-      if (terminateAfter == 0) {
-        terminateAfter = indexState.getDefaultTerminateAfter();
-      }
-      if (terminateAfterMaxRecallCount == 0) {
-        terminateAfterMaxRecallCount = indexState.getDefaultTerminateAfterMaxRecallCount();
+      if (request != null) {
+        numHitsToCollect = DocCollector.computeNumHitsToCollect(request);
+        timeoutSec =
+            request.getTimeoutSec() > 0.0
+                ? request.getTimeoutSec()
+                : indexState.getDefaultSearchTimeoutSec();
+        timeoutCheckEvery =
+            request.getTimeoutCheckEvery() > 0
+                ? request.getTimeoutCheckEvery()
+                : indexState.getDefaultSearchTimeoutCheckEvery();
+        terminateAfter =
+            request.getTerminateAfter() > 0
+                ? request.getTerminateAfter()
+                : indexState.getDefaultTerminateAfter();
+        terminateAfterMaxRecallCount =
+            request.getTerminateAfterMaxRecallCount() > 0
+                ? request.getTerminateAfterMaxRecallCount()
+                : indexState.getDefaultTerminateAfterMaxRecallCount();
+        disallowPartialResults = request.getDisallowPartialResults();
+        profile = request.getProfile();
+        totalHitsThreshold = request.getTotalHitsThreshold();
+        searchAfter = request.hasSearchAfter() ? request.getSearchAfter() : null;
+        querySort = request.getQuerySort();
+        additionalOptions = request.getAdditionalOptionsMap();
+        collectors = request.getCollectorsMap();
+        query = request.getQuery();
+      } else {
+        if (timeoutSec == 0.0) {
+          timeoutSec = indexState.getDefaultSearchTimeoutSec();
+        }
+        if (timeoutCheckEvery == 0) {
+          timeoutCheckEvery = indexState.getDefaultSearchTimeoutCheckEvery();
+        }
+        if (terminateAfter == 0) {
+          terminateAfter = indexState.getDefaultTerminateAfter();
+        }
+        if (terminateAfterMaxRecallCount == 0) {
+          terminateAfterMaxRecallCount = indexState.getDefaultTerminateAfterMaxRecallCount();
+        }
       }
       return new CollectorCreatorContext(this);
     }
