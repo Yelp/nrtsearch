@@ -48,12 +48,12 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(
-              SearchRequest.newBuilder().build(),
-              indexState,
-              shardState,
-              indexState.getAllFields(),
-              s);
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withQueryFields(indexState.getAllFields())
+              .withSearcherAndTaxonomy(s)
+              .withRequest(SearchRequest.newBuilder().build())
+              .build();
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("not_exist").setSize(10).build();
       try {
@@ -82,12 +82,12 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(
-              SearchRequest.newBuilder().build(),
-              indexState,
-              shardState,
-              indexState.getAllFields(),
-              s);
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withQueryFields(indexState.getAllFields())
+              .withSearcherAndTaxonomy(s)
+              .withRequest(SearchRequest.newBuilder().build())
+              .build();
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("no_doc_values").setSize(10).build();
       try {

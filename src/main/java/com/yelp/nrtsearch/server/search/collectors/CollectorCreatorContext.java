@@ -16,10 +16,15 @@
 package com.yelp.nrtsearch.server.search.collectors;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.grpc.Collector;
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
+import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.SearchContext;
+import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
@@ -29,37 +34,42 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxon
  * AdditionalCollectorManager#setSearchContext(SearchContext)}
  */
 public class CollectorCreatorContext {
-  private final SearchRequest request;
   private final IndexState indexState;
   private final ShardState shardState;
   private final Map<String, FieldDef> queryFields;
   private final SearcherAndTaxonomy searcherAndTaxonomy;
+  private final int numHitsToCollect;
+  private final double timeoutSec;
+  private final int timeoutCheckEvery;
+  private final int terminateAfter;
+  private final int terminateAfterMaxRecallCount;
+  private final boolean disallowPartialResults;
+  private final boolean profile;
+  private final int totalHitsThreshold;
+  private final LastHitInfo searchAfter;
+  private final QuerySortField querySort;
+  private final Map<String, String> additionalOptions;
+  private final Map<String, Collector> collectors;
+  private final Query query;
 
-  /**
-   * Constructor.
-   *
-   * @param request search request
-   * @param indexState index state
-   * @param shardState shard state
-   * @param queryFields all possible fields usable for this query
-   * @param searcherAndTaxonomy searcher for query
-   */
-  public CollectorCreatorContext(
-      SearchRequest request,
-      IndexState indexState,
-      ShardState shardState,
-      Map<String, FieldDef> queryFields,
-      SearcherAndTaxonomy searcherAndTaxonomy) {
-    this.request = request;
-    this.indexState = indexState;
-    this.shardState = shardState;
-    this.queryFields = queryFields;
-    this.searcherAndTaxonomy = searcherAndTaxonomy;
-  }
-
-  /** Get search request */
-  public SearchRequest getRequest() {
-    return request;
+  private CollectorCreatorContext(Builder builder) {
+    this.indexState = builder.indexState;
+    this.shardState = builder.shardState;
+    this.queryFields = builder.queryFields;
+    this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
+    this.numHitsToCollect = builder.numHitsToCollect;
+    this.timeoutSec = builder.timeoutSec;
+    this.timeoutCheckEvery = builder.timeoutCheckEvery;
+    this.terminateAfter = builder.terminateAfter;
+    this.terminateAfterMaxRecallCount = builder.terminateAfterMaxRecallCount;
+    this.disallowPartialResults = builder.disallowPartialResults;
+    this.profile = builder.profile;
+    this.totalHitsThreshold = builder.totalHitsThreshold;
+    this.searchAfter = builder.searchAfter;
+    this.querySort = builder.querySort;
+    this.additionalOptions = builder.additionalOptions;
+    this.collectors = builder.collectors;
+    this.query = builder.query;
   }
 
   /** Get index state */
@@ -80,5 +90,236 @@ public class CollectorCreatorContext {
   /** Get searcher for query */
   public SearcherAndTaxonomy getSearcherAndTaxonomy() {
     return searcherAndTaxonomy;
+  }
+
+  /** Get the number of hits to collect */
+  public int getNumHitsToCollect() {
+    return numHitsToCollect;
+  }
+
+  /** Get the timeout in seconds (resolved with defaults) */
+  public double getTimeoutSec() {
+    return timeoutSec;
+  }
+
+  /** Get the timeout check frequency (resolved with defaults) */
+  public int getTimeoutCheckEvery() {
+    return timeoutCheckEvery;
+  }
+
+  /** Get the terminate after count (resolved with defaults) */
+  public int getTerminateAfter() {
+    return terminateAfter;
+  }
+
+  /** Get the terminate after max recall count (resolved with defaults) */
+  public int getTerminateAfterMaxRecallCount() {
+    return terminateAfterMaxRecallCount;
+  }
+
+  /** Get whether partial results are disallowed */
+  public boolean getDisallowPartialResults() {
+    return disallowPartialResults;
+  }
+
+  /** Get whether profiling is enabled */
+  public boolean getProfile() {
+    return profile;
+  }
+
+  /** Get the total hits threshold */
+  public int getTotalHitsThreshold() {
+    return totalHitsThreshold;
+  }
+
+  /** Get the search after info for pagination */
+  public LastHitInfo getSearchAfter() {
+    return searchAfter;
+  }
+
+  /** Get the query sort configuration */
+  public QuerySortField getQuerySort() {
+    return querySort;
+  }
+
+  /** Get additional options map */
+  public Map<String, String> getAdditionalOptions() {
+    return additionalOptions;
+  }
+
+  /** Get collectors map */
+  public Map<String, Collector> getCollectors() {
+    return collectors;
+  }
+
+  /** Get query */
+  public Query getQuery() {
+    return query;
+  }
+
+  /** Returns a new {@link Builder} for {@link CollectorCreatorContext}. */
+  public static Builder newBuilder(IndexState indexState) {
+    return new Builder().withIndexState(indexState);
+  }
+
+  /** Builder for {@link CollectorCreatorContext}. */
+  public static final class Builder {
+    private IndexState indexState;
+    private ShardState shardState;
+    private Map<String, FieldDef> queryFields;
+    private SearcherAndTaxonomy searcherAndTaxonomy;
+    private int numHitsToCollect;
+    private double timeoutSec;
+    private int timeoutCheckEvery;
+    private int terminateAfter;
+    private int terminateAfterMaxRecallCount;
+    private boolean disallowPartialResults;
+    private boolean profile;
+    private int totalHitsThreshold;
+    private LastHitInfo searchAfter;
+    private QuerySortField querySort;
+    private Map<String, String> additionalOptions = Collections.emptyMap();
+    private Map<String, Collector> collectors = Collections.emptyMap();
+    private Query query;
+
+    private Builder() {}
+
+    /**
+     * Resolves all fields from the given {@link SearchRequest}. Timeout and terminate-after values
+     * are taken from the request when positive; the index-state defaults are used otherwise and are
+     * applied during {@link #build()} once {@code indexState} is available.
+     *
+     * <p>This method sets: numHitsToCollect, timeoutSec, timeoutCheckEvery, terminateAfter,
+     * terminateAfterMaxRecallCount, disallowPartialResults, profile, totalHitsThreshold,
+     * searchAfter, querySort, additionalOptions, collectors, and query.
+     */
+    public Builder withRequest(SearchRequest request) {
+      this.numHitsToCollect = DocCollector.computeNumHitsToCollect(request);
+      // Store raw request values; index-state fallback is applied in build()
+      this.timeoutSec = request.getTimeoutSec();
+      this.timeoutCheckEvery = request.getTimeoutCheckEvery();
+      this.terminateAfter = request.getTerminateAfter();
+      this.terminateAfterMaxRecallCount = request.getTerminateAfterMaxRecallCount();
+      this.disallowPartialResults = request.getDisallowPartialResults();
+      this.profile = request.getProfile();
+      this.totalHitsThreshold = request.getTotalHitsThreshold();
+      this.searchAfter = request.hasSearchAfter() ? request.getSearchAfter() : null;
+      this.querySort = request.getQuerySort();
+      this.additionalOptions = request.getAdditionalOptionsMap();
+      this.collectors = request.getCollectorsMap();
+      this.query = request.getQuery();
+      return this;
+    }
+
+    public Builder withIndexState(IndexState indexState) {
+      this.indexState = indexState;
+      return this;
+    }
+
+    public Builder withShardState(ShardState shardState) {
+      this.shardState = shardState;
+      return this;
+    }
+
+    public Builder withQueryFields(Map<String, FieldDef> queryFields) {
+      this.queryFields = queryFields;
+      return this;
+    }
+
+    public Builder withSearcherAndTaxonomy(SearcherAndTaxonomy searcherAndTaxonomy) {
+      this.searcherAndTaxonomy = searcherAndTaxonomy;
+      return this;
+    }
+
+    public Builder withNumHitsToCollect(int numHitsToCollect) {
+      this.numHitsToCollect = numHitsToCollect;
+      return this;
+    }
+
+    public Builder withTimeoutSec(double timeoutSec) {
+      this.timeoutSec = timeoutSec;
+      return this;
+    }
+
+    public Builder withTimeoutCheckEvery(int timeoutCheckEvery) {
+      this.timeoutCheckEvery = timeoutCheckEvery;
+      return this;
+    }
+
+    public Builder withTerminateAfter(int terminateAfter) {
+      this.terminateAfter = terminateAfter;
+      return this;
+    }
+
+    public Builder withTerminateAfterMaxRecallCount(int terminateAfterMaxRecallCount) {
+      this.terminateAfterMaxRecallCount = terminateAfterMaxRecallCount;
+      return this;
+    }
+
+    public Builder withDisallowPartialResults(boolean disallowPartialResults) {
+      this.disallowPartialResults = disallowPartialResults;
+      return this;
+    }
+
+    public Builder withProfile(boolean profile) {
+      this.profile = profile;
+      return this;
+    }
+
+    public Builder withTotalHitsThreshold(int totalHitsThreshold) {
+      this.totalHitsThreshold = totalHitsThreshold;
+      return this;
+    }
+
+    public Builder withSearchAfter(LastHitInfo searchAfter) {
+      this.searchAfter = searchAfter;
+      return this;
+    }
+
+    public Builder withQuerySort(QuerySortField querySort) {
+      this.querySort = querySort;
+      return this;
+    }
+
+    public Builder withAdditionalOptions(Map<String, String> additionalOptions) {
+      this.additionalOptions = additionalOptions;
+      return this;
+    }
+
+    public Builder withCollectors(Map<String, Collector> collectors) {
+      this.collectors = collectors;
+      return this;
+    }
+
+    public Builder withQuery(Query query) {
+      this.query = query;
+      return this;
+    }
+
+    /**
+     * Builds a {@link CollectorCreatorContext}. Fields not explicitly set (or set to 0/0.0 via
+     * {@link #withRequest}) fall back to {@code indexState} defaults: timeoutSec,
+     * timeoutCheckEvery, terminateAfter, and terminateAfterMaxRecallCount.
+     *
+     * @throws IllegalArgumentException if indexState is null
+     */
+    public CollectorCreatorContext build() {
+      if (indexState == null) {
+        throw new IllegalArgumentException("indexState cannot be null");
+      }
+      if (timeoutSec == 0.0) {
+        timeoutSec = indexState.getDefaultSearchTimeoutSec();
+      }
+      if (timeoutCheckEvery == 0) {
+        timeoutCheckEvery = indexState.getDefaultSearchTimeoutCheckEvery();
+      }
+      if (terminateAfter == 0) {
+        terminateAfter = indexState.getDefaultTerminateAfter();
+      }
+      if (terminateAfterMaxRecallCount == 0) {
+        terminateAfterMaxRecallCount = indexState.getDefaultTerminateAfterMaxRecallCount();
+      }
+      return new CollectorCreatorContext(this);
+    }
   }
 }
