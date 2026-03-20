@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
+
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
@@ -42,9 +44,7 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
-import com.yelp.nrtsearch.server.query.MinThresholdQuery;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
-import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
@@ -251,9 +251,15 @@ public class SearchRequestProcessor {
 
       // Add vector query results
       for (int i = 0; i < knnQueries.size(); ++i) {
+        SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnostics =
+            SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
         Query resolvedKnnQuery =
             resolveKnnQueryAndBoost(
-                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher(), diagnostics);
+                knnQueries.get(i),
+                knnBoosts.get(i),
+                searcherAndTaxonomy.searcher(),
+                vectorDiagnostics);
+        diagnostics.addVectorDiagnostics(vectorDiagnostics);
         queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
       }
       query = queryBuilder.build();
@@ -315,59 +321,6 @@ public class SearchRequestProcessor {
       }
     }
     return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
-  }
-
-  /**
-   * Resolve (execute) the knn query and apply the boost. Resolving the query produces a new query
-   * that matches the vector top hits. The boost is applied to this new query.
-   *
-   * @param knnQuery lucene knn query
-   * @param boost boost to apply to the query
-   * @param indexSearcher index searcher
-   * @param diagnostics diagnostics builder to add vector diagnostics
-   * @return vector search results query with boost applied
-   * @throws IOException
-   */
-  private static Query resolveKnnQueryAndBoost(
-      Query knnQuery,
-      float boost,
-      IndexSearcher indexSearcher,
-      SearchResponse.Diagnostics.Builder diagnostics)
-      throws IOException {
-    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
-        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
-    long vectorSearchStart = System.nanoTime();
-    // Rewriting the query executes the vector search using the executor from the index searcher
-    Query rewrittenQuery = knnQuery.rewrite(indexSearcher);
-
-    // fill diagnostic info
-    vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
-    setVectorTotalHits(knnQuery, vectorDiagnosticsBuilder);
-    diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
-
-    if (boost != 1.0f) {
-      rewrittenQuery = new BoostQuery(rewrittenQuery, boost);
-    }
-    return rewrittenQuery;
-  }
-
-  private static void setVectorTotalHits(
-      Query knnQuery,
-      SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
-    Query vectorQuery = knnQuery;
-    if (vectorQuery instanceof MinThresholdQuery minThresholdQuery) {
-      vectorQuery = minThresholdQuery.getWrapped();
-    }
-    if (vectorQuery instanceof WithVectorTotalHits withVectorTotalHits) {
-      TotalHits vectorTotalHits = withVectorTotalHits.getTotalHits();
-      vectorDiagnosticsBuilder.setTotalHits(
-          com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
-              .setRelation(
-                  com.yelp.nrtsearch.server.grpc.TotalHits.Relation.valueOf(
-                      vectorTotalHits.relation().name()))
-              .setValue(vectorTotalHits.value())
-              .build());
-    }
   }
 
   /**
