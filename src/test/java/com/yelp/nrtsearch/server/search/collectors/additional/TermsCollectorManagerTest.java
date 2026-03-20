@@ -48,8 +48,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          CollectorCreatorContext.newBuilder()
-              .withIndexState(indexState)
+          CollectorCreatorContext.newBuilder(indexState)
               .withShardState(shardState)
               .withQueryFields(indexState.getAllFields())
               .withSearcherAndTaxonomy(s)
@@ -83,8 +82,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          CollectorCreatorContext.newBuilder()
-              .withIndexState(indexState)
+          CollectorCreatorContext.newBuilder(indexState)
               .withShardState(shardState)
               .withQueryFields(indexState.getAllFields())
               .withSearcherAndTaxonomy(s)

@@ -58,8 +58,7 @@ public class DocCollectorTest {
 
     public TestDocCollector(SearchRequest request, IndexState indexState) {
       super(
-          CollectorCreatorContext.newBuilder()
-              .withIndexState(indexState)
+          CollectorCreatorContext.newBuilder(indexState)
               .withQueryFields(Collections.emptyMap())
               .withRequest(request)
               .build(),

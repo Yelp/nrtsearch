@@ -158,8 +158,8 @@ public class CollectorCreatorContext {
   }
 
   /** Returns a new {@link Builder} for {@link CollectorCreatorContext}. */
-  public static Builder newBuilder() {
-    return new Builder();
+  public static Builder newBuilder(IndexState indexState) {
+    return new Builder().withIndexState(indexState);
   }
 
   /** Builder for {@link CollectorCreatorContext}. */
