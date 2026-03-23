@@ -32,6 +32,8 @@ import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
+import software.amazon.awssdk.services.s3.internal.crt.S3CrtAsyncClient;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -135,12 +137,18 @@ public class S3Util {
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
             .maxThreads();
-    S3AsyncClient s3AsyncClient =
-        S3AsyncClient.crtBuilder()
+
+    S3CrtAsyncClientBuilder s3CrtAsyncClientBuilder =
+        S3CrtAsyncClient.builder()
             .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
             .region(s3Client.serviceClientConfiguration().region())
-            .maxConcurrency(maxConcurrency)
-            .build();
+            .maxConcurrency(maxConcurrency);
+
+    if (globalBucketAccess) {
+      s3CrtAsyncClientBuilder.crossRegionAccessEnabled(true);
+    }
+
+    S3AsyncClient s3AsyncClient = s3CrtAsyncClientBuilder.build();
     return new S3ClientBundle(s3Client, s3AsyncClient);
   }
 
