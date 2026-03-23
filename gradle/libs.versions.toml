@@ -1,5 +1,5 @@
 [versions]
-aws = "2.29.0"
+aws = "2.42.18"
 aws-legacy = "1.12.768"
 grpc = "1.66.0"
 jackson = "2.19.1"
