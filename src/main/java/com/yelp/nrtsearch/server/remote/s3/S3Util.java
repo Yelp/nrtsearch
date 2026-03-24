@@ -102,9 +102,8 @@ public class S3Util {
         regionString = "us-east-1";
       }
       Region region = Region.of(regionString);
-      String serviceEndpoint = String.format("https://s3.%s.amazonaws.com", regionString);
-      logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      clientBuilder.region(region).endpointOverride(URI.create(serviceEndpoint));
+      logger.info(String.format("S3 region: %s", regionString));
+      clientBuilder.region(region);
       s3ClientInterim.close();
     } catch (SdkException sdkClientException) {
       logger.warn(
