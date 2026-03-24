@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static com.yelp.nrtsearch.server.search.KnnUtils.buildKnnQuery;
 import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
 
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
@@ -23,7 +24,6 @@ import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.InnerHit;
@@ -77,9 +77,6 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.QueryBitSetProducer;
-import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -279,48 +276,6 @@ public class SearchRequestProcessor {
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
     return searchContext;
-  }
-
-  /**
-   * Construct lucene knn query from grpc knn query.
-   *
-   * @param knnQuery knn query definition
-   * @param indexState index state
-   * @return lucene knn query
-   */
-  private static Query buildKnnQuery(KnnQuery knnQuery, IndexState indexState) {
-    String field = knnQuery.getField();
-    FieldDef fieldDef = indexState.getFieldOrThrow(field);
-    if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
-      throw new IllegalArgumentException("Field does not support vector search: " + field);
-    }
-
-    // Path to nested document containing this field
-    String fieldNestedPath = IndexState.getFieldBaseNestedPath(field, indexState);
-    // Path to parent document, this will be null if the field is in the root document
-    String parentNestedPath = IndexState.getFieldBaseNestedPath(fieldNestedPath, indexState);
-
-    Query filterQuery;
-    if (knnQuery.hasFilter()) {
-      filterQuery = QueryNodeMapper.getInstance().getQuery(knnQuery.getFilter(), indexState);
-    } else {
-      filterQuery = null;
-    }
-
-    BitSetProducer parentBitSetProducer = null;
-    if (parentNestedPath != null) {
-      Query parentQuery =
-          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, parentNestedPath);
-      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
-      if (filterQuery != null) {
-        // Filter query is applied to the parent document only
-        filterQuery =
-            QueryNodeMapper.getInstance()
-                .applyQueryNestedPath(filterQuery, indexState, parentNestedPath);
-        filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSetProducer);
-      }
-    }
-    return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
   }
 
   /**

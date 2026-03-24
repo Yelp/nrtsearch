@@ -789,6 +789,51 @@ message SearchRequest {
     // development of new features or when a top level field is not warranted. Possible values:
     //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
     map<string, string> additionalOptions = 32;
+
+    // When Multi-retriever request is present, the top-level query, queryText, and knn fields
+    // are ignored for retrieval. When absent, the search flow is unchanged.
+    MultiRetrieverRequest multiRetriever = 33;
+}
+
+// Multi-retriever request that declares N retrievers to execute
+// TODO: Add Custom Blenders logic
+message MultiRetrieverRequest {
+    // List of retrievers to execute.
+    repeated Retriever retrievers = 1;
+}
+
+// A single retriever within a multi-retriever request.
+message Retriever {
+    // Unique name used in per-retriever scores, diagnostics etc.
+    string name = 1;
+
+    // Exactly one retriever type must be set.
+    oneof retriever_type {
+        TextRetriever text_retriever = 2;
+        KnnRetriever knn_retriever = 3;
+    }
+
+    // Boost applied to all scores from this retriever before blending. Default: 1.0
+    optional float boost = 4;
+}
+
+// Text-based retriever using a structured query.
+message TextRetriever {
+    // The query to execute.
+    Query query = 1;
+    // Maximum number of top documents to retrieve for this retriever.
+    int32 top_hits = 2;
+    // Optional nested path for querying child documents.
+    string query_nested_path = 3;
+    // By default we count hits accurately up to 1000. This makes sure that we don't spend most time on
+    // computing hit counts.
+    int32 totalHitsThreshold = 4;
+}
+
+// KNN vector search retriever.
+message KnnRetriever {
+    // The KNN query to execute.
+    KnnQuery knn_query = 1;
 }
 
 // Last Hit info for search after
@@ -992,6 +1037,8 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
+        // Per-retriever execution times in ms populated when multiRetriever is used.
+        map<string, double> retrieverTimeMs = 16;
     }
 
     // Message for query document hit
@@ -1055,6 +1102,8 @@ message SearchResponse {
         string explain = 6;
         // InnerHits for each hit
         map<string, HitsResult> innerHits = 7;
+        // Per-retriever scores
+        map<string, double> retrieverScores = 8;
     }
 
     // State for use in subsequent searches (search after)
