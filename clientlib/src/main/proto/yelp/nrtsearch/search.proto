@@ -825,9 +825,6 @@ message TextRetriever {
     int32 top_hits = 2;
     // Optional nested path for querying child documents.
     string query_nested_path = 3;
-    // By default we count hits accurately up to 1000. This makes sure that we don't spend most time on
-    // computing hit counts.
-    int32 totalHitsThreshold = 4;
 }
 
 // KNN vector search retriever.

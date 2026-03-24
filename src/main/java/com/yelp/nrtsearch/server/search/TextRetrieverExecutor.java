@@ -39,6 +39,7 @@ public class TextRetrieverExecutor implements Callable<RetrieverResult> {
   private final String name;
   private final TextRetriever textRetriever;
   private final float boost;
+  private final int totalHitsThreshold;
   private final IndexState indexState;
   private final IndexSearcher indexSearcher;
   private final DocLookup docLookup;
@@ -47,10 +48,12 @@ public class TextRetrieverExecutor implements Callable<RetrieverResult> {
       Retriever retriever,
       IndexState indexState,
       IndexSearcher indexSearcher,
-      DocLookup docLookup) {
+      DocLookup docLookup,
+      int totalHitsThreshold) {
     this.name = retriever.getName();
     this.textRetriever = retriever.getTextRetriever();
     this.boost = retriever.hasBoost() ? retriever.getBoost() : DEFAULT_BOOST;
+    this.totalHitsThreshold = totalHitsThreshold;
     this.indexState = indexState;
     this.indexSearcher = indexSearcher;
     this.docLookup = docLookup;
@@ -75,10 +78,6 @@ public class TextRetrieverExecutor implements Callable<RetrieverResult> {
     }
 
     int topHits = textRetriever.getTopHits();
-    int totalHitsThreshold =
-        textRetriever.getTotalHitsThreshold() != 0
-            ? textRetriever.getTotalHitsThreshold()
-            : SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
     TopDocs topDocs =
         indexSearcher.search(
             query, new TopScoreDocCollectorManager(topHits, null, totalHitsThreshold));

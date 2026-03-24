@@ -85,7 +85,13 @@ public class TextRetrieverExecutorTest extends ServerTestCase {
     try {
       DocLookup docLookup =
           new DocLookup(indexState::getField, () -> indexState.getAllFields().keySet(), s);
-      return new TextRetrieverExecutor(retriever, indexState, s.searcher(), docLookup).call();
+      return new TextRetrieverExecutor(
+              retriever,
+              indexState,
+              s.searcher(),
+              docLookup,
+              SearchRequestProcessor.TOTAL_HITS_THRESHOLD)
+          .call();
     } finally {
       shardState.release(s);
     }
