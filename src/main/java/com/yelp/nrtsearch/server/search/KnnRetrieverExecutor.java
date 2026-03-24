@@ -15,65 +15,54 @@
  */
 package com.yelp.nrtsearch.server.search;
 
-import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.KnnRetriever;
 import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.index.IndexState;
-import java.util.List;
+import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
+import java.util.Collections;
 import java.util.concurrent.Callable;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollectorManager;
 
 /**
- * Executes a single {@link KnnRetriever} and returns a {@link KnnRetrieverResult} containing the
- * top documents, execution time, and vector diagnostics.
+ * Executes a single {@link KnnRetriever} and returns a {@link SearcherResult} containing the top
+ * documents. The caller is responsible for building the Lucene KNN query via {@link
+ * KnnUtils#buildKnnQuery} before constructing this executor.
  */
-public class KnnRetrieverExecutor implements Callable<KnnRetrieverResult> {
+public class KnnRetrieverExecutor implements Callable<SearcherResult> {
 
   private static final float DEFAULT_BOOST = 1.0f;
 
-  private final String name;
-  private final KnnRetriever knnRetriever;
   private final float boost;
-  private final IndexState indexState;
-  private final IndexSearcher indexSearcher;
+  private final Query luceneKnnQuery;
+  private final CollectorCreatorContext collectorCreatorContext;
+  private final SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder;
 
   public KnnRetrieverExecutor(
-      Retriever retriever, IndexState indexState, IndexSearcher indexSearcher) {
-    this.name = retriever.getName();
-    this.knnRetriever = retriever.getKnnRetriever();
+      Retriever retriever,
+      Query luceneKnnQuery,
+      CollectorCreatorContext collectorCreatorContext,
+      SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
     this.boost = retriever.hasBoost() ? retriever.getBoost() : DEFAULT_BOOST;
-    this.indexState = indexState;
-    this.indexSearcher = indexSearcher;
+    this.luceneKnnQuery = luceneKnnQuery;
+    this.collectorCreatorContext = collectorCreatorContext;
+    this.vectorDiagnosticsBuilder = vectorDiagnosticsBuilder;
   }
 
   @Override
-  public KnnRetrieverResult call() throws Exception {
-    long startNs = System.nanoTime();
-
-    KnnQuery knnQuery = knnRetriever.getKnnQuery();
-
-    // Build the Lucene KNN query (handles nested fields, filters)
-    Query luceneKnnQuery = KnnUtils.buildKnnQuery(knnQuery, indexState);
-
-    // Resolve the KNN query via rewrite and apply boost
-    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
-        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+  public SearcherResult call() throws Exception {
     Query resolvedQuery =
         KnnUtils.resolveKnnQueryAndBoost(
-            luceneKnnQuery, boost, indexSearcher, vectorDiagnosticsBuilder);
+            luceneKnnQuery,
+            boost,
+            collectorCreatorContext.getSearcherAndTaxonomy().searcher(),
+            vectorDiagnosticsBuilder);
 
-    // Collect the pre-computed KNN hits into TopDocs
-    int k = knnQuery.getK();
-    TopDocs topDocs =
-        indexSearcher.search(
-            resolvedQuery, new TopScoreDocCollectorManager(k, null, Integer.MAX_VALUE));
-
-    double timeTakenMs = (System.nanoTime() - startNs) / 1_000_000.0;
-    return new KnnRetrieverResult(
-        name, topDocs, timeTakenMs, List.of(vectorDiagnosticsBuilder.build()));
+    RelevanceCollector collector =
+        new RelevanceCollector(collectorCreatorContext, Collections.emptyList());
+    return collectorCreatorContext
+        .getSearcherAndTaxonomy()
+        .searcher()
+        .search(resolvedQuery, collector.getWrappedManager());
   }
 }

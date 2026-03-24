@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.search;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.doc.DocLookup;
@@ -27,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import io.grpc.testing.GrpcCleanupRule;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,19 +78,22 @@ public class TextRetrieverExecutorTest extends ServerTestCase {
         .build();
   }
 
-  private RetrieverResult runExecutor(Retriever retriever) throws Exception {
+  private SearcherResult runExecutor(Retriever retriever) throws Exception {
     IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     SearcherAndTaxonomy s = shardState.acquire();
     try {
       DocLookup docLookup =
           new DocLookup(indexState::getField, () -> indexState.getAllFields().keySet(), s);
-      return new TextRetrieverExecutor(
-              retriever,
-              indexState,
-              s.searcher(),
-              docLookup,
-              SearchRequestProcessor.TOTAL_HITS_THRESHOLD)
+      CollectorCreatorContext collectorCreatorContext =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withSearcherAndTaxonomy(s)
+              .withNumHitsToCollect(retriever.getTextRetriever().getTopHits())
+              .withTotalHitsThreshold(SearchRequestProcessor.TOTAL_HITS_THRESHOLD)
+              .withQueryFields(indexState.getAllFields())
+              .build();
+      return new TextRetrieverExecutor(retriever, indexState, collectorCreatorContext, docLookup)
           .call();
     } finally {
       shardState.release(s);
@@ -99,14 +102,12 @@ public class TextRetrieverExecutorTest extends ServerTestCase {
 
   @Test
   public void testTermQuery() throws Exception {
-    RetrieverResult result = runExecutor(termRetriever("text_main", "vendor", 10));
+    SearcherResult result = runExecutor(termRetriever("text_main", "vendor", 10));
 
-    assertEquals("text_main", result.getName());
     assertEquals(5, result.getTopDocs().totalHits.value());
     assertEquals(5, result.getTopDocs().scoreDocs.length);
-    assertTrue(result.getTimeTakenMs() >= 0);
 
-    RetrieverResult limitedResult = runExecutor(termRetriever("text_limited", "vendor", 2));
+    SearcherResult limitedResult = runExecutor(termRetriever("text_limited", "vendor", 2));
 
     assertEquals(5, limitedResult.getTopDocs().totalHits.value());
     assertEquals(2, limitedResult.getTopDocs().scoreDocs.length);
@@ -114,8 +115,8 @@ public class TextRetrieverExecutorTest extends ServerTestCase {
 
   @Test
   public void testBoostScalesScores() throws Exception {
-    RetrieverResult baseResult = runExecutor(termRetriever("no_boost", "vendor", 5));
-    RetrieverResult boostedResult =
+    SearcherResult baseResult = runExecutor(termRetriever("no_boost", "vendor", 5));
+    SearcherResult boostedResult =
         runExecutor(termRetriever("with_boost", "vendor", 5).toBuilder().setBoost(2.0f).build());
 
     float baseScore = baseResult.getTopDocs().scoreDocs[0].score;
@@ -125,7 +126,7 @@ public class TextRetrieverExecutorTest extends ServerTestCase {
 
   @Test
   public void testNoMatchingDocuments() throws Exception {
-    RetrieverResult result = runExecutor(termRetriever("no_match", "nonexistent", 10));
+    SearcherResult result = runExecutor(termRetriever("no_match", "nonexistent", 10));
 
     assertEquals(0, result.getTopDocs().totalHits.value());
     assertEquals(0, result.getTopDocs().scoreDocs.length);

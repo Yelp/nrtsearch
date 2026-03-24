@@ -20,49 +20,42 @@ import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
+import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
+import java.util.Collections;
 import java.util.concurrent.Callable;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollectorManager;
 
 /**
- * Executes a single {@link TextRetriever} and returns a {@link RetrieverResult} containing the top
- * documents and execution time.
+ * Executes a single {@link TextRetriever} and returns a {@link SearcherResult} containing the top
+ * documents.
  */
-public class TextRetrieverExecutor implements Callable<RetrieverResult> {
+public class TextRetrieverExecutor implements Callable<SearcherResult> {
 
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
   private static final float DEFAULT_BOOST = 1.0f;
 
-  private final String name;
   private final TextRetriever textRetriever;
   private final float boost;
-  private final int totalHitsThreshold;
   private final IndexState indexState;
-  private final IndexSearcher indexSearcher;
+  private final CollectorCreatorContext collectorCreatorContext;
   private final DocLookup docLookup;
 
   public TextRetrieverExecutor(
       Retriever retriever,
       IndexState indexState,
-      IndexSearcher indexSearcher,
-      DocLookup docLookup,
-      int totalHitsThreshold) {
-    this.name = retriever.getName();
+      CollectorCreatorContext collectorCreatorContext,
+      DocLookup docLookup) {
     this.textRetriever = retriever.getTextRetriever();
     this.boost = retriever.hasBoost() ? retriever.getBoost() : DEFAULT_BOOST;
-    this.totalHitsThreshold = totalHitsThreshold;
     this.indexState = indexState;
-    this.indexSearcher = indexSearcher;
+    this.collectorCreatorContext = collectorCreatorContext;
     this.docLookup = docLookup;
   }
 
   @Override
-  public RetrieverResult call() throws Exception {
-    long startNs = System.nanoTime();
-
+  public SearcherResult call() throws Exception {
     Query query = QUERY_NODE_MAPPER.getQuery(textRetriever.getQuery(), docLookup);
 
     String queryNestedPath =
@@ -71,18 +64,17 @@ public class TextRetrieverExecutor implements Callable<RetrieverResult> {
       query = QUERY_NODE_MAPPER.applyQueryNestedPath(query, indexState, queryNestedPath);
     }
 
-    query = indexSearcher.rewrite(query);
+    query = collectorCreatorContext.getSearcherAndTaxonomy().searcher().rewrite(query);
 
     if (boost != DEFAULT_BOOST) {
       query = new BoostQuery(query, boost);
     }
 
-    int topHits = textRetriever.getTopHits();
-    TopDocs topDocs =
-        indexSearcher.search(
-            query, new TopScoreDocCollectorManager(topHits, null, totalHitsThreshold));
-
-    double timeTakenMs = (System.nanoTime() - startNs) / 1_000_000.0;
-    return new RetrieverResult(name, topDocs, timeTakenMs);
+    RelevanceCollector collector =
+        new RelevanceCollector(collectorCreatorContext, Collections.emptyList());
+    return collectorCreatorContext
+        .getSearcherAndTaxonomy()
+        .searcher()
+        .search(query, collector.getWrappedManager());
   }
 }

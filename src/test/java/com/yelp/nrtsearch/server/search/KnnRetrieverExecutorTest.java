@@ -25,8 +25,10 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.KnnRetriever;
 import com.yelp.nrtsearch.server.grpc.Retriever;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.search.Query;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -100,12 +103,27 @@ public class KnnRetrieverExecutorTest extends ServerTestCase {
         .build();
   }
 
-  private KnnRetrieverResult runExecutor(Retriever retriever) throws Exception {
+  private SearcherResult runExecutor(
+      Retriever retriever,
+      SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder)
+      throws Exception {
     IndexState indexState = getGlobalState().getIndexOrThrow(INDEX_NAME);
     ShardState shardState = indexState.getShard(0);
     SearcherAndTaxonomy s = shardState.acquire();
     try {
-      return new KnnRetrieverExecutor(retriever, indexState, s.searcher()).call();
+      KnnQuery knnQuery = retriever.getKnnRetriever().getKnnQuery();
+      Query luceneKnnQuery = KnnUtils.buildKnnQuery(knnQuery, indexState);
+      CollectorCreatorContext collectorCreatorContext =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withSearcherAndTaxonomy(s)
+              .withNumHitsToCollect(knnQuery.getK())
+              .withTotalHitsThreshold(SearchRequestProcessor.TOTAL_HITS_THRESHOLD)
+              .withQueryFields(indexState.getAllFields())
+              .build();
+      return new KnnRetrieverExecutor(
+              retriever, luceneKnnQuery, collectorCreatorContext, vectorDiagnosticsBuilder)
+          .call();
     } finally {
       shardState.release(s);
     }
@@ -113,21 +131,28 @@ public class KnnRetrieverExecutorTest extends ServerTestCase {
 
   @Test
   public void testKnnQuery() throws Exception {
-    KnnRetrieverResult result = runExecutor(knnRetriever("knn_main", 5));
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder diag =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    SearcherResult result = runExecutor(knnRetriever("knn_main", 5), diag);
 
-    assertEquals("knn_main", result.getName());
     assertEquals(5, result.getTopDocs().scoreDocs.length);
-    assertTrue(result.getTimeTakenMs() >= 0);
 
-    KnnRetrieverResult limitedResult = runExecutor(knnRetriever("knn_limited", 3));
+    SearcherResult limitedResult =
+        runExecutor(
+            knnRetriever("knn_limited", 3),
+            SearchResponse.Diagnostics.VectorDiagnostics.newBuilder());
     assertEquals(3, limitedResult.getTopDocs().scoreDocs.length);
   }
 
   @Test
   public void testBoostScalesScores() throws Exception {
-    RetrieverResult baseResult = runExecutor(knnRetriever("no_boost", 5));
-    RetrieverResult boostedResult =
-        runExecutor(knnRetriever("with_boost", 5).toBuilder().setBoost(2.0f).build());
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder diag =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    SearcherResult baseResult = runExecutor(knnRetriever("no_boost", 5), diag);
+    SearcherResult boostedResult =
+        runExecutor(
+            knnRetriever("with_boost", 5).toBuilder().setBoost(2.0f).build(),
+            SearchResponse.Diagnostics.VectorDiagnostics.newBuilder());
 
     float baseScore = baseResult.getTopDocs().scoreDocs[0].score;
     float boostedScore = boostedResult.getTopDocs().scoreDocs[0].score;
@@ -136,9 +161,10 @@ public class KnnRetrieverExecutorTest extends ServerTestCase {
 
   @Test
   public void testVectorDiagnosticsPopulated() throws Exception {
-    KnnRetrieverResult result = runExecutor(knnRetriever("knn_diag", 5));
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder diag =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    runExecutor(knnRetriever("knn_diag", 5), diag);
 
-    assertEquals(1, result.getVectorDiagnostics().size());
-    assertTrue(result.getVectorDiagnostics().get(0).getSearchTimeMs() >= 0);
+    assertTrue(diag.getSearchTimeMs() >= 0);
   }
 }
