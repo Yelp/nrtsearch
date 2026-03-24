@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import java.io.*;
-import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
@@ -104,8 +103,7 @@ public class LegacyStateCommandUtils {
     } else {
       clientRegion = region;
     }
-    String serviceEndpoint = String.format("https://s3.%s.amazonaws.com", clientRegion);
-    System.out.printf("S3 ServiceEndpoint: %s%n", serviceEndpoint);
+    System.out.printf("S3 region: %s%n", clientRegion);
     RetryPolicy retryPolicy =
         RetryPolicy.builder()
             .numRetries(maxRetry)
@@ -116,7 +114,6 @@ public class LegacyStateCommandUtils {
     return S3Client.builder()
         .credentialsProvider(awsCredentialsProvider)
         .region(Region.of(clientRegion))
-        .endpointOverride(URI.create(serviceEndpoint))
         .overrideConfiguration(c -> c.retryPolicy(retryPolicy))
         .build();
   }

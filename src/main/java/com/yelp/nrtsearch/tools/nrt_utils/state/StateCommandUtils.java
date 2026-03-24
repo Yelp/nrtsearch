@@ -28,7 +28,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.file.Paths;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -107,8 +106,7 @@ public class StateCommandUtils {
     } else {
       clientRegion = region;
     }
-    String serviceEndpoint = String.format("https://s3.%s.amazonaws.com", clientRegion);
-    System.out.printf("S3 ServiceEndpoint: %s%n", serviceEndpoint);
+    System.out.printf("S3 region: %s%n", clientRegion);
     RetryPolicy retryPolicy = RetryPolicy.builder(RetryMode.STANDARD).numRetries(maxRetry).build();
     software.amazon.awssdk.core.client.config.ClientOverrideConfiguration overrideConfig =
         software.amazon.awssdk.core.client.config.ClientOverrideConfiguration.builder()
@@ -118,7 +116,6 @@ public class StateCommandUtils {
         .credentialsProvider(awsCredentialsProvider)
         .overrideConfiguration(overrideConfig)
         .region(Region.of(clientRegion))
-        .endpointOverride(URI.create(serviceEndpoint))
         .build();
   }
 
@@ -159,9 +156,7 @@ public class StateCommandUtils {
     S3CrtAsyncClientBuilder crtBuilder =
         S3AsyncClient.crtBuilder()
             .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
-            .region(s3Client.serviceClientConfiguration().region())
-            .endpointOverride(
-                s3Client.serviceClientConfiguration().endpointOverride().orElse(null));
+            .region(s3Client.serviceClientConfiguration().region());
     if (maxConcurrency > 0) {
       crtBuilder.maxConcurrency(maxConcurrency);
     }
