@@ -60,21 +60,23 @@ public class S3Util {
    * @param configuration server configuration
    * @return S3ClientBundle containing sync and async clients
    */
-  public static S3ClientBundle buildS3ClientBundle(NrtsearchConfig configuration) {
-    AwsCredentialsProvider awsCredentialsProvider;
+  private static AwsCredentialsProvider createCredentialsProvider(NrtsearchConfig configuration) {
     if (configuration.getBotoCfgPath() == null) {
-      awsCredentialsProvider = DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.create();
     } else {
-      awsCredentialsProvider =
-          ProfileCredentialsProvider.builder()
-              .profileFile(
-                  software.amazon.awssdk.profiles.ProfileFile.builder()
-                      .content(Paths.get(configuration.getBotoCfgPath()))
-                      .type(software.amazon.awssdk.profiles.ProfileFile.Type.CREDENTIALS)
-                      .build())
-              .profileName("default")
-              .build();
+      return ProfileCredentialsProvider.builder()
+          .profileFile(
+              software.amazon.awssdk.profiles.ProfileFile.builder()
+                  .content(Paths.get(configuration.getBotoCfgPath()))
+                  .type(software.amazon.awssdk.profiles.ProfileFile.Type.CREDENTIALS)
+                  .build())
+          .profileName("default")
+          .build();
     }
+  }
+
+  public static S3ClientBundle buildS3ClientBundle(NrtsearchConfig configuration) {
+    AwsCredentialsProvider awsCredentialsProvider = createCredentialsProvider(configuration);
     final boolean globalBucketAccess = configuration.getEnableGlobalBucketAccess();
 
     software.amazon.awssdk.services.s3.S3ClientBuilder clientBuilder =
@@ -87,7 +89,7 @@ public class S3Util {
     try {
       S3Client s3ClientInterim =
           S3Client.builder()
-              .credentialsProvider(awsCredentialsProvider)
+              .credentialsProvider(createCredentialsProvider(configuration))
               .crossRegionAccessEnabled(globalBucketAccess)
               .build();
       GetBucketLocationResponse locationResponse =

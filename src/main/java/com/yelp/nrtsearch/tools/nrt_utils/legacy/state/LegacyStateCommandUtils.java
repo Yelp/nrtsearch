@@ -55,6 +55,20 @@ public class LegacyStateCommandUtils {
 
   private LegacyStateCommandUtils() {}
 
+  private static AwsCredentialsProvider createCredentialsProvider(
+      String credsFile, String credsProfile) {
+    if (credsFile != null) {
+      Path botoCfgPath = Paths.get(credsFile);
+      ProfileFile profileFile = ProfileFile.builder().content(botoCfgPath).build();
+      return ProfileCredentialsProvider.builder()
+          .profileFile(profileFile)
+          .profileName(credsProfile)
+          .build();
+    } else {
+      return DefaultCredentialsProvider.create();
+    }
+  }
+
   /**
    * Get an S3 client usable for remote state operations.
    *
@@ -66,23 +80,15 @@ public class LegacyStateCommandUtils {
    */
   public static S3Client createS3Client(
       String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
-    AwsCredentialsProvider awsCredentialsProvider;
-    if (credsFile != null) {
-      Path botoCfgPath = Paths.get(credsFile);
-      ProfileFile profileFile = ProfileFile.builder().content(botoCfgPath).build();
-      awsCredentialsProvider =
-          ProfileCredentialsProvider.builder()
-              .profileFile(profileFile)
-              .profileName(credsProfile)
-              .build();
-    } else {
-      awsCredentialsProvider = DefaultCredentialsProvider.create();
-    }
+    AwsCredentialsProvider awsCredentialsProvider =
+        createCredentialsProvider(credsFile, credsProfile);
 
     String clientRegion;
     if (region == null) {
       S3Client s3ClientInterim =
-          S3Client.builder().credentialsProvider(awsCredentialsProvider).build();
+          S3Client.builder()
+              .credentialsProvider(createCredentialsProvider(credsFile, credsProfile))
+              .build();
       String bucketLocation =
           s3ClientInterim
               .getBucketLocation(GetBucketLocationRequest.builder().bucket(bucketName).build())

@@ -58,6 +58,22 @@ public class StateCommandUtils {
     return GLOBAL_STATE_RESOURCE.equals(resourceName);
   }
 
+  private static AwsCredentialsProvider createCredentialsProvider(
+      String credsFile, String credsProfile) {
+    if (credsFile != null) {
+      return ProfileCredentialsProvider.builder()
+          .profileFile(
+              software.amazon.awssdk.profiles.ProfileFile.builder()
+                  .content(Paths.get(credsFile))
+                  .type(software.amazon.awssdk.profiles.ProfileFile.Type.CREDENTIALS)
+                  .build())
+          .profileName(credsProfile)
+          .build();
+    } else {
+      return DefaultCredentialsProvider.create();
+    }
+  }
+
   /**
    * Get an S3 client usable for remote state operations.
    *
@@ -69,25 +85,15 @@ public class StateCommandUtils {
    */
   public static S3Client createS3Client(
       String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
-    AwsCredentialsProvider awsCredentialsProvider;
-    if (credsFile != null) {
-      awsCredentialsProvider =
-          ProfileCredentialsProvider.builder()
-              .profileFile(
-                  software.amazon.awssdk.profiles.ProfileFile.builder()
-                      .content(Paths.get(credsFile))
-                      .type(software.amazon.awssdk.profiles.ProfileFile.Type.CREDENTIALS)
-                      .build())
-              .profileName(credsProfile)
-              .build();
-    } else {
-      awsCredentialsProvider = DefaultCredentialsProvider.create();
-    }
+    AwsCredentialsProvider awsCredentialsProvider =
+        createCredentialsProvider(credsFile, credsProfile);
 
     String clientRegion;
     if (region == null) {
       S3Client s3ClientInterim =
-          S3Client.builder().credentialsProvider(awsCredentialsProvider).build();
+          S3Client.builder()
+              .credentialsProvider(createCredentialsProvider(credsFile, credsProfile))
+              .build();
       GetBucketLocationResponse locationResponse =
           s3ClientInterim.getBucketLocation(
               GetBucketLocationRequest.builder().bucket(bucketName).build());
