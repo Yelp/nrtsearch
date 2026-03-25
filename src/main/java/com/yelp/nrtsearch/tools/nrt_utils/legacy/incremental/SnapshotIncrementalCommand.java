@@ -197,7 +197,8 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     if (transferManagerToUse == null) {
       software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
           software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
-              .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+              .credentialsProvider(
+                  LegacyStateCommandUtils.createCredentialsProvider(credsFile, credsProfile))
               .region(s3Client.serviceClientConfiguration().region())
               .maxConcurrency(copyThreads)
               .build();

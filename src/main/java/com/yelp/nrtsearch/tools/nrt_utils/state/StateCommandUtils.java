@@ -155,7 +155,7 @@ public class StateCommandUtils {
     S3Client s3Client = createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     S3CrtAsyncClientBuilder crtBuilder =
         S3AsyncClient.crtBuilder()
-            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+            .credentialsProvider(createCredentialsProvider(credsFile, credsProfile))
             .region(s3Client.serviceClientConfiguration().region());
     if (maxConcurrency > 0) {
       crtBuilder.maxConcurrency(maxConcurrency);

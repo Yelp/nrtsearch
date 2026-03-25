@@ -54,7 +54,7 @@ public class LegacyStateCommandUtils {
 
   private LegacyStateCommandUtils() {}
 
-  private static AwsCredentialsProvider createCredentialsProvider(
+  public static AwsCredentialsProvider createCredentialsProvider(
       String credsFile, String credsProfile) {
     if (credsFile != null) {
       Path botoCfgPath = Paths.get(credsFile);
