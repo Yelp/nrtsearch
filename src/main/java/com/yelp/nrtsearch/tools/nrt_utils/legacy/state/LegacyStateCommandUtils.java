@@ -64,7 +64,7 @@ public class LegacyStateCommandUtils {
           .profileName(credsProfile)
           .build();
     } else {
-      return DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.builder().build();
     }
   }
 

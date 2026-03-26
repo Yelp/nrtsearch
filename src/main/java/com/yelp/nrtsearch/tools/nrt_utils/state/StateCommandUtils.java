@@ -69,7 +69,7 @@ public class StateCommandUtils {
           .profileName(credsProfile)
           .build();
     } else {
-      return DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.builder().build();
     }
   }
 

@@ -62,7 +62,7 @@ public class S3Util {
    */
   private static AwsCredentialsProvider createCredentialsProvider(NrtsearchConfig configuration) {
     if (configuration.getBotoCfgPath() == null) {
-      return DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.builder().build();
     } else {
       return ProfileCredentialsProvider.builder()
           .profileFile(
