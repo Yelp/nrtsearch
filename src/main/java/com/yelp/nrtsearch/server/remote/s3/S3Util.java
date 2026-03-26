@@ -62,7 +62,7 @@ public class S3Util {
    */
   private static AwsCredentialsProvider createCredentialsProvider(NrtsearchConfig configuration) {
     if (configuration.getBotoCfgPath() == null) {
-      return DefaultCredentialsProvider.create();
+      return DefaultCredentialsProvider.builder().build();
     } else {
       return ProfileCredentialsProvider.builder()
           .profileFile(
@@ -141,7 +141,7 @@ public class S3Util {
 
     S3CrtAsyncClientBuilder s3CrtAsyncClientBuilder =
         S3CrtAsyncClient.builder()
-            .credentialsProvider(s3Client.serviceClientConfiguration().credentialsProvider())
+            .credentialsProvider(createCredentialsProvider(configuration))
             .region(s3Client.serviceClientConfiguration().region())
             .maxConcurrency(maxConcurrency);
 
