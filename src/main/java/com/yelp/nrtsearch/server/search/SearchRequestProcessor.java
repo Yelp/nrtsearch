@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -139,9 +140,53 @@ public class SearchRequestProcessor {
     // DocLookup. It would be better to change the script factory interface to take a
     // context object containing these objects separately. We should consider making
     // these changes in a future minor version.
+    BitSetProducer parentBitSetProducer = null;
+    Function<String, BitSetProducer> childPathFilterLookup = null;
+
+    if (indexState.hasNestedChildFields()) {
+      Query parentQuery =
+          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, IndexState.ROOT);
+      parentQuery = searcherAndTaxonomy.searcher().rewrite(parentQuery);
+      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
+
+      // Cache of nested path -> BitSetProducer so we don't recreate
+      // for every field under the same path
+      Map<String, BitSetProducer> pathFilterCache = new HashMap<>();
+
+      // Capture a final reference for use in the lambda
+      final SearcherTaxonomyManager.SearcherAndTaxonomy finalSearcherAndTaxonomy =
+          searcherAndTaxonomy;
+
+      childPathFilterLookup =
+          (fieldName) -> {
+            // e.g., "appointments.price" -> nested path "appointments"
+            String nestedPath = IndexState.getFieldBaseNestedPath(fieldName, indexState);
+            if (nestedPath == null) {
+              return null;
+            }
+            return pathFilterCache.computeIfAbsent(
+                nestedPath,
+                path -> {
+                  try {
+                    Query pathQuery =
+                        QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
+                    pathQuery = finalSearcherAndTaxonomy.searcher().rewrite(pathQuery);
+                    return new QueryBitSetProducer(pathQuery);
+                  } catch (IOException e) {
+                    throw new RuntimeException("Failed to build child path filter for: " + path, e);
+                  }
+                });
+          };
+    }
+
     DocLookup indexLookupWithSearcher =
         new DocLookup(
-            indexState::getField, () -> indexState.getAllFields().keySet(), searcherAndTaxonomy);
+            indexState::getField,
+            () -> indexState.getAllFields().keySet(),
+            searcherAndTaxonomy,
+            parentBitSetProducer,
+            childPathFilterLookup);
+
     Map<String, FieldDef> queryVirtualFields =
         getVirtualFields(indexLookupWithSearcher, searchRequest);
     Map<String, FieldDef> queryRuntimeFields =
@@ -157,7 +202,13 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet, searcherAndTaxonomy);
+    DocLookup docLookup =
+        new DocLookup(
+            queryFields::get,
+            queryFields::keySet,
+            searcherAndTaxonomy,
+            parentBitSetProducer,
+            childPathFilterLookup);
     contextBuilder.setDocLookup(docLookup);
 
     String rootQueryNestedPath =

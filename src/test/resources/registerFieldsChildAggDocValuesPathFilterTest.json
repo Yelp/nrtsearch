@@ -1,0 +1,64 @@
+{
+  "indexName": "test_index_child_agg",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "business_name",
+      "type": "TEXT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "int_score",
+      "type": "INT",
+      "storeDocValues": true
+    },
+    {
+      "name": "appointments",
+      "type": "OBJECT",
+      "search": true,
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "price",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "duration",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    },
+    {
+      "name": "reviews",
+      "type": "OBJECT",
+      "search": true,
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "stars",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "helpful",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    }
+  ]
+}
