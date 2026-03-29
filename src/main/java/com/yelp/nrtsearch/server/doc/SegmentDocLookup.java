@@ -43,9 +43,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
   private final BitSetProducer parentBitSetProducer;
-  // Resolves a child field name to a BitSetProducer for its nested path.
-  // This is used to filter children by nested path when the index has multiple
-  // nested paths (e.g., "appointments" and "reviews" under the same parent).
   private final Function<String, BitSetProducer> childPathFilterLookup;
   private final Map<String, ChildAggregatedDocValues> childrenLoaderCache = new HashMap<>();
 
@@ -53,7 +50,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private int parentDocId = -1;
   private SegmentDocLookup parentLookup = null;
 
-  // Existing constructor — preserved for backward compatibility:
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
     this(fieldDefLookup, context, null, null);
   }

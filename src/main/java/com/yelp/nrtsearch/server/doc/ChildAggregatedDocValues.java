@@ -51,6 +51,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
   private final LeafReaderContext leafContext;
   private final BitSet parentBitSet;
   private final BitSet childPathBitSet;
+  private final boolean hasChildPathFilter;
   private final LoadedDocValues<?> childCountDocValues;
   private List<Object> values = Collections.emptyList();
 
@@ -61,7 +62,10 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
    * @param leafContext the current segment context
    * @param parentBitSetProducer produces the BitSet identifying parent docs
    * @param childPathBitSetProducer produces the BitSet identifying children of the target nested
-   *     path, or null if no path filtering is needed (single nested path case)
+   *     path, or null if no path filtering is needed (single nested path case). Note: Lucene's
+   *     {@link QueryBitSetProducer} returns null from {@code getBitSet()} when no documents match
+   *     the query in a segment. When this producer is non-null but produces a null BitSet, all
+   *     children are excluded (no matches in this segment).
    * @throws IOException if the BitSet cannot be loaded for this segment
    */
   public ChildAggregatedDocValues(
@@ -73,9 +77,9 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     this.fieldDef = fieldDef;
     this.leafContext = leafContext;
     this.parentBitSet = parentBitSetProducer.getBitSet(leafContext);
+    this.hasChildPathFilter = childPathBitSetProducer != null;
     this.childPathBitSet =
         childPathBitSetProducer != null ? childPathBitSetProducer.getBitSet(leafContext) : null;
-    // Load the child count doc values for this segment once
     IndexableFieldDef<?> childCountFieldDef =
         (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.NESTED_CHILD_COUNT);
     this.childCountDocValues = childCountFieldDef.getDocValues(leafContext);
@@ -99,7 +103,13 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       return;
     }
 
-    // Read the child count from the parent document
+    // A child path filter was provided but produced no matches in this segment.
+    // This happens when QueryBitSetProducer returns null for an empty result set.
+    // In this case, no children should be included.
+    if (hasChildPathFilter && childPathBitSet == null) {
+      return;
+    }
+
     childCountDocValues.setDocId(parentDocId);
     if (childCountDocValues.isEmpty()) {
       return;
@@ -113,21 +123,12 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     // in block join layout. Scan forward so Lucene's doc values iterators
     // (which only support forward access) work correctly.
     int childStart = parentDocId - childCount;
-
-    // Get a fresh doc values instance for child traversal.
-    // We need our own instance because the caller may also be reading
-    // the same field's doc values at the parent level.
     LoadedDocValues<?> childDocValues = fieldDef.getDocValues(leafContext);
 
     for (int childDocId = childStart; childDocId < parentDocId; childDocId++) {
-      // Skip children that don't belong to our target nested path.
-      // This is essential when the parent has multiple nested paths
-      // (e.g., both "appointments" and "reviews"). Without this check,
-      // we would incorrectly collect values from all child types.
       if (childPathBitSet != null && !childPathBitSet.get(childDocId)) {
         continue;
       }
-
       childDocValues.setDocId(childDocId);
       for (int i = 0; i < childDocValues.size(); i++) {
         values.add(childDocValues.get(i));
