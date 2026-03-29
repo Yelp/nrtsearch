@@ -789,6 +789,21 @@ message SearchRequest {
     // development of new features or when a top level field is not warranted. Possible values:
     //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
     map<string, string> additionalOptions = 32;
+    // Filters applied to child documents when accessed via _CHILDREN. prefix in scripts.
+    // Only children matching both the nested path AND the filter will be included in aggregation.
+    // If not specified for a path, all children at that path are included (default behavior).
+    repeated ChildFilter childFilters = 33;
+}
+
+// Filter applied to child documents before aggregation via _CHILDREN. prefix in scripts.
+// Allows narrowing which child documents are included based on a query predicate,
+// in addition to the automatic nested path filtering.
+message ChildFilter {
+    // Path to the nested object (e.g., "appointments"). Must match a registered nested field.
+    string path = 1;
+    // Query filter applied to child documents at this path.
+    // Only children matching this query will be included in _CHILDREN. aggregation.
+    Query filter = 2;
 }
 
 // Last Hit info for search after

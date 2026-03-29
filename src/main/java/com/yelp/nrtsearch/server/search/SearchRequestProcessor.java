@@ -19,9 +19,11 @@ import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.grpc.ChildFilter;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.InnerHit;
@@ -136,10 +138,6 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain())
         .setWarming(warming);
 
-    // We do this to make the searcher available to scripting engines, by adding it to the
-    // DocLookup. It would be better to change the script factory interface to take a
-    // context object containing these objects separately. We should consider making
-    // these changes in a future minor version.
     BitSetProducer parentBitSetProducer = null;
     Function<String, BitSetProducer> childPathFilterLookup = null;
 
@@ -149,17 +147,16 @@ public class SearchRequestProcessor {
       parentQuery = searcherAndTaxonomy.searcher().rewrite(parentQuery);
       parentBitSetProducer = new QueryBitSetProducer(parentQuery);
 
-      // Cache of nested path -> BitSetProducer so we don't recreate
-      // for every field under the same path
+      // Parse user-provided child filters into a map: nested path -> Lucene Query
+      Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
+
       Map<String, BitSetProducer> pathFilterCache = new HashMap<>();
 
-      // Capture a final reference for use in the lambda
       final SearcherTaxonomyManager.SearcherAndTaxonomy finalSearcherAndTaxonomy =
           searcherAndTaxonomy;
 
       childPathFilterLookup =
           (fieldName) -> {
-            // e.g., "appointments.price" -> nested path "appointments"
             String nestedPath = IndexState.getFieldBaseNestedPath(fieldName, indexState);
             if (nestedPath == null) {
               return null;
@@ -171,6 +168,19 @@ public class SearchRequestProcessor {
                     Query pathQuery =
                         QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
                     pathQuery = finalSearcherAndTaxonomy.searcher().rewrite(pathQuery);
+
+                    // Combine with user-provided filter if one exists for this path
+                    Query userFilter = userChildFilters.get(path);
+                    if (userFilter != null) {
+                      Query combined =
+                          new BooleanQuery.Builder()
+                              .add(pathQuery, BooleanClause.Occur.FILTER)
+                              .add(userFilter, BooleanClause.Occur.FILTER)
+                              .build();
+                      combined = finalSearcherAndTaxonomy.searcher().rewrite(combined);
+                      return new QueryBitSetProducer(combined);
+                    }
+
                     return new QueryBitSetProducer(pathQuery);
                   } catch (IOException e) {
                     throw new RuntimeException("Failed to build child path filter for: " + path, e);
@@ -179,6 +189,10 @@ public class SearchRequestProcessor {
           };
     }
 
+    // We do this to make the searcher available to scripting engines, by adding it to the
+    // DocLookup. It would be better to change the script factory interface to take a
+    // context object containing these objects separately. We should consider making
+    // these changes in a future minor version.
     DocLookup indexLookupWithSearcher =
         new DocLookup(
             indexState::getField,
@@ -732,5 +746,47 @@ public class SearchRequestProcessor {
                 : null)
         .withExplain(explain)
         .build(true);
+  }
+
+  /**
+   * Parse user-provided child filters from the search request into a map of nested path to Lucene
+   * Query. Validates that each filter targets a valid nested path and that no duplicate paths
+   * exist.
+   *
+   * @param searchRequest the search request containing child filters
+   * @param indexState the index state for field lookup
+   * @return map of nested path to Lucene filter query, empty if no child filters specified
+   */
+  private static Map<String, Query> parseChildFilters(
+      SearchRequest searchRequest, IndexState indexState) {
+    if (searchRequest.getChildFiltersList().isEmpty()) {
+      return Map.of();
+    }
+
+    Map<String, Query> userChildFilters = new HashMap<>();
+    for (ChildFilter childFilter : searchRequest.getChildFiltersList()) {
+      String path = childFilter.getPath();
+      if (path.isEmpty()) {
+        throw new IllegalArgumentException("ChildFilter path must not be empty");
+      }
+      if (!childFilter.hasFilter()) {
+        throw new IllegalArgumentException(
+            "ChildFilter must have a filter query for path: " + path);
+      }
+
+      FieldDef fieldDef = indexState.getField(path);
+      if (!(fieldDef instanceof ObjectFieldDef objectFieldDef) || !objectFieldDef.isNestedDoc()) {
+        throw new IllegalArgumentException(
+            "ChildFilter path must be a nested object field: " + path);
+      }
+
+      if (userChildFilters.containsKey(path)) {
+        throw new IllegalArgumentException("Duplicate ChildFilter for path: " + path);
+      }
+
+      Query filterQuery = QUERY_NODE_MAPPER.getQuery(childFilter.getFilter(), indexState);
+      userChildFilters.put(path, filterQuery);
+    }
+    return userChildFilters;
   }
 }
