@@ -148,7 +148,6 @@ public class SearchRequestProcessor {
       parentQuery = searcherAndTaxonomy.searcher().rewrite(parentQuery);
       parentBitSetProducer = new QueryBitSetProducer(parentQuery);
 
-      // Parse user-provided child filters into a map: nested path -> Lucene Query
       Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
 
       Map<String, BitSetProducer> pathFilterCache = new HashMap<>();
@@ -170,7 +169,6 @@ public class SearchRequestProcessor {
                         QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
                     pathQuery = finalSearcherAndTaxonomy.searcher().rewrite(pathQuery);
 
-                    // Combine with user-provided filter if one exists for this path
                     Query userFilter = userChildFilters.get(path);
                     if (userFilter != null) {
                       Query combined =
