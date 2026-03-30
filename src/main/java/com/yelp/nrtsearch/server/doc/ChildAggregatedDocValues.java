@@ -29,30 +29,24 @@ import org.apache.lucene.util.BitSet;
  * LoadedDocValues implementation that collects doc values from all child documents belonging to a
  * parent document. When setDocId is called with a parent doc ID, this class:
  *
- * <p>1. Reads the {@code _nested_child_count} field from the parent to determine the child range 2.
+ * <p>Reads the {@code _nested_child_count} field from the parent to determine the child range 2.
  * Scans forward from {@code parentDocId - childCount} to {@code parentDocId - 1} 3. Optionally
  * filters children by their nested path using childPathBitSet 4. Loads the specified field's doc
  * values from each child 5. Exposes all child values as a flat multi-valued list
  *
- * <p>The forward scan is required because Lucene's doc values iterators only support forward
- * iteration. The {@code _nested_child_count} field on the parent document tells us exactly where
- * the children start, avoiding the need for a backward scan.
- *
  * <p>The childPathBitSet filtering is essential for indexes with multiple nested paths (e.g., both
  * "appointments" and "reviews" under the same parent). Without it, iterating through the child
  * range would collect values from children of all nested paths, not just the target path.
- *
- * <p>This enables scripts and scorers running on parent documents to access aggregated child
- * features (e.g., min price across appointments).
  */
 public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
 
-  private final IndexableFieldDef<?> fieldDef;
   private final LeafReaderContext leafContext;
+  private final IndexableFieldDef<?> childCountFieldDef;
   private final BitSet parentBitSet;
   private final BitSet childPathBitSet;
   private final boolean hasChildPathFilter;
-  private final LoadedDocValues<?> childCountDocValues;
+  private final LoadedDocValues<?> childFieldDocValues;
+  private int lastParentDocId = -1;
   private List<Object> values = Collections.emptyList();
 
   /**
@@ -74,15 +68,14 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       BitSetProducer parentBitSetProducer,
       BitSetProducer childPathBitSetProducer)
       throws IOException {
-    this.fieldDef = fieldDef;
     this.leafContext = leafContext;
+    this.childCountFieldDef =
+        (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.NESTED_CHILD_COUNT);
     this.parentBitSet = parentBitSetProducer.getBitSet(leafContext);
     this.hasChildPathFilter = childPathBitSetProducer != null;
     this.childPathBitSet =
         childPathBitSetProducer != null ? childPathBitSetProducer.getBitSet(leafContext) : null;
-    IndexableFieldDef<?> childCountFieldDef =
-        (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.NESTED_CHILD_COUNT);
-    this.childCountDocValues = childCountFieldDef.getDocValues(leafContext);
+    this.childFieldDocValues = fieldDef.getDocValues(leafContext);
   }
 
   /**
@@ -93,6 +86,10 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
    */
   @Override
   public void setDocId(int parentDocId) throws IOException {
+    if (parentDocId == lastParentDocId) {
+      return;
+    }
+    lastParentDocId = parentDocId;
     values = new ArrayList<>();
 
     if (parentBitSet == null || parentDocId <= 0) {
@@ -110,6 +107,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       return;
     }
 
+    LoadedDocValues<?> childCountDocValues = childCountFieldDef.getDocValues(leafContext);
     childCountDocValues.setDocId(parentDocId);
     if (childCountDocValues.isEmpty()) {
       return;
@@ -123,15 +121,14 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     // in block join layout. Scan forward so Lucene's doc values iterators
     // (which only support forward access) work correctly.
     int childStart = parentDocId - childCount;
-    LoadedDocValues<?> childDocValues = fieldDef.getDocValues(leafContext);
 
     for (int childDocId = childStart; childDocId < parentDocId; childDocId++) {
       if (childPathBitSet != null && !childPathBitSet.get(childDocId)) {
         continue;
       }
-      childDocValues.setDocId(childDocId);
-      for (int i = 0; i < childDocValues.size(); i++) {
-        values.add(childDocValues.get(i));
+      childFieldDocValues.setDocId(childDocId);
+      for (int i = 0; i < childFieldDocValues.size(); i++) {
+        values.add(childFieldDocValues.get(i));
       }
     }
   }
@@ -153,6 +150,6 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
   @Override
   public com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue toFieldValue(int index) {
     throw new UnsupportedOperationException(
-        "ChildAggregatedDocValues is intended for script access, " + "not direct field retrieval");
+        "ChildAggregatedDocValues is intended for script access, not direct field retrieval");
   }
 }
