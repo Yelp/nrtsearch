@@ -172,6 +172,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           SearchRequestProcessor.buildContextForRequest(
               searchRequest, indexState, shardState, s, diagnostics, profileResultBuilder, warming);
 
+      if (searchContext.getMultiRetrieverContext() != null) {
+        throw new UnsupportedOperationException("Multi-retriever is not yet supported");
+      }
+
       long searchStartTime = System.nanoTime();
 
       SearcherResult searcherResult;

@@ -789,6 +789,75 @@ message SearchRequest {
     // development of new features or when a top level field is not warranted. Possible values:
     //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
     map<string, string> additionalOptions = 32;
+    // When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error
+    MultiRetrieverRequest multiRetriever = 33;
+}
+
+// Multi-Retriever Request
+message MultiRetrieverRequest {
+    // List of retrievers to execute
+    repeated Retriever retrievers = 1;
+    // Blender to merge retriever topDocs
+    Blender blender = 2;
+}
+
+// Single Retriever
+message Retriever {
+    // Retriever name used in per-retriever scores, diagnostics etc
+    string name = 1;
+
+    // Set exactly one retriever
+    oneof retrieverType {
+        TextRetriever textRetriever = 2;
+        KnnRetriever knnRetriever = 3;
+    }
+
+    // Boost to apply to scores before blending. Default: 1.0
+    optional float boost = 4;
+}
+
+// Text Retriever
+message TextRetriever {
+    // Query to execute
+    Query query = 1;
+    //  Maximum number of top documents to retrieve for this retriever.
+    int32 topHits = 2;
+    // Optional nested path for querying child documents.
+    string queryNestedPath = 3;
+    // Optional L1 rescorer for text retrieval
+    Rescorer rescorer = 4;
+}
+
+// Knn Vector Search Retriever
+message KnnRetriever {
+    // Knn query to execute
+    KnnQuery knnQuery = 1;
+    // Optional L1 rescorer for knn retrieval
+    Rescorer rescorer = 2;
+}
+
+// Blender to merge Multi-Retriever topDocs
+// TODO: Additional blenders will be added
+message Blender {
+    oneof blenderType {
+        WeightedRrfBlender weightedRrf = 1;
+        PluginBlender plugin = 3;
+    }
+}
+
+// Weighted Reciprocal Rank Fusion Blender.
+message WeightedRrfBlender {
+    // Reduces the impact of rank differences between retrievers. Default: 60
+    int32 rankConstant = 1;
+    // Per-retriever weights keyed by retriever name. Default: 1.0 for equal weights
+    map<string, float> retrieverWeights = 2;
+}
+
+message PluginBlender {
+    // Registered blender plugin name
+    string name = 1;
+    // Arbitrary plugin params
+    google.protobuf.Struct params = 2;
 }
 
 // Last Hit info for search after
@@ -992,6 +1061,8 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
+        // Per-retriever time populated when MultiRetriever is used
+        map<string, double> retrieverTimeMs = 16;
     }
 
     // Message for query document hit
@@ -1055,6 +1126,8 @@ message SearchResponse {
         string explain = 6;
         // InnerHits for each hit
         map<string, HitsResult> innerHits = 7;
+        // Score per retriever in Multi-Retriever request
+        map<string, double> retrieverScores = 8;
     }
 
     // State for use in subsequent searches (search after)

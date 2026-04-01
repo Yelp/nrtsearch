@@ -50,6 +50,7 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
+  private final MultiRetrieverContext multiRetrieverContext;
 
   public enum VectorScoringMode {
     NONE,
@@ -80,6 +81,7 @@ public class SearchContext implements FieldFetchContext {
     this.queryNestedPath = builder.queryNestedPath;
     this.explain = builder.explain;
     this.warming = builder.warming;
+    this.multiRetrieverContext = builder.multiRetrieverContext;
 
     if (validate) {
       validate();
@@ -198,6 +200,11 @@ public class SearchContext implements FieldFetchContext {
     return warming;
   }
 
+  /** Get the multi retriever context * */
+  public MultiRetrieverContext getMultiRetrieverContext() {
+    return multiRetrieverContext;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -209,12 +216,14 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(searcherAndTaxonomy);
     Objects.requireNonNull(queryFields);
     Objects.requireNonNull(retrieveFields);
-    Objects.requireNonNull(query);
-    Objects.requireNonNull(collector);
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
     Objects.requireNonNull(docLookup);
+    Objects.requireNonNull(query);
+    if (multiRetrieverContext == null) {
+      Objects.requireNonNull(collector);
+    }
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -256,6 +265,7 @@ public class SearchContext implements FieldFetchContext {
     private String queryNestedPath;
     private boolean explain;
     private boolean warming;
+    private MultiRetrieverContext multiRetrieverContext;
 
     private Builder() {}
 
@@ -369,6 +379,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setWarming(boolean warming) {
       this.warming = warming;
+      return this;
+    }
+
+    public Builder setMultiRetrieverContext(MultiRetrieverContext multiRetrieverContext) {
+      this.multiRetrieverContext = multiRetrieverContext;
       return this;
     }
 
