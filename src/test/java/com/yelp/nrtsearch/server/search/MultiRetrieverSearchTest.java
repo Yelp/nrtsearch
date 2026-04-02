@@ -180,20 +180,9 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         "Knn Query should not be set along with a MultiRetriever request");
   }
 
+  // TODO: Remove this test after Multi-retriever implementation
   @Test
-  public void testTextRetrieverTopHitsZeroThrows() {
-    assertSearchError(
-        baseRequest()
-            .setMultiRetriever(
-                MultiRetrieverRequest.newBuilder().addRetrievers(textRetriever(0)).build())
-            .build(),
-        "TextRetriever topHits must be > 0");
-  }
-
-  // This test can be removed after supporting MultiRetriever in Search Handler
-  @Test
-  public void testMultiRetrieverSearchunsupported() {
-    // Both retrievers build successfully, hits UnsupportedOperationException
+  public void testMultiRetrieverSearchUnsupported() {
     assertSearchError(
         baseRequest()
             .setMultiRetriever(

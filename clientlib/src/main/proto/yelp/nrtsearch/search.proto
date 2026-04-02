@@ -814,6 +814,9 @@ message Retriever {
 
     // Boost to apply to scores before blending. Default: 1.0
     optional float boost = 4;
+
+    // Optional L1 rescorer applied before blending
+    Rescorer rescorer = 5;
 }
 
 // Text Retriever
@@ -824,16 +827,12 @@ message TextRetriever {
     int32 topHits = 2;
     // Optional nested path for querying child documents.
     string queryNestedPath = 3;
-    // Optional L1 rescorer for text retrieval
-    Rescorer rescorer = 4;
 }
 
 // Knn Vector Search Retriever
 message KnnRetriever {
     // Knn query to execute
     KnnQuery knnQuery = 1;
-    // Optional L1 rescorer for knn retrieval
-    Rescorer rescorer = 2;
 }
 
 // Blender to merge Multi-Retriever topDocs
@@ -845,12 +844,10 @@ message Blender {
     }
 }
 
-// Weighted Reciprocal Rank Fusion Blender.
+// Weighted Reciprocal Rank Fusion Blender. Uses retriever boost as weight
 message WeightedRrfBlender {
     // Reduces the impact of rank differences between retrievers. Default: 60
     int32 rankConstant = 1;
-    // Per-retriever weights keyed by retriever name. Default: 1.0 for equal weights
-    map<string, float> retrieverWeights = 2;
 }
 
 message PluginBlender {
@@ -1033,6 +1030,24 @@ message SearchResponse {
             // Total hits from kNN execution
             TotalHits totalHits = 2;
         }
+        // Diagnostics for a single retriever in a multi-retriever request
+        message RetrieverDiagnostics {
+            // Search time for this retriever
+            double searchTimeMs = 1;
+            // Time for L1 rescoring within this retriever
+            double rescoreTimeMs = 2;
+            // Total hits recalled by this retriever
+            TotalHits totalHits = 3;
+            // Vector diagnostics, only populated for KNN retrievers
+            VectorDiagnostics vectorDiagnostics = 4;
+        }
+        // Diagnostics specific to multi-retriever search
+        message MultiRetrieverDiagnostics {
+            // Per-retriever diagnostics keyed by retriever name
+            map<string, RetrieverDiagnostics> retrieverDiagnostics = 1;
+            // Time to blend/merge retriever results
+            double blenderTimeMs = 2;
+        }
         // Query debug has been moved to ProfileResult
         string parsedQuery = 1 [deprecated = true];
         string rewrittenQuery = 2 [deprecated = true];
@@ -1061,8 +1076,8 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
-        // Per-retriever time populated when MultiRetriever is used
-        map<string, double> retrieverTimeMs = 16;
+        // Multi-retriever diagnostics, populated when MultiRetriever is used
+        MultiRetrieverDiagnostics multiRetrieverDiagnostics = 16;
     }
 
     // Message for query document hit
@@ -1150,7 +1165,6 @@ message SearchResponse {
     Diagnostics diagnostics = 1;
     // Set to true if search times out and a degraded response is returned
     bool hitTimeout = 2;
-    // Total hits for the query
     TotalHits totalHits = 3;
     // Ranked top hits
     repeated Hit hits = 4;
@@ -1323,6 +1337,12 @@ message ProfileResult {
         repeated CollectorStats collectorStats = 3;
     }
 
+    // Per-retriever profile results for multi-retriever requests
+    message MultiRetrieverProfileResult {
+        // Per-retriever profile results keyed by retriever name
+        map<string, ProfileResult> retrieverProfileResults = 1;
+    }
+
     // Stats for search phase
     SearchStats searchStats = 1;
     // Parsed query string
@@ -1331,6 +1351,8 @@ message ProfileResult {
     string rewrittenQuery = 3;
     // Drill down query string
     string drillDownQuery = 4;
+    // Multi-retriever profile results populated only when MultiRetriever is used
+    MultiRetrieverProfileResult multiRetrieverProfileResult = 5;
 }
 
 // Definition of additional document collector

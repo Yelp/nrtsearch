@@ -216,14 +216,12 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(searcherAndTaxonomy);
     Objects.requireNonNull(queryFields);
     Objects.requireNonNull(retrieveFields);
+    Objects.requireNonNull(query);
+    Objects.requireNonNull(collector);
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
     Objects.requireNonNull(docLookup);
-    Objects.requireNonNull(query);
-    if (multiRetrieverContext == null) {
-      Objects.requireNonNull(collector);
-    }
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);

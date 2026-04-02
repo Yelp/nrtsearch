@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.search;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
@@ -199,34 +198,13 @@ public class SearchContextTest extends ServerTestCase {
         MultiRetrieverContext.newBuilder().addRetrieverContext(retrieverContext).build();
 
     SearchContext context =
-        getCompleteBuilder()
-            .setCollector(null)
-            .setMultiRetrieverContext(multiRetrieverContext)
-            .build(true);
+        getCompleteBuilder().setMultiRetrieverContext(multiRetrieverContext).build(true);
 
     assertNotNull(context.getMultiRetrieverContext());
+    assertNotNull(context.getCollector());
     assertEquals(1, context.getMultiRetrieverContext().getRetrieverContextMap().size());
     assertSame(
         retrieverContext, context.getMultiRetrieverContext().getRetrieverContext("test_retriever"));
-    assertNull(context.getCollector());
-  }
-
-  @Test
-  public void testMultiRetrieverContextWithNullCollector() throws Exception {
-    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
-    MultiRetrieverContext multiRetrieverContext =
-        MultiRetrieverContext.newBuilder()
-            .addRetrieverContext(
-                RetrieverContext.newBuilder("r1")
-                    .query(new MatchAllDocsQuery())
-                    .docCollector(new DummyCollector(indexState))
-                    .build())
-            .build();
-
-    getCompleteBuilder()
-        .setCollector(null)
-        .setMultiRetrieverContext(multiRetrieverContext)
-        .build(true);
   }
 
   @Test(expected = NullPointerException.class)
@@ -241,10 +219,6 @@ public class SearchContextTest extends ServerTestCase {
                     .build())
             .build();
 
-    getCompleteBuilder()
-        .setQuery(null)
-        .setCollector(null)
-        .setMultiRetrieverContext(multiRetrieverContext)
-        .build(true);
+    getCompleteBuilder().setQuery(null).setMultiRetrieverContext(multiRetrieverContext).build(true);
   }
 }
