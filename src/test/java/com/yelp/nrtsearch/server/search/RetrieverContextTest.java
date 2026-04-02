@@ -32,6 +32,7 @@ public class RetrieverContextTest {
   public void testBuilderDefaults() {
     RetrieverContext context = RetrieverContext.newBuilder("test").build();
     assertEquals("test", context.getName());
+    assertNull(context.getRetrieverType());
     assertEquals(1.0f, context.getBoost(), 0.0f);
     assertNull(context.getQuery());
     assertNull(context.getDocCollector());
@@ -46,6 +47,7 @@ public class RetrieverContextTest {
 
     RetrieverContext context =
         RetrieverContext.newBuilder("test_retriever")
+            .retrieverType(RetrieverContext.RetrieverType.TEXT)
             .boost(2.5f)
             .query(query)
             .docCollector(collector)
@@ -53,6 +55,7 @@ public class RetrieverContextTest {
             .build();
 
     assertEquals("test_retriever", context.getName());
+    assertEquals(RetrieverContext.RetrieverType.TEXT, context.getRetrieverType());
     assertEquals(2.5f, context.getBoost(), 0.0f);
     assertSame(query, context.getQuery());
     assertSame(collector, context.getDocCollector());

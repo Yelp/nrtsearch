@@ -22,7 +22,14 @@ import org.apache.lucene.search.Query;
 public class RetrieverContext {
   private static final float DEFAULT_BOOST = 1.0f;
 
+  /** Type of retriever, used to determine execution behavior in SearchHandler. */
+  public enum RetrieverType {
+    TEXT,
+    KNN
+  }
+
   private final String name;
+  private final RetrieverType retrieverType;
   private final float boost;
   private final Query query;
   private final DocCollector docCollector;
@@ -30,6 +37,7 @@ public class RetrieverContext {
 
   private RetrieverContext(Builder builder) {
     this.name = builder.name;
+    this.retrieverType = builder.retrieverType;
     this.boost = builder.boost > 0 ? builder.boost : DEFAULT_BOOST;
     this.query = builder.query;
     this.docCollector = builder.docCollector;
@@ -43,6 +51,7 @@ public class RetrieverContext {
   public static class Builder {
 
     private final String name;
+    private RetrieverType retrieverType;
     private float boost = DEFAULT_BOOST;
     private Query query;
     private DocCollector docCollector;
@@ -50,6 +59,11 @@ public class RetrieverContext {
 
     private Builder(String name) {
       this.name = name;
+    }
+
+    public Builder retrieverType(RetrieverType retrieverType) {
+      this.retrieverType = retrieverType;
+      return this;
     }
 
     public Builder boost(float boost) {
@@ -79,6 +93,10 @@ public class RetrieverContext {
 
   public String getName() {
     return name;
+  }
+
+  public RetrieverType getRetrieverType() {
+    return retrieverType;
   }
 
   public float getBoost() {

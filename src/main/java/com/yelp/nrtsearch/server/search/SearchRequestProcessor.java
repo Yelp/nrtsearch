@@ -669,6 +669,7 @@ public class SearchRequestProcessor {
 
       switch (retriever.getRetrieverTypeCase()) {
         case TEXTRETRIEVER -> {
+          retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.TEXT);
           TextRetriever textRetriever = retriever.getTextRetriever();
           String nestedQueryPath =
               textRetriever.getQueryNestedPath().isEmpty()
@@ -688,6 +689,7 @@ public class SearchRequestProcessor {
           numHitsToCollect = textRetriever.getTopHits();
         }
         case KNNRETRIEVER -> {
+          retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.KNN);
           query = buildKnnQuery(retriever.getKnnRetriever().getKnnQuery(), indexState);
           numHitsToCollect = retriever.getKnnRetriever().getKnnQuery().getK();
         }
