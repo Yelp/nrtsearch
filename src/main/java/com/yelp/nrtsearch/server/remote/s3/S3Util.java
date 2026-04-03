@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import java.net.URI;
 import java.nio.file.Paths;
@@ -53,6 +53,153 @@ public class S3Util {
    * @param s3AsyncClient asynchronous S3 client
    */
   public record S3ClientBundle(S3Client s3Client, S3AsyncClient s3AsyncClient) {}
+
+  /** Configuration for the S3 CRT async client. */
+  public static class S3CrtConfig {
+    private static final String CONFIG_PREFIX = "remoteConfig.s3.crt.";
+
+    private final double targetThroughputInGbps;
+    private final int maxConcurrency;
+    private final long minimumPartSizeInBytes;
+    private final long maxNativeMemoryLimitInBytes;
+
+    /**
+     * Create S3CrtConfig from NrtsearchConfig.
+     *
+     * <p>At most one of {@code targetThroughputInGbps} or {@code maxConcurrency} may be set (> 0).
+     * If neither is configured, the SDK default is used for both (no value set on the builder).
+     *
+     * @param configuration server configuration
+     * @return S3CrtConfig
+     */
+    public static S3CrtConfig fromConfig(NrtsearchConfig configuration) {
+      double targetThroughputInGbps =
+          configuration.getConfigReader().getDouble(CONFIG_PREFIX + "targetThroughputInGbps", 0.0);
+      int maxConcurrency =
+          configuration.getConfigReader().getInteger(CONFIG_PREFIX + "maxConcurrency", 0);
+      long minimumPartSizeInBytes =
+          sizeStrToBytes(
+              configuration.getConfigReader().getString(CONFIG_PREFIX + "minimumPartSize", "8mb"));
+      long maxNativeMemoryLimitInBytes =
+          sizeStrToBytes(
+              configuration
+                  .getConfigReader()
+                  .getString(CONFIG_PREFIX + "maxNativeMemoryLimit", "0"));
+      return new S3CrtConfig(
+          targetThroughputInGbps,
+          maxConcurrency,
+          minimumPartSizeInBytes,
+          maxNativeMemoryLimitInBytes);
+    }
+
+    /**
+     * Constructor.
+     *
+     * <p>At most one of {@code targetThroughputInGbps} or {@code maxConcurrency} may be set (> 0);
+     * setting both is not allowed because they are mutually exclusive ways to bound CRT resource
+     * usage. {@code targetThroughputInGbps} lets CRT auto-calculate connections and size its
+     * buffers for the target throughput. {@code maxConcurrency} hard-caps the connection count and
+     * lets CRT derive buffer sizing from that cap instead. If neither is set (both 0), the SDK
+     * default is used.
+     *
+     * @param targetThroughputInGbps target throughput in Gbps for CRT buffer/connection sizing (0
+     *     to use SDK default or maxConcurrency instead)
+     * @param maxConcurrency hard cap on concurrent S3 connections (0 to use SDK default or
+     *     targetThroughputInGbps instead)
+     * @param minimumPartSizeInBytes minimum multipart part size in bytes
+     * @param maxNativeMemoryLimitInBytes hard cap on CRT native memory in bytes (0 means unlimited)
+     * @throws IllegalArgumentException if both targetThroughputInGbps and maxConcurrency are set,
+     *     or if minimumPartSizeInBytes <= 0
+     */
+    public S3CrtConfig(
+        double targetThroughputInGbps,
+        int maxConcurrency,
+        long minimumPartSizeInBytes,
+        long maxNativeMemoryLimitInBytes) {
+      if (targetThroughputInGbps > 0 && maxConcurrency > 0) {
+        throw new IllegalArgumentException(
+            "Only one of targetThroughputInGbps or maxConcurrency may be set");
+      }
+      if (minimumPartSizeInBytes <= 0) {
+        throw new IllegalArgumentException("minimumPartSizeInBytes must be > 0");
+      }
+      if (maxNativeMemoryLimitInBytes < 0) {
+        throw new IllegalArgumentException("maxNativeMemoryLimitInBytes must be >= 0");
+      }
+      this.targetThroughputInGbps = targetThroughputInGbps;
+      this.maxConcurrency = maxConcurrency;
+      this.minimumPartSizeInBytes = minimumPartSizeInBytes;
+      this.maxNativeMemoryLimitInBytes = maxNativeMemoryLimitInBytes;
+    }
+
+    /**
+     * Get the target throughput in Gbps (0 means not set; SDK default will be used).
+     *
+     * @return target throughput in Gbps
+     */
+    public double getTargetThroughputInGbps() {
+      return targetThroughputInGbps;
+    }
+
+    /**
+     * Get the max concurrency (0 means not set; SDK default will be used).
+     *
+     * @return max number of concurrent S3 connections
+     */
+    public int getMaxConcurrency() {
+      return maxConcurrency;
+    }
+
+    /**
+     * Get the minimum part size in bytes.
+     *
+     * @return minimum part size in bytes
+     */
+    public long getMinimumPartSizeInBytes() {
+      return minimumPartSizeInBytes;
+    }
+
+    /**
+     * Get the max native memory limit in bytes.
+     *
+     * @return max native memory limit in bytes (0 means unlimited)
+     */
+    public long getMaxNativeMemoryLimitInBytes() {
+      return maxNativeMemoryLimitInBytes;
+    }
+
+    /**
+     * Convert a size string to bytes. Supports kb, mb, gb suffixes (case-insensitive) and plain
+     * numeric values (treated as bytes). For example: '8mb', '512kb', '2gb', '1048576'.
+     */
+    @VisibleForTesting
+    static long sizeStrToBytes(String sizeStr) {
+      String baseStr = sizeStr;
+      long multiplier = 1;
+      if (baseStr.length() > 2) {
+        String suffix = baseStr.substring(baseStr.length() - 2).toLowerCase();
+        switch (suffix) {
+          case "kb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024;
+          }
+          case "mb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024 * 1024;
+          }
+          case "gb" -> {
+            baseStr = baseStr.substring(0, baseStr.length() - 2);
+            multiplier = 1024L * 1024 * 1024;
+          }
+        }
+      }
+      if (baseStr.isEmpty()) {
+        throw new IllegalArgumentException("Cannot convert size string: " + sizeStr);
+      }
+      double baseValue = Double.parseDouble(baseStr);
+      return (long) (baseValue * multiplier);
+    }
+  }
 
   /**
    * Create a new S3 client bundle from the given configuration.
@@ -133,17 +280,31 @@ public class S3Util {
     }
 
     S3Client s3Client = clientBuilder.build();
-    int maxConcurrency =
-        configuration
-            .getThreadPoolConfiguration()
-            .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
-            .maxThreads();
+
+    S3CrtConfig crtConfig = S3CrtConfig.fromConfig(configuration);
+    logger.info(
+        "S3 CRT client config: targetThroughputInGbps={}, maxConcurrency={}, minimumPartSizeInBytes={}, maxNativeMemoryLimitInBytes={}",
+        crtConfig.getTargetThroughputInGbps(),
+        crtConfig.getMaxConcurrency(),
+        crtConfig.getMinimumPartSizeInBytes(),
+        crtConfig.getMaxNativeMemoryLimitInBytes());
 
     S3CrtAsyncClientBuilder s3CrtAsyncClientBuilder =
         S3CrtAsyncClient.builder()
             .credentialsProvider(createCredentialsProvider(configuration))
             .region(s3Client.serviceClientConfiguration().region())
-            .maxConcurrency(maxConcurrency);
+            .minimumPartSizeInBytes(crtConfig.getMinimumPartSizeInBytes());
+
+    if (crtConfig.getTargetThroughputInGbps() > 0) {
+      s3CrtAsyncClientBuilder.targetThroughputInGbps(crtConfig.getTargetThroughputInGbps());
+    } else if (crtConfig.getMaxConcurrency() > 0) {
+      s3CrtAsyncClientBuilder.maxConcurrency(crtConfig.getMaxConcurrency());
+    }
+
+    if (crtConfig.getMaxNativeMemoryLimitInBytes() > 0) {
+      s3CrtAsyncClientBuilder.maxNativeMemoryLimitInBytes(
+          crtConfig.getMaxNativeMemoryLimitInBytes());
+    }
 
     if (globalBucketAccess) {
       s3CrtAsyncClientBuilder.crossRegionAccessEnabled(true);
