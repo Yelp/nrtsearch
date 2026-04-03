@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.join.BitSetProducer;
 
 /**
  * Class that provides a lookup interface for doc values in a single lucene segment. Values are
@@ -37,17 +38,31 @@ import org.apache.lucene.index.LeafReaderContext;
 public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
 
   private static final String PARENT_FIELD_PREFIX = "_PARENT.";
+  private static final String CHILDREN_FIELD_PREFIX = "_CHILDREN.";
   private final Function<String, FieldDef> fieldDefLookup;
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
+  private final BitSetProducer parentBitSetProducer;
+  private final Function<String, BitSetProducer> childPathFilterLookup;
+  private final Map<String, ChildAggregatedDocValues> childrenLoaderCache = new HashMap<>();
 
   private int docId = -1;
   private int parentDocId = -1;
   private SegmentDocLookup parentLookup = null;
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
+    this(fieldDefLookup, context, null, null);
+  }
+
+  public SegmentDocLookup(
+      Function<String, FieldDef> fieldDefLookup,
+      LeafReaderContext context,
+      BitSetProducer parentBitSetProducer,
+      Function<String, BitSetProducer> childPathFilterLookup) {
     this.fieldDefLookup = fieldDefLookup;
     this.context = context;
+    this.parentBitSetProducer = parentBitSetProducer;
+    this.childPathFilterLookup = childPathFilterLookup;
   }
 
   /**
@@ -86,6 +101,13 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
     String fieldName = key.toString();
 
+    if (fieldName.startsWith(CHILDREN_FIELD_PREFIX)) {
+      if (parentBitSetProducer == null) {
+        return false;
+      }
+      fieldName = fieldName.substring(CHILDREN_FIELD_PREFIX.length());
+    }
+
     if (fieldName.startsWith(PARENT_FIELD_PREFIX)) {
       fieldName = fieldName.substring(PARENT_FIELD_PREFIX.length());
     }
@@ -121,6 +143,10 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     Objects.requireNonNull(key);
     String fieldName = key.toString();
 
+    if (fieldName.startsWith(CHILDREN_FIELD_PREFIX)) {
+      String actualFieldName = fieldName.substring(CHILDREN_FIELD_PREFIX.length());
+      return getChildrenDocValues(actualFieldName);
+    }
     if (fieldName.startsWith(PARENT_FIELD_PREFIX)) {
       String actualFieldName = fieldName.substring(PARENT_FIELD_PREFIX.length());
       try {
@@ -156,6 +182,63 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
 
     return docValues;
+  }
+
+  /**
+   * Get aggregated doc values from child documents for the given field. Uses the parent BitSet to
+   * identify child document boundaries and collects all child values into a single multi-valued
+   * LoadedDocValues.
+   *
+   * @param fieldName the child field name (without _CHILDREN. prefix)
+   * @return LoadedDocValues containing all child document values for this field
+   * @throws IllegalArgumentException if the index has no nested fields, the field doesn't exist, or
+   *     the field doesn't support doc values
+   */
+  private LoadedDocValues<?> getChildrenDocValues(String fieldName) {
+    if (parentBitSetProducer == null) {
+      throw new IllegalArgumentException(
+          "Cannot access child fields: index has no nested documents "
+              + "or parentBitSetProducer not provided");
+    }
+
+    ChildAggregatedDocValues childDocValues = childrenLoaderCache.get(fieldName);
+    if (childDocValues == null) {
+      FieldDef fieldDef = fieldDefLookup.apply(fieldName);
+      if (fieldDef == null) {
+        throw new IllegalArgumentException("Child field does not exist: " + fieldName);
+      }
+      if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
+        throw new IllegalArgumentException("Child field cannot have doc values: " + fieldName);
+      }
+      if (!indexableFieldDef.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "Child field does not have doc values enabled: " + fieldName);
+      }
+
+      BitSetProducer childPathFilter = null;
+      if (childPathFilterLookup != null) {
+        childPathFilter = childPathFilterLookup.apply(fieldName);
+      }
+
+      try {
+        childDocValues =
+            new ChildAggregatedDocValues(
+                indexableFieldDef, context,
+                parentBitSetProducer, childPathFilter);
+      } catch (IOException e) {
+        throw new IllegalArgumentException(
+            "Could not create child doc values for field: " + fieldName, e);
+      }
+      childrenLoaderCache.put(fieldName, childDocValues);
+    }
+
+    try {
+      childDocValues.setDocId(docId);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Could not set parent doc: " + docId + " for child field: " + fieldName, e);
+    }
+    return childDocValues;
   }
 
   /**
