@@ -272,6 +272,16 @@ public class S3Backend implements RemoteBackend {
         ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
   }
 
+  /**
+   * Private constructor.
+   *
+   * @param serviceBucket bucket name
+   * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3BackendConfig s3 backend configuration
+   * @param s3ClientBundle s3 client bundle
+   * @param defaultParallelism parallelism to use when downloading multipart objects, also the
+   *     default batch size when downloading all index files
+   */
   private S3Backend(
       String serviceBucket,
       boolean savePluginBeforeUnzip,
