@@ -30,6 +30,9 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.remote.s3.S3Util.S3CrtConfig;
+import com.yelp.nrtsearch.server.remote.s3.S3Util.S3JavaAsyncConfig;
+import java.io.ByteArrayInputStream;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -37,6 +40,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -139,5 +143,113 @@ public class S3UtilTest {
   public void testBuildS3ClientBundle_SdkServiceException_returnsDummyBundle() {
     verifyDummyBundleReturnedWhenGetBucketLocationThrows(
         SdkServiceException.builder().message("service error").statusCode(500).build());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_defaults() {
+    String configStr = "bucketName: test-bucket";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(config);
+
+    assertEquals(8 * 1024 * 1024L, javaConfig.getMinimumPartSizeInBytes());
+    assertEquals(8 * 1024 * 1024L, javaConfig.getThresholdSizeInBytes());
+    assertEquals(0L, javaConfig.getApiCallBufferSizeInBytes());
+    assertEquals(0, javaConfig.getMaxInFlightParts());
+    assertEquals(0, javaConfig.getIoThreads());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_customValues() {
+    String configStr =
+        "bucketName: test-bucket\n"
+            + "remoteConfig:\n"
+            + "  s3:\n"
+            + "    java:\n"
+            + "      minimumPartSize: 16mb\n"
+            + "      thresholdSize: 32mb\n"
+            + "      apiCallBufferSize: 64mb\n"
+            + "      maxInFlightParts: 8\n"
+            + "      ioThreads: 16\n";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(config);
+
+    assertEquals(16 * 1024 * 1024L, javaConfig.getMinimumPartSizeInBytes());
+    assertEquals(32 * 1024 * 1024L, javaConfig.getThresholdSizeInBytes());
+    assertEquals(64 * 1024 * 1024L, javaConfig.getApiCallBufferSizeInBytes());
+    assertEquals(8, javaConfig.getMaxInFlightParts());
+    assertEquals(16, javaConfig.getIoThreads());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_invalidMinimumPartSize() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0));
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_invalidThresholdSize() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0));
+  }
+
+  @Test
+  public void testSizeStrToBytes() {
+    assertEquals(1024L, S3CrtConfig.sizeStrToBytes("1kb"));
+    assertEquals(1024L, S3CrtConfig.sizeStrToBytes("1KB"));
+    assertEquals(8 * 1024 * 1024L, S3CrtConfig.sizeStrToBytes("8mb"));
+    assertEquals(2L * 1024 * 1024 * 1024, S3CrtConfig.sizeStrToBytes("2gb"));
+    assertEquals(1048576L, S3CrtConfig.sizeStrToBytes("1048576"));
+    assertThrows(IllegalArgumentException.class, () -> S3CrtConfig.sizeStrToBytes("mb"));
+    assertThrows(NumberFormatException.class, () -> S3CrtConfig.sizeStrToBytes("abc"));
+  }
+
+  @Test
+  public void testInvalidAsyncClientType() {
+    NrtsearchConfig config = mock(NrtsearchConfig.class);
+    when(config.getBotoCfgPath()).thenReturn(null);
+    when(config.getBucketName()).thenReturn("test-bucket");
+    when(config.getEnableGlobalBucketAccess()).thenReturn(false);
+    when(config.getMaxS3ClientRetries()).thenReturn(0);
+
+    com.yelp.nrtsearch.server.config.YamlConfigReader configReader =
+        mock(com.yelp.nrtsearch.server.config.YamlConfigReader.class);
+    when(config.getConfigReader()).thenReturn(configReader);
+    when(configReader.getString("remoteConfig.s3.asyncClientType", "crt"))
+        .thenReturn("unknown_type");
+
+    // The final sync S3Client built from builderA.build()
+    software.amazon.awssdk.services.s3.S3ServiceClientConfiguration serviceClientConfig =
+        mock(software.amazon.awssdk.services.s3.S3ServiceClientConfiguration.class);
+    when(serviceClientConfig.region()).thenReturn(software.amazon.awssdk.regions.Region.US_EAST_1);
+    S3Client finalS3Client = mock(S3Client.class);
+    when(finalS3Client.serviceClientConfiguration()).thenReturn(serviceClientConfig);
+
+    // Builder A: clientBuilder — its .build() returns the final sync client
+    S3ClientBuilder builderA = mock(S3ClientBuilder.class, RETURNS_SELF);
+    when(builderA.build()).thenReturn(finalS3Client);
+
+    // Builder B: interim client — getBucketLocation succeeds
+    S3Client interimClient = mock(S3Client.class);
+    GetBucketLocationResponse locationResponse =
+        GetBucketLocationResponse.builder().locationConstraint("us-east-1").build();
+    when(interimClient.getBucketLocation(
+            any(software.amazon.awssdk.services.s3.model.GetBucketLocationRequest.class)))
+        .thenReturn(locationResponse);
+    S3ClientBuilder builderB = mock(S3ClientBuilder.class, RETURNS_SELF);
+    when(builderB.build()).thenReturn(interimClient);
+
+    try (MockedStatic<S3Client> mockedS3Client = mockStatic(S3Client.class)) {
+      mockedS3Client.when(S3Client::builder).thenReturn(builderA).thenReturn(builderB);
+
+      assertThrows(IllegalArgumentException.class, () -> S3Util.buildS3ClientBundle(config));
+    }
   }
 }
