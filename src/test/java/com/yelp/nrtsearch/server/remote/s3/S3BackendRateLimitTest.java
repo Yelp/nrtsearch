@@ -160,7 +160,7 @@ public class S3BackendRateLimitTest {
     // Create a custom S3BackendConfig
     S3BackendConfig customConfig =
         new S3BackendConfig(
-            false, 2 * 1024 * 1024, 10); // 2MB/s, 10 second window, metrics disabled
+            false, 2 * 1024 * 1024, 10, 0); // 2MB/s, 10 second window, metrics disabled
 
     // Create S3Backend with custom config
     S3Backend s3Backend =
@@ -196,7 +196,7 @@ public class S3BackendRateLimitTest {
   public void testMetricsConfig() throws Exception {
     // Create a custom S3BackendConfig with metrics enabled
     S3BackendConfig customConfig =
-        new S3BackendConfig(true, 0, 1); // No rate limit, metrics enabled
+        new S3BackendConfig(true, 0, 1, 0); // No rate limit, metrics enabled
 
     // Create S3Backend with custom config
     S3Backend s3Backend =

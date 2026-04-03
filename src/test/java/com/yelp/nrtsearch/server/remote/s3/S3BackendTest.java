@@ -143,7 +143,8 @@ public class S3BackendTest {
             false,
             S3Backend.DEFAULT_CONFIG,
             new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
-      assertEquals(ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, s3Backend.getMaxParallelism());
+      assertEquals(
+          ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS, s3Backend.getDefaultParallelism());
     }
   }
 
@@ -935,6 +936,106 @@ public class S3BackendTest {
           errorMsg.contains("Not Found")
               || errorMsg.contains("NoSuchKey")
               || errorMsg.contains("does not exist"));
+    }
+  }
+
+  @Test
+  public void testDownloadIndexFiles_batched() throws IOException {
+    File indexDir = folder.newFolder("index_dir_batched");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("batch_service", "batch_index");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f1", meta1))
+            .build(),
+        RequestBody.fromString("data1"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f2", meta2))
+            .build(),
+        RequestBody.fromString("data2"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f3", meta3))
+            .build(),
+        RequestBody.fromString("data3"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f4", meta4))
+            .build(),
+        RequestBody.fromString("data4"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f5", meta5))
+            .build(),
+        RequestBody.fromString("data5"));
+
+    // Use a batch size of 2, smaller than file count of 5
+    S3Backend batchedBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 2),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    batchedBackend.downloadIndexFiles(
+        "batch_service",
+        "batch_index",
+        indexDir.toPath(),
+        Map.of("f1", meta1, "f2", meta2, "f3", meta3, "f4", meta4, "f5", meta5));
+
+    assertEquals("data1", convertToString(Files.newInputStream(indexDir.toPath().resolve("f1"))));
+    assertEquals("data2", convertToString(Files.newInputStream(indexDir.toPath().resolve("f2"))));
+    assertEquals("data3", convertToString(Files.newInputStream(indexDir.toPath().resolve("f3"))));
+    assertEquals("data4", convertToString(Files.newInputStream(indexDir.toPath().resolve("f4"))));
+    assertEquals("data5", convertToString(Files.newInputStream(indexDir.toPath().resolve("f5"))));
+  }
+
+  @Test
+  public void testS3BackendConfigDefaults() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0);
+    assertEquals(0, config.getDownloadBatchSize());
+    assertFalse(config.getMetrics());
+    assertEquals(0, config.getRateLimitBytes());
+    assertEquals(1, config.getRateLimitWindowSeconds());
+  }
+
+  @Test
+  public void testS3BackendConfigDownloadBatchSize() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 10);
+    assertEquals(10, config.getDownloadBatchSize());
+  }
+
+  @Test
+  public void testS3BackendConfigDownloadBatchSizeNegative() {
+    try {
+      new S3Backend.S3BackendConfig(false, 0, 1, -1);
+      fail("Expected IllegalArgumentException for negative downloadBatchSize");
+    } catch (IllegalArgumentException e) {
+      assertEquals("downloadBatchSize must be >= 0", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testDownloadBatchSizeGetter() {
+    try (S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 5),
+            new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
+      assertEquals(5, backend.getDownloadBatchSize());
     }
   }
 
