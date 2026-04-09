@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.query.MinThresholdQuery;
+import com.yelp.nrtsearch.server.query.vector.KnnRewriteOnceQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenFloatKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnByteVectorQuery;
@@ -392,8 +393,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
-    return getTypeKnnQuery(
-        knnQuery, k, filterQuery, numCandidates, parentBitSetProducer, similarityThreshold);
+    return new KnnRewriteOnceQuery(
+        getTypeKnnQuery(
+            knnQuery, k, filterQuery, numCandidates, parentBitSetProducer, similarityThreshold));
   }
 
   @Override

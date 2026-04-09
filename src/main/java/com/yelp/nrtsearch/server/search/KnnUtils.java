@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.search;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.query.MinThresholdQuery;
+import com.yelp.nrtsearch.server.query.vector.KnnRewriteOnceQuery;
 import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import java.io.IOException;
 import org.apache.lucene.search.BoostQuery;
@@ -61,6 +62,9 @@ public class KnnUtils {
       Query knnQuery,
       SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
     Query vectorQuery = knnQuery;
+    if (vectorQuery instanceof KnnRewriteOnceQuery onceCached) {
+      vectorQuery = onceCached.getWrapped();
+    }
     if (vectorQuery instanceof MinThresholdQuery minThresholdQuery) {
       vectorQuery = minThresholdQuery.getWrapped();
     }
