@@ -603,6 +603,10 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
+    long totalUploadBytes = files.values().stream().mapToLong(m -> m.length).sum();
+    S3ProgressListenerImpl uploadProgressListener =
+        new S3ProgressListenerImpl(
+            service, indexIdentifier, "upload_index_files", totalUploadBytes);
     List<FileUpload> uploadList = new LinkedList<>();
     boolean hasFailure = false;
     Throwable failureCause = null;
@@ -614,8 +618,7 @@ public class S3Backend implements RemoteBackend {
               .putObjectRequest(
                   PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
               .source(localFile)
-              .addTransferListener(
-                  new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"))
+              .addTransferListener(uploadProgressListener)
               .build();
       try {
         if (transferManager == null) {
@@ -680,6 +683,13 @@ public class S3Backend implements RemoteBackend {
       List<FileDownload> downloadList = new LinkedList<>();
       boolean hasFailure = false;
       Throwable failureCause = null;
+      long batchExpectedBytes =
+          batch.stream()
+              .mapToLong(p -> files.get(p.fileName()) != null ? files.get(p.fileName()).length : 0)
+              .sum();
+      S3ProgressListenerImpl batchProgressListener =
+          new S3ProgressListenerImpl(
+              service, indexIdentifier, "download_index_files", batchExpectedBytes);
 
       for (FileNamePair pair : batch) {
         String backendKey = backendPrefix + pair.backendFileName;
@@ -689,8 +699,7 @@ public class S3Backend implements RemoteBackend {
                 .getObjectRequest(
                     GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .destination(localFile)
-                .addTransferListener(
-                    new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"))
+                .addTransferListener(batchProgressListener)
                 .build();
         try {
           FileDownload download = transferManager.downloadFile(request);

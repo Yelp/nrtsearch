@@ -41,16 +41,28 @@ public class S3ProgressListenerImpl implements TransferListener {
   private final String serviceName;
   private final String resource;
   private final String operation;
+  private final long totalExpectedBytes;
 
   private final Semaphore lock = new Semaphore(1);
   private final AtomicLong totalBytesTransferred = new AtomicLong();
   private long bytesTransferredSinceLastLog = 0;
   private LocalDateTime lastLoggedTime = LocalDateTime.now();
 
-  public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
+  /**
+   * Constructor.
+   *
+   * @param serviceName service name
+   * @param resource resource identifier
+   * @param operation operation name (e.g. "download_index_files")
+   * @param totalExpectedBytes total expected bytes across all files for this listener, used to
+   *     compute percent complete in log output; use -1 if unknown
+   */
+  public S3ProgressListenerImpl(
+      String serviceName, String resource, String operation, long totalExpectedBytes) {
     this.serviceName = serviceName;
     this.resource = resource;
     this.operation = operation;
+    this.totalExpectedBytes = totalExpectedBytes;
   }
 
   @Override
@@ -69,10 +81,18 @@ public class S3ProgressListenerImpl implements TransferListener {
 
         if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES
             || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
-          logger.info(
-              String.format(
-                  "service: %s, resource: %s, %s transferred bytes: %s",
-                  serviceName, resource, operation, totalBytes));
+          if (totalExpectedBytes > 0) {
+            double pct = 100.0 * totalBytes / totalExpectedBytes;
+            logger.info(
+                String.format(
+                    "service: %s, resource: %s, %s transferred bytes: %s (%.1f%%)",
+                    serviceName, resource, operation, totalBytes, pct));
+          } else {
+            logger.info(
+                String.format(
+                    "service: %s, resource: %s, %s transferred bytes: %s",
+                    serviceName, resource, operation, totalBytes));
+          }
           bytesTransferredSinceLastLog = 0;
           lastLoggedTime = LocalDateTime.now();
         }
