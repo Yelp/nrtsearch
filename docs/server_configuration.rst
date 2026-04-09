@@ -409,22 +409,22 @@ Example server configuration
 
    * - ackedCopy
      - bool
-     - If enabled, replicas use acked file copy when copying files from the primary.
+     - If enabled, replicas use acked file copy (bidirectional streaming with flow control) when copying files from the primary. Without this, the primary streams all chunks in a tight loop with no backpressure, which can cause unbounded gRPC buffer growth and memory pressure when replicas are slower than the primary, index segments are large, or many replicas replicate simultaneously. When enabled, the primary pauses after sending ``maxInFlight`` un-acked chunks and resumes when the replica acknowledges receipt. The ``chunkSize``, ``ackEvery``, and ``maxInFlight`` settings below apply only when this is enabled.
      - false
 
    * - chunkSize
      - int
-     - Size of chunks when the primary sends files to replicas.
+     - Size in bytes of each chunk the primary sends to replicas during file copy. Only used when ``ackedCopy`` is true.
      - 64 * 1024
 
    * - ackEvery
      - int
-     - Number of chunks sent to a replica between acks.
+     - Number of chunks sent to a replica between acks. Must be less than or equal to ``maxInFlight``. Only used when ``ackedCopy`` is true.
      - 1000
 
    * - maxInFlight
      - int
-     - Maximum number of in-flight chunks sent by the primary.
+     - Maximum number of un-acked chunks the primary is allowed to have in flight. The primary pauses sending when this limit is reached and resumes upon receiving an ack. Only used when ``ackedCopy`` is true.
      - 2000
 
 .. list-table:: `Index Data Preload Configuration <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/server/config/IndexPreloadConfig.java>`_ (``preload.*``)
