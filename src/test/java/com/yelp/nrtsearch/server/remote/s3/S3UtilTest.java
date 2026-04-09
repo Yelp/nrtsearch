@@ -156,6 +156,10 @@ public class S3UtilTest {
     assertEquals(0L, javaConfig.getApiCallBufferSizeInBytes());
     assertEquals(0, javaConfig.getMaxInFlightParts());
     assertEquals(0, javaConfig.getIoThreads());
+    assertEquals(0, javaConfig.getMaxConnections());
+    assertEquals(0, javaConfig.getConnectionTimeoutMs());
+    assertEquals(0, javaConfig.getConnectionAcquisitionTimeoutMs());
+    assertEquals(0, javaConfig.getMaxPendingConnectionAcquires());
   }
 
   @Test
@@ -169,7 +173,11 @@ public class S3UtilTest {
             + "      thresholdSize: 32mb\n"
             + "      apiCallBufferSize: 64mb\n"
             + "      maxInFlightParts: 8\n"
-            + "      ioThreads: 16\n";
+            + "      ioThreads: 16\n"
+            + "      maxConnections: 100\n"
+            + "      connectionTimeoutMs: 5000\n"
+            + "      connectionAcquisitionTimeoutMs: 30000\n"
+            + "      maxPendingConnectionAcquires: 20000\n";
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(config);
 
@@ -178,26 +186,47 @@ public class S3UtilTest {
     assertEquals(64 * 1024 * 1024L, javaConfig.getApiCallBufferSizeInBytes());
     assertEquals(8, javaConfig.getMaxInFlightParts());
     assertEquals(16, javaConfig.getIoThreads());
+    assertEquals(100, javaConfig.getMaxConnections());
+    assertEquals(5000, javaConfig.getConnectionTimeoutMs());
+    assertEquals(30000, javaConfig.getConnectionAcquisitionTimeoutMs());
+    assertEquals(20000, javaConfig.getMaxPendingConnectionAcquires());
   }
 
   @Test
   public void testS3JavaAsyncConfig_invalidMinimumPartSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0));
+        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0));
+        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
   }
 
   @Test
   public void testS3JavaAsyncConfig_invalidThresholdSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0, 0, 0, 0, 0));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0, 0, 0, 0, 0));
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_invalidNettySettings() {
+    long minPart = 8 * 1024 * 1024L;
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, -1, 0, 0, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, -1, 0, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, -1, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, -1));
   }
 
   @Test
