@@ -82,6 +82,11 @@ Example server configuration
      - Path to AWS credentials (if using S3 for remote storage); Will use the DefaultAWSCredentialsProviderChain if omitted.
      - null
 
+   * - enableGlobalBucketAccess
+     - bool
+     - If enabled, the S3 client uses cross-region access, allowing it to access buckets in any region without requiring an exact region match.
+     - false
+
    * - deadlineCancellation
      - bool
      - Enables gRPC deadline based cancellation of requests. A request is cancelled early if it exceeds the deadline. Currently only supported by the search endpoint.
@@ -445,4 +450,121 @@ Example server configuration
      - list
      - List of index file extensions to preload. Including '*' will preload all files.
      - ['*']
+
+.. list-table:: `S3 Remote Storage Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - asyncClientType
+     - str
+     - Type of async S3 client to use for index file transfers. ``java`` uses the Netty-based ``S3AsyncClient`` (recommended; supports ``MetricPublisher`` and full connection pool configuration). ``crt`` uses the AWS C Runtime ``S3CrtAsyncClient`` (higher throughput but limited observability).
+     - java
+
+   * - metrics
+     - bool
+     - If enabled, tracks S3 download byte counts per index via the ``nrt_s3_download_bytes_total`` Prometheus metric.
+     - false
+
+   * - rateLimitPerSecond
+     - str
+     - Maximum download throughput for S3 operations. Accepts a plain byte count or a size string with a suffix (e.g. ``500mb``, ``1gb``). Set to ``0`` to disable rate limiting.
+     - 0 (unlimited)
+
+   * - rateLimitWindowSeconds
+     - int
+     - Window duration in seconds for the download rate limiter. Must be > 0.
+     - 1
+
+   * - downloadBatchSize
+     - int
+     - Maximum number of index files downloaded concurrently in a single batch during bootstrap. When set to ``0``, the server's ``defaultParallelism`` value is used.
+     - 0
+
+.. list-table:: `S3 Java Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.java.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - minimumPartSize
+     - str
+     - Minimum size of each part in a multipart upload or download. Accepts a plain byte count or a size string with a suffix (e.g. ``16mb``).
+     - 8mb
+
+   * - thresholdSize
+     - str
+     - File size threshold above which multipart upload is used. Accepts a plain byte count or a size string with a suffix.
+     - 8mb
+
+   * - apiCallBufferSize
+     - str
+     - Buffer size for API calls in bytes. Accepts a plain byte count or a size string with a suffix. Set to ``0`` to use the SDK default.
+     - 0 (SDK default)
+
+   * - maxInFlightParts
+     - int
+     - Maximum number of concurrent in-flight multipart parts during a transfer. Set to ``0`` to use the SDK default.
+     - 0 (SDK default)
+
+   * - ioThreads
+     - int
+     - Number of Netty NIO event loop threads. Each thread can multiplex many connections. Set to ``0`` to use the SDK default (``2 * numCPUs``).
+     - 0 (SDK default)
+
+   * - maxConnections
+     - int
+     - Maximum number of concurrent HTTP connections in the Netty connection pool. Set to ``0`` to use the SDK default of 50.
+     - 100
+
+   * - connectionTimeoutMs
+     - int
+     - TCP connection establishment timeout in milliseconds. Set to ``0`` to use the SDK default of 2000ms.
+     - 0 (SDK default)
+
+   * - connectionAcquisitionTimeoutMs
+     - int
+     - Maximum time in milliseconds to wait for a connection from the pool before failing. Increase this or ``maxConnections`` when seeing pool exhaustion errors during high-concurrency bootstrap. Set to ``0`` to use the SDK default of 10000ms.
+     - 60000
+
+   * - maxPendingConnectionAcquires
+     - int
+     - Maximum number of requests that can be queued waiting for a connection from the pool. Set to ``0`` to use the SDK default of 10000.
+     - 0 (SDK default)
+
+.. list-table:: `S3 CRT Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.crt.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - minimumPartSize
+     - str
+     - Minimum size of each part in a multipart transfer. Accepts a plain byte count or a size string with a suffix (e.g. ``16mb``).
+     - 8mb
+
+   * - targetThroughputInGbps
+     - float
+     - Target throughput in Gbps. The CRT client uses this to auto-size its connection count and buffers. Mutually exclusive with ``maxConcurrency``; set to ``0`` to use the SDK default.
+     - 0 (SDK default)
+
+   * - maxConcurrency
+     - int
+     - Hard cap on the number of concurrent S3 connections. Mutually exclusive with ``targetThroughputInGbps``; set to ``0`` to use the SDK default.
+     - 0 (SDK default)
+
+   * - maxNativeMemoryLimit
+     - str
+     - Hard cap on the amount of native (off-heap) memory the CRT client may use. Accepts a plain byte count or a size string with a suffix. Set to ``0`` for unlimited.
+     - 0 (unlimited)
 

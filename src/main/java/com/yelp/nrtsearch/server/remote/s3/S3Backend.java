@@ -668,6 +668,10 @@ public class S3Backend implements RemoteBackend {
     int effectiveBatchSize = downloadBatchSize > 0 ? downloadBatchSize : defaultParallelism;
     int totalFiles = fileList.size();
     int batchStart = 0;
+    long totalExpectedBytes = files.values().stream().mapToLong(m -> m.length).sum();
+    S3ProgressListenerImpl downloadProgressListener =
+        new S3ProgressListenerImpl(
+            service, indexIdentifier, "download_index_files", totalExpectedBytes);
 
     while (batchStart < totalFiles) {
       int batchEnd = Math.min(batchStart + effectiveBatchSize, totalFiles);
@@ -683,13 +687,6 @@ public class S3Backend implements RemoteBackend {
       List<FileDownload> downloadList = new LinkedList<>();
       boolean hasFailure = false;
       Throwable failureCause = null;
-      long batchExpectedBytes =
-          batch.stream()
-              .mapToLong(p -> files.get(p.fileName()) != null ? files.get(p.fileName()).length : 0)
-              .sum();
-      S3ProgressListenerImpl batchProgressListener =
-          new S3ProgressListenerImpl(
-              service, indexIdentifier, "download_index_files", batchExpectedBytes);
 
       for (FileNamePair pair : batch) {
         String backendKey = backendPrefix + pair.backendFileName;
@@ -699,7 +696,7 @@ public class S3Backend implements RemoteBackend {
                 .getObjectRequest(
                     GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .destination(localFile)
-                .addTransferListener(batchProgressListener)
+                .addTransferListener(downloadProgressListener)
                 .build();
         try {
           FileDownload download = transferManager.downloadFile(request);

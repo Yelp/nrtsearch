@@ -240,13 +240,13 @@ public class S3Util {
           configuration.getConfigReader().getInteger(CONFIG_PREFIX + "maxInFlightParts", 0);
       int ioThreads = configuration.getConfigReader().getInteger(CONFIG_PREFIX + "ioThreads", 0);
       int maxConnections =
-          configuration.getConfigReader().getInteger(CONFIG_PREFIX + "maxConnections", 0);
+          configuration.getConfigReader().getInteger(CONFIG_PREFIX + "maxConnections", 100);
       int connectionTimeoutMs =
           configuration.getConfigReader().getInteger(CONFIG_PREFIX + "connectionTimeoutMs", 0);
       int connectionAcquisitionTimeoutMs =
           configuration
               .getConfigReader()
-              .getInteger(CONFIG_PREFIX + "connectionAcquisitionTimeoutMs", 0);
+              .getInteger(CONFIG_PREFIX + "connectionAcquisitionTimeoutMs", 60_000);
       int maxPendingConnectionAcquires =
           configuration
               .getConfigReader()
@@ -272,11 +272,11 @@ public class S3Util {
      * @param maxInFlightParts max in-flight multipart parts (0 means SDK default)
      * @param ioThreads number of Netty I/O threads (0 means SDK default)
      * @param maxConnections max connections in the Netty connection pool (0 means SDK default of
-     *     50)
+     *     50; config default is 100)
      * @param connectionTimeoutMs TCP connection timeout in milliseconds (0 means SDK default of
      *     2000)
      * @param connectionAcquisitionTimeoutMs timeout to acquire a connection from the pool in
-     *     milliseconds (0 means SDK default of 10000)
+     *     milliseconds (0 means SDK default of 10000; config default is 60000)
      * @param maxPendingConnectionAcquires max requests queued waiting for a connection (0 means SDK
      *     default of 10000)
      * @throws IllegalArgumentException if minimumPartSizeInBytes or thresholdSizeInBytes are <= 0,
@@ -376,7 +376,8 @@ public class S3Util {
     }
 
     /**
-     * Get the max connections in the Netty connection pool (0 means SDK default of 50).
+     * Get the max connections in the Netty connection pool (0 means SDK default of 50; config
+     * default is 100).
      *
      * @return max connections
      */
@@ -395,7 +396,7 @@ public class S3Util {
 
     /**
      * Get the timeout to acquire a connection from the pool in milliseconds (0 means SDK default of
-     * 10000).
+     * 10000; config default is 60000).
      *
      * @return connection acquisition timeout in milliseconds
      */
@@ -495,7 +496,7 @@ public class S3Util {
     S3Client s3Client = clientBuilder.build();
 
     String asyncClientType =
-        configuration.getConfigReader().getString("remoteConfig.s3.asyncClientType", "crt");
+        configuration.getConfigReader().getString("remoteConfig.s3.asyncClientType", "java");
     S3AsyncClient s3AsyncClient;
     if (asyncClientType.equalsIgnoreCase("java")) {
       s3AsyncClient =

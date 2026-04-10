@@ -156,9 +156,9 @@ public class S3UtilTest {
     assertEquals(0L, javaConfig.getApiCallBufferSizeInBytes());
     assertEquals(0, javaConfig.getMaxInFlightParts());
     assertEquals(0, javaConfig.getIoThreads());
-    assertEquals(0, javaConfig.getMaxConnections());
+    assertEquals(100, javaConfig.getMaxConnections());
     assertEquals(0, javaConfig.getConnectionTimeoutMs());
-    assertEquals(0, javaConfig.getConnectionAcquisitionTimeoutMs());
+    assertEquals(60_000, javaConfig.getConnectionAcquisitionTimeoutMs());
     assertEquals(0, javaConfig.getMaxPendingConnectionAcquires());
   }
 
@@ -251,7 +251,7 @@ public class S3UtilTest {
     com.yelp.nrtsearch.server.config.YamlConfigReader configReader =
         mock(com.yelp.nrtsearch.server.config.YamlConfigReader.class);
     when(config.getConfigReader()).thenReturn(configReader);
-    when(configReader.getString("remoteConfig.s3.asyncClientType", "crt"))
+    when(configReader.getString("remoteConfig.s3.asyncClientType", "java"))
         .thenReturn("unknown_type");
 
     // The final sync S3Client built from builderA.build()
