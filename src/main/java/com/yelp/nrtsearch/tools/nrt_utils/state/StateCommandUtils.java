@@ -29,15 +29,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
+import java.time.Duration;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationResponse;
 
@@ -152,15 +153,49 @@ public class StateCommandUtils {
       String credsProfile,
       int maxRetry,
       int maxConcurrency) {
+    return createS3ClientBundle(
+        bucketName, region, credsFile, credsProfile, maxRetry, maxConcurrency, 0);
+  }
+
+  /**
+   * Get an S3 client bundle usable for remote state operations.
+   *
+   * @param bucketName s3 bucket
+   * @param region aws region, such as us-west-2, or null to detect
+   * @param credsFile file containing aws credentials, or null for default
+   * @param credsProfile profile to use from credentials file
+   * @param maxRetry maximum number of retry attempts
+   * @param maxConcurrency maximum number of concurrent async S3 requests, or 0 to use SDK default
+   * @param connectionAcquisitionTimeoutMs connection acquisition timeout in ms, or 0 to use SDK
+   *     default
+   * @return S3ClientBundle containing sync and async clients
+   */
+  public static S3Util.S3ClientBundle createS3ClientBundle(
+      String bucketName,
+      String region,
+      String credsFile,
+      String credsProfile,
+      int maxRetry,
+      int maxConcurrency,
+      long connectionAcquisitionTimeoutMs) {
     S3Client s3Client = createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
-    S3CrtAsyncClientBuilder crtBuilder =
-        S3AsyncClient.crtBuilder()
+    software.amazon.awssdk.services.s3.S3AsyncClientBuilder asyncBuilder =
+        S3AsyncClient.builder()
             .credentialsProvider(createCredentialsProvider(credsFile, credsProfile))
-            .region(s3Client.serviceClientConfiguration().region());
-    if (maxConcurrency > 0) {
-      crtBuilder.maxConcurrency(maxConcurrency);
+            .region(s3Client.serviceClientConfiguration().region())
+            .multipartEnabled(true);
+    if (maxConcurrency > 0 || connectionAcquisitionTimeoutMs > 0) {
+      NettyNioAsyncHttpClient.Builder nettyBuilder = NettyNioAsyncHttpClient.builder();
+      if (maxConcurrency > 0) {
+        nettyBuilder.maxConcurrency(maxConcurrency);
+      }
+      if (connectionAcquisitionTimeoutMs > 0) {
+        nettyBuilder.connectionAcquisitionTimeout(
+            Duration.ofMillis(connectionAcquisitionTimeoutMs));
+      }
+      asyncBuilder.httpClientBuilder(nettyBuilder);
     }
-    return new S3Util.S3ClientBundle(s3Client, crtBuilder.build());
+    return new S3Util.S3ClientBundle(s3Client, asyncBuilder.build());
   }
 
   /**

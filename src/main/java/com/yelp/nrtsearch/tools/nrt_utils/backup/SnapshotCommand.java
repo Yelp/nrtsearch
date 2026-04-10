@@ -96,11 +96,23 @@ public class SnapshotCommand implements Callable<Integer> {
   private String snapshotRoot;
 
   @CommandLine.Option(
-      names = {"--copyThreads"},
+      names = {"--maxConcurrency"},
+      description = "Maximum connection to make to S3, (default: ${DEFAULT-VALUE})",
+      defaultValue = "100")
+  int maxConcurrency;
+
+  @CommandLine.Option(
+      names = {"--copyBatchSize"},
+      description = "Number of copy operations to submit per batch, (default: ${DEFAULT-VALUE})",
+      defaultValue = "20")
+  int copyBatchSize;
+
+  @CommandLine.Option(
+      names = {"--connectionAcquisitionTimeoutMs"},
       description =
-          "Number of threads to use when copying index files, (default: ${DEFAULT-VALUE})",
-      defaultValue = "10")
-  int copyThreads;
+          "Connection acquisition timeout in milliseconds for async S3 client, (default: ${DEFAULT-VALUE})",
+      defaultValue = "60000")
+  long connectionAcquisitionTimeoutMs;
 
   @CommandLine.Option(
       names = {"--maxRetry"},
@@ -120,7 +132,13 @@ public class SnapshotCommand implements Callable<Integer> {
     if (s3ClientBundle == null) {
       s3ClientBundle =
           StateCommandUtils.createS3ClientBundle(
-              bucketName, region, credsFile, credsProfile, maxRetry, copyThreads);
+              bucketName,
+              region,
+              credsFile,
+              credsProfile,
+              maxRetry,
+              maxConcurrency,
+              connectionAcquisitionTimeoutMs);
     }
     S3Backend s3Backend =
         new S3Backend(bucketName, false, S3Backend.DEFAULT_CONFIG, s3ClientBundle);
@@ -182,28 +200,32 @@ public class SnapshotCommand implements Callable<Integer> {
     long totalDataSizeBytes = 0;
 
     S3TransferManager transferManager = s3Backend.getTransferManager();
-    List<Copy> copyJobs = new ArrayList<>();
-    for (String fileName : indexDataFiles) {
-      String sourceKey = indexDataKeyPrefix + fileName;
-      HeadObjectRequest headRequest =
-          HeadObjectRequest.builder().bucket(bucketName).key(sourceKey).build();
-      totalDataSizeBytes += s3Backend.getS3().headObject(headRequest).contentLength();
-      CopyObjectRequest copyObjectRequest =
-          CopyObjectRequest.builder()
-              .sourceBucket(bucketName)
-              .sourceKey(sourceKey)
-              .destinationBucket(bucketName)
-              .destinationKey(snapshotIndexDataRoot + fileName)
-              .build();
-      final String finalFileName = fileName;
-      Copy copy =
-          transferManager.copy(CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
-      copyJobs.add(copy);
-      System.out.println("Started copy: " + finalFileName);
-    }
-    for (Copy copyJob : copyJobs) {
-      CompletedCopy completedCopy = copyJob.completionFuture().join();
-      System.out.println("Completed copy");
+    List<String> fileList = new ArrayList<>(indexDataFiles);
+    for (int batchStart = 0; batchStart < fileList.size(); batchStart += copyBatchSize) {
+      int batchEnd = Math.min(batchStart + copyBatchSize, fileList.size());
+      List<Copy> copyJobs = new ArrayList<>();
+      for (String fileName : fileList.subList(batchStart, batchEnd)) {
+        String sourceKey = indexDataKeyPrefix + fileName;
+        HeadObjectRequest headRequest =
+            HeadObjectRequest.builder().bucket(bucketName).key(sourceKey).build();
+        totalDataSizeBytes += s3Backend.getS3().headObject(headRequest).contentLength();
+        CopyObjectRequest copyObjectRequest =
+            CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(snapshotIndexDataRoot + fileName)
+                .build();
+        Copy copy =
+            transferManager.copy(
+                CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
+        copyJobs.add(copy);
+        System.out.println("Started copy: " + fileName);
+      }
+      for (Copy copyJob : copyJobs) {
+        CompletedCopy completedCopy = copyJob.completionFuture().join();
+        System.out.println("Completed copy");
+      }
     }
 
     PutObjectRequest putObjectRequest =

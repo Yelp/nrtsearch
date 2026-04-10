@@ -113,11 +113,23 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   private String snapshotServiceName;
 
   @CommandLine.Option(
-      names = {"--copyThreads"},
+      names = {"--maxConcurrency"},
+      description = "Maximum connection to make to S3, (default: ${DEFAULT-VALUE})",
+      defaultValue = "100")
+  int maxConcurrency;
+
+  @CommandLine.Option(
+      names = {"--copyBatchSize"},
+      description = "Number of copy operations to submit per batch, (default: ${DEFAULT-VALUE})",
+      defaultValue = "20")
+  int copyBatchSize;
+
+  @CommandLine.Option(
+      names = {"--connectionAcquisitionTimeoutMs"},
       description =
-          "Number of threads to use when copying index files, (default: ${DEFAULT-VALUE})",
-      defaultValue = "10")
-  int copyThreads;
+          "Connection acquisition timeout in milliseconds for async S3 client, (default: ${DEFAULT-VALUE})",
+      defaultValue = "60000")
+  long connectionAcquisitionTimeoutMs;
 
   @CommandLine.Option(
       names = {"--maxRetry"},
@@ -213,12 +225,22 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
         this.transferManager;
     boolean shouldCloseTransferManager = false;
     if (transferManagerToUse == null) {
+      software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.Builder nettyBuilder =
+          software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient.builder();
+      if (maxConcurrency > 0) {
+        nettyBuilder.maxConcurrency(maxConcurrency);
+      }
+      if (connectionAcquisitionTimeoutMs > 0) {
+        nettyBuilder.connectionAcquisitionTimeout(
+            java.time.Duration.ofMillis(connectionAcquisitionTimeoutMs));
+      }
       software.amazon.awssdk.services.s3.S3AsyncClient s3AsyncClient =
-          software.amazon.awssdk.services.s3.S3AsyncClient.crtBuilder()
+          software.amazon.awssdk.services.s3.S3AsyncClient.builder()
               .credentialsProvider(
                   LegacyStateCommandUtils.createCredentialsProvider(credsFile, credsProfile))
               .region(s3Client.serviceClientConfiguration().region())
-              .maxConcurrency(copyThreads)
+              .multipartEnabled(true)
+              .httpClientBuilder(nettyBuilder)
               .build();
       transferManagerToUse =
           software.amazon.awssdk.transfer.s3.S3TransferManager.builder()
@@ -227,25 +249,28 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
       shouldCloseTransferManager = true;
     }
     try {
-      List<Copy> copyJobs = new ArrayList<>();
-      for (String fileName : indexFiles) {
-        CopyObjectRequest copyObjectRequest =
-            CopyObjectRequest.builder()
-                .sourceBucket(bucketName)
-                .sourceKey(snapshotDataRoot + fileName)
-                .destinationBucket(bucketName)
-                .destinationKey(restoreDataKeyPrefix + fileName)
-                .build();
-        final String finalFileName = fileName;
-        Copy copy =
-            transferManagerToUse.copy(
-                CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
-        copyJobs.add(copy);
-        System.out.println("Started copy: " + finalFileName);
-      }
-      for (Copy copyJob : copyJobs) {
-        CompletedCopy completedCopy = copyJob.completionFuture().join();
-        System.out.println("Completed copy");
+      List<String> fileList = new ArrayList<>(indexFiles);
+      for (int batchStart = 0; batchStart < fileList.size(); batchStart += copyBatchSize) {
+        int batchEnd = Math.min(batchStart + copyBatchSize, fileList.size());
+        List<Copy> copyJobs = new ArrayList<>();
+        for (String fileName : fileList.subList(batchStart, batchEnd)) {
+          CopyObjectRequest copyObjectRequest =
+              CopyObjectRequest.builder()
+                  .sourceBucket(bucketName)
+                  .sourceKey(snapshotDataRoot + fileName)
+                  .destinationBucket(bucketName)
+                  .destinationKey(restoreDataKeyPrefix + fileName)
+                  .build();
+          Copy copy =
+              transferManagerToUse.copy(
+                  CopyRequest.builder().copyObjectRequest(copyObjectRequest).build());
+          copyJobs.add(copy);
+          System.out.println("Started copy: " + fileName);
+        }
+        for (Copy copyJob : copyJobs) {
+          CompletedCopy completedCopy = copyJob.completionFuture().join();
+          System.out.println("Completed copy");
+        }
       }
     } finally {
       if (shouldCloseTransferManager) {
