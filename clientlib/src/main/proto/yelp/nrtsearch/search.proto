@@ -642,6 +642,44 @@ message ExactVectorQuery {
     bytes query_byte_vector = 3;
 }
 
+// Filters the primary index to documents whose join key matches documents
+// in a secondary index. The query runs on the secondary index; matching
+// values of secondary_field are collected and used to build a TermsQuery on
+// the primary_field in the primary index.
+message CrossIndexQuery {
+    // How to aggregate scores from secondary index matches.
+    enum JoinScoreMode {
+        // Unset — treated as JOIN_SCORE_NONE (filter only)
+        JOIN_SCORE_UNSET = 0;
+        // No scoring — filter only
+        JOIN_SCORE_NONE = 1;
+        // Average score of matching secondary documents
+        JOIN_SCORE_AVG = 2;
+        // Maximum score of matching secondary documents
+        JOIN_SCORE_MAX = 3;
+        // Minimum score of matching secondary documents
+        JOIN_SCORE_MIN = 4;
+        // Sum of scores of matching secondary documents
+        JOIN_SCORE_TOTAL = 5;
+    }
+
+    // Name of the secondary index (must be on the same nrtsearch node)
+    string index = 1;
+    // Field in the primary index containing the join key
+    string primary_field = 2;
+    // Field in the secondary index containing the join key
+    string secondary_field = 3;
+    // Query to execute on the secondary index
+    Query query = 4;
+    // Score aggregation mode from secondary matches (default: JOIN_SCORE_NONE = filter only)
+    JoinScoreMode score_mode = 5;
+    // Maximum number of matching secondary documents allowed (default: 0 = unlimited).
+    // If the inner query matches more documents than this limit, an error is returned.
+    // Use this to guard against excessive memory usage from large secondary result sets.
+    // Note: this counts matching documents, not unique join-key values.
+    uint32 max_terms = 6;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -704,6 +742,7 @@ message Query {
         SpanQuery spanQuery = 25;
         MatchAllQuery matchAllQuery = 26;
         ExactVectorQuery exactVectorQuery = 27;
+        CrossIndexQuery crossIndexQuery = 28;
     }
 }
 

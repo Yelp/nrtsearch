@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
+import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
@@ -485,7 +486,8 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, docLookup);
+      QueryContext queryContext = new QueryContext(docLookup, state.getGlobalState());
+      q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
     if (state.hasNestedChildFields()) {
