@@ -15,9 +15,8 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,56 +27,64 @@ import software.amazon.awssdk.transfer.s3.progress.TransferListener;
  * software.amazon.awssdk.transfer.s3.S3TransferManager}.
  *
  * <p>Note on progress tracking semantics: The AWS SDK v2's {@code
- * progressSnapshot().transferredBytes()} returns incremental bytes transferred since the last event
- * (delta), not cumulative total. This class maintains a cumulative total via {@code
- * totalBytesTransferred} for accurate progress reporting.
+ * progressSnapshot().transferredBytes()} returns the cumulative bytes transferred so far for an
+ * individual file transfer, not a delta. This class tracks the last-seen value per transfer request
+ * to compute actual deltas, which are then accumulated into {@code totalBytesTransferred}.
  */
 public class S3ProgressListenerImpl implements TransferListener {
   private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
 
-  private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
-  private static final long LOG_THRESHOLD_SECONDS = 30;
+  private static final long LOG_INTERVAL_NS = TimeUnit.SECONDS.toNanos(30);
 
   private final String serviceName;
   private final String resource;
   private final String operation;
+  private final long totalExpectedBytes;
 
-  private final Semaphore lock = new Semaphore(1);
+  // Tracks the last cumulative snapshot value per transfer request to compute deltas.
+  private final ConcurrentHashMap<Object, Long> lastSeenBytes = new ConcurrentHashMap<>();
   private final AtomicLong totalBytesTransferred = new AtomicLong();
-  private long bytesTransferredSinceLastLog = 0;
-  private LocalDateTime lastLoggedTime = LocalDateTime.now();
+  private final AtomicLong lastLoggedNanos = new AtomicLong(System.nanoTime());
 
-  public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
+  /**
+   * Constructor.
+   *
+   * @param serviceName service name
+   * @param resource resource identifier
+   * @param operation operation name (e.g. "download_index_files")
+   * @param totalExpectedBytes total expected bytes across all files for this listener, used to
+   *     compute percent complete in log output; use -1 if unknown
+   */
+  public S3ProgressListenerImpl(
+      String serviceName, String resource, String operation, long totalExpectedBytes) {
     this.serviceName = serviceName;
     this.resource = resource;
     this.operation = operation;
+    this.totalExpectedBytes = totalExpectedBytes;
   }
 
   @Override
   public void bytesTransferred(Context.BytesTransferred context) {
-    // AWS SDK v2 returns incremental bytes (delta) per event, not cumulative
-    long bytesTransferred = context.progressSnapshot().transferredBytes();
-    long totalBytes = totalBytesTransferred.addAndGet(bytesTransferred);
+    // transferredBytes() is cumulative for this individual file transfer; compute the delta.
+    long current = context.progressSnapshot().transferredBytes();
+    Long prev = lastSeenBytes.put(context.request(), current);
+    long delta = prev == null ? current : current - prev;
+    long total = totalBytesTransferred.addAndGet(delta);
 
-    boolean acquired = lock.tryAcquire();
-
-    if (acquired) {
-      try {
-        bytesTransferredSinceLastLog += bytesTransferred;
-        long secondsSinceLastLog =
-            Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
-
-        if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES
-            || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
-          logger.info(
-              String.format(
-                  "service: %s, resource: %s, %s transferred bytes: %s",
-                  serviceName, resource, operation, totalBytes));
-          bytesTransferredSinceLastLog = 0;
-          lastLoggedTime = LocalDateTime.now();
-        }
-      } finally {
-        lock.release();
+    long now = System.nanoTime();
+    long last = lastLoggedNanos.get();
+    if (now - last >= LOG_INTERVAL_NS && lastLoggedNanos.compareAndSet(last, now)) {
+      if (totalExpectedBytes > 0) {
+        double pct = 100.0 * total / totalExpectedBytes;
+        logger.info(
+            String.format(
+                "service: %s, resource: %s, %s transferred bytes: %s (%.1f%%)",
+                serviceName, resource, operation, total, pct));
+      } else {
+        logger.info(
+            String.format(
+                "service: %s, resource: %s, %s transferred bytes: %s",
+                serviceName, resource, operation, total));
       }
     }
   }

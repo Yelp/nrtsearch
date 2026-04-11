@@ -603,6 +603,10 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
+    long totalUploadBytes = files.values().stream().mapToLong(m -> m.length).sum();
+    S3ProgressListenerImpl uploadProgressListener =
+        new S3ProgressListenerImpl(
+            service, indexIdentifier, "upload_index_files", totalUploadBytes);
     List<FileUpload> uploadList = new LinkedList<>();
     boolean hasFailure = false;
     Throwable failureCause = null;
@@ -614,8 +618,7 @@ public class S3Backend implements RemoteBackend {
               .putObjectRequest(
                   PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
               .source(localFile)
-              .addTransferListener(
-                  new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"))
+              .addTransferListener(uploadProgressListener)
               .build();
       try {
         if (transferManager == null) {
@@ -665,6 +668,10 @@ public class S3Backend implements RemoteBackend {
     int effectiveBatchSize = downloadBatchSize > 0 ? downloadBatchSize : defaultParallelism;
     int totalFiles = fileList.size();
     int batchStart = 0;
+    long totalExpectedBytes = files.values().stream().mapToLong(m -> m.length).sum();
+    S3ProgressListenerImpl downloadProgressListener =
+        new S3ProgressListenerImpl(
+            service, indexIdentifier, "download_index_files", totalExpectedBytes);
 
     while (batchStart < totalFiles) {
       int batchEnd = Math.min(batchStart + effectiveBatchSize, totalFiles);
@@ -689,8 +696,7 @@ public class S3Backend implements RemoteBackend {
                 .getObjectRequest(
                     GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .destination(localFile)
-                .addTransferListener(
-                    new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"))
+                .addTransferListener(downloadProgressListener)
                 .build();
         try {
           FileDownload download = transferManager.downloadFile(request);
