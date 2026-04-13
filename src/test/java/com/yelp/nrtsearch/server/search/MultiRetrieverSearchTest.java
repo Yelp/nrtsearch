@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -33,11 +34,13 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
+import com.yelp.nrtsearch.server.index.IndexState;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -192,5 +195,32 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                     .build())
             .build(),
         "Multi-retriever is not yet supported");
+  }
+
+  @Test
+  public void testBuildAndResolveKnnQueryResultAndDiagnostics() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy =
+        indexState.getShard(0).acquire();
+    try {
+      KnnQuery knnQuery =
+          KnnQuery.newBuilder()
+              .setField("vector_field")
+              .addAllQueryVector(List.of(0.1f, 0.2f, 0.3f))
+              .setNumCandidates(10)
+              .setK(5)
+              .build();
+
+      KnnUtils.KnnResolveResult result =
+          KnnUtils.buildAndResolveKnnQuery(knnQuery, indexState, searcherAndTaxonomy.searcher());
+
+      assertNotNull(result.resolvedQuery());
+      assertNotNull(result.vectorDiagnostics());
+      assertTrue(
+          "Expected vector search to find hits",
+          result.vectorDiagnostics().getTotalHits().getValue() > 0);
+    } finally {
+      indexState.getShard(0).release(searcherAndTaxonomy);
+    }
   }
 }

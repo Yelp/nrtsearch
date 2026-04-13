@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static com.yelp.nrtsearch.server.search.KnnUtils.buildAndResolveKnnQuery;
 import static com.yelp.nrtsearch.server.search.KnnUtils.buildKnnQuery;
 import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
 
@@ -60,6 +61,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -167,7 +171,9 @@ public class SearchRequestProcessor {
               queryFields,
               docLookup,
               contextBuilder,
-              profileResult);
+              diagnostics,
+              profileResult,
+              indexState.getGlobalState().getRetrieverExecutor());
 
       // Top-level collector for union query aggregations only (no ranking)
       CollectorCreatorContext collectorCreatorContext =
@@ -653,13 +659,31 @@ public class SearchRequestProcessor {
       Map<String, FieldDef> queryFields,
       DocLookup docLookup,
       SearchContext.Builder searchContextBuilder,
-      ProfileResult.Builder profileResult)
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ProfileResult.Builder profileResult,
+      ExecutorService retrieverExecutor)
       throws IOException {
     boolean doProfile = profileResult != null;
     MultiRetrieverContext.Builder multiRetrieverContextBuilder = MultiRetrieverContext.newBuilder();
     ProfileResult.MultiRetrieverProfileResult.Builder multiRetrieverProfileResult =
         doProfile ? ProfileResult.MultiRetrieverProfileResult.newBuilder() : null;
+    SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnostics =
+        SearchResponse.Diagnostics.MultiRetrieverDiagnostics.newBuilder();
     BooleanQuery.Builder unionQueryBuilder = new BooleanQuery.Builder();
+
+    // Submit all KNN rewrites upfront so they run in parallel while text retrievers are processed
+    IndexSearcher searcher = searcherAndTaxonomy.searcher();
+    Map<String, Future<KnnUtils.KnnResolveResult>> knnFutures = new HashMap<>();
+    for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
+      if (retriever.getRetrieverTypeCase() == Retriever.RetrieverTypeCase.KNNRETRIEVER) {
+        KnnQuery knnQuery = retriever.getKnnRetriever().getKnnQuery();
+        knnFutures.put(
+            retriever.getName(),
+            retrieverExecutor.submit(
+                () -> buildAndResolveKnnQuery(knnQuery, indexState, searcher)));
+      }
+    }
+
     for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
       Query query;
       int numHitsToCollect;
@@ -678,7 +702,7 @@ public class SearchRequestProcessor {
                       textRetriever.getQueryNestedPath(), docLookup);
           Query extractedQuery =
               extractQuery(indexState, "", textRetriever.getQuery(), nestedQueryPath, docLookup);
-          query = searcherAndTaxonomy.searcher().rewrite(extractedQuery);
+          query = searcher.rewrite(extractedQuery);
           if (doProfile) {
             retrieverProfileResult.setParsedQuery(extractedQuery.toString());
             retrieverProfileResult.setRewrittenQuery(query.toString());
@@ -690,7 +714,20 @@ public class SearchRequestProcessor {
         }
         case KNNRETRIEVER -> {
           retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.KNN);
-          query = buildKnnQuery(retriever.getKnnRetriever().getKnnQuery(), indexState);
+          KnnUtils.KnnResolveResult result;
+          try {
+            result = knnFutures.get(retriever.getName()).get();
+          } catch (ExecutionException | InterruptedException e) {
+            throw new IOException(
+                "KNN retriever '" + retriever.getName() + "' failed to execute: " + e.getMessage(),
+                e);
+          }
+          query = result.resolvedQuery();
+          multiRetrieverDiagnostics.putRetrieverDiagnostics(
+              retriever.getName(),
+              SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
+                  .setVectorDiagnostics(result.vectorDiagnostics())
+                  .build());
           numHitsToCollect = retriever.getKnnRetriever().getKnnQuery().getK();
         }
         default ->
@@ -703,10 +740,7 @@ public class SearchRequestProcessor {
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
             buildRescoreTask(
-                indexState,
-                searcherAndTaxonomy.searcher(),
-                retriever.getRescorer(),
-                retriever.getName() + "_rescorer"));
+                indexState, searcher, retriever.getRescorer(), retriever.getName() + "_rescorer"));
       }
 
       CollectorCreatorContext collectorCreatorContext =
@@ -731,6 +765,7 @@ public class SearchRequestProcessor {
       }
     }
     searchContextBuilder.setMultiRetrieverContext(multiRetrieverContextBuilder.build());
+    diagnostics.setMultiRetrieverDiagnostics(multiRetrieverDiagnostics);
     if (doProfile) {
       profileResult.setMultiRetrieverProfileResult(multiRetrieverProfileResult.build());
     }

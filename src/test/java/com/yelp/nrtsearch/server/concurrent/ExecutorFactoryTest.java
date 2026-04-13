@@ -320,6 +320,32 @@ public class ExecutorFactoryTest {
   }
 
   @Test
+  public void testRetrieverThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor) executorFactory.getExecutor(ExecutorFactory.ExecutorType.RETRIEVER);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_RETRIEVER_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_RETRIEVER_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testRetrieverThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  retriever:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor) executorFactory.getExecutor(ExecutorFactory.ExecutorType.RETRIEVER);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
   public void testVirtualThreadExecutor() {
     init(String.join("\n", "threadPoolConfiguration:", "  search:", "    useVirtualThreads: true"));
     ExecutorService executor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.SEARCH);

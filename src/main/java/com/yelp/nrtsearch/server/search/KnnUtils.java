@@ -85,6 +85,35 @@ public class KnnUtils {
   }
 
   /**
+   * Result of building and resolving a KNN query, holding the rewritten query and vector
+   * diagnostics captured during rewrite.
+   */
+  public record KnnResolveResult(
+      Query resolvedQuery, SearchResponse.Diagnostics.VectorDiagnostics vectorDiagnostics) {}
+
+  /**
+   * Build and resolve (execute) a KNN query, capturing vector diagnostics. No boost is applied —
+   * the retriever boost is stored in RetrieverContext and applied by the blender. Intended to be
+   * submitted to a dedicated executor so multiple KNN retrievers can run in parallel without using
+   * the search executor.
+   *
+   * @param knnQuery knn query definition
+   * @param indexState index state
+   * @param indexSearcher index searcher
+   * @return resolved query and vector diagnostics
+   * @throws IOException if query rewrite fails
+   */
+  public static KnnResolveResult buildAndResolveKnnQuery(
+      KnnQuery knnQuery, IndexState indexState, IndexSearcher indexSearcher) throws IOException {
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    Query resolvedQuery =
+        resolveKnnQueryAndBoost(
+            buildKnnQuery(knnQuery, indexState), 1.0f, indexSearcher, vectorDiagnosticsBuilder);
+    return new KnnResolveResult(resolvedQuery, vectorDiagnosticsBuilder.build());
+  }
+
+  /**
    * Construct lucene knn query from grpc knn query.
    *
    * @param knnQuery knn query definition
