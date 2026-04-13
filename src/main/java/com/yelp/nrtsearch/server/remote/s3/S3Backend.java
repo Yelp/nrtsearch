@@ -65,8 +65,8 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
-import software.amazon.awssdk.transfer.s3.model.DownloadFileRequest;
-import software.amazon.awssdk.transfer.s3.model.FileDownload;
+import software.amazon.awssdk.transfer.s3.model.Download;
+import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 
@@ -684,22 +684,22 @@ public class S3Backend implements RemoteBackend {
           service,
           indexIdentifier);
 
-      List<FileDownload> downloadList = new LinkedList<>();
+      List<Download<GetObjectResponse>> downloadList = new LinkedList<>();
       boolean hasFailure = false;
       Throwable failureCause = null;
 
       for (FileNamePair pair : batch) {
         String backendKey = backendPrefix + pair.backendFileName;
         Path localFile = indexDir.resolve(pair.fileName);
-        DownloadFileRequest request =
-            DownloadFileRequest.builder()
+        DownloadRequest<GetObjectResponse> request =
+            DownloadRequest.builder()
                 .getObjectRequest(
                     GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-                .destination(localFile)
+                .responseTransformer(AsyncResponseTransformer.toFile(localFile))
                 .addTransferListener(downloadProgressListener)
                 .build();
         try {
-          FileDownload download = transferManager.downloadFile(request);
+          Download<GetObjectResponse> download = transferManager.download(request);
           downloadList.add(download);
         } catch (Throwable t) {
           hasFailure = true;
@@ -708,7 +708,7 @@ public class S3Backend implements RemoteBackend {
         }
       }
 
-      for (FileDownload download : downloadList) {
+      for (Download<GetObjectResponse> download : downloadList) {
         if (hasFailure) {
           try {
             download.completionFuture().cancel(true);
