@@ -52,6 +52,8 @@ import com.yelp.nrtsearch.server.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
