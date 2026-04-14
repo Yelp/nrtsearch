@@ -54,6 +54,8 @@ import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderCreator;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -766,6 +768,10 @@ public class SearchRequestProcessor {
             retriever.getName(), retrieverProfileResult.build());
       }
     }
+    Blender blenderProto = searchRequest.getMultiRetriever().getBlender();
+    BlenderOperation blenderOperation =
+        BlenderCreator.getInstance().getBlenderOperation(blenderProto);
+    multiRetrieverContextBuilder.blenderOperation(blenderOperation).blender(blenderProto);
     searchContextBuilder.setMultiRetrieverContext(multiRetrieverContextBuilder.build());
     diagnostics.setMultiRetrieverDiagnostics(multiRetrieverDiagnostics);
     if (doProfile) {
