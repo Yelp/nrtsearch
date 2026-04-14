@@ -15,14 +15,22 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.query.MinThresholdQuery;
+import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import java.io.IOException;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 
 public class KnnUtils {
   /**
@@ -34,7 +42,7 @@ public class KnnUtils {
    * @param indexSearcher index searcher
    * @param vectorDiagnosticsBuilder diagnostics builder for vector search
    * @return vector search results query with boost applied
-   * @throws IOException
+   * @throws IOException if query rewrite fails
    */
   public static Query resolveKnnQueryAndBoost(
       Query knnQuery,
@@ -74,5 +82,76 @@ public class KnnUtils {
               .setValue(vectorTotalHits.value())
               .build());
     }
+  }
+
+  /**
+   * Result of building and resolving a KNN query, holding the rewritten query and vector
+   * diagnostics captured during rewrite.
+   */
+  public record KnnResolveResult(
+      Query resolvedQuery, SearchResponse.Diagnostics.VectorDiagnostics vectorDiagnostics) {}
+
+  /**
+   * Build and resolve (execute) a KNN query, capturing vector diagnostics. No boost is applied —
+   * the retriever boost is stored in RetrieverContext and applied by the blender. Intended to be
+   * submitted to a dedicated executor so multiple KNN retrievers can run in parallel without using
+   * the search executor.
+   *
+   * @param knnQuery knn query definition
+   * @param indexState index state
+   * @param indexSearcher index searcher
+   * @return resolved query and vector diagnostics
+   * @throws IOException if query rewrite fails
+   */
+  public static KnnResolveResult buildAndResolveKnnQuery(
+      KnnQuery knnQuery, IndexState indexState, IndexSearcher indexSearcher) throws IOException {
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    Query resolvedQuery =
+        resolveKnnQueryAndBoost(
+            buildKnnQuery(knnQuery, indexState), 1.0f, indexSearcher, vectorDiagnosticsBuilder);
+    return new KnnResolveResult(resolvedQuery, vectorDiagnosticsBuilder.build());
+  }
+
+  /**
+   * Construct lucene knn query from grpc knn query.
+   *
+   * @param knnQuery knn query definition
+   * @param indexState index state
+   * @return lucene knn query
+   */
+  public static Query buildKnnQuery(KnnQuery knnQuery, IndexState indexState) {
+    String field = knnQuery.getField();
+    FieldDef fieldDef = indexState.getFieldOrThrow(field);
+    if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
+      throw new IllegalArgumentException("Field does not support vector search: " + field);
+    }
+
+    // Path to nested document containing this field
+    String fieldNestedPath = IndexState.getFieldBaseNestedPath(field, indexState);
+    // Path to parent document, this will be null if the field is in the root document
+    String parentNestedPath = IndexState.getFieldBaseNestedPath(fieldNestedPath, indexState);
+
+    Query filterQuery;
+    if (knnQuery.hasFilter()) {
+      filterQuery = QueryNodeMapper.getInstance().getQuery(knnQuery.getFilter(), indexState);
+    } else {
+      filterQuery = null;
+    }
+
+    BitSetProducer parentBitSetProducer = null;
+    if (parentNestedPath != null) {
+      Query parentQuery =
+          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, parentNestedPath);
+      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
+      if (filterQuery != null) {
+        // Filter query is applied to the parent document only
+        filterQuery =
+            QueryNodeMapper.getInstance()
+                .applyQueryNestedPath(filterQuery, indexState, parentNestedPath);
+        filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSetProducer);
+      }
+    }
+    return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
   }
 }

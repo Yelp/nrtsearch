@@ -46,7 +46,8 @@ public class ExecutorFactory implements Closeable {
     METRICS,
     VECTORMERGE,
     COMMIT,
-    REMOTE
+    REMOTE,
+    RETRIEVER
   }
 
   private static final Logger logger = LoggerFactory.getLogger(ExecutorFactory.class);

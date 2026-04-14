@@ -60,6 +60,10 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_REMOTE_THREADS = 20;
   public static final int DEFAULT_REMOTE_BUFFERED_ITEMS = Integer.MAX_VALUE;
 
+  public static final int DEFAULT_RETRIEVER_THREADS = AVAILABLE_PROCESSORS;
+  public static final int DEFAULT_RETRIEVER_BUFFERED_ITEMS =
+      Math.max(100, 2 * DEFAULT_RETRIEVER_THREADS);
+
   /**
    * Settings for a {@link ExecutorFactory.ExecutorType}.
    *
@@ -73,58 +77,81 @@ public class ThreadPoolConfiguration {
 
   private static final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings>
       defaultThreadPoolSettings =
-          Map.of(
-              ExecutorFactory.ExecutorType.SEARCH,
-              new ThreadPoolSettings(
-                  DEFAULT_SEARCHING_THREADS,
-                  DEFAULT_SEARCH_BUFFERED_ITEMS,
-                  "LuceneSearchExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.INDEX,
-              new ThreadPoolSettings(
-                  DEFAULT_INDEXING_THREADS,
-                  DEFAULT_INDEXING_BUFFERED_ITEMS,
-                  "LuceneIndexingExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.SERVER,
-              new ThreadPoolSettings(
-                  DEFAULT_GRPC_SERVER_THREADS,
-                  DEFAULT_GRPC_SERVER_BUFFERED_ITEMS,
-                  "GrpcServerExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.REPLICATIONSERVER,
-              new ThreadPoolSettings(
-                  DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
-                  DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS,
-                  "GrpcReplicationServerExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.FETCH,
-              new ThreadPoolSettings(
-                  DEFAULT_FETCH_THREADS,
-                  DEFAULT_FETCH_BUFFERED_ITEMS,
-                  "LuceneFetchExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.GRPC,
-              new ThreadPoolSettings(
-                  DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor", false),
-              ExecutorFactory.ExecutorType.METRICS,
-              new ThreadPoolSettings(
-                  DEFAULT_METRICS_THREADS,
-                  DEFAULT_METRICS_BUFFERED_ITEMS,
-                  "MetricsExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.VECTORMERGE,
-              new ThreadPoolSettings(
-                  DEFAULT_VECTOR_MERGE_THREADS,
-                  DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
-                  "VectorMergeExecutor",
-                  false),
-              ExecutorFactory.ExecutorType.COMMIT,
-              new ThreadPoolSettings(
-                  DEFAULT_COMMIT_THREADS, DEFAULT_COMMIT_BUFFERED_ITEMS, "CommitExecutor", false),
-              ExecutorFactory.ExecutorType.REMOTE,
-              new ThreadPoolSettings(
-                  DEFAULT_REMOTE_THREADS, DEFAULT_REMOTE_BUFFERED_ITEMS, "RemoteExecutor", false));
+          Map.ofEntries(
+              Map.entry(
+                  ExecutorFactory.ExecutorType.SEARCH,
+                  new ThreadPoolSettings(
+                      DEFAULT_SEARCHING_THREADS,
+                      DEFAULT_SEARCH_BUFFERED_ITEMS,
+                      "LuceneSearchExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.INDEX,
+                  new ThreadPoolSettings(
+                      DEFAULT_INDEXING_THREADS,
+                      DEFAULT_INDEXING_BUFFERED_ITEMS,
+                      "LuceneIndexingExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.SERVER,
+                  new ThreadPoolSettings(
+                      DEFAULT_GRPC_SERVER_THREADS,
+                      DEFAULT_GRPC_SERVER_BUFFERED_ITEMS,
+                      "GrpcServerExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                  new ThreadPoolSettings(
+                      DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
+                      DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS,
+                      "GrpcReplicationServerExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.FETCH,
+                  new ThreadPoolSettings(
+                      DEFAULT_FETCH_THREADS,
+                      DEFAULT_FETCH_BUFFERED_ITEMS,
+                      "LuceneFetchExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.GRPC,
+                  new ThreadPoolSettings(
+                      DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor", false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.METRICS,
+                  new ThreadPoolSettings(
+                      DEFAULT_METRICS_THREADS,
+                      DEFAULT_METRICS_BUFFERED_ITEMS,
+                      "MetricsExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.VECTORMERGE,
+                  new ThreadPoolSettings(
+                      DEFAULT_VECTOR_MERGE_THREADS,
+                      DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
+                      "VectorMergeExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.COMMIT,
+                  new ThreadPoolSettings(
+                      DEFAULT_COMMIT_THREADS,
+                      DEFAULT_COMMIT_BUFFERED_ITEMS,
+                      "CommitExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.REMOTE,
+                  new ThreadPoolSettings(
+                      DEFAULT_REMOTE_THREADS,
+                      DEFAULT_REMOTE_BUFFERED_ITEMS,
+                      "RemoteExecutor",
+                      false)),
+              Map.entry(
+                  ExecutorFactory.ExecutorType.RETRIEVER,
+                  new ThreadPoolSettings(
+                      DEFAULT_RETRIEVER_THREADS,
+                      DEFAULT_RETRIEVER_BUFFERED_ITEMS,
+                      "RetrieverExecutor",
+                      false)));
 
   private final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 

@@ -405,6 +405,40 @@ public class ThreadPoolConfigurationTest {
   }
 
   @Test
+  public void testRetrieverThreadPool_default() {
+    String config = "nodeName: node1";
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.RETRIEVER);
+    assertEquals(
+        threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_RETRIEVER_THREADS);
+    assertEquals(
+        threadPoolSettings.maxBufferedItems(),
+        ThreadPoolConfiguration.DEFAULT_RETRIEVER_BUFFERED_ITEMS);
+    assertEquals("RetrieverExecutor", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
+  public void testRetrieverThreadPool_set() {
+    String config =
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  retriever:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10",
+            "    threadNamePrefix: customName");
+    ThreadPoolConfiguration threadPoolConfiguration =
+        new ThreadPoolConfiguration(getReaderForConfig(config));
+    ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.RETRIEVER);
+    assertEquals(threadPoolSettings.maxThreads(), 5);
+    assertEquals(threadPoolSettings.maxBufferedItems(), 10);
+    assertEquals("customName", threadPoolSettings.threadNamePrefix());
+  }
+
+  @Test
   public void partialOverride() {
     String config =
         String.join(

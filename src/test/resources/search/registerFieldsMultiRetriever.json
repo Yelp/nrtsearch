@@ -1,0 +1,26 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "vector_field",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "cosine"
+    }
+  ]
+}
