@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

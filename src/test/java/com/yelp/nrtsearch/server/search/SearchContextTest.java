@@ -29,6 +29,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
