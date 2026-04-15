@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import java.io.IOException;
 import java.util.Collections;
@@ -361,6 +362,77 @@ public class PrimaryRestartTests {
         currentLeaves1, Set.of("_0", "_1", "_2", "_3"), Collections.emptySet());
     verifySegmentReaderStatus(
         currentLeaves2, Set.of("_0", "_1", "_2", "_3", "_4"), Collections.emptySet());
+  }
+
+  /**
+   * Verifies that replicas with filterIncompatibleSegmentReaders enabled can handle a primary
+   * restart that loses uncommitted doc values updates. Without the backward-generation check, the
+   * old SegmentReader's shared core/segDocValues state is reused for a segment whose fieldInfosGen
+   * has gone backwards, causing IllegalStateException when accessing numeric doc values.
+   */
+  @Test
+  public void testPrimaryRestartDocValuesUpdateFilter() throws IOException {
+    TestServer primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withWriteDiscoveryFile(true)
+            .build();
+    primaryServer.createSimpleIndex("test_index");
+    primaryServer.startPrimaryIndex("test_index", -1, null);
+
+    // Commit base documents so they exist in a committed segment
+    primaryServer.addSimpleDocs("test_index", 1, 2, 3);
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+
+    TestServer replicaServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, -1, IndexDataLocationType.REMOTE)
+            .withAdditionalConfig(
+                String.join(
+                    "\n",
+                    "discoveryFileUpdateIntervalMs: 1000",
+                    "filterIncompatibleSegmentReaders: true"))
+            .build();
+
+    replicaServer.waitForReplication("test_index");
+    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3);
+
+    // Apply a doc values update to field1 for doc id=1 without committing.
+    // This advances fieldInfosGen for the committed segment on the primary.
+    primaryServer.addDocs(
+        List.of(
+            AddDocumentRequest.newBuilder()
+                .setIndexName("test_index")
+                .setRequestType(IndexingRequestType.UPDATE_DOC_VALUES)
+                .putFields("id", MultiValuedField.newBuilder().addValue("1").build())
+                .putFields("field1", MultiValuedField.newBuilder().addValue("999").build())
+                .build())
+            .stream());
+    // NRT refresh propagates the update to replica without committing
+    primaryServer.refresh("test_index");
+
+    replicaServer.waitForReplication("test_index");
+
+    // Restart primary: loses the uncommitted doc values update, fieldInfosGen rolls back
+    primaryServer.restart();
+    primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
+
+    replicaServer.registerWithPrimary("test_index");
+
+    // Advance primary version past the replica so it syncs and refreshes readers
+    primaryServer.addSimpleDocs("test_index", 4);
+    primaryServer.refresh("test_index");
+    primaryServer.addSimpleDocs("test_index", 5);
+    primaryServer.refresh("test_index");
+
+    replicaServer.waitForReplication("test_index");
+
+    // Without the backward-generation filter fix, the replica throws
+    // IllegalStateException("unexpected docvalues type NUMERIC for field 'field1' ...")
+    // when retrieving field1 for docs 1-3 whose segment reader has stale shared state.
+    primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
+    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
   }
 
   private List<LeafReaderContext> getVersionLeaves(TestServer server, long version)
