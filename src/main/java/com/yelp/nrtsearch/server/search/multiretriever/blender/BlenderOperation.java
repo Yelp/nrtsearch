@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2026 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,13 +111,13 @@ public interface BlenderOperation {
    */
   static TopDocs sortAndPaginate(Collection<BlendedScoreDoc> merged, int startHit, int topHits) {
     int total = merged.size();
-    if (topHits == 0) {
+    if (startHit > topHits || topHits <= 0) {
       return new TopDocs(
           new TotalHits(total, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
     }
     // Heap capacity is bounded by topHits to avoid materializing docs outside the window.
     // `total` is preserved as the true deduplicated hit count for TotalHits reporting.
-    int capacity = (topHits > 0 && topHits < total) ? topHits : total;
+    int capacity = Math.min(topHits, total);
 
     // Min-heap of size capacity ordered by score ascending: the root is always the
     // smallest score in the heap, so any incoming doc that beats the root displaces it.
