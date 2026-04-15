@@ -87,9 +87,7 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
         if (oldReaderIndex != null) {
           SegmentReader oldReader = (SegmentReader) leaves.get(oldReaderIndex).reader();
           // check if old reader is compatible with new segment data
-          if (Arrays.equals(commitInfo.info.getId(), oldReader.getSegmentInfo().info.getId())) {
-            subs.add(oldReader);
-          } else {
+          if (!Arrays.equals(commitInfo.info.getId(), oldReader.getSegmentInfo().info.getId())) {
             logger.info(
                 "Skipping incompatible old reader, name: "
                     + commitInfo.info.name
@@ -97,6 +95,24 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
                     + StringHelper.idToString(oldReader.getSegmentInfo().info.getId())
                     + ", new id: "
                     + StringHelper.idToString(commitInfo.info.getId()));
+          } else if (commitInfo.getFieldInfosGen() < oldReader.getSegmentInfo().getFieldInfosGen()
+              || commitInfo.getDelGen() < oldReader.getSegmentInfo().getDelGen()) {
+            // Generation went backwards (e.g. primary restarted and lost uncommitted doc values
+            // updates). Force a fresh reader with no shared core/segDocValues state to avoid
+            // inconsistent doc values data.
+            logger.info(
+                "Skipping old reader with backward generation, name: "
+                    + commitInfo.info.name
+                    + ", old fieldInfosGen: "
+                    + oldReader.getSegmentInfo().getFieldInfosGen()
+                    + ", new fieldInfosGen: "
+                    + commitInfo.getFieldInfosGen()
+                    + ", old delGen: "
+                    + oldReader.getSegmentInfo().getDelGen()
+                    + ", new delGen: "
+                    + commitInfo.getDelGen());
+          } else {
+            subs.add(oldReader);
           }
         }
       }
