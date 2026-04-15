@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.search.multiretriever.blender.score;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.apache.lucene.search.ScoreDoc;
 
 /**
@@ -25,39 +25,47 @@ import org.apache.lucene.search.ScoreDoc;
  * score and must be kept up to date by each {@link #add} implementation. It drives result ordering
  * directly — no separate sorting-score indirection.
  *
- * <p>The original per-retriever hits are preserved in {@link #scoreDocs} in insertion order for
- * diagnostics and downstream inspection.
+ * <p>The original per-retriever hits are preserved in {@link #scoreDocs}, keyed by retriever name
+ * in insertion order, for diagnostics and downstream inspection.
  *
- * <p>Subclasses define their own merging semantics by implementing {@link #add(int, float,
+ * <p>Subclasses define their own merging semantics by implementing {@link #add(String, int, float,
  * ScoreDoc)}, which is called for every retriever hit after the first. The first hit is supplied at
  * construction time.
  */
 public abstract class BlendedScoreDoc extends ScoreDoc {
 
   /**
-   * Per-retriever hits merged into this entry, in insertion order. The first element is always the
-   * hit supplied at construction time.
+   * Per-retriever hits merged into this entry, keyed by retriever name in insertion order. The
+   * first entry is always the hit supplied at construction time.
    */
-  public final List<ScoreDoc> scoreDocs;
+  protected final LinkedHashMap<String, ScoreDoc> scoreDocs;
 
   /**
+   * @param firstRetrieverName name of the first retriever contributing a hit
    * @param baseDoc the first retriever hit; its {@code doc} and {@code shardIndex} are inherited,
    *     and it is prepopulated into {@link #scoreDocs}
    * @param blendedScore initial blended score derived from {@code baseDoc} by the subclass
    */
-  protected BlendedScoreDoc(ScoreDoc baseDoc, float blendedScore) {
+  protected BlendedScoreDoc(String firstRetrieverName, ScoreDoc baseDoc, float blendedScore) {
     super(baseDoc.doc, blendedScore, baseDoc.shardIndex);
-    this.scoreDocs = new ArrayList<>();
-    this.scoreDocs.add(baseDoc);
+    this.scoreDocs = new LinkedHashMap<>();
+    this.scoreDocs.put(firstRetrieverName, baseDoc);
+  }
+
+  /** Returns the per-retriever hits merged into this entry, keyed by retriever name. */
+  public Map<String, ScoreDoc> getScoreDocs() {
+    return scoreDocs;
   }
 
   /**
    * Merge a new retriever hit into this entry. Implementations must update {@link #score} to
-   * reflect the new blended value and append {@code scoreDoc} to {@link #scoreDocs}.
+   * reflect the new blended value and insert {@code scoreDoc} into {@link #scoreDocs} under {@code
+   * retrieverName}.
    *
+   * @param retrieverName name of the retriever contributing this hit
    * @param rank 1-based rank of the document in the new retriever's result list
    * @param weight per-retriever weight (e.g. boost)
    * @param scoreDoc raw hit from the new retriever
    */
-  public abstract void add(int rank, float weight, ScoreDoc scoreDoc);
+  public abstract void add(String retrieverName, int rank, float weight, ScoreDoc scoreDoc);
 }

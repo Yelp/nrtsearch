@@ -115,7 +115,7 @@ public class WeightedRrfBlenderOperationTest {
     BlendedScoreDoc doc = merged.iterator().next();
     assertEquals(5, doc.doc);
     assertEquals(1.0f / 61 + 1.0f / 61, doc.score, DELTA);
-    assertEquals(2, doc.scoreDocs.size()); // baseDoc + second hit appended via add()
+    assertEquals(2, doc.getScoreDocs().size()); // baseDoc + second hit appended via add()
   }
 
   @Test

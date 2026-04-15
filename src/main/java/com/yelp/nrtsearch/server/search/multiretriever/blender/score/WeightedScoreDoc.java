@@ -46,23 +46,25 @@ public class WeightedScoreDoc extends BlendedScoreDoc {
   private final ScoreMode scoreMode;
 
   /**
+   * @param firstRetrieverName name of the first retriever contributing a hit
    * @param baseDoc the first retriever hit; its raw score is multiplied by {@code firstWeight} to
    *     produce the initial blended score
    * @param firstWeight per-retriever weight applied to the first score
    * @param scoreMode how per-retriever scores are combined
    */
-  public WeightedScoreDoc(ScoreDoc baseDoc, float firstWeight, ScoreMode scoreMode) {
-    super(baseDoc, baseDoc.score * firstWeight);
+  public WeightedScoreDoc(
+      String firstRetrieverName, ScoreDoc baseDoc, float firstWeight, ScoreMode scoreMode) {
+    super(firstRetrieverName, baseDoc, baseDoc.score * firstWeight);
     this.scoreMode = scoreMode;
   }
 
   /**
    * Updates {@link #score} by combining the weighted {@code scoreDoc.score} with the current value
-   * according to {@link #scoreMode}, then appends the raw hit to {@link #scoreDocs}. The {@code
-   * rank} parameter is unused — score blending is rank-independent.
+   * according to {@link #scoreMode}, then stores the raw hit in {@link #scoreDocs} under {@code
+   * retrieverName}. The {@code rank} parameter is unused — score blending is rank-independent.
    */
   @Override
-  public void add(int rank, float weight, ScoreDoc scoreDoc) {
+  public void add(String retrieverName, int rank, float weight, ScoreDoc scoreDoc) {
     float weighted = scoreDoc.score * weight;
     score =
         switch (scoreMode) {
@@ -70,6 +72,6 @@ public class WeightedScoreDoc extends BlendedScoreDoc {
           case SUM -> score + weighted;
           case AVG -> (score * scoreDocs.size() + weighted) / (scoreDocs.size() + 1);
         };
-    scoreDocs.add(scoreDoc);
+    scoreDocs.put(retrieverName, scoreDoc);
   }
 }

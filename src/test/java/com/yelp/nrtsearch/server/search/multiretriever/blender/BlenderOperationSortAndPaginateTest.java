@@ -29,7 +29,7 @@ public class BlenderOperationSortAndPaginateTest {
 
   private static BlendedScoreDoc doc(int docId, float score) {
     return new WeightedScoreDoc(
-        new ScoreDoc(docId, score, 0), 1.0f, WeightedScoreDoc.ScoreMode.MAX);
+        "r1", new ScoreDoc(docId, score, 0), 1.0f, WeightedScoreDoc.ScoreMode.MAX);
   }
 
   @Test

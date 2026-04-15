@@ -66,9 +66,10 @@ public class WeightedRrfBlenderOperation implements BlenderOperation {
 
         BlendedScoreDoc existing = merged.get(scoreDoc.doc);
         if (existing == null) {
-          merged.put(scoreDoc.doc, new WeightedRRFScoreDoc(scoreDoc, rank, boost, k));
+          merged.put(
+              scoreDoc.doc, new WeightedRRFScoreDoc(entry.getKey(), scoreDoc, rank, boost, k));
         } else {
-          existing.add(rank, boost, scoreDoc);
+          existing.add(entry.getKey(), rank, boost, scoreDoc);
         }
       }
     }

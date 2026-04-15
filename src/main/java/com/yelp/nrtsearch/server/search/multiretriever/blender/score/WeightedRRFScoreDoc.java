@@ -39,24 +39,27 @@ public class WeightedRRFScoreDoc extends BlendedScoreDoc {
   /**
    * Convenience constructor using {@link #DEFAULT_K} and weight 1.0.
    *
+   * @param firstRetrieverName name of the first retriever contributing a hit
    * @param baseDoc the first retriever hit
    * @param firstRank 1-based rank in the first retriever's result list; must be &ge; 1
    */
-  public WeightedRRFScoreDoc(ScoreDoc baseDoc, int firstRank) {
-    this(baseDoc, firstRank, 1.0f, DEFAULT_K);
+  public WeightedRRFScoreDoc(String firstRetrieverName, ScoreDoc baseDoc, int firstRank) {
+    this(firstRetrieverName, baseDoc, firstRank, 1.0f, DEFAULT_K);
   }
 
   /**
    * Full constructor.
    *
+   * @param firstRetrieverName name of the first retriever contributing a hit
    * @param baseDoc the first retriever hit
    * @param firstRank 1-based rank in the first retriever's result list; must be &ge; 1
    * @param firstWeight per-retriever weight for the first retriever
    * @param k RRF smoothing constant; must be &ge; 1
    * @throws IllegalArgumentException if {@code firstRank} &lt; 1 or {@code k} &lt; 1
    */
-  public WeightedRRFScoreDoc(ScoreDoc baseDoc, int firstRank, float firstWeight, int k) {
-    super(baseDoc, firstWeight / (k + firstRank));
+  public WeightedRRFScoreDoc(
+      String firstRetrieverName, ScoreDoc baseDoc, int firstRank, float firstWeight, int k) {
+    super(firstRetrieverName, baseDoc, firstWeight / (k + firstRank));
     if (k < 1) throw new IllegalArgumentException("k must be >= 1, got: " + k);
     if (firstRank < 1)
       throw new IllegalArgumentException("firstRank must be >= 1, got: " + firstRank);
@@ -64,13 +67,13 @@ public class WeightedRRFScoreDoc extends BlendedScoreDoc {
   }
 
   /**
-   * Adds {@code weight / (k + rank)} to {@link #score} and appends the raw hit to {@link
-   * #scoreDocs}.
+   * Adds {@code weight / (k + rank)} to {@link #score} and stores the raw hit in {@link #scoreDocs}
+   * under {@code retrieverName}.
    */
   @Override
-  public void add(int rank, float weight, ScoreDoc scoreDoc) {
+  public void add(String retrieverName, int rank, float weight, ScoreDoc scoreDoc) {
     score += weight / (k + rank);
-    scoreDocs.add(scoreDoc);
+    scoreDocs.put(retrieverName, scoreDoc);
   }
 
   /** Returns the smoothing constant {@code k} this instance was constructed with. */
