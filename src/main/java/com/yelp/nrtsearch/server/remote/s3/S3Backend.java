@@ -50,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -432,7 +433,7 @@ public class S3Backend implements RemoteBackend {
     return new Enumeration<>() {
       final long STATUS_INTERVAL_MS = 5000;
       long lastStatusTimeMs = System.currentTimeMillis();
-      final LinkedList<CompletableFuture<ResponseInputStream<GetObjectResponse>>> pendingParts =
+      final LinkedList<CompletableFuture<ResponseBytes<GetObjectResponse>>> pendingParts =
           new LinkedList<>();
       int currentPart = 1;
       int queuedPart = 1;
@@ -454,7 +455,7 @@ public class S3Backend implements RemoteBackend {
                       .key(key)
                       .partNumber(finalPart)
                       .build(),
-                  AsyncResponseTransformer.toBlockingInputStream()));
+                  AsyncResponseTransformer.toBytes()));
           queuedPart++;
         }
 
@@ -470,7 +471,7 @@ public class S3Backend implements RemoteBackend {
 
         // return stream for next part from fifo future queue
         try {
-          return pendingParts.pollFirst().get();
+          return pendingParts.pollFirst().get().asInputStream();
         } catch (Exception e) {
           throw new RuntimeException("Error downloading file part", e);
         }
