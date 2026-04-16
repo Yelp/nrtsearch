@@ -210,6 +210,10 @@ public class NRTReplicaNode extends ReplicaNode {
 
   @Override
   protected void finishNRTCopy(CopyJob job, long startNS) throws IOException {
+    if (filterIncompatibleSegmentReaders && mgr instanceof FilteringSegmentInfosSearcherManager) {
+      ((FilteringSegmentInfosSearcherManager) mgr)
+          .setCurrentPrimaryGen(job.getCopyState().primaryGen());
+    }
     super.finishNRTCopy(job, startNS);
 
     copyJobManager.finishNRTCopy(job);

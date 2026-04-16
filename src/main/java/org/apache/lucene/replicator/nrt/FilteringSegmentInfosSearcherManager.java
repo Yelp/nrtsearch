@@ -51,6 +51,8 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
   private final Node node;
   private final AtomicInteger openReaderCount = new AtomicInteger();
   private final SearcherFactory searcherFactory;
+  private long refreshedPrimaryGen = -1;
+  private long currentPrimaryGen = -1;
 
   public FilteringSegmentInfosSearcherManager(
       Directory dir,
@@ -67,9 +69,40 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
     this.searcherFactory = searcherFactory;
   }
 
+  /**
+   * Notify this manager of the primary generation for the NRT point about to be refreshed. Must be
+   * called before the refresh is triggered (i.e., before {@link
+   * SegmentInfosSearcherManager#setCurrentInfos} leads to a {@code maybeRefresh}). When the primary
+   * generation changes, a stricter reader-compatibility check is applied for the next refresh to
+   * handle the gen-reuse case (where a primary restart resets generation counters to values that
+   * were previously used before the restart).
+   *
+   * @param primaryGen primary generation from the NRT copy state
+   */
+  public synchronized void setCurrentPrimaryGen(long primaryGen) {
+    this.currentPrimaryGen = primaryGen;
+  }
+
   @Override
   protected IndexSearcher refreshIfNeeded(IndexSearcher old) throws IOException {
     final SegmentInfos newInfos = getCurrentInfos();
+    // Snapshot primaryGen state under lock so it is consistent within this refresh.
+    final long localCurrentPrimaryGen;
+    final long localRefreshedPrimaryGen;
+    synchronized (this) {
+      localCurrentPrimaryGen = currentPrimaryGen;
+      localRefreshedPrimaryGen = refreshedPrimaryGen;
+    }
+    // Apply strict SCI ID check on the first refresh after the primary changes.
+    // This handles the gen-reuse case: after a primary restart the generation counters reset, so
+    // a new doc values update can produce the same fieldInfosGen as a pre-restart update. The
+    // simple "gen < old gen" check cannot detect this; comparing SegmentCommitInfo IDs (which are
+    // random per-advancement) is the reliable discriminator. We only pay this cost for the one
+    // refresh immediately after the primary changes; subsequent refreshes resume normal core
+    // sharing.
+    final boolean primaryChanged =
+        localRefreshedPrimaryGen >= 0 && localCurrentPrimaryGen != localRefreshedPrimaryGen;
+
     List<LeafReader> subs;
     if (old == null) {
       subs = null;
@@ -95,6 +128,22 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
                     + StringHelper.idToString(oldReader.getSegmentInfo().info.getId())
                     + ", new id: "
                     + StringHelper.idToString(commitInfo.info.getId()));
+          } else if (primaryChanged
+              && !Arrays.equals(commitInfo.getId(), oldReader.getSegmentInfo().getId())) {
+            // Primary changed and the SegmentCommitInfo ID differs: this segment's commit state
+            // changed after the primary restart. Force a fresh reader to avoid sharing a
+            // SegmentDocValues cache that may hold stale producers from pre-restart generations.
+            logger.info(
+                "Skipping old reader after primary change, name: "
+                    + commitInfo.info.name
+                    + ", old commitInfo id: "
+                    + StringHelper.idToString(oldReader.getSegmentInfo().getId())
+                    + ", new commitInfo id: "
+                    + StringHelper.idToString(commitInfo.getId())
+                    + ", old primaryGen: "
+                    + localRefreshedPrimaryGen
+                    + ", new primaryGen: "
+                    + localCurrentPrimaryGen);
           } else if (commitInfo.getFieldInfosGen() < oldReader.getSegmentInfo().getFieldInfosGen()
               || commitInfo.getDelGen() < oldReader.getSegmentInfo().getDelGen()) {
             // Generation went backwards (e.g. primary restarted and lost uncommitted doc values
@@ -123,7 +172,12 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
     addReaderClosedListenerFilter(r);
     node.message("refreshed to version=" + newInfos.getVersion() + " r=" + r);
     IndexReader oldReader = old != null ? old.getIndexReader() : null;
-    return SearcherManager.getSearcher(searcherFactory, r, oldReader);
+    IndexSearcher searcher = SearcherManager.getSearcher(searcherFactory, r, oldReader);
+    // Record the primary gen for this completed refresh so the next refresh can detect changes.
+    synchronized (this) {
+      refreshedPrimaryGen = localCurrentPrimaryGen;
+    }
+    return searcher;
   }
 
   private void addReaderClosedListenerFilter(IndexReader r) {

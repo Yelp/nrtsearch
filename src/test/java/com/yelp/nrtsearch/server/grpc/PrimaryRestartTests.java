@@ -435,6 +435,96 @@ public class PrimaryRestartTests {
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
   }
 
+  /**
+   * Tests that the replica correctly handles the gen-reuse case: after a primary restart, the
+   * generation counter resets to the same value used before the restart, so a new doc values update
+   * produces the same fieldInfosGen as the pre-restart update. The simple "gen &lt; old gen" check
+   * cannot detect this; the primaryGen-gated SegmentCommitInfo ID check must catch it.
+   */
+  @Test
+  public void testPrimaryRestartDocValuesUpdateGenReuse() throws IOException {
+    TestServer primaryServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withWriteDiscoveryFile(true)
+            .build();
+    primaryServer.createSimpleIndex("test_index");
+    primaryServer.startPrimaryIndex("test_index", -1, null);
+
+    // Commit base documents so they exist in a committed segment
+    primaryServer.addSimpleDocs("test_index", 1, 2, 3);
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+
+    TestServer replicaServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, -1, IndexDataLocationType.REMOTE)
+            .withAdditionalConfig(
+                String.join(
+                    "\n",
+                    "discoveryFileUpdateIntervalMs: 1000",
+                    "filterIncompatibleSegmentReaders: true"))
+            .build();
+
+    replicaServer.waitForReplication("test_index");
+    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3);
+
+    // Apply update U1: advances fieldInfosGen to 1 (from -1) without committing.
+    primaryServer.addDocs(
+        List.of(
+            AddDocumentRequest.newBuilder()
+                .setIndexName("test_index")
+                .setRequestType(IndexingRequestType.UPDATE_DOC_VALUES)
+                .putFields("id", MultiValuedField.newBuilder().addValue("1").build())
+                .putFields("field1", MultiValuedField.newBuilder().addValue("999").build())
+                .build())
+            .stream());
+    primaryServer.refresh("test_index");
+    replicaServer.waitForReplication("test_index");
+    // Replica reader now has fieldInfosGen=1 for this segment.
+
+    // Restart primary: rolls fieldInfosGen back to -1 (loses U1).
+    primaryServer.restart();
+    primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
+
+    // Apply U2 on the restarted primary BEFORE any NRT refresh and BEFORE the replica
+    // re-registers. nextWriteFieldInfosGen resets to 1 after rollback, so U2 also gets
+    // fieldInfosGen=1 — same number as U1 but with a different SegmentCommitInfo ID.
+    // We use a field value of id*3=6 for doc id=2 so that verifySimpleDocIds passes
+    // when the fresh reader is opened correctly.
+    primaryServer.addDocs(
+        List.of(
+            AddDocumentRequest.newBuilder()
+                .setIndexName("test_index")
+                .setRequestType(IndexingRequestType.UPDATE_DOC_VALUES)
+                .putFields("id", MultiValuedField.newBuilder().addValue("2").build())
+                .putFields("field1", MultiValuedField.newBuilder().addValue("6").build())
+                .build())
+            .stream());
+
+    // Register the replica BEFORE the first post-restart refresh. No intermediate gen=-1
+    // NRT point has been sent, so the replica will go directly from gen=1 (U1) to gen=1
+    // (U2) when the refresh below fires — triggering the gen-reuse scenario.
+    replicaServer.registerWithPrimary("test_index");
+
+    // Flush U2 to create an NRT point with fieldInfosGen=1 (gen-reuse!). The primary
+    // sends this to the registered replica.
+    primaryServer.refresh("test_index");
+    // Advance primary version to ensure the replica copies and refreshes its readers.
+    primaryServer.addSimpleDocs("test_index", 4);
+    primaryServer.refresh("test_index");
+
+    replicaServer.waitForReplication("test_index");
+
+    // Without the primaryGen-gated SCI ID check, the replica reuses the stale reader from
+    // U1 (fieldInfosGen=1 == fieldInfosGen=1, so the backward-gen "<" check is false).
+    // The stale reader returns field1=999 for doc id=1 (U1 set it; U1 was rolled back so
+    // the correct committed value is id*3=3). verifySimpleDocIds fails with expected 3 but
+    // was 999. With the fix, a fresh reader is opened and field1=3 is returned correctly.
+    primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
+    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
+  }
+
   private List<LeafReaderContext> getVersionLeaves(TestServer server, long version)
       throws IOException {
     IndexSearcher searcher =
