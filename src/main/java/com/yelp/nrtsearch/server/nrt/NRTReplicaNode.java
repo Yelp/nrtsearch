@@ -52,6 +52,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final String nodeName;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
+  private final NrtDataManager nrtDataManager;
   final NrtCopyThread nrtCopyThread;
 
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
@@ -83,6 +84,7 @@ public class NRTReplicaNode extends ReplicaNode {
     this.nodeName = nodeName;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
+    this.nrtDataManager = nrtDataManager;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
 
@@ -167,7 +169,9 @@ public class NRTReplicaNode extends ReplicaNode {
       // Updating the reference is not thread safe, but since this happens under the object lock
       // and before the shard has stared, nothing should access the manager before the swap.
       ReferenceManager<IndexSearcher> oldMgr = mgr;
-      mgr = new FilteringSegmentInfosSearcherManager(getDirectory(), this, mgr, searcherFactory);
+      mgr =
+          new FilteringSegmentInfosSearcherManager(
+              getDirectory(), this, mgr, nrtDataManager.getLastPrimaryGen(), searcherFactory);
       oldMgr.close();
     }
     copyJobManager.start();
