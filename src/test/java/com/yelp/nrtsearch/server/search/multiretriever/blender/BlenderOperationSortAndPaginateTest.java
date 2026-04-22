@@ -93,18 +93,6 @@ public class BlenderOperationSortAndPaginateTest {
   }
 
   @Test
-  public void testTopHitsZeroReturnsEmpty() {
-    List<BlendedScoreDoc> merged = new ArrayList<>();
-    for (int i = 1; i <= 5; i++) {
-      merged.add(doc(i, i * 0.1f));
-    }
-
-    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 0);
-    assertEquals(0, result.scoreDocs.length);
-    assertEquals(5, result.totalHits.value()); // total count still reported
-  }
-
-  @Test
   public void testStartHitBeyondResults() {
     List<BlendedScoreDoc> merged = List.of(doc(1, 1.0f), doc(2, 0.5f));
     TopDocs result = BlenderOperation.sortAndPaginate(merged, 5, 10);

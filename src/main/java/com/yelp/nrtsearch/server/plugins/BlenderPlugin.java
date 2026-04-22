@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderProvider;
 import java.util.Collections;
 import java.util.Map;
 
@@ -25,14 +26,10 @@ import java.util.Map;
  * com.yelp.nrtsearch.server.grpc.PluginBlender} message as part of the {@link
  * com.yelp.nrtsearch.server.grpc.Blender} in a {@link
  * com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest}.
- *
- * <p>Implementations should be stateless; any per-request parameters are available at execution
- * time via the {@link com.yelp.nrtsearch.server.grpc.Blender} proto passed to {@link
- * BlenderOperation#mergeHits}.
  */
 public interface BlenderPlugin {
-  /** Get map of blender name to {@link BlenderOperation} instance for registration. */
-  default Map<String, BlenderOperation> getBlenders() {
+  /** Get map of blender name to {@link BlenderProvider} for registration. */
+  default Map<String, BlenderProvider<? extends BlenderOperation>> getBlenders() {
     return Collections.emptyMap();
   }
 }

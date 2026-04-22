@@ -51,13 +51,11 @@ public interface BlenderOperation {
    * paginated by the caller.
    *
    * @param retrieverResults per-retriever {@link TopDocs} in declaration order, keyed by name
-   * @param blender blender proto config
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by name
    * @return merged hits, unsorted and unpaginated
    */
   Collection<BlendedScoreDoc> mergeHits(
       LinkedHashMap<String, TopDocs> retrieverResults,
-      com.yelp.nrtsearch.server.grpc.Blender blender,
       LinkedHashMap<String, RetrieverContext> retrieverContexts);
 
   /**
@@ -66,7 +64,6 @@ public interface BlenderOperation {
    * calling this method so that the futures run concurrently.
    *
    * @param retrieverFutures per-retriever futures in declaration order, keyed by retriever name
-   * @param blender blender proto config
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by retriever name
    * @param startHit 0-based offset of the first blended hit to include in the result
    * @param topHits maximum number of blended hits to return; {@code 0} returns empty; negative
@@ -77,11 +74,14 @@ public interface BlenderOperation {
    */
   default TopDocs blend(
       LinkedHashMap<String, Future<TopDocs>> retrieverFutures,
-      com.yelp.nrtsearch.server.grpc.Blender blender,
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
       int topHits)
       throws InterruptedException {
+    if (topHits == 0 || startHit > topHits) {
+      return new TopDocs(
+          new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
+    }
     LinkedHashMap<String, TopDocs> results = new LinkedHashMap<>();
     for (Map.Entry<String, Future<TopDocs>> entry : retrieverFutures.entrySet()) {
       String name = entry.getKey();
@@ -92,7 +92,7 @@ public interface BlenderOperation {
         throw new RuntimeException("Retriever '" + name + "' failed: " + cause.getMessage(), cause);
       }
     }
-    Collection<BlendedScoreDoc> merged = mergeHits(results, blender, retrieverContexts);
+    Collection<BlendedScoreDoc> merged = mergeHits(results, retrieverContexts);
     return sortAndPaginate(merged, startHit, topHits);
   }
 
@@ -111,10 +111,6 @@ public interface BlenderOperation {
    */
   static TopDocs sortAndPaginate(Collection<BlendedScoreDoc> merged, int startHit, int topHits) {
     int total = merged.size();
-    if (startHit > topHits || topHits <= 0) {
-      return new TopDocs(
-          new TotalHits(total, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
-    }
     // Heap capacity is bounded by topHits to avoid materializing docs outside the window.
     // `total` is preserved as the true deduplicated hit count for TotalHits reporting.
     int capacity = Math.min(topHits, total);

@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.search.multiretriever.blender.operation;
 
-import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
@@ -35,24 +34,25 @@ import org.apache.lucene.search.TopDocs;
  *
  * <ul>
  *   <li>{@code rank} is the 1-based position in that retriever's result list,
- *   <li>{@code k} is the smoothing constant from {@link WeightedRrfBlender#getRankConstant()}
- *       (defaults to {@link WeightedRRFScoreDoc#DEFAULT_K} when 0),
+ *   <li>{@code k} is the smoothing constant extracted from {@link
+ *       WeightedRrfBlender#getRankConstant()} at construction time (defaults to {@link
+ *       WeightedRRFScoreDoc#DEFAULT_K} when 0),
  *   <li>{@code boost} is taken from {@link RetrieverContext#getBoost()}.
  * </ul>
  */
 public class WeightedRrfBlenderOperation implements BlenderOperation {
 
+  private final int k;
+
+  public WeightedRrfBlenderOperation(WeightedRrfBlender config) {
+    this.k =
+        config.getRankConstant() > 0 ? config.getRankConstant() : WeightedRRFScoreDoc.DEFAULT_K;
+  }
+
   @Override
   public Collection<BlendedScoreDoc> mergeHits(
       LinkedHashMap<String, TopDocs> retrieverResults,
-      Blender blender,
       LinkedHashMap<String, RetrieverContext> retrieverContexts) {
-
-    WeightedRrfBlender rrfConfig = blender.getWeightedRrf();
-    int k =
-        rrfConfig.getRankConstant() > 0
-            ? rrfConfig.getRankConstant()
-            : WeightedRRFScoreDoc.DEFAULT_K;
 
     Map<Integer, BlendedScoreDoc> merged = new HashMap<>();
 

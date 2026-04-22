@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.search.multiretriever.blender.operation;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
@@ -35,16 +34,13 @@ public class WeightedRrfBlenderOperationTest {
 
   private static final float DELTA = 1e-6f;
 
-  private static final WeightedRrfBlenderOperation OPERATION = new WeightedRrfBlenderOperation();
-
-  private static Blender blenderWithK(int k) {
-    return Blender.newBuilder()
-        .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(k).build())
-        .build();
+  private static WeightedRrfBlenderOperation operationWithK(int k) {
+    return new WeightedRrfBlenderOperation(
+        WeightedRrfBlender.newBuilder().setRankConstant(k).build());
   }
 
-  private static Blender defaultBlender() {
-    return blenderWithK(0); // 0 → falls back to DEFAULT_K
+  private static WeightedRrfBlenderOperation defaultOperation() {
+    return operationWithK(0); // 0 → falls back to DEFAULT_K
   }
 
   private static TopDocs topDocs(int... docIds) {
@@ -71,7 +67,7 @@ public class WeightedRrfBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, blenderWithK(60), contexts);
+    Collection<BlendedScoreDoc> merged = operationWithK(60).mergeHits(results, contexts);
 
     assertEquals(3, merged.size());
     Map<Integer, Float> scores = toScoreMap(merged);
@@ -90,7 +86,7 @@ public class WeightedRrfBlenderOperationTest {
     contexts.put("text", retriever("text", 1.0f));
     contexts.put("knn", retriever("knn", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, blenderWithK(60), contexts);
+    Collection<BlendedScoreDoc> merged = operationWithK(60).mergeHits(results, contexts);
 
     assertEquals(2, merged.size());
     Map<Integer, Float> scores = toScoreMap(merged);
@@ -109,7 +105,7 @@ public class WeightedRrfBlenderOperationTest {
     contexts.put("text", retriever("text", 1.0f));
     contexts.put("knn", retriever("knn", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, blenderWithK(60), contexts);
+    Collection<BlendedScoreDoc> merged = operationWithK(60).mergeHits(results, contexts);
 
     assertEquals(1, merged.size());
     BlendedScoreDoc doc = merged.iterator().next();
@@ -126,7 +122,7 @@ public class WeightedRrfBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, defaultBlender(), contexts);
+    Collection<BlendedScoreDoc> merged = defaultOperation().mergeHits(results, contexts);
 
     float expected = 1.0f / (WeightedRRFScoreDoc.DEFAULT_K + 1);
     assertEquals(expected, merged.iterator().next().score, DELTA);
@@ -140,7 +136,7 @@ public class WeightedRrfBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, blenderWithK(10), contexts);
+    Collection<BlendedScoreDoc> merged = operationWithK(10).mergeHits(results, contexts);
 
     assertEquals(1.0f / 11, merged.iterator().next().score, DELTA);
   }
@@ -153,7 +149,7 @@ public class WeightedRrfBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text", 2.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, blenderWithK(60), contexts);
+    Collection<BlendedScoreDoc> merged = operationWithK(60).mergeHits(results, contexts);
 
     assertEquals(2.0f / 61, merged.iterator().next().score, DELTA);
   }
@@ -166,7 +162,7 @@ public class WeightedRrfBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text", 1.0f));
 
-    Collection<BlendedScoreDoc> merged = OPERATION.mergeHits(results, defaultBlender(), contexts);
+    Collection<BlendedScoreDoc> merged = defaultOperation().mergeHits(results, contexts);
     assertEquals(0, merged.size());
   }
 }

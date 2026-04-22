@@ -21,35 +21,32 @@ import com.yelp.nrtsearch.server.grpc.PluginBlender;
 import com.yelp.nrtsearch.server.plugins.BlenderPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.operation.WeightedRrfBlenderOperation;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Class to handle the creation of {@link BlenderOperation} instances. Plugin blenders are
- * registered as stateless instances; any per-request parameters are accessed at execution time via
- * the {@link Blender} proto passed to {@link BlenderOperation#mergeHits}.
- */
+/** Class to handle the creation of {@link BlenderOperation} instances. */
 public class BlenderCreator {
 
   private static BlenderCreator instance;
 
-  private final Map<String, BlenderOperation> blendersMap = new HashMap<>();
+  private final Map<String, BlenderProvider<? extends BlenderOperation>> pluginsMap =
+      new HashMap<>();
 
-  public BlenderCreator(NrtsearchConfig configuration) {
-    blendersMap.put(Blender.BlenderTypeCase.WEIGHTEDRRF.name(), new WeightedRrfBlenderOperation());
-  }
+  public BlenderCreator(NrtsearchConfig configuration) {}
 
   /**
    * Get a {@link BlenderOperation} for the given {@link Blender} config. Dispatches on the {@code
-   * blender_type} oneof: built-in types are instantiated directly; plugin blenders are looked up by
-   * the name in the {@link PluginBlender} message.
+   * blender_type} oneof: built-in types are instantiated directly from the config; plugin blenders
+   * are instantiated via their registered {@link BlenderProvider} with the decoded {@link
+   * PluginBlender#getParams()}.
    *
    * @param blender grpc blender config
    * @return blender operation
    */
   public BlenderOperation getBlenderOperation(Blender blender) {
     return switch (blender.getBlenderTypeCase()) {
-      case WEIGHTEDRRF -> blendersMap.get(Blender.BlenderTypeCase.WEIGHTEDRRF.name());
+      case WEIGHTEDRRF -> new WeightedRrfBlenderOperation(blender.getWeightedRrf());
       case PLUGIN -> getPluginBlender(blender.getPlugin());
       default ->
           throw new IllegalArgumentException(
@@ -58,33 +55,33 @@ public class BlenderCreator {
   }
 
   /**
-   * Look up a registered plugin {@link BlenderOperation} by name. Per-request parameters are
-   * available to the operation at execution time via the {@link Blender} proto.
+   * Look up a registered plugin {@link BlenderProvider} by name and instantiate it with the decoded
+   * params from the {@link PluginBlender} message.
    *
-   * @param grpcPluginBlender grpc message carrying the plugin name
-   * @return registered blender instance
+   * @param grpcPluginBlender grpc message carrying the plugin name and params
+   * @return blender operation instance
    */
   public BlenderOperation getPluginBlender(PluginBlender grpcPluginBlender) {
-    BlenderOperation operation = blendersMap.get(grpcPluginBlender.getName());
-    if (operation == null) {
+    BlenderProvider<?> provider = pluginsMap.get(grpcPluginBlender.getName());
+    if (provider == null) {
       throw new IllegalArgumentException(
           "Invalid blender name: "
               + grpcPluginBlender.getName()
               + ", must be one of: "
-              + blendersMap.keySet());
+              + pluginsMap.keySet());
     }
-    return operation;
+    return provider.get(StructValueTransformer.transformStruct(grpcPluginBlender.getParams()));
   }
 
-  private void register(Map<String, BlenderOperation> blenders) {
+  private void register(Map<String, BlenderProvider<? extends BlenderOperation>> blenders) {
     blenders.forEach(this::register);
   }
 
-  private void register(String name, BlenderOperation blender) {
-    if (blendersMap.containsKey(name)) {
+  private void register(String name, BlenderProvider<? extends BlenderOperation> provider) {
+    if (pluginsMap.containsKey(name)) {
       throw new IllegalArgumentException("Blender " + name + " already exists");
     }
-    blendersMap.put(name, blender);
+    pluginsMap.put(name, provider);
   }
 
   /**
