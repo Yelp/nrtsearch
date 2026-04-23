@@ -196,20 +196,20 @@ public class S3UtilTest {
   public void testS3JavaAsyncConfig_invalidMinimumPartSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0, false));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0, false));
   }
 
   @Test
   public void testS3JavaAsyncConfig_invalidThresholdSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0, 0, 0, 0, 0, false));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0, 0, 0, 0, 0, false));
   }
 
   @Test
@@ -217,16 +217,16 @@ public class S3UtilTest {
     long minPart = 8 * 1024 * 1024L;
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, -1, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, -1, 0, 0, 0, false));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, -1, 0, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, -1, 0, 0, false));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, -1, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, -1, 0, false));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, -1));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, -1, false));
   }
 
   @Test

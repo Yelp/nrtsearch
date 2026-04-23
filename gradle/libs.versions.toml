@@ -15,6 +15,7 @@ aws-sts = { module = "software.amazon.awssdk:sts", version.ref = "aws" }
 aws-s3-transfer-manager = { module = "software.amazon.awssdk:s3-transfer-manager", version.ref = "aws" }
 aws-crt = { module = "software.amazon.awssdk.crt:aws-crt", version = "0.43.9" }
 aws-netty-nio-client = { module = "software.amazon.awssdk:netty-nio-client", version.ref = "aws" }
+netty-tcnative-boringssl-static = { module = "io.netty:netty-tcnative-boringssl-static", version = "2.0.72.Final" }
 aws-java-sdk-core-legacy = { module = "com.amazonaws:aws-java-sdk-core", version.ref = "aws-legacy" }
 aws-java-sdk-s3-legacy = { module = "com.amazonaws:aws-java-sdk-s3", version.ref = "aws-legacy" }
 aws-java-sdk-sts-legacy = { module = "com.amazonaws:aws-java-sdk-sts", version.ref = "aws-legacy" }

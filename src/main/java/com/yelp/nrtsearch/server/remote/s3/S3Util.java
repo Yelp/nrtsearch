@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.remote.s3;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import io.netty.handler.ssl.SslProvider;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -219,6 +220,7 @@ public class S3Util {
     private final int connectionTimeoutMs;
     private final int connectionAcquisitionTimeoutMs;
     private final int maxPendingConnectionAcquires;
+    private final boolean useOpenSsl;
 
     /**
      * Create S3JavaAsyncConfig from NrtsearchConfig.
@@ -251,6 +253,8 @@ public class S3Util {
           configuration
               .getConfigReader()
               .getInteger(CONFIG_PREFIX + "maxPendingConnectionAcquires", 0);
+      boolean useOpenSsl =
+          configuration.getConfigReader().getBoolean(CONFIG_PREFIX + "useOpenSsl", false);
       return new S3JavaAsyncConfig(
           minimumPartSizeInBytes,
           thresholdSizeInBytes,
@@ -260,7 +264,8 @@ public class S3Util {
           maxConnections,
           connectionTimeoutMs,
           connectionAcquisitionTimeoutMs,
-          maxPendingConnectionAcquires);
+          maxPendingConnectionAcquires,
+          useOpenSsl);
     }
 
     /**
@@ -279,6 +284,8 @@ public class S3Util {
      *     milliseconds (0 means SDK default of 10000; config default is 60000)
      * @param maxPendingConnectionAcquires max requests queued waiting for a connection (0 means SDK
      *     default of 10000)
+     * @param useOpenSsl if true, use OpenSSL (BoringSSL) for TLS instead of the JDK SSLEngine;
+     *     requires netty-tcnative-boringssl-static on the classpath
      * @throws IllegalArgumentException if minimumPartSizeInBytes or thresholdSizeInBytes are <= 0,
      *     or if any other parameter is < 0
      */
@@ -291,7 +298,8 @@ public class S3Util {
         int maxConnections,
         int connectionTimeoutMs,
         int connectionAcquisitionTimeoutMs,
-        int maxPendingConnectionAcquires) {
+        int maxPendingConnectionAcquires,
+        boolean useOpenSsl) {
       if (minimumPartSizeInBytes <= 0) {
         throw new IllegalArgumentException("minimumPartSizeInBytes must be > 0");
       }
@@ -328,6 +336,7 @@ public class S3Util {
       this.connectionTimeoutMs = connectionTimeoutMs;
       this.connectionAcquisitionTimeoutMs = connectionAcquisitionTimeoutMs;
       this.maxPendingConnectionAcquires = maxPendingConnectionAcquires;
+      this.useOpenSsl = useOpenSsl;
     }
 
     /**
@@ -411,6 +420,15 @@ public class S3Util {
      */
     public int getMaxPendingConnectionAcquires() {
       return maxPendingConnectionAcquires;
+    }
+
+    /**
+     * Get whether to use OpenSSL (BoringSSL) for TLS instead of the JDK SSLEngine.
+     *
+     * @return true if OpenSSL should be used
+     */
+    public boolean isUseOpenSsl() {
+      return useOpenSsl;
     }
   }
 
@@ -517,7 +535,7 @@ public class S3Util {
       boolean globalBucketAccess) {
     S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(configuration);
     logger.info(
-        "S3 Java async client config: minimumPartSizeInBytes={}, thresholdSizeInBytes={}, apiCallBufferSizeInBytes={}, maxInFlightParts={}, ioThreads={}, maxConnections={}, connectionTimeoutMs={}, connectionAcquisitionTimeoutMs={}, maxPendingConnectionAcquires={}",
+        "S3 Java async client config: minimumPartSizeInBytes={}, thresholdSizeInBytes={}, apiCallBufferSizeInBytes={}, maxInFlightParts={}, ioThreads={}, maxConnections={}, connectionTimeoutMs={}, connectionAcquisitionTimeoutMs={}, maxPendingConnectionAcquires={}, useOpenSsl={}",
         javaConfig.getMinimumPartSizeInBytes(),
         javaConfig.getThresholdSizeInBytes(),
         javaConfig.getApiCallBufferSizeInBytes(),
@@ -526,7 +544,8 @@ public class S3Util {
         javaConfig.getMaxConnections(),
         javaConfig.getConnectionTimeoutMs(),
         javaConfig.getConnectionAcquisitionTimeoutMs(),
-        javaConfig.getMaxPendingConnectionAcquires());
+        javaConfig.getMaxPendingConnectionAcquires(),
+        javaConfig.isUseOpenSsl());
 
     MultipartConfiguration.Builder multipartBuilder =
         MultipartConfiguration.builder()
@@ -552,7 +571,8 @@ public class S3Util {
         || javaConfig.getMaxConnections() > 0
         || javaConfig.getConnectionTimeoutMs() > 0
         || javaConfig.getConnectionAcquisitionTimeoutMs() > 0
-        || javaConfig.getMaxPendingConnectionAcquires() > 0) {
+        || javaConfig.getMaxPendingConnectionAcquires() > 0
+        || javaConfig.isUseOpenSsl()) {
       NettyNioAsyncHttpClient.Builder nettyBuilder = NettyNioAsyncHttpClient.builder();
       if (javaConfig.getIoThreads() > 0) {
         nettyBuilder.eventLoopGroupBuilder(
@@ -570,6 +590,9 @@ public class S3Util {
       }
       if (javaConfig.getMaxPendingConnectionAcquires() > 0) {
         nettyBuilder.maxPendingConnectionAcquires(javaConfig.getMaxPendingConnectionAcquires());
+      }
+      if (javaConfig.isUseOpenSsl()) {
+        nettyBuilder.sslProvider(SslProvider.OPENSSL);
       }
       builder.httpClientBuilder(nettyBuilder);
     }
