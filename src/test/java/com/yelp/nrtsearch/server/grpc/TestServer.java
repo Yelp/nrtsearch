@@ -591,6 +591,7 @@ public class TestServer {
             .setNodeName(getGlobalState().getNodeName())
             .setHostName("localhost")
             .setPort(getGlobalState().getReplicationPort())
+            .setReplicaStartTimestamp(getGlobalState().getGeneration())
             .build();
 
     long start = System.currentTimeMillis();

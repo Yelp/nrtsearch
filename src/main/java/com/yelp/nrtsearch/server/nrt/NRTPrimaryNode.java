@@ -111,6 +111,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     private final String nodeName;
     private final HostPort hostPort;
     private final ReplicationServerClient replicationServerClient;
+    private final long replicaStartTimestamp;
 
     public String getNodeName() {
       return nodeName;
@@ -124,11 +125,19 @@ public class NRTPrimaryNode extends PrimaryNode {
       return hostPort;
     }
 
-    ReplicaDetails(String nodeName, ReplicationServerClient replicationServerClient) {
+    public long getReplicaStartTimestamp() {
+      return replicaStartTimestamp;
+    }
+
+    ReplicaDetails(
+        String nodeName,
+        ReplicationServerClient replicationServerClient,
+        long replicaStartTimestamp) {
       this.replicationServerClient = replicationServerClient;
       this.nodeName = nodeName;
       this.hostPort =
           new HostPort(replicationServerClient.getHost(), replicationServerClient.getPort());
+      this.replicaStartTimestamp = replicaStartTimestamp;
     }
 
     /*
@@ -492,9 +501,11 @@ public class NRTPrimaryNode extends PrimaryNode {
     writer.getConfig().setRAMBufferSizeMB(mb);
   }
 
-  public void addReplica(String nodeName, ReplicationServerClient replicationServerClient)
+  public void addReplica(
+      String nodeName, ReplicationServerClient replicationServerClient, long replicaStartTimestamp)
       throws IOException {
-    ReplicaDetails replicaDetails = new ReplicaDetails(nodeName, replicationServerClient);
+    ReplicaDetails replicaDetails =
+        new ReplicaDetails(nodeName, replicationServerClient, replicaStartTimestamp);
     logMessage(
         String.format(
             "Add replica %s (%s:%d) : %d current warming merges ",

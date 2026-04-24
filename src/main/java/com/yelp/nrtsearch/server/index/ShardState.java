@@ -960,6 +960,7 @@ public class ShardState implements Closeable {
               primaryAddress,
               hostPort,
               configuration.getNodeName(),
+              indexState.getGlobalState().getGeneration(),
               indexDir,
               new ShardSearcherFactory(true, false),
               configuration.getIsolatedReplicaConfig(),
@@ -1107,7 +1108,8 @@ public class ShardState implements Closeable {
                     shardState.indexStateManager.getIndexId(),
                     nrtReplicaNode.getNodeName(),
                     nrtReplicaNode.getHostPort().getHostName(),
-                    nrtReplicaNode.getHostPort().getPort());
+                    nrtReplicaNode.getHostPort().getPort(),
+                    nrtReplicaNode.getReplicaStartTimestamp());
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();

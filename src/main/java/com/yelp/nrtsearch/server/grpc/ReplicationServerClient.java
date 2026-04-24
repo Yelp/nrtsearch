@@ -190,7 +190,12 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public void addReplicas(
-      String indexName, String indexId, String nodeName, String hostName, int port) {
+      String indexName,
+      String indexId,
+      String nodeName,
+      String hostName,
+      int port,
+      long replicaStartTimestamp) {
     AddReplicaRequest addReplicaRequest =
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
@@ -199,6 +204,7 @@ public class ReplicationServerClient implements Closeable {
             .setNodeName(nodeName)
             .setHostName(hostName)
             .setPort(port)
+            .setReplicaStartTimestamp(replicaStartTimestamp)
             .build();
     try {
       this.blockingStub.addReplicas(addReplicaRequest);

@@ -50,6 +50,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final String indexName;
   private final String indexId;
   private final String nodeName;
+  private final long replicaStartTimestamp;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
   final NrtCopyThread nrtCopyThread;
@@ -65,6 +66,7 @@ public class NRTReplicaNode extends ReplicaNode {
       ReplicationServerClient primaryAddress,
       HostPort hostPort,
       String nodeName,
+      long replicaStartTimestamp,
       Directory indexDir,
       SearcherFactory searcherFactory,
       IsolatedReplicaConfig isolatedReplicaConfig,
@@ -81,6 +83,7 @@ public class NRTReplicaNode extends ReplicaNode {
     this.indexName = indexName;
     this.indexId = indexId;
     this.nodeName = nodeName;
+    this.replicaStartTimestamp = replicaStartTimestamp;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
@@ -189,6 +192,10 @@ public class NRTReplicaNode extends ReplicaNode {
     nrtCopyThread.launch(job);
   }
 
+  public long getReplicaStartTimestamp() {
+    return replicaStartTimestamp;
+  }
+
   /**
    * Called once start(primaryGen) is invoked on this object (see constructor). If no primary
    * connection is configured, this is a noop.
@@ -198,7 +205,12 @@ public class NRTReplicaNode extends ReplicaNode {
     if (hasPrimaryConnection()) {
       logger.info(String.format("send new_replica to primary: %s", primaryAddress));
       primaryAddress.addReplicas(
-          indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
+          indexName,
+          this.indexId,
+          this.nodeName,
+          hostPort.getHostName(),
+          hostPort.getPort(),
+          this.replicaStartTimestamp);
     }
   }
 

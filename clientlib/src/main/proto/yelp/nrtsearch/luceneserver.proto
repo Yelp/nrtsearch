@@ -1171,6 +1171,8 @@ message AddReplicaRequest {
     string indexId = 6;
     // Node name
     string nodeName = 7;
+    // Timestamp (epoch millis) when the replica server started, from GlobalState.generation
+    int64 replicaStartTimestamp = 8;
 }
 
 // Response from Server for addReplica
@@ -1358,6 +1360,8 @@ message NodeInfo {
     int32 port = 2;
     // Name of the remote node
     string nodeName = 3;
+    // Timestamp (epoch millis) when the replica server started, from GlobalState.generation
+    int64 replicaStartTimestamp = 4;
 }
 
 // Input to deleteByQuery

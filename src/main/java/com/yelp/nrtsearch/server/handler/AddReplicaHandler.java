@@ -64,7 +64,8 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
           addReplicaRequest.getNodeName(),
           // channel for primary to talk to replica
           new ReplicationServerClient(
-              addReplicaRequest.getHostName(), addReplicaRequest.getPort(), useKeepAlive));
+              addReplicaRequest.getHostName(), addReplicaRequest.getPort(), useKeepAlive),
+          addReplicaRequest.getReplicaStartTimestamp());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
