@@ -13,17 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.search;
+package com.yelp.nrtsearch.server.search.multiretriever;
 
+import com.yelp.nrtsearch.server.grpc.Blender;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class MultiRetrieverContext {
   private final Map<String, RetrieverContext> retrieverContextMap;
+  private final BlenderOperation blenderOperation;
+  private final Blender blender;
 
   private MultiRetrieverContext(Builder builder) {
     this.retrieverContextMap = Collections.unmodifiableMap(builder.retrieverContextMap);
+    this.blenderOperation = builder.blenderOperation;
+    this.blender = builder.blender;
   }
 
   public static Builder newBuilder() {
@@ -33,6 +39,8 @@ public class MultiRetrieverContext {
   public static class Builder {
     private final LinkedHashMap<String, RetrieverContext> retrieverContextMap =
         new LinkedHashMap<>();
+    private BlenderOperation blenderOperation;
+    private Blender blender;
 
     private Builder() {}
 
@@ -42,6 +50,16 @@ public class MultiRetrieverContext {
             "Retriever key: " + retrieverContext.getName() + " is already present");
       }
       retrieverContextMap.put(retrieverContext.getName(), retrieverContext);
+      return this;
+    }
+
+    public Builder blenderOperation(BlenderOperation blenderOperation) {
+      this.blenderOperation = blenderOperation;
+      return this;
+    }
+
+    public Builder blender(Blender blender) {
+      this.blender = blender;
       return this;
     }
 
@@ -60,5 +78,13 @@ public class MultiRetrieverContext {
 
   public Map<String, RetrieverContext> getRetrieverContextMap() {
     return retrieverContextMap;
+  }
+
+  public BlenderOperation getBlenderOperation() {
+    return blenderOperation;
+  }
+
+  public Blender getBlender() {
+    return blender;
   }
 }

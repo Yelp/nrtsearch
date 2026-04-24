@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.search;
+package com.yelp.nrtsearch.server.search.multiretriever;
 
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
