@@ -836,11 +836,12 @@ message KnnRetriever {
 }
 
 // Blender to merge Multi-Retriever topDocs
-// TODO: Additional blenders will be added
 message Blender {
     oneof blenderType {
         WeightedRrfBlender weightedRrf = 1;
+        WeightedScoreOrderBlender weightedScoreOrder = 2;
         PluginBlender plugin = 3;
+        ScorelessRawMergeBlender scorelessRawMerge = 4;
     }
 }
 
@@ -849,6 +850,33 @@ message WeightedRrfBlender {
     // Reduces the impact of rank differences between retrievers. Default: 60
     int32 rankConstant = 1;
 }
+
+// Weighted Score Order Blender. Blends raw retriever scores multiplied by each retriever's boost.
+message WeightedScoreOrderBlender {
+    // How per-retriever weighted scores are combined for documents appearing in multiple retrievers.
+    // Default: MAX
+    ScoreMode scoreMode = 1;
+
+    // How per-retriever weighted scores are combined when the same document appears in multiple
+    // retrievers.
+    enum ScoreMode {
+        // Use the highest weighted score across all retrievers.
+        MAX = 0;
+        // Sum all weighted retriever scores.
+        SUM = 1;
+        // Average all weighted retriever scores.
+        AVG = 2;
+    }
+}
+
+// Scoreless Raw Merge Blender. Deduplicates hits across retrievers and preserves all per-retriever
+// raw ScoreDocs under each BlendedScoreDoc, but assigns score 0 to every result. Sorting and
+// pagination are skipped.
+// set is returned. Intended for two use cases:
+//   1. Client-side ranking: the caller applies its own ranking (e.g. global RRF across shards)
+//      over the returned raw per-retriever scores.
+//   2. Server-side rescoring: a downstream rescorer receives all deduplicated candidates and do rescoring.
+message ScorelessRawMergeBlender {}
 
 message PluginBlender {
     // Registered blender plugin name
