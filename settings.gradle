@@ -7,4 +7,5 @@ pluginManagement {
     }
 }
 include('clientlib')
+include('otel-exporter-simpleclient')
 rootProject.name = 'nrtsearch'

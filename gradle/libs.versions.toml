@@ -5,7 +5,9 @@ grpc = "1.66.0"
 jackson = "2.19.1"
 log4j = "2.23.1"
 lucene = "10.1.0"
+opentelemetry = "1.40.0"
 prometheus = "1.3.1"
+prometheus-simpleclient = "0.16.0"
 protobuf = "3.25.3"
 
 [libraries]
@@ -52,7 +54,10 @@ lucene-replicator = { module = "org.apache.lucene:lucene-replicator", version.re
 lucene-suggest = { module = "org.apache.lucene:lucene-suggest", version.ref = "lucene" }
 lz4-java = { module = "org.lz4:lz4-java", version = "1.8.0" }
 picocli = { module = "info.picocli:picocli", version = "4.7.6" }
+opentelemetry-sdk-metrics = { module = "io.opentelemetry:opentelemetry-sdk-metrics", version.ref = "opentelemetry" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
 prometheus-metrics-core = { module = "io.prometheus:prometheus-metrics-core", version.ref = "prometheus"}
+prometheus-simpleclient = { module = "io.prometheus:simpleclient", version.ref = "prometheus-simpleclient" }
 prometheus-metrics-exposition-formats = { module = "io.prometheus:prometheus-metrics-exposition-formats", version.ref = "prometheus"}
 prometheus-metrics-instrumentation-jvm = { module = "io.prometheus:prometheus-metrics-instrumentation-jvm", version.ref = "prometheus"}
 proto-google-common-protos = { module = "com.google.api.grpc:proto-google-common-protos", version = "2.41.0" }
