@@ -511,6 +511,45 @@ public class S3Backend implements RemoteBackend {
     return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
   }
 
+  @Override
+  public long currentResourceTimestampMs(String service, GlobalResourceType resourceType)
+      throws IOException {
+    String prefix =
+        switch (resourceType) {
+          case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
+        };
+    return getCurrentResourceTimestampMs(prefix);
+  }
+
+  @Override
+  public long currentResourceTimestampMs(
+      String service, String indexIdentifier, IndexResourceType resourceType) throws IOException {
+    String prefix =
+        switch (resourceType) {
+          case WARMING_QUERIES -> getIndexResourcePrefix(service, indexIdentifier, WARMING);
+          case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
+          case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
+        };
+    return getCurrentResourceTimestampMs(prefix);
+  }
+
+  private long getCurrentResourceTimestampMs(String prefix) throws IOException {
+    String fileName;
+    try {
+      fileName = getCurrentResourceName(prefix);
+    } catch (IllegalArgumentException e) {
+      return -1;
+    }
+    if (fileName.length() < 14) {
+      throw new IOException("Invalid resource version in _current for prefix: " + prefix);
+    }
+    String timeString = fileName.substring(0, 14);
+    if (!TimeStringUtils.isTimeStringSec(timeString)) {
+      throw new IOException("Invalid resource version in _current for prefix: " + prefix);
+    }
+    return TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
+  }
+
   /**
    * Get the S3 prefix for the service global resource.
    *

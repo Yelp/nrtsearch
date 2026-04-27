@@ -196,6 +196,111 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testCurrentResourceTimestampMs() throws IOException {
+    currentResourceTimestampMs(
+        IndexResourceType.WARMING_QUERIES, S3Backend.WARMING, IndexResourceType.WARMING_QUERIES);
+    currentResourceTimestampMs(
+        IndexResourceType.POINT_STATE, S3Backend.POINT_STATE, IndexResourceType.POINT_STATE);
+    currentResourceTimestampMs(
+        IndexResourceType.INDEX_STATE, S3Backend.INDEX_STATE, IndexResourceType.INDEX_STATE);
+  }
+
+  private void currentResourceTimestampMs(
+      IndexResourceType indexResourceType, String resourceName, IndexResourceType resourceType)
+      throws IOException {
+    String prefix =
+        S3Backend.getIndexResourcePrefix(
+            "timestamp_service" + resourceName, "timestamp_index", resourceType);
+    String fileName = S3Backend.getWarmingQueriesFileName();
+    String currentKey = prefix + S3Backend.CURRENT_VERSION;
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+
+    long expectedTimestamp =
+        TimeStringUtils.parseTimeStringSec(fileName.substring(0, 14)).toEpochMilli();
+    assertEquals(
+        expectedTimestamp,
+        s3Backend.currentResourceTimestampMs(
+            "timestamp_service" + resourceName, "timestamp_index", indexResourceType));
+    assertEquals(
+        -1,
+        s3Backend.currentResourceTimestampMs(
+            "timestamp_service_2" + resourceName, "timestamp_index", indexResourceType));
+    assertEquals(
+        -1,
+        s3Backend.currentResourceTimestampMs(
+            "timestamp_service" + resourceName, "timestamp_index_2", indexResourceType));
+  }
+
+  @Test
+  public void testCurrentResourceTimestampMs_globalState() throws IOException {
+    String prefix = S3Backend.getGlobalStateResourcePrefix("global_timestamp_service");
+    String fileName = S3Backend.getGlobalStateFileName();
+    String currentKey = prefix + S3Backend.CURRENT_VERSION;
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString(fileName));
+
+    long expectedTimestamp =
+        TimeStringUtils.parseTimeStringSec(fileName.substring(0, 14)).toEpochMilli();
+    assertEquals(
+        expectedTimestamp,
+        s3Backend.currentResourceTimestampMs(
+            "global_timestamp_service", RemoteBackend.GlobalResourceType.GLOBAL_STATE));
+    assertEquals(
+        -1,
+        s3Backend.currentResourceTimestampMs(
+            "global_timestamp_service_2", RemoteBackend.GlobalResourceType.GLOBAL_STATE));
+  }
+
+  @Test
+  public void testCurrentResourceTimestampMs_invalidTimestamp() throws IOException {
+    String prefix = S3Backend.getGlobalStateResourcePrefix("global_invalid_timestamp_service");
+    String currentKey = prefix + S3Backend.CURRENT_VERSION;
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString("not_a_valid_filename"));
+
+    try {
+      s3Backend.currentResourceTimestampMs(
+          "global_invalid_timestamp_service", RemoteBackend.GlobalResourceType.GLOBAL_STATE);
+      fail();
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains("Invalid resource version in _current"));
+    }
+  }
+
+  @Test
+  public void testCurrentResourceTimestampMs_shortFilename() throws IOException {
+    String prefix = S3Backend.getGlobalStateResourcePrefix("global_short_filename_service");
+    String currentKey = prefix + S3Backend.CURRENT_VERSION;
+    s3.putObject(
+        software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(currentKey)
+            .build(),
+        RequestBody.fromString("short"));
+
+    try {
+      s3Backend.currentResourceTimestampMs(
+          "global_short_filename_service", RemoteBackend.GlobalResourceType.GLOBAL_STATE);
+      fail();
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains("Invalid resource version in _current"));
+    }
+  }
+
+  @Test
   public void testDownloadGlobalState_singlePart() throws IOException {
     String prefix = S3Backend.getGlobalStateResourcePrefix("download_global_service");
     String fileName = S3Backend.getGlobalStateFileName();

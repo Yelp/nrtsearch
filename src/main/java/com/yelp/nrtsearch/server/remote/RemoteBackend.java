@@ -72,6 +72,31 @@ public interface RemoteBackend extends PluginDownloader {
       throws IOException;
 
   /**
+   * Get the timestamp of the current version of a given global resource in the backend.
+   *
+   * @param service service name
+   * @param resourceType type of global resource
+   * @return epoch milliseconds of the current version timestamp, or -1 if the resource is not
+   *     present
+   * @throws IOException on error reading the resource version, or if the version is invalid
+   */
+  long currentResourceTimestampMs(String service, GlobalResourceType resourceType)
+      throws IOException;
+
+  /**
+   * Get the timestamp of the current version of a given index resource in the backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param resourceType type of index resource
+   * @return epoch milliseconds of the current version timestamp, or -1 if the resource is not
+   *     present
+   * @throws IOException on error reading the resource version, or if the version is invalid
+   */
+  long currentResourceTimestampMs(
+      String service, String indexIdentifier, IndexResourceType resourceType) throws IOException;
+
+  /**
    * Upload global state data to the remote backend.
    *
    * @param service service name
