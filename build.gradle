@@ -79,6 +79,7 @@ dependencies {
     implementation libs.aws.java.sdk.core.legacy
     implementation libs.aws.java.sdk.s3.legacy
     runtimeOnly libs.aws.java.sdk.sts.legacy
+    implementation libs.checker.qual
     implementation libs.commons.compress
     implementation libs.commons.io
     implementation libs.fastutil
