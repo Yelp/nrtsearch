@@ -126,6 +126,20 @@ public class NrtsearchConfigTest {
   }
 
   @Test
+  public void testBootstrapDataDir_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertNull(luceneConfig.getBootstrapDataDir());
+  }
+
+  @Test
+  public void testBootstrapDataDir_set() {
+    String config = "bootstrapDataDir: \"/mnt/tmpfs/bootstrap\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals("/mnt/tmpfs/bootstrap", luceneConfig.getBootstrapDataDir());
+  }
+
+  @Test
   public void testMaxS3ClientRetries_default() {
     String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);

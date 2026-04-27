@@ -33,13 +33,17 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -195,7 +199,7 @@ public class NrtDataManager implements Closeable {
    * @throws IOException if an error occurs while restoring the index data
    */
   public void restoreIfNeeded(Path shardDataDir) throws IOException {
-    restoreIfNeeded(shardDataDir, null);
+    restoreIfNeeded(shardDataDir, null, null);
   }
 
   /**
@@ -208,8 +212,29 @@ public class NrtDataManager implements Closeable {
    */
   public void restoreIfNeeded(Path shardDataDir, IsolatedReplicaConfig isolatedReplicaConfig)
       throws IOException {
+    restoreIfNeeded(shardDataDir, null, isolatedReplicaConfig);
+  }
+
+  /**
+   * Restore the index data if it is available in the remote backend.
+   *
+   * <p>When {@code bootstrapDir} is provided, index files are downloaded to that directory and
+   * symlinked into {@code shardDataDir}. This allows fast in-memory bootstrap (e.g. tmpfs) while
+   * subsequent NRT replication writes go directly to the real index directory on disk.
+   *
+   * @param shardDataDir Path to the shard index data directory
+   * @param bootstrapDir optional path to download index files to (e.g. a tmpfs mount); if null,
+   *     files are downloaded directly to shardDataDir
+   * @param isolatedReplicaConfig configuration for isolated replica, or null if not using isolated
+   *     replica
+   * @return set of file names downloaded to bootstrapDir (empty if bootstrapDir is null)
+   * @throws IOException if an error occurs while restoring the index data
+   */
+  public Set<String> restoreIfNeeded(
+      Path shardDataDir, Path bootstrapDir, IsolatedReplicaConfig isolatedReplicaConfig)
+      throws IOException {
     if (restoreIndex == null) {
-      return;
+      return Collections.emptySet();
     }
     if (restoreIndex.getDeleteExistingData()) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
@@ -229,9 +254,23 @@ public class NrtDataManager implements Closeable {
           "Point state: {}, timestamp: {}", pointState, pointStateWithTimestamp.timestamp());
 
       long start = System.nanoTime();
+      Set<String> bootstrapFiles;
       try {
-        remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
+        if (bootstrapDir != null) {
+          Files.createDirectories(bootstrapDir);
+          remoteBackend.downloadIndexFiles(
+              serviceName, indexIdentifier, bootstrapDir, pointState.files);
+          bootstrapFiles = ConcurrentHashMap.newKeySet();
+          for (String fileName : pointState.files.keySet()) {
+            Files.createSymbolicLink(
+                shardDataDir.resolve(fileName), bootstrapDir.resolve(fileName));
+            bootstrapFiles.add(fileName);
+          }
+        } else {
+          remoteBackend.downloadIndexFiles(
+              serviceName, indexIdentifier, shardDataDir, pointState.files);
+          bootstrapFiles = Collections.emptySet();
+        }
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -254,7 +293,9 @@ public class NrtDataManager implements Closeable {
       NrtMetrics.indexTimestampSec
           .labelValues(getBaseIndexName(indexIdentifier))
           .set(lastPointTimestamp.getEpochSecond());
+      return bootstrapFiles;
     }
+    return Collections.emptySet();
   }
 
   @VisibleForTesting

@@ -1577,4 +1577,96 @@ public class NrtDataManagerTest {
     assertEquals(
         timestamp1, nrtDataManager.getLastPointTimestamp()); // Should still be the first timestamp
   }
+
+  @Test
+  public void testRestoreIfNeeded_bootstrapDir_downloadsToBootstrapAndCreatesSymlinks()
+      throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 16);
+    CopyState copyState =
+        new CopyState(Map.of("file1", fileMetaData), 5, 6, new byte[] {1, 2, 3}, Set.of(), 7, null);
+    NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), Instant.now()));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder().setServiceName(SERVICE_NAME).setResourceName(INDEX_NAME).build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false);
+
+    java.nio.file.Path shardDataDir = folder.newFolder("shard").toPath();
+    java.nio.file.Path bootstrapDir = folder.newFolder("bootstrap").toPath();
+
+    Set<String> bootstrapFiles = nrtDataManager.restoreIfNeeded(shardDataDir, bootstrapDir, null);
+
+    // downloadIndexFiles should have been called with bootstrapDir, not shardDataDir
+    verify(mockRemoteBackend, times(1))
+        .downloadIndexFiles(SERVICE_NAME, INDEX_NAME, bootstrapDir, nrtFileMetaDataMap);
+
+    // Symlink for "file1" should exist in shardDataDir pointing to bootstrapDir
+    java.nio.file.Path symlink = shardDataDir.resolve("file1");
+    assertTrue(java.nio.file.Files.isSymbolicLink(symlink));
+    assertEquals(bootstrapDir.resolve("file1"), java.nio.file.Files.readSymbolicLink(symlink));
+
+    // segments file should be written directly to shardDataDir (not a symlink)
+    java.nio.file.Path segmentsFile = shardDataDir.resolve("segments_6");
+    assertTrue(java.nio.file.Files.exists(segmentsFile));
+    assertFalse(java.nio.file.Files.isSymbolicLink(segmentsFile));
+
+    // returned set should contain "file1"
+    assertEquals(Set.of("file1"), bootstrapFiles);
+  }
+
+  @Test
+  public void testRestoreIfNeeded_bootstrapDir_nullBootstrapDir_downloadsDirectly()
+      throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 16);
+    CopyState copyState =
+        new CopyState(Map.of("file1", fileMetaData), 5, 6, new byte[] {1, 2, 3}, Set.of(), 7, null);
+    NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
+    Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
+    NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), Instant.now()));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder().setServiceName(SERVICE_NAME).setResourceName(INDEX_NAME).build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false);
+
+    java.nio.file.Path shardDataDir = folder.newFolder("shard2").toPath();
+
+    Set<String> bootstrapFiles = nrtDataManager.restoreIfNeeded(shardDataDir, null, null);
+
+    // downloadIndexFiles should have been called with shardDataDir (no bootstrap dir)
+    verify(mockRemoteBackend, times(1))
+        .downloadIndexFiles(SERVICE_NAME, INDEX_NAME, shardDataDir, nrtFileMetaDataMap);
+
+    // No symlinks should exist; segments file is a real file
+    assertFalse(java.nio.file.Files.isSymbolicLink(shardDataDir.resolve("segments_6")));
+
+    // returned set should be empty (no bootstrap files)
+    assertTrue(bootstrapFiles.isEmpty());
+  }
 }

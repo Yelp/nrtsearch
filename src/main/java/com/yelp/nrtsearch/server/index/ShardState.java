@@ -568,16 +568,28 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile);
+      NrtsearchConfig startConfig = indexState.getGlobalState().getConfiguration();
+      Path bootstrapDataDirForStart =
+          startConfig.getBootstrapDataDir() != null
+              ? Path.of(startConfig.getBootstrapDataDir()).resolve(indexDirFile.getFileName())
+              : null;
+      Set<String> bootstrapFilesForStart =
+          nrtDataManager.restoreIfNeeded(indexDirFile, bootstrapDataDirForStart, null);
       origIndexDir =
           indexState
               .getDirectoryFactory()
               .open(
                   indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
-
+      if (!bootstrapFilesForStart.isEmpty()) {
+        origIndexDir =
+            new BootstrapCleanupDirectory(
+                origIndexDir, bootstrapDataDirForStart, bootstrapFilesForStart);
+      }
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if (!(origIndexDir instanceof MMapDirectory)) {
+      Directory unwrappedForStart =
+          origIndexDir instanceof BootstrapCleanupDirectory bcd ? bcd.getDelegate() : origIndexDir;
+      if (!(unwrappedForStart instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -700,14 +712,26 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile);
+      NrtsearchConfig primaryConfig = indexState.getGlobalState().getConfiguration();
+      Path bootstrapDataDirForPrimary =
+          primaryConfig.getBootstrapDataDir() != null
+              ? Path.of(primaryConfig.getBootstrapDataDir()).resolve(indexDirFile.getFileName())
+              : null;
+      Set<String> bootstrapFilesForPrimary =
+          nrtDataManager.restoreIfNeeded(indexDirFile, bootstrapDataDirForPrimary, null);
       origIndexDir =
           indexState
               .getDirectoryFactory()
               .open(
                   indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
-
-      if (!(origIndexDir instanceof MMapDirectory)) {
+      if (!bootstrapFilesForPrimary.isEmpty()) {
+        origIndexDir =
+            new BootstrapCleanupDirectory(
+                origIndexDir, bootstrapDataDirForPrimary, bootstrapFilesForPrimary);
+      }
+      Directory unwrappedForPrimary =
+          origIndexDir instanceof BootstrapCleanupDirectory bcd ? bcd.getDelegate() : origIndexDir;
+      if (!(unwrappedForPrimary instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -927,12 +951,24 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
+      Path bootstrapDataDir =
+          configuration.getBootstrapDataDir() != null
+              ? Path.of(configuration.getBootstrapDataDir()).resolve(indexDirFile.getFileName())
+              : null;
+      Set<String> bootstrapFiles =
+          nrtDataManager.restoreIfNeeded(
+              indexDirFile, bootstrapDataDir, configuration.getIsolatedReplicaConfig());
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+      if (!bootstrapFiles.isEmpty()) {
+        origIndexDir =
+            new BootstrapCleanupDirectory(origIndexDir, bootstrapDataDir, bootstrapFiles);
+      }
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if (!(origIndexDir instanceof MMapDirectory)) {
+      Directory unwrapped =
+          origIndexDir instanceof BootstrapCleanupDirectory bcd ? bcd.getDelegate() : origIndexDir;
+      if (!(unwrapped instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
