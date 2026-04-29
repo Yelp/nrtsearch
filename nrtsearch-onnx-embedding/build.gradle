@@ -21,19 +21,15 @@ java {
 group 'com.yelp.nrtsearch.plugins'
 version '0.0.1'
 
-ext {
-    nrtsearchVersion = "1.+"
-}
-
 dependencies {
-    compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
+    compileOnly project(':')
 
     implementation 'com.microsoft.onnxruntime:onnxruntime:1.22.0'
     implementation 'ai.djl.huggingface:tokenizers:0.33.0'
     implementation 'ai.djl:api:0.33.0'
 
-    testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"
-    testImplementation("com.yelp.nrtsearch:server:${nrtsearchVersion}:tests")
+    testImplementation project(':')
+    testImplementation project(path: ':', configuration: 'archives')
     testImplementation libs.assertj.core
     testImplementation libs.grpc.testing
     testImplementation libs.junit
@@ -51,7 +47,7 @@ distributions {
                     name: "nrtsearch-onnx-embedding",
                     version: project.version,
                     description: 'ONNX-based embedding provider for nrtsearch',
-                    server_version: "${nrtsearchVersion}"
+                    server_version: rootProject.version
                 )
             }
         }
