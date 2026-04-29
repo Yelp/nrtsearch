@@ -1606,4 +1606,10 @@ message KnnQuery {
     // greater than or equal to this value will be returned. If unset, all results are returned.
     // Note: This value is specified as the raw similarity, not the normalized/boosted score.
     optional float similarityThreshold = 8;
+    // Text to embed as query vector. Mutually exclusive with query_vector/query_byte_vector.
+    // Uses the field's configured embeddingProvider, or the embedding_provider override.
+    string query_text = 9;
+    // Optional override for the embedding provider to use with query_text.
+    // If not set, falls back to the vector field's configured embeddingProvider.
+    string embedding_provider = 10;
 }
