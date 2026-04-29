@@ -22,6 +22,8 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
+import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
+import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.ExactVectorQuery;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -96,6 +98,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   protected final int vectorDimensions;
   protected final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
+  private final String embeddingProviderName;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
   protected FloatFieldDef magnitudeField;
@@ -269,6 +272,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       Class<T> docValuesClass) {
     super(name, requestField, context, docValuesClass);
     this.vectorDimensions = requestField.getVectorDimensions();
+    this.embeddingProviderName =
+        requestField.getEmbeddingProvider().isEmpty() ? null : requestField.getEmbeddingProvider();
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
@@ -316,6 +321,15 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   public int getVectorDimensions() {
     return vectorDimensions;
+  }
+
+  /**
+   * Get the configured embedding provider name for this field, or null if not set.
+   *
+   * @return embedding provider name, or null
+   */
+  public String getEmbeddingProviderName() {
+    return embeddingProviderName;
   }
 
   @Override
@@ -450,8 +464,28 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     @Override
     void parseVectorField(String value, Document document) {
       float[] floatArr = null;
+      // If an embedding provider is configured and the value is not a JSON array,
+      // treat the value as text and embed it using the provider.
+      if (getEmbeddingProviderName() != null && !value.trim().startsWith("[")) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        floatArr = provider.embed(value);
+        if (floatArr.length != getVectorDimensions()) {
+          throw new IllegalArgumentException(
+              "Embedding provider returned vector of size "
+                  + floatArr.length
+                  + " but field expects "
+                  + getVectorDimensions());
+        }
+      }
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
-        floatArr = parseVectorFieldToFloatArr(value);
+        if (floatArr == null) {
+          floatArr = parseVectorFieldToFloatArr(value);
+        }
         byte[] floatBytes = convertFloatArrToBytes(floatArr);
         document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
       }
