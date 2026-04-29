@@ -462,4 +462,13 @@ public class NrtsearchConfig {
       return Collections.emptyMap();
     }
   }
+
+  @SuppressWarnings("unchecked")
+  public Map<String, Map<String, Object>> getEmbeddingProviderConfigs() {
+    try {
+      return configReader.get("embeddingProviders", obj -> (Map<String, Map<String, Object>>) obj);
+    } catch (ConfigKeyNotFoundException e) {
+      return Collections.emptyMap();
+    }
+  }
 }
