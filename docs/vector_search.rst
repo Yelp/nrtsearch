@@ -104,7 +104,13 @@ KNN search can be configured using the following syntax::
       int32 num_candidates = 4;
       repeated float query_vector = 5;
       float boost = 6;
+      string query_text = 9;
+      string embedding_provider = 10;
     }
+
+The ``query_text`` field allows you to provide text instead of a pre-computed vector. The text is automatically converted to a vector using the embedding provider configured on the field (or overridden via ``embedding_provider``). See :ref:`text-based-knn-search` below for details.
+
+``query_text`` is mutually exclusive with ``query_vector`` and ``query_byte_vector``.
 
 You can perform three types of searches using KNN:
 
@@ -221,6 +227,124 @@ Example::
     }
 
 Another example where this particular use case may make sense is a scenario where one would want to find burger photos for a particular business. The vector search query can find its top burger photo across all businesses. The text search can apply a filter based on business ID and caption field of the document. If there are photos from the same business in the vector search, their score can be boosted using the boost parameter so that when combined with the regular text search results, they get higher score. In this case even if no photos are found from the vector search, the text search can at least show some photos whose caption matches the keyword "burger".
+
+.. _text-based-knn-search:
+
+Text-Based KNN Search
+---------------------
+
+Nrtsearch can automatically convert text into vector embeddings at both index and search time, removing the need for clients to manage embedding generation externally.
+
+Setting Up Embedding Providers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Embedding providers are configured in the server configuration YAML under ``embeddingProviders``. Each provider has a name, a type, and type-specific settings:
+
+.. code-block:: yaml
+
+    embeddingProviders:
+      mini-lm:
+        type: onnx
+        modelPath: /opt/models/all-MiniLM-L6-v2/model.onnx
+        tokenizerPath: /opt/models/all-MiniLM-L6-v2/tokenizer.json
+        dimensions: 384
+        maxTokenLength: 256
+
+The ``type`` field specifies the provider implementation. The built-in ``onnx`` type (provided by the ``nrtsearch-onnx-embedding`` plugin) uses `ONNX Runtime <https://onnxruntime.ai/>`_ for model inference and `DJL HuggingFace Tokenizers <https://djl.ai/extensions/tokenizers/>`_ for text preprocessing. Custom provider types can be registered via plugins implementing the ``EmbeddingPlugin`` interface.
+
+See :doc:`server_configuration` for details on the ``embeddingProviders`` config section.
+
+Configuring Vector Fields for Embedding
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To enable automatic text embedding on a vector field, set ``embeddingProvider`` to the name of a configured provider:
+
+.. code-block:: json
+
+    {
+        "name": "review_embedding",
+        "type": "VECTOR",
+        "search": true,
+        "vectorDimensions": 384,
+        "vectorSimilarity": "cosine",
+        "embeddingProvider": "mini-lm"
+    }
+
+The provider's output dimensions must match the field's ``vectorDimensions``. This is validated at field registration time.
+
+Indexing Text
+^^^^^^^^^^^^^
+
+With ``embeddingProvider`` configured, you can send plain text instead of a vector array::
+
+    {
+      "indexName": "reviews",
+      "fields": {
+        "review_embedding": {
+          "value": ["great food and friendly service"]
+        }
+      }
+    }
+
+You can still send pre-computed vectors as JSON arrays (e.g., ``"[0.1, 0.2, ...]"``). The input format is detected automatically.
+
+Searching with Text
+^^^^^^^^^^^^^^^^^^^
+
+Use ``query_text`` in a KNN query to search using text instead of a pre-computed vector::
+
+    {
+      "indexName": "reviews",
+      "topHits": 10,
+      "knn": [
+        {
+          "field": "review_embedding",
+          "k": 10,
+          "num_candidates": 100,
+          "query_text": "delicious Italian food"
+        }
+      ]
+    }
+
+By default, ``query_text`` uses the embedding provider configured on the field. You can override it per-query using ``embedding_provider``::
+
+    {
+      "indexName": "reviews",
+      "topHits": 10,
+      "knn": [
+        {
+          "field": "review_embedding",
+          "k": 10,
+          "num_candidates": 100,
+          "query_text": "delicious Italian food",
+          "embedding_provider": "another-provider"
+        }
+      ]
+    }
+
+Using the ONNX Embedding Plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``nrtsearch-onnx-embedding`` plugin provides the built-in ``onnx`` embedding provider type. It supports any ONNX model that takes ``input_ids``, ``attention_mask``, and ``token_type_ids`` as inputs and produces token-level embeddings (which are then mean-pooled and L2-normalized).
+
+To use it:
+
+1. Install the plugin by placing the ``nrtsearch-onnx-embedding`` distribution in your plugin search path.
+2. Add the plugin to your server configuration: ``plugins: ["nrtsearch-onnx-embedding"]``
+3. Download an ONNX embedding model (e.g., ``all-MiniLM-L6-v2`` from HuggingFace).
+4. Configure the provider in ``embeddingProviders`` with ``modelPath`` and ``tokenizerPath``.
+
+ONNX provider configuration options:
+
+- **modelPath** (required): Path to the ONNX model file.
+- **tokenizerPath** (required): Path to the HuggingFace ``tokenizer.json`` file.
+- **dimensions** (required): Output embedding dimensions (must match the model).
+- **maxTokenLength** (optional): Maximum token length for the tokenizer. Default is 256.
+
+Custom Embedding Providers
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can implement custom embedding providers (e.g., for calling an external embedding service) by creating a plugin that implements the ``EmbeddingPlugin`` interface. See the ``nrtsearch-onnx-embedding`` module for a reference implementation.
 
 Optimizing Search Queries
 -------------------------

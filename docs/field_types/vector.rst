@@ -13,6 +13,7 @@ Field for storing dense vectors with a fixed number of dimensions.
         string vectorSimilarity = 31;
         VectorIndexingOptions vectorIndexingOptions = 32;
         VectorElementType vectorElementType = 34;
+        string embeddingProvider = 38;
     }
 
 - **name**: Name of the field.
@@ -34,6 +35,7 @@ Field for storing dense vectors with a fixed number of dimensions.
         - when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
         - when >= 0: max_inner_product(query, vector) + 1
 - **vectorIndexingOptions**: Options for indexing the vector when search is true. See section below for details.
+- **embeddingProvider**: Name of a configured embedding provider. When set on a float vector field, text strings sent during indexing are automatically converted to vectors using this provider. The provider must be defined in the server configuration under ``embeddingProviders``. Only supported for float vector fields (``VECTOR_ELEMENT_FLOAT``). See :ref:`text-to-vector-embedding` for details.
 
 Vector Indexing Options
 -----------------------
@@ -100,3 +102,43 @@ Example AddDocumentRequest:
             }
         }
     }
+
+.. _text-to-vector-embedding:
+
+Text-to-Vector Embedding
+------------------------
+When a vector field has ``embeddingProvider`` configured, you can send plain text instead of a JSON vector array. The text is automatically converted to a vector using the configured embedding provider.
+
+Example field definition with embedding:
+
+.. code-block:: json
+
+    {
+        "name": "text_embedding",
+        "type": "VECTOR",
+        "search": true,
+        "vectorDimensions": 384,
+        "vectorSimilarity": "cosine",
+        "embeddingProvider": "mini-lm"
+    }
+
+Example AddDocumentRequest with text input:
+
+.. code-block:: json
+
+    {
+        "indexName": "example_index",
+        "fields": {
+            "text_embedding": {
+                "value": [
+                    "great food and friendly service"
+                ]
+            }
+        }
+    }
+
+You can still send pre-computed vectors as JSON arrays to a field with ``embeddingProvider`` configured. The input format is detected automatically: values starting with ``[`` are parsed as JSON vector arrays, all other values are treated as text to embed.
+
+.. note::
+
+    Text values that begin with ``[`` will be interpreted as JSON vector arrays, not as text to embed. Embedding providers are only supported for float vector fields (``VECTOR_ELEMENT_FLOAT``).

@@ -127,6 +127,11 @@ Example server configuration
      - If enabled, all indices must contain an _ID field to be started.
      - false
 
+   * - embeddingProviders
+     - map
+     - Named embedding provider configurations for text-to-vector conversion. Each entry maps a provider name to its config (must include ``type`` and type-specific settings). See :ref:`text-based-knn-search` in :doc:`vector_search` for details.
+     - {}
+
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
    :header-rows: 1
