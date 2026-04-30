@@ -35,7 +35,7 @@ Field for storing dense vectors with a fixed number of dimensions.
         - when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
         - when >= 0: max_inner_product(query, vector) + 1
 - **vectorIndexingOptions**: Options for indexing the vector when search is true. See section below for details.
-- **embeddingProvider**: Name of a configured embedding provider. When set on a float vector field, text strings sent during indexing are automatically converted to vectors using this provider. The provider must be defined in the server configuration under ``embeddingProviders``. Only supported for float vector fields (``VECTOR_ELEMENT_FLOAT``). See :ref:`text-to-vector-embedding` for details.
+- **embeddingProvider**: Name of a configured embedding provider. When set on a vector field, text strings sent during indexing are automatically converted to vectors using this provider. The provider must be defined in the server configuration under ``embeddingProviders``. For float fields, the provider's ``embed()`` method is used. For byte fields, the provider's ``embedBytes()`` method is used (providers must explicitly support this). See :ref:`text-to-vector-embedding` for details.
 
 Vector Indexing Options
 -----------------------
@@ -141,4 +141,6 @@ You can still send pre-computed vectors as JSON arrays to a field with ``embeddi
 
 .. note::
 
-    Text values that begin with ``[`` will be interpreted as JSON vector arrays, not as text to embed. Embedding providers are only supported for float vector fields (``VECTOR_ELEMENT_FLOAT``).
+    Text values that begin with ``[`` will be interpreted as JSON vector arrays, not as text to embed.
+
+For byte vector fields, the embedding provider's ``embedBytes()`` method is called instead of ``embed()``. Providers must explicitly implement ``embedBytes()`` to support byte vector fields; the default implementation throws ``UnsupportedOperationException``.

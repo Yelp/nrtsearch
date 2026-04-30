@@ -675,9 +675,23 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         throw new IllegalArgumentException(
             "Normalized cosine similarity is not supported for byte vectors");
       }
-      if (getEmbeddingProviderName() != null) {
-        throw new IllegalArgumentException(
-            "Embedding providers are only supported for float vector fields, not byte vector fields");
+      if (getEmbeddingProviderName() != null && EmbeddingCreator.getInstance() != null) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        if (provider.dimensions() != vectorDimensions) {
+          throw new IllegalArgumentException(
+              "Embedding provider '"
+                  + getEmbeddingProviderName()
+                  + "' dimensions ("
+                  + provider.dimensions()
+                  + ") don't match field vectorDimensions ("
+                  + vectorDimensions
+                  + ")");
+        }
       }
     }
 
@@ -719,8 +733,29 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     @Override
     void parseVectorField(String value, Document document) {
       byte[] byteArr = null;
+      // If an embedding provider is configured and the value is not a JSON array,
+      // treat the value as text and embed it using the provider's embedBytes method.
+      // Note: values starting with '[' are always treated as JSON vector arrays.
+      if (getEmbeddingProviderName() != null && !value.trim().startsWith("[")) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        byteArr = provider.embedBytes(value);
+        if (byteArr.length != getVectorDimensions()) {
+          throw new IllegalArgumentException(
+              "Embedding provider returned vector of size "
+                  + byteArr.length
+                  + " but field expects "
+                  + getVectorDimensions());
+        }
+      }
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
-        byteArr = parseVectorFieldToByteArr(value);
+        if (byteArr == null) {
+          byteArr = parseVectorFieldToByteArr(value);
+        }
         document.add(new BinaryDocValuesField(getName(), new BytesRef(byteArr)));
       }
       if (isSearchable()) {

@@ -344,7 +344,7 @@ ONNX provider configuration options:
 Custom Embedding Providers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can implement custom embedding providers (e.g., for calling an external embedding service) by creating a plugin that implements the ``EmbeddingPlugin`` interface. See the ``nrtsearch-onnx-embedding`` module for a reference implementation.
+You can implement custom embedding providers (e.g., for calling an external embedding service) by creating a plugin that implements the ``EmbeddingPlugin`` interface. Override ``embed()`` for float vector support and ``embedBytes()`` for byte vector support. See the ``nrtsearch-onnx-embedding`` module for a reference implementation.
 
 Optimizing Search Queries
 -------------------------

@@ -28,6 +28,20 @@ public interface EmbeddingProvider extends AutoCloseable {
    */
   float[] embed(String text);
 
+  /**
+   * Convert text to a byte vector embedding. Implementations must be thread-safe. The default
+   * implementation throws {@link UnsupportedOperationException}; providers that support byte vector
+   * fields must override this method.
+   *
+   * @param text input text to embed
+   * @return byte array of embedding values
+   * @throws UnsupportedOperationException if this provider does not support byte embeddings
+   */
+  default byte[] embedBytes(String text) {
+    throw new UnsupportedOperationException(
+        "This embedding provider does not support byte vector embeddings");
+  }
+
   /** Returns the output vector dimensions of this provider. */
   int dimensions();
 

@@ -117,12 +117,12 @@ public class KnnUtils {
   }
 
   /**
-   * Resolve query_text to a query vector if set. Returns a new KnnQuery with query_vector populated
-   * from the embedding provider.
+   * Resolve query_text to a query vector if set. Returns a new KnnQuery with query_vector or
+   * query_byte_vector populated from the embedding provider, depending on the field type.
    *
    * @param knnQuery knn query definition
    * @param fieldDef vector field definition
-   * @return knn query with query_vector populated if query_text was set, otherwise the original
+   * @return knn query with query vector populated if query_text was set, otherwise the original
    */
   public static KnnQuery resolveQueryText(KnnQuery knnQuery, VectorFieldDef<?> fieldDef) {
     if (!knnQuery.getQueryText().isEmpty()) {
@@ -150,10 +150,15 @@ public class KnnUtils {
         throw new IllegalArgumentException("Embedding provider not found: " + providerName);
       }
 
-      float[] vector = provider.embed(knnQuery.getQueryText());
       KnnQuery.Builder builder = knnQuery.toBuilder().clearQueryText();
-      for (float v : vector) {
-        builder.addQueryVector(v);
+      if (fieldDef instanceof VectorFieldDef.ByteVectorFieldDef) {
+        byte[] vector = provider.embedBytes(knnQuery.getQueryText());
+        builder.setQueryByteVector(com.google.protobuf.ByteString.copyFrom(vector));
+      } else {
+        float[] vector = provider.embed(knnQuery.getQueryText());
+        for (float v : vector) {
+          builder.addQueryVector(v);
+        }
       }
       return builder.build();
     }
