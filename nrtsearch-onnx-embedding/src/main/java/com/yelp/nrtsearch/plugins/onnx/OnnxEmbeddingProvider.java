@@ -133,4 +133,14 @@ public class OnnxEmbeddingProvider implements EmbeddingProvider {
   public int dimensions() {
     return dimensions;
   }
+
+  @Override
+  public void close() {
+    try {
+      session.close();
+    } catch (OrtException e) {
+      // best effort
+    }
+    tokenizer.close();
+  }
 }

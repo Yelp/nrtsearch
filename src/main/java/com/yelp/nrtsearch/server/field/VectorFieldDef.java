@@ -423,6 +423,24 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     public FloatVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       super(name, requestField, context, FloatVectorType.class);
+      if (getEmbeddingProviderName() != null && EmbeddingCreator.getInstance() != null) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        if (provider.dimensions() != vectorDimensions) {
+          throw new IllegalArgumentException(
+              "Embedding provider '"
+                  + getEmbeddingProviderName()
+                  + "' dimensions ("
+                  + provider.dimensions()
+                  + ") don't match field vectorDimensions ("
+                  + vectorDimensions
+                  + ")");
+        }
+      }
     }
 
     @Override
@@ -466,6 +484,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       float[] floatArr = null;
       // If an embedding provider is configured and the value is not a JSON array,
       // treat the value as text and embed it using the provider.
+      // Note: values starting with '[' are always treated as JSON vector arrays.
       if (getEmbeddingProviderName() != null && !value.trim().startsWith("[")) {
         EmbeddingProvider provider =
             EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
@@ -655,6 +674,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       if (NORMALIZED_COSINE.equals(requestField.getVectorSimilarity())) {
         throw new IllegalArgumentException(
             "Normalized cosine similarity is not supported for byte vectors");
+      }
+      if (getEmbeddingProviderName() != null) {
+        throw new IllegalArgumentException(
+            "Embedding providers are only supported for float vector fields, not byte vector fields");
       }
     }
 

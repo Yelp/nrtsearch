@@ -463,6 +463,11 @@ public class NrtsearchConfig {
     }
   }
 
+  /**
+   * Get embedding provider configurations from the {@code embeddingProviders} config section.
+   *
+   * @return map of provider name to provider-specific config map, or empty map if not configured
+   */
   @SuppressWarnings("unchecked")
   public Map<String, Map<String, Object>> getEmbeddingProviderConfigs() {
     try {

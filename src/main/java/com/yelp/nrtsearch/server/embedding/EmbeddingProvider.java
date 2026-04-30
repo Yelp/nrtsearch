@@ -15,10 +15,13 @@
  */
 package com.yelp.nrtsearch.server.embedding;
 
-/** Converts text into a float vector embedding. */
-public interface EmbeddingProvider {
+/**
+ * Converts text into a float vector embedding. Implementations must be thread-safe, as {@link
+ * #embed(String)} may be called concurrently from multiple index and search threads.
+ */
+public interface EmbeddingProvider extends AutoCloseable {
   /**
-   * Convert text to a float vector embedding.
+   * Convert text to a float vector embedding. Implementations must be thread-safe.
    *
    * @param text input text to embed
    * @return float array of embedding values
@@ -27,4 +30,11 @@ public interface EmbeddingProvider {
 
   /** Returns the output vector dimensions of this provider. */
   int dimensions();
+
+  /**
+   * Release any resources held by this provider. Default implementation does nothing for providers
+   * that do not hold native resources.
+   */
+  @Override
+  default void close() {}
 }

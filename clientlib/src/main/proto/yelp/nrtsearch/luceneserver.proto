@@ -678,6 +678,8 @@ message Field {
     IndexPrefixes indexPrefixes = 37;
     // Name of a configured embedding provider. When set on a VECTOR field, text strings sent
     // during indexing are automatically converted to vectors using this provider.
+    // Only supported for float vector fields.
+    // Note: values starting with '[' are always parsed as JSON vector arrays, not as text to embed.
     string embeddingProvider = 38;
 }
 

@@ -91,6 +91,9 @@ public class EmbeddingCreator {
    * @param plugins list of loaded plugins
    */
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
+    if (instance != null) {
+      instance.closeProviders();
+    }
     instance = new EmbeddingCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof EmbeddingPlugin embeddingPlugin) {
@@ -98,6 +101,16 @@ public class EmbeddingCreator {
       }
     }
     instance.createProviders(configuration);
+  }
+
+  private void closeProviders() {
+    for (Map.Entry<String, EmbeddingProvider> entry : providerMap.entrySet()) {
+      try {
+        entry.getValue().close();
+      } catch (Exception e) {
+        logger.warn("Error closing embedding provider '{}'", entry.getKey(), e);
+      }
+    }
   }
 
   /** Get singleton instance. */
