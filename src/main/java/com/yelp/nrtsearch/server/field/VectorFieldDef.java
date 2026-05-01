@@ -101,6 +101,33 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   private final String embeddingProviderName;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
+  /**
+   * Checks if a string looks like a JSON numeric array (e.g., "[1.0, -2, 3.5e10]"). Uses character
+   * scanning instead of regex to avoid StackOverflowError on large vectors. This is a heuristic
+   * gate — actual parsing and validation is handled by GSON downstream.
+   */
+  @VisibleForTesting
+  static boolean looksLikeVectorJson(String value) {
+    String trimmed = value.trim();
+    int len = trimmed.length();
+    if (len < 3 || trimmed.charAt(0) != '[' || trimmed.charAt(len - 1) != ']') {
+      return false;
+    }
+    boolean hasDigit = false;
+    for (int i = 1; i < len - 1; i++) {
+      char c = trimmed.charAt(i);
+      if (c >= '0' && c <= '9') {
+        hasDigit = true;
+      } else if (c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E'
+          || c == ',' || Character.isWhitespace(c)) {
+        // allowed characters in numeric array
+      } else {
+        return false;
+      }
+    }
+    return hasDigit;
+  }
+
   protected FloatFieldDef magnitudeField;
   private Map<String, IndexableFieldDef<?>> childFieldsWithMagnitude;
 
