@@ -118,8 +118,13 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       char c = trimmed.charAt(i);
       if (c >= '0' && c <= '9') {
         hasDigit = true;
-      } else if (c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E'
-          || c == ',' || Character.isWhitespace(c)) {
+      } else if (c == '.'
+          || c == '-'
+          || c == '+'
+          || c == 'e'
+          || c == 'E'
+          || c == ','
+          || Character.isWhitespace(c)) {
         // allowed characters in numeric array
       } else {
         return false;

@@ -179,6 +179,78 @@ public class VectorFieldDefEmbeddingTest {
         "test_vector", requestField, mock(FieldDefCreator.FieldDefCreatorContext.class));
   }
 
+  // --- looksLikeVectorJson unit tests ---
+
+  @Test
+  public void testLooksLikeVectorJson_validArray() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("[1.0, 2.0, 3.0]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_integers() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("[1, -2, 3]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_whitespace() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("  [ 1.0 , 2.0 , 3.0 ]  "));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_scientificNotation() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("[1.5e10, -2.3E-4]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_singleElement() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("[42]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_newlines() {
+    assertTrue(VectorFieldDef.looksLikeVectorJson("[\n1.0,\n2.0,\n3.0\n]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_textStartingWithBracket() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("[UPDATE] some text"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_nonNumericElement() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("[1, 2, \"three\"]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_plainText() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("hello world"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_emptyArray() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("[]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_unclosedBracket() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("[1.0, 2.0"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_noOpeningBracket() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("1.0, 2.0]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_nestedArray() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson("[[1, 2], [3, 4]]"));
+  }
+
+  @Test
+  public void testLooksLikeVectorJson_emptyString() {
+    assertFalse(VectorFieldDef.looksLikeVectorJson(""));
+  }
+
   private static class MockEmbeddingPlugin extends Plugin implements EmbeddingPlugin {
     @Override
     public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
