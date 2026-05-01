@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.remote.s3;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.monitoring.S3ClientMetrics;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -482,16 +483,18 @@ public class S3Util {
     }
 
     int maxRetries = configuration.getMaxS3ClientRetries();
-    software.amazon.awssdk.core.client.config.ClientOverrideConfiguration overrideConfig = null;
+    software.amazon.awssdk.core.client.config.ClientOverrideConfiguration.Builder
+        overrideConfigBuilder =
+            software.amazon.awssdk.core.client.config.ClientOverrideConfiguration.builder()
+                .addMetricPublisher(S3ClientMetrics.getInstance());
     if (maxRetries > 0) {
       RetryPolicy retryPolicy =
           RetryPolicy.builder(RetryMode.STANDARD).numRetries(maxRetries).build();
-      overrideConfig =
-          software.amazon.awssdk.core.client.config.ClientOverrideConfiguration.builder()
-              .retryPolicy(retryPolicy)
-              .build();
-      clientBuilder.overrideConfiguration(overrideConfig);
+      overrideConfigBuilder.retryPolicy(retryPolicy);
     }
+    software.amazon.awssdk.core.client.config.ClientOverrideConfiguration overrideConfig =
+        overrideConfigBuilder.build();
+    clientBuilder.overrideConfiguration(overrideConfig);
 
     S3Client s3Client = clientBuilder.build();
 
