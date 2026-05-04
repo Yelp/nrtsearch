@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -115,6 +116,22 @@ public class ServerTestCase {
       throw new RuntimeException(e);
     }
     return fieldDefRequestBuilder.build();
+  }
+
+  public static SearchRequest getSearchRequestFromResourceFile(String resourceFileName)
+      throws IOException {
+    InputStream fileStream = ServerTestCase.class.getResourceAsStream(resourceFileName);
+    String jsonText =
+        new BufferedReader(new InputStreamReader(fileStream, StandardCharsets.UTF_8))
+            .lines()
+            .collect(Collectors.joining(System.lineSeparator()));
+    SearchRequest.Builder builder = SearchRequest.newBuilder();
+    try {
+      JsonFormat.parser().merge(jsonText, builder);
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
+    return builder.build();
   }
 
   public static AddDocumentResponse addDocuments(Stream<AddDocumentRequest> requestStream)
