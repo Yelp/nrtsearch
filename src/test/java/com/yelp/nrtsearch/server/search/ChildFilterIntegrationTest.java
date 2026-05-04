@@ -284,34 +284,34 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
   private SearchResponse runScriptWithChildFilters(
       String scriptSource, List<ChildFilter> childFilters) {
+    return runScriptWithChildFilters(scriptSource, "script_result", childFilters);
+  }
+
+  private SearchResponse runScriptWithChildFilters(
+      String scriptSource, String virtualFieldName, List<ChildFilter> childFilters) {
     init(Collections.singletonList(new TestScriptPlugin()));
 
     Script script = Script.newBuilder().setLang("test_lang").setSource(scriptSource).build();
-
-    Query functionScoreQuery =
-        Query.newBuilder()
-            .setFunctionScoreQuery(
-                FunctionScoreQuery.newBuilder()
-                    .setScript(script)
-                    .setQuery(
-                        Query.newBuilder()
-                            .setMatchAllQuery(MatchAllQuery.newBuilder().build())
-                            .build())
-                    .build())
-            .build();
 
     SearchRequest.Builder requestBuilder =
         SearchRequest.newBuilder()
             .setIndexName(TEST_INDEX)
             .setTopHits(NUM_DOCS)
-            .addAllRetrieveFields(Arrays.asList("doc_id", "int_score"))
-            .setQuery(functionScoreQuery);
+            .setQuery(
+                Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder().build()).build())
+            .addVirtualFields(
+                VirtualField.newBuilder().setName(virtualFieldName).setScript(script).build())
+            .addAllRetrieveFields(Arrays.asList("doc_id", "int_score", virtualFieldName));
 
     for (ChildFilter cf : childFilters) {
       requestBuilder.addChildFilters(cf);
     }
 
     return getGrpcServer().getBlockingStub().search(requestBuilder.build());
+  }
+
+  private double getVirtualFieldValue(SearchResponse.Hit hit, String fieldName) {
+    return hit.getFieldsOrThrow(fieldName).getFieldValue(0).getDoubleValue();
   }
 
   // ---- Tests ----
@@ -326,11 +326,9 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
     assertTrue("Search should return results", response.getHitsCount() > 0);
     for (SearchResponse.Hit hit : response.getHitsList()) {
+      double count = getVirtualFieldValue(hit, "script_result");
       assertEquals(
-          "Without filter, each parent should have 2 appointment children",
-          2.0,
-          hit.getScore(),
-          0.0001);
+          "Without filter, each parent should have 2 appointment children", 2.0, count, 0.0001);
     }
   }
 
@@ -363,17 +361,15 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
     assertTrue("Search should return results", response.getHitsCount() > 0);
     for (SearchResponse.Hit hit : response.getHitsList()) {
-      double count = hit.getScore();
+      double count = getVirtualFieldValue(hit, "script_result");
       int docId =
           hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue().isEmpty()
               ? 0
               : Integer.parseInt(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
 
       if (docId == 0) {
-        // doc 0: prices are {0, 50}. Filter >= 50 matches only {50}
         assertEquals("Doc 0 should have 1 appointment after filter", 1.0, count, 0.0001);
       } else {
-        // doc 1+: both prices are >= 50
         assertEquals(
             "Doc " + docId + " should have 2 appointments after filter", 2.0, count, 0.0001);
       }
@@ -405,8 +401,8 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
     assertTrue("Search should return results", response.getHitsCount() > 0);
     for (SearchResponse.Hit hit : response.getHitsList()) {
-      assertEquals(
-          "No appointments should match the impossible filter", 0.0, hit.getScore(), 0.0001);
+      double count = getVirtualFieldValue(hit, "script_result");
+      assertEquals("No appointments should match the impossible filter", 0.0, count, 0.0001);
     }
   }
 
@@ -437,8 +433,8 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
     assertTrue("Search should return results", response.getHitsCount() > 0);
     for (SearchResponse.Hit hit : response.getHitsList()) {
-      assertEquals(
-          "Reviews should be unaffected by appointments filter", 2.0, hit.getScore(), 0.0001);
+      double count = getVirtualFieldValue(hit, "script_result");
+      assertEquals("Reviews should be unaffected by appointments filter", 2.0, count, 0.0001);
     }
   }
 
@@ -468,7 +464,7 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
 
     assertTrue("Search should return results", response.getHitsCount() > 0);
     for (SearchResponse.Hit hit : response.getHitsList()) {
-      double sum = hit.getScore();
+      double sum = getVirtualFieldValue(hit, "script_result");
       int docId = Integer.parseInt(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
 
       if (docId == 0) {
