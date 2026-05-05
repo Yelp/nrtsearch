@@ -16,10 +16,16 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
+import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.Analyzer;
+import com.yelp.nrtsearch.server.grpc.CustomNormalizer;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.NameAndParams;
+import com.yelp.nrtsearch.server.grpc.Normalizer;
 import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
 import java.io.ByteArrayInputStream;
@@ -37,6 +43,7 @@ public class AtomFieldDefTest {
     NrtsearchConfig configuration =
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     SimilarityCreator.initialize(configuration, Collections.emptyList());
+    AnalyzerCreator.initialize(configuration, Collections.emptyList());
   }
 
   private AtomFieldDef createFieldDef(Field field) {
@@ -141,5 +148,54 @@ public class AtomFieldDefTest {
                 .setTextDocValuesType(TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY)
                 .build());
     assertEquals(DocValuesType.BINARY, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testNormalizer_predefinedLowercase() {
+    AtomFieldDef fieldDef =
+        createFieldDef(
+            Field.newBuilder()
+                .setNormalizer(Normalizer.newBuilder().setPredefined("lowercase").build())
+                .build());
+    assertEquals("ATOM", fieldDef.getType());
+  }
+
+  @Test
+  public void testNormalizer_customTokenFilter() {
+    AtomFieldDef fieldDef =
+        createFieldDef(
+            Field.newBuilder()
+                .setNormalizer(
+                    Normalizer.newBuilder()
+                        .setCustom(
+                            CustomNormalizer.newBuilder()
+                                .addTokenFilters(
+                                    NameAndParams.newBuilder().setName("lowercase").build())
+                                .build())
+                        .build())
+                .build());
+    assertEquals("ATOM", fieldDef.getType());
+  }
+
+  @Test
+  public void testNormalizer_analyzerStillRejected() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            createFieldDef(
+                Field.newBuilder()
+                    .setAnalyzer(Analyzer.newBuilder().setPredefined("standard").build())
+                    .build()));
+  }
+
+  @Test
+  public void testNormalizer_unknownPredefinedThrows() {
+    assertThrows(
+        Exception.class,
+        () ->
+            createFieldDef(
+                Field.newBuilder()
+                    .setNormalizer(Normalizer.newBuilder().setPredefined("nonexistent").build())
+                    .build()));
   }
 }

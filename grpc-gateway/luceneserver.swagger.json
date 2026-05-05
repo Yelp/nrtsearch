@@ -1663,6 +1663,61 @@
         }
       }
     },
+    "CrossIndexQueryJoinScoreMode": {
+      "type": "string",
+      "enum": [
+        "JOIN_SCORE_UNSET",
+        "JOIN_SCORE_NONE",
+        "JOIN_SCORE_AVG",
+        "JOIN_SCORE_MAX",
+        "JOIN_SCORE_MIN",
+        "JOIN_SCORE_TOTAL"
+      ],
+      "default": "JOIN_SCORE_UNSET",
+      "description": "How to aggregate scores from secondary index matches.\n\n - JOIN_SCORE_UNSET: Unset — treated as JOIN_SCORE_NONE (filter only)\n - JOIN_SCORE_NONE: No scoring — filter only\n - JOIN_SCORE_AVG: Average score of matching secondary documents\n - JOIN_SCORE_MAX: Maximum score of matching secondary documents\n - JOIN_SCORE_MIN: Minimum score of matching secondary documents\n - JOIN_SCORE_TOTAL: Sum of scores of matching secondary documents"
+    },
+    "DiagnosticsMultiRetrieverDiagnostics": {
+      "type": "object",
+      "properties": {
+        "retrieverDiagnostics": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/DiagnosticsRetrieverDiagnostics"
+          },
+          "title": "Per-retriever diagnostics keyed by retriever name"
+        },
+        "blenderTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Time to blend/merge retriever results"
+        }
+      },
+      "title": "Diagnostics specific to multi-retriever search"
+    },
+    "DiagnosticsRetrieverDiagnostics": {
+      "type": "object",
+      "properties": {
+        "searchTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Search time for this retriever"
+        },
+        "rescoreTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Time for L1 rescoring within this retriever"
+        },
+        "totalHits": {
+          "$ref": "#/definitions/luceneserverTotalHits",
+          "title": "Total hits recalled by this retriever"
+        },
+        "vectorDiagnostics": {
+          "$ref": "#/definitions/DiagnosticsVectorDiagnostics",
+          "title": "Vector diagnostics, only populated for KNN retrievers"
+        }
+      },
+      "title": "Diagnostics for a single retriever in a multi-retriever request"
+    },
     "DiagnosticsVectorDiagnostics": {
       "type": "object",
       "properties": {
@@ -1983,18 +2038,6 @@
       "description": "- BEST_FIELDS: Finds documents which match any field, but uses the _score from the best field\n - PHRASE_PREFIX: Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field\n - CROSS_FIELDS: Finds documents that match across multiple fields, as if they were a single field",
       "title": "Type defining the execution behavior of the match"
     },
-    "NestedQueryScoreMode": {
-      "type": "string",
-      "enum": [
-        "NONE",
-        "AVG",
-        "MAX",
-        "MIN",
-        "SUM"
-      ],
-      "default": "NONE",
-      "title": "How child documents score affects final score"
-    },
     "ProfileResultAdditionalCollectorStats": {
       "type": "object",
       "properties": {
@@ -2039,6 +2082,19 @@
         }
       },
       "title": "Stats for parallel search collector"
+    },
+    "ProfileResultMultiRetrieverProfileResult": {
+      "type": "object",
+      "properties": {
+        "retrieverProfileResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverProfileResult"
+          },
+          "title": "Per-retriever profile results keyed by retriever name"
+        }
+      },
+      "title": "Per-retriever profile results for multi-retriever requests"
     },
     "ProfileResultSearchStats": {
       "type": "object",
@@ -2264,6 +2320,10 @@
           "type": "number",
           "format": "double",
           "title": "Time for logging hits"
+        },
+        "multiRetrieverDiagnostics": {
+          "$ref": "#/definitions/DiagnosticsMultiRetrieverDiagnostics",
+          "title": "Multi-retriever diagnostics, populated when MultiRetriever is used"
         }
       }
     },
@@ -2311,6 +2371,14 @@
             "$ref": "#/definitions/luceneserverHitsResult"
           },
           "title": "InnerHits for each hit"
+        },
+        "retrieverScores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "title": "Score per retriever in Multi-Retriever request"
         }
       },
       "title": "Message for query document hit"
@@ -2559,6 +2627,24 @@
     "luceneserverBackupWarmingQueriesResponse": {
       "type": "object",
       "title": "Response from Server for backupWarmingQueries"
+    },
+    "luceneserverBlender": {
+      "type": "object",
+      "properties": {
+        "weightedRrf": {
+          "$ref": "#/definitions/luceneserverWeightedRrfBlender"
+        },
+        "weightedScoreOrder": {
+          "$ref": "#/definitions/luceneserverWeightedScoreOrderBlender"
+        },
+        "plugin": {
+          "$ref": "#/definitions/luceneserverPluginBlender"
+        },
+        "scorelessRawMerge": {
+          "$ref": "#/definitions/luceneserverScorelessRawMergeBlender"
+        }
+      },
+      "title": "Blender to merge Multi-Retriever topDocs"
     },
     "luceneserverBooleanClause": {
       "type": "object",
@@ -2923,6 +3009,37 @@
       },
       "title": "Response from Server for createSnapshot"
     },
+    "luceneserverCrossIndexQuery": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string",
+          "title": "Name of the secondary index (must be on the same nrtsearch node)"
+        },
+        "primaryField": {
+          "type": "string",
+          "title": "Field in the primary index containing the join key"
+        },
+        "secondaryField": {
+          "type": "string",
+          "title": "Field in the secondary index containing the join key"
+        },
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query to execute on the secondary index"
+        },
+        "scoreMode": {
+          "$ref": "#/definitions/CrossIndexQueryJoinScoreMode",
+          "title": "Score aggregation mode from secondary matches (default: JOIN_SCORE_NONE = filter only)"
+        },
+        "maxTerms": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum number of matching secondary documents allowed (default: 0 = unlimited).\nIf the inner query matches more documents than this limit, an error is returned.\nUse this to guard against excessive memory usage from large secondary result sets.\nNote: this counts matching documents, not unique join-key values."
+        }
+      },
+      "description": "Filters the primary index to documents whose join key matches documents\nin a secondary index. The query runs on the secondary index; matching\nvalues of secondary_field are collected and used to build a TermsQuery on\nthe primary_field in the primary index."
+    },
     "luceneserverCustomAnalyzer": {
       "type": "object",
       "properties": {
@@ -2965,6 +3082,26 @@
         }
       },
       "title": "Custom analyzer definition"
+    },
+    "luceneserverCustomNormalizer": {
+      "type": "object",
+      "properties": {
+        "charFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNameAndParams"
+          },
+          "title": "Char filters to apply before tokenization"
+        },
+        "tokenFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNameAndParams"
+          },
+          "title": "Token filters to apply (e.g. lowercase, asciifolding)"
+        }
+      },
+      "description": "Custom normalizer definition. Uses a keyword tokenizer internally — only char filters and\ntoken filters may be specified. For use with ATOM field types."
     },
     "luceneserverCustomResponse": {
       "type": "object",
@@ -3383,6 +3520,10 @@
         "indexPrefixes": {
           "$ref": "#/definitions/luceneserverIndexPrefixes",
           "title": "Parameter enables the indexing of term prefixes to speed up prefix searches"
+        },
+        "normalizer": {
+          "$ref": "#/definitions/luceneserverNormalizer",
+          "description": "Normalizer for ATOM field types. Applies text normalization (e.g. lowercase) consistently\nat both index time and query time. Predefined options: \"lowercase\"."
         }
       },
       "title": "Definition of a field in an index"
@@ -4257,6 +4398,16 @@
       },
       "title": "Specification for kNN vector search query"
     },
+    "luceneserverKnnRetriever": {
+      "type": "object",
+      "properties": {
+        "knnQuery": {
+          "$ref": "#/definitions/luceneserverKnnQuery",
+          "title": "Knn query to execute"
+        }
+      },
+      "title": "Knn Vector Search Retriever"
+    },
     "luceneserverLabelAndValue": {
       "type": "object",
       "properties": {
@@ -4661,6 +4812,23 @@
       },
       "description": "A query that creates a match query for each field provided and wraps all the match queries in a\ndisjunction max query."
     },
+    "luceneserverMultiRetrieverRequest": {
+      "type": "object",
+      "properties": {
+        "retrievers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverRetriever"
+          },
+          "title": "List of retrievers to execute"
+        },
+        "blender": {
+          "$ref": "#/definitions/luceneserverBlender",
+          "title": "Blender to merge retriever topDocs"
+        }
+      },
+      "title": "Multi-Retriever Request"
+    },
     "luceneserverNameAndParams": {
       "type": "object",
       "properties": {
@@ -4690,11 +4858,23 @@
           "title": "Path to the child document"
         },
         "scoreMode": {
-          "$ref": "#/definitions/NestedQueryScoreMode",
+          "$ref": "#/definitions/luceneserverNestedQueryScoreMode",
           "title": "How child documents score affects final score"
         }
       },
       "title": "Query that matches nested documents"
+    },
+    "luceneserverNestedQueryScoreMode": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "AVG",
+        "MAX",
+        "MIN",
+        "SUM"
+      ],
+      "default": "NONE",
+      "title": "How child documents score affects final score"
     },
     "luceneserverNodeInfo": {
       "type": "object",
@@ -4740,6 +4920,20 @@
         }
       },
       "title": "Response from Server for nodeInfo"
+    },
+    "luceneserverNormalizer": {
+      "type": "object",
+      "properties": {
+        "predefined": {
+          "type": "string",
+          "title": "Predefined normalizer name (e.g. \"lowercase\")"
+        },
+        "custom": {
+          "$ref": "#/definitions/luceneserverCustomNormalizer",
+          "title": "Custom normalizer with char filters and token filters"
+        }
+      },
+      "title": "Normalizer definition for ATOM fields. A normalizer applies char filters and token filters\nto the entire field value as a single token (keyword tokenizer is implied).\nPredefined normalizers: \"lowercase\""
     },
     "luceneserverNumericRangeType": {
       "type": "object",
@@ -4790,6 +4984,19 @@
         }
       },
       "title": "A Query that matches documents containing a particular sequence of terms"
+    },
+    "luceneserverPluginBlender": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Registered blender plugin name"
+        },
+        "params": {
+          "type": "object",
+          "title": "Arbitrary plugin params"
+        }
+      }
     },
     "luceneserverPluginCollector": {
       "type": "object",
@@ -4896,6 +5103,10 @@
         "drillDownQuery": {
           "type": "string",
           "title": "Drill down query string"
+        },
+        "multiRetrieverProfileResult": {
+          "$ref": "#/definitions/ProfileResultMultiRetrieverProfileResult",
+          "title": "Multi-retriever profile results populated only when MultiRetriever is used"
         }
       },
       "title": "Defines detailed profiling stats for queries that set profile=true"
@@ -4986,6 +5197,9 @@
         },
         "exactVectorQuery": {
           "$ref": "#/definitions/luceneserverExactVectorQuery"
+        },
+        "crossIndexQuery": {
+          "$ref": "#/definitions/luceneserverCrossIndexQuery"
         }
       },
       "title": "Defines a full query consisting of a QueryNode which may be one of several types"
@@ -5246,6 +5460,31 @@
       },
       "title": "Index restore information"
     },
+    "luceneserverRetriever": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Retriever name used in per-retriever scores, diagnostics etc"
+        },
+        "textRetriever": {
+          "$ref": "#/definitions/luceneserverTextRetriever"
+        },
+        "knnRetriever": {
+          "$ref": "#/definitions/luceneserverKnnRetriever"
+        },
+        "boost": {
+          "type": "number",
+          "format": "float",
+          "title": "Boost to apply to scores before blending. Default: 1.0"
+        },
+        "rescorer": {
+          "$ref": "#/definitions/luceneserverRescorer",
+          "title": "Optional L1 rescorer applied before blending"
+        }
+      },
+      "title": "Single Retriever"
+    },
     "luceneserverRewriteMethod": {
       "type": "string",
       "enum": [
@@ -5273,6 +5512,10 @@
         }
       },
       "title": "Runtime field used during search"
+    },
+    "luceneserverScorelessRawMergeBlender": {
+      "type": "object",
+      "description": "Scoreless Raw Merge Blender. Deduplicates hits across retrievers and preserves all per-retriever\nraw ScoreDocs under each BlendedScoreDoc, but assigns score 0 to every result. Sorting and\npagination are skipped.\nset is returned. Intended for two use cases:\n  1. Client-side ranking: the caller applies its own ranking (e.g. global RRF across shards)\n     over the returned raw per-retriever scores.\n  2. Server-side rescoring: a downstream rescorer receives all deduplicated candidates and do rescoring."
     },
     "luceneserverScript": {
       "type": "object",
@@ -5464,6 +5707,10 @@
             "type": "string"
           },
           "title": "Provide additional options or hints to use when processing the search request. This is meant to help with the\ndevelopment of new features or when a top level field is not warranted. Possible values:\n  - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true"
+        },
+        "multiRetriever": {
+          "$ref": "#/definitions/luceneserverMultiRetrieverRequest",
+          "title": "When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error"
         }
       },
       "title": "Search query request"
@@ -5480,8 +5727,7 @@
           "title": "Set to true if search times out and a degraded response is returned"
         },
         "totalHits": {
-          "$ref": "#/definitions/luceneserverTotalHits",
-          "title": "Total hits for the query"
+          "$ref": "#/definitions/luceneserverTotalHits"
         },
         "hits": {
           "type": "array",
@@ -6125,6 +6371,25 @@
       "description": "- TEXT_DOC_VALUES_TYPE_UNSPECIFIED: Unspecified doc values type, use field default\n - TEXT_DOC_VALUES_TYPE_BINARY: Binary doc values support text longer than 32766 bytes and are good when most values are unique or\nyou don't need to use sorting/aggregations on the field.\n - TEXT_DOC_VALUES_TYPE_SORTED: Sorted doc values only store values shorter than 32766 bytes and are better when many values are not unique.",
       "title": "Type of doc values to use for storing text values"
     },
+    "luceneserverTextRetriever": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query to execute"
+        },
+        "topHits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of top documents to retrieve for this retriever."
+        },
+        "queryNestedPath": {
+          "type": "string",
+          "description": "Optional nested path for querying child documents."
+        }
+      },
+      "title": "Text Retriever"
+    },
     "luceneserverTopHitsCollector": {
       "type": "object",
       "properties": {
@@ -6257,6 +6522,37 @@
         }
       },
       "title": "Virtual field used during search"
+    },
+    "luceneserverWeightedRrfBlender": {
+      "type": "object",
+      "properties": {
+        "rankConstant": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Reduces the impact of rank differences between retrievers. Default: 60"
+        }
+      },
+      "title": "Weighted Reciprocal Rank Fusion Blender. Uses retriever boost as weight"
+    },
+    "luceneserverWeightedScoreOrderBlender": {
+      "type": "object",
+      "properties": {
+        "scoreMode": {
+          "$ref": "#/definitions/luceneserverWeightedScoreOrderBlenderScoreMode",
+          "title": "How per-retriever weighted scores are combined for documents appearing in multiple retrievers.\nDefault: MAX"
+        }
+      },
+      "description": "Weighted Score Order Blender. Blends raw retriever scores multiplied by each retriever's boost."
+    },
+    "luceneserverWeightedScoreOrderBlenderScoreMode": {
+      "type": "string",
+      "enum": [
+        "MAX",
+        "SUM",
+        "AVG"
+      ],
+      "default": "MAX",
+      "description": "How per-retriever weighted scores are combined when the same document appears in multiple\nretrievers.\n\n - MAX: Use the highest weighted score across all retrievers.\n - SUM: Sum all weighted retriever scores.\n - AVG: Average all weighted retriever scores."
     },
     "luceneserverWildcardQuery": {
       "type": "object",

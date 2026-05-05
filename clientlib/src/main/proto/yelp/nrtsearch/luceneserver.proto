@@ -676,6 +676,9 @@ message Field {
     optional int32 ignoreAbove = 36;
     // Parameter enables the indexing of term prefixes to speed up prefix searches
     IndexPrefixes indexPrefixes = 37;
+    // Normalizer for ATOM field types. Applies text normalization (e.g. lowercase) consistently
+    // at both index time and query time. Predefined options: "lowercase".
+    Normalizer normalizer = 38;
 }
 
 // Options for including IndexPrefixes for field
