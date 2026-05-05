@@ -15,6 +15,7 @@ Field to store text data without any tokenization or analysis. Use this when you
         bool eagerFieldGlobalOrdinals = 30;
         TextDocValuesType textDocValuesType = 33;
         optional int32 ignoreAbove = 36;
+        Normalizer normalizer = 38;
     }
 
 - **name**: Name of the field.
@@ -33,6 +34,9 @@ Field to store text data without any tokenization or analysis. Use this when you
     - **TEXT_DOC_VALUES_TYPE_SORTED**: Sorted doc values that use ordinals. Good for aggregation and when there are not many unique terms. Each term must have a byte-length of no more than 32766. (default)
     - **TEXT_DOC_VALUES_TYPE_BINARY**: Binary doc values that store the raw bytes of the term. Good for when there are many unique terms or when terms are longer than 32766 bytes. One usable for single value fields.
 - **ignoreAbove**: Skip indexing terms that exceed this length. For multi valued fields, ignoreAbove will be applied for each term separately. This option is useful for protecting against Lucene’s term byte-length limit. Default is no limit.
+- **normalizer**: Normalizer to apply to field values at index and query time. Applied to term queries, term-in-set queries, prefix queries, and range queries. Stored values also reflect the normalized form. See :doc:`../analysis` for details. One of:
+    - **predefined**: Name of a predefined normalizer. Currently ``lowercase`` is supported.
+    - **custom**: Custom normalizer with char filters and token filters (see :doc:`../analysis`).
 
 Example
 -------
@@ -43,4 +47,37 @@ Example
         "type": "ATOM",
         "search": true,
         "storeDocValues": true
+    }
+
+Example with a predefined normalizer:
+
+.. code-block:: json
+
+    {
+        "name": "keyword_field",
+        "type": "ATOM",
+        "search": true,
+        "storeDocValues": true,
+        "normalizer": {
+            "predefined": "lowercase"
+        }
+    }
+
+Example with a custom normalizer:
+
+.. code-block:: json
+
+    {
+        "name": "keyword_field",
+        "type": "ATOM",
+        "search": true,
+        "storeDocValues": true,
+        "normalizer": {
+            "custom": {
+                "tokenFilters": [
+                    {"name": "lowercase"},
+                    {"name": "asciiFolding"}
+                ]
+            }
+        }
     }
