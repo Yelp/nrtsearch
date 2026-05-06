@@ -50,6 +50,7 @@ import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.search.SearcherResult;
+import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
@@ -536,10 +537,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     LinkedHashMap<String, RetrieverContext> retrieverContexts =
         new LinkedHashMap<>(multiRetrieverContext.getRetrieverContextMap());
 
-    // Submit per-retriever searches to the executor to run concurrently.
-    // Each callable resolves to TopDocs; per-retriever L1 rescoring is applied inside.
-    // Per-retriever timing is tracked and merged after blend.
-    ConcurrentHashMap<String, Double> retrieverTimingsMs = new ConcurrentHashMap<>();
+    record RetrieverResult(
+        TopDocs topDocs, long totalHits, double searchTimeMs, double rescoreTimeMs) {}
+
+    ConcurrentHashMap<String, RetrieverResult> retrieverResults = new ConcurrentHashMap<>();
     LinkedHashMap<String, Future<TopDocs>> retrieverFutures = new LinkedHashMap<>();
     for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
       String name = entry.getKey();
@@ -548,33 +549,35 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           name,
           searchExecutor.submit(
               () -> {
-                long t0 = System.nanoTime();
+                long searchStart = System.nanoTime();
                 SearcherResult result =
                     searcher.search(
                         retrieverContext.getQuery(),
                         retrieverContext.getDocCollector().getWrappedManager());
                 TopDocs topDocs = result.getTopDocs();
+                double searchTimeMs = (System.nanoTime() - searchStart) / 1_000_000.0;
+                long totalHits = topDocs.totalHits.value();
+
+                double rescoreTimeMs = 0;
                 if (retrieverContext.getRescoreTask() != null) {
+                  long rescoreStart = System.nanoTime();
                   topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
+                  rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
                 }
-                retrieverTimingsMs.put(name, (System.nanoTime() - t0) / 1_000_000.0);
+                retrieverResults.put(
+                    name, new RetrieverResult(topDocs, totalHits, searchTimeMs, rescoreTimeMs));
                 return topDocs;
               }));
     }
 
-    // Compute the blend window to cover rescorer windows and hits
+    // Compute the blend window to cover rescorer windows and hits to log.
     // L2 rescorer then trims to the final topHits window.
-    int blendTopHits = searchContext.getStartHit() + searchContext.getTopHits();
-    for (RescoreTask rescorer : searchContext.getRescorers()) {
-      int windowSize = rescorer.getWindowSize();
-      if (windowSize > blendTopHits) {
-        blendTopHits = windowSize;
-      }
-    }
-    int hitsToLog = searchContext.getHitsToLog();
-    if (hitsToLog > 0) {
-      blendTopHits = Math.max(blendTopHits, hitsToLog + searchContext.getStartHit());
-    }
+    int blendTopHits =
+        DocCollector.computeNumHitsToCollect(
+            searchContext.getStartHit(),
+            searchContext.getTopHits(),
+            searchContext.getHitsToLog(),
+            searchContext.getRescorers());
 
     long blendStartTime = System.nanoTime();
     TopDocs blendedHits =
@@ -583,35 +586,50 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
             .blend(retrieverFutures, retrieverContexts, 0, blendTopHits);
     double blenderTimeMs = (System.nanoTime() - blendStartTime) / 1_000_000.0;
 
-    // Merge per-retriever timings into diagnostics
+    // Populate per-retriever diagnostics
     SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnosticsBuilder =
         diagnostics.getMultiRetrieverDiagnosticsBuilder();
-    for (Map.Entry<String, Double> timingEntry : retrieverTimingsMs.entrySet()) {
-      String name = timingEntry.getKey();
-      SearchResponse.Diagnostics.RetrieverDiagnostics existing =
-          multiRetrieverDiagnosticsBuilder.getRetrieverDiagnosticsOrDefault(name, null);
-      SearchResponse.Diagnostics.RetrieverDiagnostics.Builder retrieverDiagnosticsBuilder =
-          existing != null
-              ? existing.toBuilder()
-              : SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder();
-      retrieverDiagnosticsBuilder.setSearchTimeMs(timingEntry.getValue());
-      multiRetrieverDiagnosticsBuilder.putRetrieverDiagnostics(
-          name, retrieverDiagnosticsBuilder.build());
+    for (Map.Entry<String, RetrieverResult> entry : retrieverResults.entrySet()) {
+      String name = entry.getKey();
+      RetrieverResult retrieverResult = entry.getValue();
+      RetrieverContext.RetrieverType type = retrieverContexts.get(name).getRetrieverType();
+      TotalHits totalHits =
+          TotalHits.newBuilder()
+              .setRelation(
+                  TotalHits.Relation.valueOf(retrieverResult.topDocs().totalHits.relation().name()))
+              .setValue(retrieverResult.totalHits())
+              .build();
+      SearchResponse.Diagnostics.RetrieverDiagnostics.Builder retrieverDiagBuilder;
+      if (type == RetrieverContext.RetrieverType.KNN) {
+        // Preserve vectorDiagnostics already set by SearchRequestProcessor
+        retrieverDiagBuilder =
+            multiRetrieverDiagnosticsBuilder
+                .getRetrieverDiagnosticsOrDefault(
+                    name, SearchResponse.Diagnostics.RetrieverDiagnostics.getDefaultInstance())
+                .toBuilder();
+      } else {
+        retrieverDiagBuilder =
+            SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
+                .setSearchTimeMs(retrieverResult.searchTimeMs());
+      }
+      if (retrieverResult.rescoreTimeMs() > 0) {
+        retrieverDiagBuilder.setRescoreTimeMs(retrieverResult.rescoreTimeMs());
+      }
+      retrieverDiagBuilder.setTotalHits(totalHits);
+      multiRetrieverDiagnosticsBuilder.putRetrieverDiagnostics(name, retrieverDiagBuilder.build());
     }
     multiRetrieverDiagnosticsBuilder.setBlenderTimeMs(blenderTimeMs);
 
-    // Add per-retriever collector profiling stats
+    // Add per-retriever profiling stats
     if (profileResultBuilder != null) {
       ProfileResult.MultiRetrieverProfileResult.Builder multiRetrieverProfileBuilder =
           profileResultBuilder.getMultiRetrieverProfileResultBuilder();
       for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
         String name = entry.getKey();
         ProfileResult.Builder retrieverProfile =
-            multiRetrieverProfileBuilder.getRetrieverProfileResultsOrDefault(name, null) != null
-                ? multiRetrieverProfileBuilder
-                    .getRetrieverProfileResultsOrDefault(name, ProfileResult.getDefaultInstance())
-                    .toBuilder()
-                : ProfileResult.newBuilder();
+            multiRetrieverProfileBuilder
+                .getRetrieverProfileResultsOrDefault(name, ProfileResult.getDefaultInstance())
+                .toBuilder();
         entry.getValue().getDocCollector().maybeAddProfiling(retrieverProfile);
         multiRetrieverProfileBuilder.putRetrieverProfileResults(name, retrieverProfile.build());
       }

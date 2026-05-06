@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.search;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -445,6 +444,14 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
     assertEquals(10, response.getHitsCount());
     for (Hit hit : response.getHitsList()) assertEquals(7.0, hit.getScore(), SCORE_DELTA);
+    // L1 rescorer timing must appear in per-retriever diagnostics
+    SearchResponse.Diagnostics.RetrieverDiagnostics textDiag =
+        response
+            .getDiagnostics()
+            .getMultiRetrieverDiagnostics()
+            .getRetrieverDiagnosticsOrThrow("text");
+    assertTrue(textDiag.getRescoreTimeMs() > 0);
+    assertEquals(10, textDiag.getTotalHits().getValue());
   }
 
   /**
@@ -499,10 +506,19 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertTrue(response.getDiagnostics().hasMultiRetrieverDiagnostics());
     SearchResponse.Diagnostics.MultiRetrieverDiagnostics diag =
         response.getDiagnostics().getMultiRetrieverDiagnostics();
-    assertNotNull(diag.getRetrieverDiagnosticsOrDefault("text", null));
-    assertNotNull(diag.getRetrieverDiagnosticsOrDefault("knn", null));
-    assertTrue(diag.getRetrieverDiagnosticsOrThrow("text").getSearchTimeMs() >= 0);
-    assertTrue(diag.getRetrieverDiagnosticsOrThrow("knn").getSearchTimeMs() >= 0);
+
+    SearchResponse.Diagnostics.RetrieverDiagnostics textDiag =
+        diag.getRetrieverDiagnosticsOrThrow("text");
+    // Text retriever: searchTimeMs and totalHits populated by handler
+    assertTrue(textDiag.getSearchTimeMs() >= 0);
+    assertEquals(10, textDiag.getTotalHits().getValue());
+
+    SearchResponse.Diagnostics.RetrieverDiagnostics knnDiag =
+        diag.getRetrieverDiagnosticsOrThrow("knn");
+    // KNN retriever: vectorDiagnostics from SearchRequestProcessor, totalHits from handler
+    assertTrue(knnDiag.hasVectorDiagnostics());
+    assertEquals(5, knnDiag.getTotalHits().getValue());
+
     assertTrue(diag.getBlenderTimeMs() >= 0);
     assertTrue(response.getDiagnostics().getFirstPassSearchTimeMs() >= 0);
   }
