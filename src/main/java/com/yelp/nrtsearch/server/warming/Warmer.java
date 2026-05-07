@@ -50,10 +50,12 @@ public class Warmer {
   private final RemoteBackend remoteBackend;
   private final String service;
   private final List<SearchRequest> warmingRequests;
+  private volatile List<SearchRequest> downloadedWarmingRequests = Collections.emptyList();
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
   private final int warmBasicQueryOnlyPerc;
+  private final boolean padWithDownloadedRequests;
   protected final ThreadLocal<Random> randomThreadLocal;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
@@ -66,6 +68,16 @@ public class Warmer {
       String index,
       int maxWarmingQueries,
       int warmBasicQueryOnlyPerc) {
+    this(remoteBackend, service, index, maxWarmingQueries, warmBasicQueryOnlyPerc, false);
+  }
+
+  public Warmer(
+      RemoteBackend remoteBackend,
+      String service,
+      String index,
+      int maxWarmingQueries,
+      int warmBasicQueryOnlyPerc,
+      boolean padWithDownloadedRequests) {
     this.remoteBackend = remoteBackend;
     this.service = service;
     this.index = index;
@@ -73,6 +85,7 @@ public class Warmer {
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
+    this.padWithDownloadedRequests = padWithDownloadedRequests;
     this.randomThreadLocal = ThreadLocal.withInitial(Random::new);
   }
 
@@ -99,9 +112,25 @@ public class Warmer {
 
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     int count = 0;
-    List<SearchRequest> warmingRequestsToBackup;
+    List<SearchRequest> observedRequests;
     synchronized (warmingRequests) {
-      warmingRequestsToBackup = new ArrayList<>(warmingRequests);
+      observedRequests = new ArrayList<>(warmingRequests);
+    }
+    List<SearchRequest> warmingRequestsToBackup;
+    if (padWithDownloadedRequests) {
+      List<SearchRequest> downloaded = this.downloadedWarmingRequests;
+      int deficit = maxWarmingQueries - observedRequests.size();
+      if (deficit > 0 && !downloaded.isEmpty()) {
+        int fromIndex = Math.max(0, downloaded.size() - deficit);
+        List<SearchRequest> padding = downloaded.subList(fromIndex, downloaded.size());
+        warmingRequestsToBackup = new ArrayList<>(padding.size() + observedRequests.size());
+        warmingRequestsToBackup.addAll(padding);
+        warmingRequestsToBackup.addAll(observedRequests);
+      } else {
+        warmingRequestsToBackup = observedRequests;
+      }
+    } else {
+      warmingRequestsToBackup = observedRequests;
     }
     try (Writer writer =
         new OutputStreamWriter(byteArrayOutputStream, StateUtils.getValidatingUTF8Encoder())) {
@@ -153,6 +182,7 @@ public class Warmer {
               new NamedThreadFactory("warming-"),
               new ThreadPoolExecutor.CallerRunsPolicy());
     }
+    List<SearchRequest> downloadedQueries = padWithDownloadedRequests ? new ArrayList<>() : null;
     try (BufferedReader reader =
         new BufferedReader(
             new InputStreamReader(
@@ -162,7 +192,11 @@ public class Warmer {
       int count = 0, basicCount = 0;
       while ((line = reader.readLine()) != null) {
         boolean isStripped = randomThreadLocal.get().nextInt(100) < warmBasicQueryOnlyPerc;
-        processLine(indexState, searchHandler, threadPoolExecutor, line, isStripped);
+        SearchRequest originalRequest =
+            processLine(indexState, searchHandler, threadPoolExecutor, line, isStripped);
+        if (downloadedQueries != null) {
+          downloadedQueries.add(originalRequest);
+        }
         count++;
         if (isStripped) {
           basicCount++;
@@ -174,6 +208,9 @@ public class Warmer {
           count - basicCount,
           basicCount,
           (System.currentTimeMillis() - startMS) / 1000.0);
+      if (downloadedQueries != null) {
+        this.downloadedWarmingRequests = Collections.unmodifiableList(downloadedQueries);
+      }
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
@@ -182,7 +219,7 @@ public class Warmer {
     }
   }
 
-  private void processLine(
+  private SearchRequest processLine(
       IndexState indexState,
       SearchHandler searchHandler,
       ThreadPoolExecutor threadPoolExecutor,
@@ -191,6 +228,7 @@ public class Warmer {
       throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
+    SearchRequest originalRequest = builder.build();
     if (warmBasicQuery) {
       WarmingUtils.simplifySearchRequestForWarming(builder);
     }
@@ -200,5 +238,6 @@ public class Warmer {
     } else {
       threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
     }
+    return originalRequest;
   }
 }

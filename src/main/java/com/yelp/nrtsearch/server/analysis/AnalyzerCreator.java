@@ -17,8 +17,10 @@ package com.yelp.nrtsearch.server.analysis;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.ConditionalTokenFilter;
+import com.yelp.nrtsearch.server.grpc.CustomNormalizer;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
+import com.yelp.nrtsearch.server.grpc.Normalizer;
 import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.IOException;
@@ -47,6 +49,7 @@ public class AnalyzerCreator {
 
   private final NrtsearchConfig configuration;
   private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
+  private final Map<String, AnalysisProvider<? extends Analyzer>> normalizerMap = new HashMap<>();
   private final Map<String, Class<? extends TokenFilterFactory>> tokenFilterMap = new HashMap<>();
   private final Map<String, Class<? extends CharFilterFactory>> charFilterMap = new HashMap<>();
 
@@ -54,6 +57,18 @@ public class AnalyzerCreator {
     this.configuration = configuration;
     registerAnalyzer(STANDARD, name -> new StandardAnalyzer());
     registerAnalyzer(CLASSIC, name -> new ClassicAnalyzer());
+    registerNormalizer(
+        "lowercase",
+        name -> {
+          try {
+            return CustomAnalyzer.builder()
+                .withTokenizer("keyword")
+                .addTokenFilter("lowercase")
+                .build();
+          } catch (Exception e) {
+            throw new AnalyzerCreationException("Unable to create lowercase normalizer", e);
+          }
+        });
   }
 
   public Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
@@ -86,6 +101,71 @@ public class AnalyzerCreator {
     } else {
       throw new AnalyzerCreationException("Unable to find or create analyzer: " + analyzer);
     }
+  }
+
+  /**
+   * Resolve a {@link Normalizer} definition to a Lucene {@link Analyzer}. Normalizers always use a
+   * keyword tokenizer internally and apply only char filters and token filters.
+   *
+   * @param normalizer normalizer definition from gRPC request
+   * @return Lucene Analyzer implementing the normalizer
+   */
+  public Analyzer getNormalizer(Normalizer normalizer) {
+    if (!normalizer.getPredefined().isEmpty()) {
+      String name = normalizer.getPredefined();
+      if (normalizerMap.containsKey(name)) {
+        return normalizerMap.get(name).get(name);
+      }
+      throw new AnalyzerCreationException("Unable to find predefined normalizer: " + name);
+    } else if (normalizer.hasCustom()) {
+      return getCustomNormalizer(normalizer.getCustom());
+    } else {
+      throw new AnalyzerCreationException("Unable to find or create normalizer: " + normalizer);
+    }
+  }
+
+  private Analyzer getCustomNormalizer(CustomNormalizer normalizer) {
+    CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
+    try {
+      for (NameAndParams charFilter : normalizer.getCharFiltersList()) {
+        Class<? extends CharFilterFactory> filterClass = charFilterMap.get(charFilter.getName());
+        if (filterClass != null) {
+          builder.addCharFilter(filterClass, new HashMap<>(charFilter.getParamsMap()));
+        } else {
+          builder.addCharFilter(charFilter.getName(), new HashMap<>(charFilter.getParamsMap()));
+        }
+      }
+
+      builder.withTokenizer("keyword");
+
+      for (NameAndParams tokenFilter : normalizer.getTokenFiltersList()) {
+        Class<? extends TokenFilterFactory> filterClass = tokenFilterMap.get(tokenFilter.getName());
+        if (filterClass != null) {
+          builder.addTokenFilter(filterClass, new HashMap<>(tokenFilter.getParamsMap()));
+        } else {
+          builder.addTokenFilter(tokenFilter.getName(), new HashMap<>(tokenFilter.getParamsMap()));
+        }
+      }
+
+      return builder.build();
+    } catch (Exception e) {
+      throw new AnalyzerCreationException("Unable to create custom normalizer: " + normalizer, e);
+    }
+  }
+
+  public static boolean isNormalizerDefined(Normalizer normalizer) {
+    return normalizer != null && (!normalizer.getPredefined().isEmpty() || normalizer.hasCustom());
+  }
+
+  private void registerNormalizers(Map<String, AnalysisProvider<? extends Analyzer>> normalizers) {
+    normalizers.forEach(this::registerNormalizer);
+  }
+
+  private void registerNormalizer(String name, AnalysisProvider<? extends Analyzer> provider) {
+    if (normalizerMap.containsKey(name)) {
+      throw new IllegalArgumentException("Normalizer " + name + " already exists");
+    }
+    normalizerMap.put(name, provider);
   }
 
   private void registerAnalyzers(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
@@ -149,6 +229,7 @@ public class AnalyzerCreator {
     for (Plugin plugin : plugins) {
       if (plugin instanceof AnalysisPlugin analysisPlugin) {
         instance.registerAnalyzers(analysisPlugin.getAnalyzers());
+        instance.registerNormalizers(analysisPlugin.getNormalizers());
         instance.registerTokenFilters(analysisPlugin.getTokenFilters(), builtInTokenFilters);
         instance.registerCharFilters(analysisPlugin.getCharFilters(), builtInCharFilters);
       }

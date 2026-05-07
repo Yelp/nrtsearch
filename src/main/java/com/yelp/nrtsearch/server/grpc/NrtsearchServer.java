@@ -93,6 +93,7 @@ import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.ProcStatCollector;
 import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
+import com.yelp.nrtsearch.server.monitoring.S3ClientMetrics;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
@@ -106,6 +107,7 @@ import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreator;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderCreator;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.tools.cli.VersionProvider;
@@ -274,6 +276,7 @@ public class NrtsearchServer {
     // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
     IndexingMetrics.register(prometheusRegistry);
     S3DownloadStreamWrapper.register(prometheusRegistry);
+    S3ClientMetrics.register(prometheusRegistry);
   }
 
   /** Main launches the server from the command line. */
@@ -466,6 +469,7 @@ public class NrtsearchServer {
     private void initExtendableComponents(NrtsearchConfig configuration, List<Plugin> plugins) {
       // this block should be in alphabetical order
       AnalyzerCreator.initialize(configuration, plugins);
+      BlenderCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);

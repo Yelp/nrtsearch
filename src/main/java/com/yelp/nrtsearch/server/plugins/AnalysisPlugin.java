@@ -72,4 +72,15 @@ public interface AnalysisPlugin {
   default Map<String, Class<? extends CharFilterFactory>> getCharFilters() {
     return Collections.emptyMap();
   }
+
+  /**
+   * Provides a set of custom normalizer {@link Analyzer} providers to register with the {@link
+   * AnalyzerCreator}. The normalizer name can be used as the predefined NormalizerType for ATOM
+   * field registration. Normalizers must produce exactly one token (keyword tokenizer is implied).
+   *
+   * @return registration Map for normalizer name to {@link AnalysisProvider}
+   */
+  default Map<String, AnalysisProvider<? extends Analyzer>> getNormalizers() {
+    return Collections.emptyMap();
+  }
 }

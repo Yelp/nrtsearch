@@ -21,12 +21,12 @@ import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayOutputStream;
@@ -38,6 +38,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class GetResourceVersionCommandTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
@@ -62,15 +64,19 @@ public class GetResourceVersionCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
+  }
+
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
   private CommandLine getInjectedCommand() {
     GetResourceVersionCommand command = new GetResourceVersionCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 
@@ -150,7 +156,12 @@ public class GetResourceVersionCommandTest {
   @Test
   public void testSet_globalState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix = S3Backend.getGlobalStateResourcePrefix(SERVICE_NAME);
     backend.setCurrentResource(prefix, "version1");
 
@@ -168,7 +179,12 @@ public class GetResourceVersionCommandTest {
   @Test
   public void testSet_indexState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);
@@ -190,7 +206,12 @@ public class GetResourceVersionCommandTest {
   @Test
   public void testSet_pointState() throws IOException {
     TestServer.initS3(folder);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.POINT_STATE);
@@ -212,7 +233,12 @@ public class GetResourceVersionCommandTest {
   @Test
   public void testSet_warmingQueries() throws IOException {
     TestServer.initS3(folder);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.WARMING_QUERIES);
@@ -235,7 +261,12 @@ public class GetResourceVersionCommandTest {
   public void testGetResourceFromGlobalState() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(
@@ -259,7 +290,12 @@ public class GetResourceVersionCommandTest {
   @Test
   public void testGetResourceFromGlobalState_notFound() throws IOException {
     TestServer.initS3(folder);
-    S3Backend backend = new S3Backend(TEST_BUCKET, false, S3Backend.DEFAULT_CONFIG, getS3());
+    S3Backend backend =
+        new S3Backend(
+            TEST_BUCKET,
+            false,
+            S3Backend.DEFAULT_CONFIG,
+            new S3Util.S3ClientBundle(getS3(), getS3Async()));
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME, "test_index-id", RemoteBackend.IndexResourceType.INDEX_STATE);

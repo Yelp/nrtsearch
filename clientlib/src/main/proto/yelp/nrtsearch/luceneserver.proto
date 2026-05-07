@@ -676,6 +676,9 @@ message Field {
     optional int32 ignoreAbove = 36;
     // Parameter enables the indexing of term prefixes to speed up prefix searches
     IndexPrefixes indexPrefixes = 37;
+    // Normalizer for ATOM field types. Applies text normalization (e.g. lowercase) consistently
+    // at both index time and query time. Predefined options: "lowercase".
+    Normalizer normalizer = 38;
 }
 
 // Options for including IndexPrefixes for field
@@ -1197,6 +1200,8 @@ message CopyState {
     repeated string completedMergeFiles = 7;
     // Primary generation
     int64 primaryGen = 8;
+    // Timestamp for this index version (epoch seconds), may be 0 for no timestamp
+    int64 timestampSec = 9;
 }
 
 // Metadata for multiple index files

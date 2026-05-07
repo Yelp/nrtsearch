@@ -22,7 +22,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
@@ -30,6 +29,7 @@ import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
+import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
@@ -42,6 +42,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class GetRemoteStateCommandTest {
 
@@ -52,15 +54,19 @@ public class GetRemoteStateCommandTest {
     TestServer.cleanupAll();
   }
 
-  private AmazonS3 getS3() {
-    AmazonS3 s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
+  private S3Client getS3() {
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
     return s3;
+  }
+
+  private software.amazon.awssdk.services.s3.S3AsyncClient getS3Async() {
+    return AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
   }
 
   private CommandLine getInjectedCommand() {
     GetRemoteStateCommand command = new GetRemoteStateCommand();
-    command.setS3Client(getS3());
+    command.setS3ClientBundle(new S3Util.S3ClientBundle(getS3(), getS3Async()));
     return new CommandLine(command);
   }
 

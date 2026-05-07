@@ -642,6 +642,44 @@ message ExactVectorQuery {
     bytes query_byte_vector = 3;
 }
 
+// Filters the primary index to documents whose join key matches documents
+// in a secondary index. The query runs on the secondary index; matching
+// values of secondary_field are collected and used to build a TermsQuery on
+// the primary_field in the primary index.
+message CrossIndexQuery {
+    // How to aggregate scores from secondary index matches.
+    enum JoinScoreMode {
+        // Unset — treated as JOIN_SCORE_NONE (filter only)
+        JOIN_SCORE_UNSET = 0;
+        // No scoring — filter only
+        JOIN_SCORE_NONE = 1;
+        // Average score of matching secondary documents
+        JOIN_SCORE_AVG = 2;
+        // Maximum score of matching secondary documents
+        JOIN_SCORE_MAX = 3;
+        // Minimum score of matching secondary documents
+        JOIN_SCORE_MIN = 4;
+        // Sum of scores of matching secondary documents
+        JOIN_SCORE_TOTAL = 5;
+    }
+
+    // Name of the secondary index (must be on the same nrtsearch node)
+    string index = 1;
+    // Field in the primary index containing the join key
+    string primary_field = 2;
+    // Field in the secondary index containing the join key
+    string secondary_field = 3;
+    // Query to execute on the secondary index
+    Query query = 4;
+    // Score aggregation mode from secondary matches (default: JOIN_SCORE_NONE = filter only)
+    JoinScoreMode score_mode = 5;
+    // Maximum number of matching secondary documents allowed (default: 0 = unlimited).
+    // If the inner query matches more documents than this limit, an error is returned.
+    // Use this to guard against excessive memory usage from large secondary result sets.
+    // Note: this counts matching documents, not unique join-key values.
+    uint32 max_terms = 6;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -704,6 +742,7 @@ message Query {
         SpanQuery spanQuery = 25;
         MatchAllQuery matchAllQuery = 26;
         ExactVectorQuery exactVectorQuery = 27;
+        CrossIndexQuery crossIndexQuery = 28;
     }
 }
 
@@ -785,6 +824,104 @@ message SearchRequest {
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using
     // the boolean query SHOULD logic
     repeated KnnQuery knn = 31;
+    // Provide additional options or hints to use when processing the search request. This is meant to help with the
+    // development of new features or when a top level field is not warranted. Possible values:
+    //   - PRELOAD_COLLECTOR_QUEUE: If relevance collector priority queue should be pre populated with entries. Values: true|false, default: true
+    map<string, string> additionalOptions = 32;
+    // When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error
+    MultiRetrieverRequest multiRetriever = 33;
+}
+
+// Multi-Retriever Request
+message MultiRetrieverRequest {
+    // List of retrievers to execute
+    repeated Retriever retrievers = 1;
+    // Blender to merge retriever topDocs
+    Blender blender = 2;
+}
+
+// Single Retriever
+message Retriever {
+    // Retriever name used in per-retriever scores, diagnostics etc
+    string name = 1;
+
+    // Set exactly one retriever
+    oneof retrieverType {
+        TextRetriever textRetriever = 2;
+        KnnRetriever knnRetriever = 3;
+    }
+
+    // Boost to apply to scores before blending. Default: 1.0
+    optional float boost = 4;
+
+    // Optional L1 rescorer applied before blending
+    Rescorer rescorer = 5;
+}
+
+// Text Retriever
+message TextRetriever {
+    // Query to execute
+    Query query = 1;
+    //  Maximum number of top documents to retrieve for this retriever.
+    int32 topHits = 2;
+    // Optional nested path for querying child documents.
+    string queryNestedPath = 3;
+}
+
+// Knn Vector Search Retriever
+message KnnRetriever {
+    // Knn query to execute
+    KnnQuery knnQuery = 1;
+}
+
+// Blender to merge Multi-Retriever topDocs
+message Blender {
+    oneof blenderType {
+        WeightedRrfBlender weightedRrf = 1;
+        WeightedScoreOrderBlender weightedScoreOrder = 2;
+        PluginBlender plugin = 3;
+        ScorelessRawMergeBlender scorelessRawMerge = 4;
+    }
+}
+
+// Weighted Reciprocal Rank Fusion Blender. Uses retriever boost as weight
+message WeightedRrfBlender {
+    // Reduces the impact of rank differences between retrievers. Default: 60
+    int32 rankConstant = 1;
+}
+
+// Weighted Score Order Blender. Blends raw retriever scores multiplied by each retriever's boost.
+message WeightedScoreOrderBlender {
+    // How per-retriever weighted scores are combined for documents appearing in multiple retrievers.
+    // Default: MAX
+    ScoreMode scoreMode = 1;
+
+    // How per-retriever weighted scores are combined when the same document appears in multiple
+    // retrievers.
+    enum ScoreMode {
+        // Use the highest weighted score across all retrievers.
+        MAX = 0;
+        // Sum all weighted retriever scores.
+        SUM = 1;
+        // Average all weighted retriever scores.
+        AVG = 2;
+    }
+}
+
+// Scoreless Raw Merge Blender. Deduplicates hits across retrievers and preserves all per-retriever
+// raw ScoreDocs under each BlendedScoreDoc, but assigns score 0 to every result. Sorting and
+// pagination are skipped.
+// set is returned. Intended for two use cases:
+//   1. Client-side ranking: the caller applies its own ranking (e.g. global RRF across shards)
+//      over the returned raw per-retriever scores.
+//   2. Server-side rescoring: a downstream rescorer receives all deduplicated candidates and do rescoring.
+message ScorelessRawMergeBlender {}
+
+message PluginBlender {
+    // Registered blender plugin name
+    string name = 1;
+    // Arbitrary plugin params
+    google.protobuf.Struct params = 2;
 }
 
 // Last Hit info for search after
@@ -960,6 +1097,24 @@ message SearchResponse {
             // Total hits from kNN execution
             TotalHits totalHits = 2;
         }
+        // Diagnostics for a single retriever in a multi-retriever request
+        message RetrieverDiagnostics {
+            // Search time for this retriever
+            double searchTimeMs = 1;
+            // Time for L1 rescoring within this retriever
+            double rescoreTimeMs = 2;
+            // Total hits recalled by this retriever
+            TotalHits totalHits = 3;
+            // Vector diagnostics, only populated for KNN retrievers
+            VectorDiagnostics vectorDiagnostics = 4;
+        }
+        // Diagnostics specific to multi-retriever search
+        message MultiRetrieverDiagnostics {
+            // Per-retriever diagnostics keyed by retriever name
+            map<string, RetrieverDiagnostics> retrieverDiagnostics = 1;
+            // Time to blend/merge retriever results
+            double blenderTimeMs = 2;
+        }
         // Query debug has been moved to ProfileResult
         string parsedQuery = 1 [deprecated = true];
         string rewrittenQuery = 2 [deprecated = true];
@@ -988,6 +1143,8 @@ message SearchResponse {
         double initialDeadlineMs = 14;
         // Time for logging hits
         double loggingHitsTimeMs = 15;
+        // Multi-retriever diagnostics, populated when MultiRetriever is used
+        MultiRetrieverDiagnostics multiRetrieverDiagnostics = 16;
     }
 
     // Message for query document hit
@@ -1051,6 +1208,8 @@ message SearchResponse {
         string explain = 6;
         // InnerHits for each hit
         map<string, HitsResult> innerHits = 7;
+        // Score per retriever in Multi-Retriever request
+        map<string, double> retrieverScores = 8;
     }
 
     // State for use in subsequent searches (search after)
@@ -1073,7 +1232,6 @@ message SearchResponse {
     Diagnostics diagnostics = 1;
     // Set to true if search times out and a degraded response is returned
     bool hitTimeout = 2;
-    // Total hits for the query
     TotalHits totalHits = 3;
     // Ranked top hits
     repeated Hit hits = 4;
@@ -1087,6 +1245,9 @@ message SearchResponse {
     map<string, CollectorResult> collectorResults = 8;
     // If this query hit the terminateAfter threshold specified in the request
     bool terminatedEarly = 9;
+    // Place to put any extra data to return to the caller. This is mainly intended for use by plugins, which may
+    // need to return arbitrary values.
+    map<string, google.protobuf.Value> extraData = 10;
 }
 
 // Define numeric range for facet
@@ -1243,6 +1404,12 @@ message ProfileResult {
         repeated CollectorStats collectorStats = 3;
     }
 
+    // Per-retriever profile results for multi-retriever requests
+    message MultiRetrieverProfileResult {
+        // Per-retriever profile results keyed by retriever name
+        map<string, ProfileResult> retrieverProfileResults = 1;
+    }
+
     // Stats for search phase
     SearchStats searchStats = 1;
     // Parsed query string
@@ -1251,6 +1418,8 @@ message ProfileResult {
     string rewrittenQuery = 3;
     // Drill down query string
     string drillDownQuery = 4;
+    // Multi-retriever profile results populated only when MultiRetriever is used
+    MultiRetrieverProfileResult multiRetrieverProfileResult = 5;
 }
 
 // Definition of additional document collector
@@ -1469,6 +1638,10 @@ message Highlight {
         google.protobuf.StringValue  boundary_scanner_locale = 16;
         // Only highlight the top matched phrases (with the highest boost value) per fragment. By default, it is false.
         google.protobuf.BoolValue top_boost_only = 17;
+        // Optional limit to the number of phrases or terms to be highlighted in each fragment.
+        // Ordered by boost, then position. If omitted, all matches will be highlighted;
+        // Any non-positive number will be ignored.
+        google.protobuf.UInt32Value max_number_of_highlighted_phrase_per_fragment = 18;
     }
 
     // Highlight settings

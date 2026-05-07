@@ -15,12 +15,6 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
@@ -31,6 +25,15 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import picocli.CommandLine;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @CommandLine.Command(
     name = IncrementalDataCleanupCommand.INC_DATA_CLEANUP,
@@ -115,10 +118,10 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
       defaultValue = "20")
   private int maxRetry;
 
-  private AmazonS3 s3Client;
+  private S3Client s3Client;
 
   @VisibleForTesting
-  void setS3Client(AmazonS3 s3Client) {
+  void setS3Client(S3Client s3Client) {
     this.s3Client = s3Client;
   }
 
@@ -323,30 +326,31 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
    * @param dryRun skip sending actual deletion requests to s3
    */
   static void cleanupS3Files(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String bucketName,
       String keyPrefix,
       FileDeletionDecider deletionDecider,
       boolean dryRun) {
-    ListObjectsV2Request req =
-        new ListObjectsV2Request().withBucketName(bucketName).withPrefix(keyPrefix);
-    ListObjectsV2Result result;
+    ListObjectsV2Request.Builder reqBuilder =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(keyPrefix);
+    ListObjectsV2Response result;
+    String continuationToken = null;
 
     List<String> deleteList = new ArrayList<>(DELETE_BATCH_SIZE);
 
     do {
-      result = s3Client.listObjectsV2(req);
+      if (continuationToken != null) {
+        reqBuilder.continuationToken(continuationToken);
+      }
+      result = s3Client.listObjectsV2(reqBuilder.build());
 
-      for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-        String objFileName = objectSummary.getKey().split(keyPrefix)[1];
-        long versionTimestampMs = objectSummary.getLastModified().getTime();
+      for (S3Object s3Object : result.contents()) {
+        String objFileName = s3Object.key().split(keyPrefix)[1];
+        long versionTimestampMs = s3Object.lastModified().toEpochMilli();
         if (deletionDecider.shouldDelete(objFileName, versionTimestampMs)) {
           System.out.println(
-              "Deleting object - key: "
-                  + objectSummary.getKey()
-                  + ", timestampMs: "
-                  + versionTimestampMs);
-          deleteList.add(objectSummary.getKey());
+              "Deleting object - key: " + s3Object.key() + ", timestampMs: " + versionTimestampMs);
+          deleteList.add(s3Object.key());
           if (deleteList.size() == DELETE_BATCH_SIZE) {
             if (!dryRun) {
               deleteObjects(s3Client, bucketName, deleteList);
@@ -355,8 +359,7 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
           }
         }
       }
-      String token = result.getNextContinuationToken();
-      req.setContinuationToken(token);
+      continuationToken = result.nextContinuationToken();
     } while (result.isTruncated());
 
     if (!deleteList.isEmpty() && !dryRun) {
@@ -371,10 +374,15 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
    * @param bucketName s3 bucket
    * @param keys keys to delete
    */
-  static void deleteObjects(AmazonS3 s3Client, String bucketName, List<String> keys) {
+  static void deleteObjects(S3Client s3Client, String bucketName, List<String> keys) {
     System.out.println("Batch deleting objects, size: " + keys.size());
+    List<ObjectIdentifier> objectIds = new ArrayList<>();
+    for (String key : keys) {
+      objectIds.add(ObjectIdentifier.builder().key(key).build());
+    }
+    Delete delete = Delete.builder().objects(objectIds).quiet(true).build();
     DeleteObjectsRequest multiObjectDeleteRequest =
-        new DeleteObjectsRequest(bucketName).withKeys(keys.toArray(new String[0])).withQuiet(true);
+        DeleteObjectsRequest.builder().bucket(bucketName).delete(delete).build();
     s3Client.deleteObjects(multiObjectDeleteRequest);
   }
 
@@ -389,14 +397,16 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
    * @return last modified time of version file
    */
   static long getVersionTimestampMs(
-      AmazonS3 s3Client,
+      S3Client s3Client,
       String bucketName,
       String serviceName,
       String indexResource,
       long version) {
     String versionPath = String.format("%s/_version/%s/%s", serviceName, indexResource, version);
-    ObjectMetadata metadata = s3Client.getObjectMetadata(bucketName, versionPath);
-    return metadata.getLastModified().getTime();
+    HeadObjectRequest request =
+        HeadObjectRequest.builder().bucket(bucketName).key(versionPath).build();
+    HeadObjectResponse metadata = s3Client.headObject(request);
+    return metadata.lastModified().toEpochMilli();
   }
 
   /**

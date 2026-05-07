@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 public class ChannelConfigTest {
@@ -69,6 +70,18 @@ public class ChannelConfigTest {
   }
 
   @Test
+  public void testMaxRetryAttempts() throws IOException {
+    String configJson = "{\"maxRetryAttempts\": 3}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).maxRetryAttempts(3);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
   public void testMaxHedgedAttempts() throws IOException {
     String configJson = "{\"maxHedgedAttempts\": 5}";
     ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
@@ -77,6 +90,30 @@ public class ChannelConfigTest {
     config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
 
     verify(mockBuilder, times(1)).maxHedgedAttempts(5);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testRetryBufferSize() throws IOException {
+    String configJson = "{\"retryBufferSize\": 16777216}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).retryBufferSize(16777216L);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testPerRpcBufferLimit() throws IOException {
+    String configJson = "{\"perRpcBufferLimit\": 1048576}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).perRpcBufferLimit(1048576L);
     verifyNoMoreInteractions(mockBuilder);
   }
 
@@ -92,14 +129,50 @@ public class ChannelConfigTest {
     verifyNoMoreInteractions(mockBuilder);
   }
 
+  @Test
+  public void testKeepAliveTimeMs() throws IOException {
+    String configJson = "{\"keepAliveTimeMs\": 30000}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveTime(30000, TimeUnit.MILLISECONDS);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testKeepAliveTimeoutMs() throws IOException {
+    String configJson = "{\"keepAliveTimeoutMs\": 40000}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveTimeout(40000, TimeUnit.MILLISECONDS);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
+  @Test
+  public void testKeepAliveWithoutCalls() throws IOException {
+    String configJson = "{\"keepAliveWithoutCalls\": true}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).keepAliveWithoutCalls(true);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
   @Test(expected = NullPointerException.class)
   public void testNullMethodName() {
-    new MethodConfig(null, null, null);
+    new MethodConfig(null, null, null, null, null, null, null);
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testNoMethodName() {
-    new MethodConfig(Collections.emptyList(), null, null);
+    new MethodConfig(Collections.emptyList(), null, null, null, null, null, null);
   }
 
   @Test
@@ -182,6 +255,119 @@ public class ChannelConfigTest {
     expectedHedgingConfig.put("hedgingDelay", "1s");
     expectedHedgingConfig.put("nonFatalStatusCodes", Collections.singletonList("UNAVAILABLE"));
     expectedMethodConfig.put("hedgingPolicy", expectedHedgingConfig);
+    expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
+
+    verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);
+    verifyNoMoreInteractions(mockBuilder);
+    verifyServiceConfigSettable(expectedServiceConfig);
+  }
+
+  @Test
+  public void testMethodRetryPolicy() throws IOException {
+    String configJson =
+        "{\"serviceConfig\": {\"methodConfig\": [{\"name\": [{}], \"retryPolicy\": {\"maxAttempts\": 3, \"initialBackoff\": \"0.1s\", \"maxBackoff\": \"1s\", \"backoffMultiplier\": 2, \"retryableStatusCodes\": [\"UNAVAILABLE\"]}}]}}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    Map<String, Object> expectedServiceConfig = new HashMap<>();
+    Map<String, Object> expectedMethodConfig = new HashMap<>();
+    Map<String, Object> expectedRetryPolicy = new HashMap<>();
+    expectedMethodConfig.put("name", Collections.singletonList(new HashMap<String, Object>()));
+    expectedRetryPolicy.put("maxAttempts", 3.0);
+    expectedRetryPolicy.put("initialBackoff", "0.1s");
+    expectedRetryPolicy.put("maxBackoff", "1s");
+    expectedRetryPolicy.put("backoffMultiplier", 2.0);
+    expectedRetryPolicy.put("retryableStatusCodes", Collections.singletonList("UNAVAILABLE"));
+    expectedMethodConfig.put("retryPolicy", expectedRetryPolicy);
+    expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
+
+    verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);
+    verifyNoMoreInteractions(mockBuilder);
+    verifyServiceConfigSettable(expectedServiceConfig);
+  }
+
+  @Test
+  public void testMethodRetryPolicyWithPerAttemptRecvTimeout() throws IOException {
+    String configJson =
+        "{\"serviceConfig\": {\"methodConfig\": [{\"name\": [{}], \"retryPolicy\": {\"maxAttempts\": 3, \"initialBackoff\": \"0.1s\", \"maxBackoff\": \"1s\", \"backoffMultiplier\": 2, \"perAttemptRecvTimeout\": \"2s\", \"retryableStatusCodes\": [\"UNAVAILABLE\"]}}]}}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    Map<String, Object> expectedServiceConfig = new HashMap<>();
+    Map<String, Object> expectedMethodConfig = new HashMap<>();
+    Map<String, Object> expectedRetryPolicy = new HashMap<>();
+    expectedMethodConfig.put("name", Collections.singletonList(new HashMap<String, Object>()));
+    expectedRetryPolicy.put("maxAttempts", 3.0);
+    expectedRetryPolicy.put("initialBackoff", "0.1s");
+    expectedRetryPolicy.put("maxBackoff", "1s");
+    expectedRetryPolicy.put("backoffMultiplier", 2.0);
+    expectedRetryPolicy.put("perAttemptRecvTimeout", "2s");
+    expectedRetryPolicy.put("retryableStatusCodes", Collections.singletonList("UNAVAILABLE"));
+    expectedMethodConfig.put("retryPolicy", expectedRetryPolicy);
+    expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
+
+    verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);
+    verifyNoMoreInteractions(mockBuilder);
+    verifyServiceConfigSettable(expectedServiceConfig);
+  }
+
+  @Test
+  public void testMethodWaitForReady() throws IOException {
+    String configJson =
+        "{\"serviceConfig\": {\"methodConfig\": [{\"name\": [{}], \"waitForReady\": true}]}}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    Map<String, Object> expectedServiceConfig = new HashMap<>();
+    Map<String, Object> expectedMethodConfig = new HashMap<>();
+    expectedMethodConfig.put("name", Collections.singletonList(new HashMap<String, Object>()));
+    expectedMethodConfig.put("waitForReady", true);
+    expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
+
+    verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);
+    verifyNoMoreInteractions(mockBuilder);
+    verifyServiceConfigSettable(expectedServiceConfig);
+  }
+
+  @Test
+  public void testMethodMaxRequestMessageBytes() throws IOException {
+    String configJson =
+        "{\"serviceConfig\": {\"methodConfig\": [{\"name\": [{}], \"maxRequestMessageBytes\": 4194304}]}}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    Map<String, Object> expectedServiceConfig = new HashMap<>();
+    Map<String, Object> expectedMethodConfig = new HashMap<>();
+    expectedMethodConfig.put("name", Collections.singletonList(new HashMap<String, Object>()));
+    expectedMethodConfig.put("maxRequestMessageBytes", 4194304.0);
+    expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
+
+    verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);
+    verifyNoMoreInteractions(mockBuilder);
+    verifyServiceConfigSettable(expectedServiceConfig);
+  }
+
+  @Test
+  public void testMethodMaxResponseMessageBytes() throws IOException {
+    String configJson =
+        "{\"serviceConfig\": {\"methodConfig\": [{\"name\": [{}], \"maxResponseMessageBytes\": 8388608}]}}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    Map<String, Object> expectedServiceConfig = new HashMap<>();
+    Map<String, Object> expectedMethodConfig = new HashMap<>();
+    expectedMethodConfig.put("name", Collections.singletonList(new HashMap<String, Object>()));
+    expectedMethodConfig.put("maxResponseMessageBytes", 8388608.0);
     expectedServiceConfig.put("methodConfig", Collections.singletonList(expectedMethodConfig));
 
     verify(mockBuilder, times(1)).defaultServiceConfig(expectedServiceConfig);

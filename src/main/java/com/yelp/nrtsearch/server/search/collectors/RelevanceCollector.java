@@ -15,17 +15,20 @@
  */
 package com.yelp.nrtsearch.server.search.collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.search.AdditionalOptions;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LazyQueueTopScoreDocCollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,26 +37,41 @@ import org.slf4j.LoggerFactory;
 public class RelevanceCollector extends DocCollector {
   private static final Logger logger = LoggerFactory.getLogger(RelevanceCollector.class);
 
-  private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
+  private final CollectorManager<? extends TopDocsCollector<?>, TopDocs> manager;
 
   public RelevanceCollector(
       CollectorCreatorContext context,
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
     super(context, additionalCollectors);
-    FieldDoc searchAfter = null;
+    ScoreDoc searchAfter = null;
+    LastHitInfo lastHitInfo = context.getSearchAfter();
+    if (lastHitInfo != null) {
+      searchAfter = new ScoreDoc(lastHitInfo.getLastDocId(), lastHitInfo.getLastScore());
+    }
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
     // if there are additional collectors, we cannot skip any recalled docs
     if (!additionalCollectors.isEmpty()) {
       totalHitsThreshold = Integer.MAX_VALUE;
-      if (context.getRequest().getTotalHitsThreshold() != 0) {
+      if (context.getTotalHitsThreshold() != 0) {
         logger.warn("Query totalHitsThreshold ignored when using additional collectors");
       }
-    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
+    } else if (context.getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getTotalHitsThreshold();
     }
-    manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    boolean preloadQueue = shouldPreloadQueue(context.getAdditionalOptions());
+    if (preloadQueue) {
+      manager = new TopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    } else {
+      manager = new LazyQueueTopScoreDocCollectorManager(topHits, searchAfter, totalHitsThreshold);
+    }
+  }
+
+  @VisibleForTesting
+  static boolean shouldPreloadQueue(Map<String, String> options) {
+    String value = options.getOrDefault(AdditionalOptions.PRELOAD_COLLECTOR_QUEUE.name(), "true");
+    return value.trim().equalsIgnoreCase("true");
   }
 
   @Override

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.field;
 
 import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.hasAnalyzer;
 
+import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.field.properties.PrefixQueryable;
 import com.yelp.nrtsearch.server.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
@@ -40,6 +42,8 @@ import org.apache.lucene.util.BytesRef;
 public class AtomFieldDef extends TextBaseFieldDef
     implements Sortable, RangeQueryable, PrefixQueryable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
+
+  private final Analyzer normalizerAnalyzer;
 
   public AtomFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
@@ -61,6 +65,19 @@ public class AtomFieldDef extends TextBaseFieldDef
       FieldDefCreator.FieldDefCreatorContext context,
       AtomFieldDef previousField) {
     super(name, requestField, context, previousField);
+    if (AnalyzerCreator.isNormalizerDefined(requestField.getNormalizer())) {
+      normalizerAnalyzer =
+          AnalyzerCreator.getInstance().getNormalizer(requestField.getNormalizer());
+    } else {
+      normalizerAnalyzer = null;
+    }
+  }
+
+  private String normalize(String value) {
+    if (normalizerAnalyzer == null) {
+      return value;
+    }
+    return normalizerAnalyzer.normalize(getName(), value).utf8ToString();
   }
 
   @Override
@@ -84,7 +101,19 @@ public class AtomFieldDef extends TextBaseFieldDef
 
   @Override
   public Object parseLastValue(String value) {
-    return new BytesRef(value);
+    return new BytesRef(normalize(value));
+  }
+
+  @Override
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
+    if (normalizerAnalyzer == null) {
+      super.parseDocumentField(document, fieldValues, facetHierarchyPaths);
+      return;
+    }
+    List<String> normalizedValues =
+        fieldValues.stream().map(this::normalize).collect(Collectors.toList());
+    super.parseDocumentField(document, normalizedValues, facetHierarchyPaths);
   }
 
   @Override
@@ -111,13 +140,14 @@ public class AtomFieldDef extends TextBaseFieldDef
   @Override
   public Query getTermQueryFromTextValue(String textValue) {
     verifySearchable("Term query");
-    return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), normalize(textValue)));
   }
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     verifySearchable("Term in set query");
-    List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
+    List<BytesRef> textTerms =
+        textValues.stream().map(v -> new BytesRef(normalize(v))).collect(Collectors.toList());
     return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }
 
@@ -150,9 +180,9 @@ public class AtomFieldDef extends TextBaseFieldDef
   public Query getRangeQuery(RangeQuery rangeQuery) {
     verifySearchableOrDocValues("Range query");
     BytesRef lowerTerm =
-        rangeQuery.getLower().isEmpty() ? null : new BytesRef(rangeQuery.getLower());
+        rangeQuery.getLower().isEmpty() ? null : new BytesRef(normalize(rangeQuery.getLower()));
     BytesRef upperTerm =
-        rangeQuery.getUpper().isEmpty() ? null : new BytesRef(rangeQuery.getUpper());
+        rangeQuery.getUpper().isEmpty() ? null : new BytesRef(normalize(rangeQuery.getUpper()));
     if (isSearchable()) {
       return new TermRangeQuery(
           getName(),
@@ -179,6 +209,6 @@ public class AtomFieldDef extends TextBaseFieldDef
       PrefixQuery prefixQuery, MultiTermQuery.RewriteMethod rewriteMethod, boolean spanQuery) {
     verifySearchable("Prefix query");
     return new org.apache.lucene.search.PrefixQuery(
-        new Term(prefixQuery.getField(), prefixQuery.getPrefix()), rewriteMethod);
+        new Term(prefixQuery.getField(), normalize(prefixQuery.getPrefix())), rewriteMethod);
   }
 }

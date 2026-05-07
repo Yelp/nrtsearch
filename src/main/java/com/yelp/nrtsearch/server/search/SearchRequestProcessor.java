@@ -15,25 +15,19 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static com.yelp.nrtsearch.server.search.KnnUtils.buildAndResolveKnnQuery;
+import static com.yelp.nrtsearch.server.search.KnnUtils.buildKnnQuery;
+import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
+
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
-import com.yelp.nrtsearch.server.grpc.CollectorResult;
-import com.yelp.nrtsearch.server.grpc.Highlight;
-import com.yelp.nrtsearch.server.grpc.InnerHit;
-import com.yelp.nrtsearch.server.grpc.KnnQuery;
-import com.yelp.nrtsearch.server.grpc.LoggingHits;
-import com.yelp.nrtsearch.server.grpc.PluginRescorer;
-import com.yelp.nrtsearch.server.grpc.ProfileResult;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
-import com.yelp.nrtsearch.server.grpc.RuntimeField;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.VirtualField;
+import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.index.IndexState;
@@ -42,9 +36,8 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
-import com.yelp.nrtsearch.server.query.MinThresholdQuery;
+import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
-import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
@@ -60,6 +53,10 @@ import com.yelp.nrtsearch.server.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderCreator;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +66,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -77,9 +77,10 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.QueryBitSetProducer;
-import org.apache.lucene.search.join.ToChildBlockJoinQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -135,8 +136,17 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain())
         .setWarming(warming);
 
-    Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
-    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
+    // We do this to make the searcher available to scripting engines, by adding it to the
+    // DocLookup. It would be better to change the script factory interface to take a
+    // context object containing these objects separately. We should consider making
+    // these changes in a future minor version.
+    DocLookup indexLookupWithSearcher =
+        new DocLookup(
+            indexState::getField, () -> indexState.getAllFields().keySet(), searcherAndTaxonomy);
+    Map<String, FieldDef> queryVirtualFields =
+        getVirtualFields(indexLookupWithSearcher, searchRequest);
+    Map<String, FieldDef> queryRuntimeFields =
+        getRuntimeFields(indexLookupWithSearcher, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
 
@@ -148,27 +158,107 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    DocLookup docLookup = new DocLookup(queryFields::get);
+    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet, searcherAndTaxonomy);
     contextBuilder.setDocLookup(docLookup);
-
     String rootQueryNestedPath =
-        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+        IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
-    Query query =
-        extractQuery(
-            indexState,
-            searchRequest.getQueryText(),
-            searchRequest.getQuery(),
-            rootQueryNestedPath,
-            docLookup);
-    if (profileResult != null) {
-      profileResult.setParsedQuery(query.toString());
+
+    Query query;
+    if (searchRequest.hasMultiRetriever()) {
+      validateMultiRetrieverRequest(searchRequest);
+      query =
+          buildMultiRetrieverContextAndUnionQuery(
+              searchRequest,
+              indexState,
+              shardState,
+              searcherAndTaxonomy,
+              queryFields,
+              docLookup,
+              contextBuilder,
+              diagnostics,
+              profileResult,
+              indexState.getGlobalState().getRetrieverExecutor());
+
+      // Top-level collector for union query aggregations only (no ranking)
+      CollectorCreatorContext collectorCreatorContext =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withQueryFields(queryFields)
+              .withSearcherAndTaxonomy(searcherAndTaxonomy)
+              .withRequest(searchRequest)
+              .withNumHitsToCollect(0)
+              .build();
+      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
+    } else {
+      query =
+          extractQuery(
+              indexState,
+              searchRequest.getQueryText(),
+              searchRequest.getQuery(),
+              rootQueryNestedPath,
+              docLookup);
+
+      if (profileResult != null) {
+        profileResult.setParsedQuery(query.toString());
+      }
+
+      query = searcherAndTaxonomy.searcher().rewrite(query);
+      if (profileResult != null) {
+        profileResult.setRewrittenQuery(query.toString());
+      }
+
+      // build and execute vector queries and combine results with main query
+      if (!searchRequest.getKnnList().isEmpty()) {
+        List<Query> knnQueries = new ArrayList<>();
+        List<Float> knnBoosts = new ArrayList<>();
+        for (KnnQuery knnQuery : searchRequest.getKnnList()) {
+          knnQueries.add(buildKnnQuery(knnQuery, indexState));
+          knnBoosts.add(knnQuery.getBoost() > 0 ? knnQuery.getBoost() : 1.0f);
+        }
+
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        // Add main query if specified, otherwise this is a pure vector search
+        if (!searchRequest.getQueryText().isEmpty() || searchRequest.hasQuery()) {
+          queryBuilder.add(query, BooleanClause.Occur.SHOULD);
+        }
+
+        // Add vector query results
+        for (int i = 0; i < knnQueries.size(); ++i) {
+          SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnostics =
+              SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+          Query resolvedKnnQuery =
+              resolveKnnQueryAndBoost(
+                  knnQueries.get(i),
+                  knnBoosts.get(i),
+                  searcherAndTaxonomy.searcher(),
+                  vectorDiagnostics);
+          diagnostics.addVectorDiagnostics(vectorDiagnostics);
+          queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
+        }
+        query = queryBuilder.build();
+      }
+
+      CollectorCreatorContext collectorCreatorContext =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withQueryFields(queryFields)
+              .withSearcherAndTaxonomy(searcherAndTaxonomy)
+              .withRequest(searchRequest)
+              .build();
+      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     }
 
-    query = searcherAndTaxonomy.searcher().rewrite(query);
-    if (profileResult != null) {
-      profileResult.setRewrittenQuery(query.toString());
+    // Facets are applied on the union query (all matching docs) for multi-retriever requests.
+    // Fetch tasks (highlights, innerHits, hitsLogger) run on the final top N hits during fetch.
+    if (searchRequest.getFacetsCount() > 0) {
+      query = addDrillDowns(indexState, query);
+      if (profileResult != null) {
+        profileResult.setDrillDownQuery(query.toString());
+      }
     }
+
+    contextBuilder.setQuery(query);
 
     Highlight highlight = searchRequest.getHighlight();
     HighlightFetchTask highlightFetchTask = null;
@@ -179,8 +269,7 @@ public class SearchRequestProcessor {
 
     HitsLoggerFetchTask hitsLoggerFetchTask = null;
     if (searchRequest.hasLoggingHits()) {
-      LoggingHits loggingHits = searchRequest.getLoggingHits();
-      hitsLoggerFetchTask = new HitsLoggerFetchTask(loggingHits);
+      hitsLoggerFetchTask = new HitsLoggerFetchTask(searchRequest.getLoggingHits());
     }
 
     List<InnerHitFetchTask> innerHitFetchTasks = null;
@@ -209,152 +298,18 @@ public class SearchRequestProcessor {
             innerHitFetchTasks,
             hitsLoggerFetchTask));
 
-    CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(
-            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
-    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
-    contextBuilder.setCollector(docCollector);
-
+    // Top-level rescorers are applied post-blending for multi-retriever requests
+    // Each retriever has an optional L1 rescorer before blending
     contextBuilder.setRescorers(
-        getRescorers(indexState, searcherAndTaxonomy.searcher(), searchRequest));
+        getRescorers(indexState, searcherAndTaxonomy.searcher(), searchRequest.getRescorersList()));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
-    // build and execute vector queries and combine results with main query
-    if (!searchRequest.getKnnList().isEmpty()) {
-      List<Query> knnQueries = new ArrayList<>();
-      List<Float> knnBoosts = new ArrayList<>();
-      for (KnnQuery knnQuery : searchRequest.getKnnList()) {
-        knnQueries.add(buildKnnQuery(knnQuery, indexState));
-        knnBoosts.add(knnQuery.getBoost() > 0 ? knnQuery.getBoost() : 1.0f);
-      }
-
-      BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-      // Add main query if specified, otherwise this is a pure vector search
-      if (!searchRequest.getQueryText().isEmpty() || searchRequest.hasQuery()) {
-        queryBuilder.add(query, BooleanClause.Occur.SHOULD);
-      }
-
-      // Add vector query results
-      for (int i = 0; i < knnQueries.size(); ++i) {
-        Query resolvedKnnQuery =
-            resolveKnnQueryAndBoost(
-                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher(), diagnostics);
-        queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
-      }
-      query = queryBuilder.build();
-    }
-
-    if (searchRequest.getFacetsCount() > 0) {
-      query = addDrillDowns(indexState, query);
-      if (profileResult != null) {
-        profileResult.setDrillDownQuery(query.toString());
-      }
-    }
-
-    contextBuilder.setQuery(query);
-
     SearchContext searchContext = contextBuilder.build(true);
-
     // Give underlying collectors access to the search context
-    docCollector.setSearchContext(searchContext);
+    searchContext.getCollector().setSearchContext(searchContext);
     return searchContext;
-  }
-
-  /**
-   * Construct lucene knn query from grpc knn query.
-   *
-   * @param knnQuery knn query definition
-   * @param indexState index state
-   * @return lucene knn query
-   */
-  private static Query buildKnnQuery(KnnQuery knnQuery, IndexState indexState) {
-    String field = knnQuery.getField();
-    FieldDef fieldDef = indexState.getFieldOrThrow(field);
-    if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
-      throw new IllegalArgumentException("Field does not support vector search: " + field);
-    }
-
-    // Path to nested document containing this field
-    String fieldNestedPath = IndexState.getFieldBaseNestedPath(field, indexState);
-    // Path to parent document, this will be null if the field is in the root document
-    String parentNestedPath = IndexState.getFieldBaseNestedPath(fieldNestedPath, indexState);
-
-    Query filterQuery;
-    if (knnQuery.hasFilter()) {
-      filterQuery = QueryNodeMapper.getInstance().getQuery(knnQuery.getFilter(), indexState);
-    } else {
-      filterQuery = null;
-    }
-
-    BitSetProducer parentBitSetProducer = null;
-    if (parentNestedPath != null) {
-      Query parentQuery =
-          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, parentNestedPath);
-      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
-      if (filterQuery != null) {
-        // Filter query is applied to the parent document only
-        filterQuery =
-            QueryNodeMapper.getInstance()
-                .applyQueryNestedPath(filterQuery, indexState, parentNestedPath);
-        filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSetProducer);
-      }
-    }
-    return vectorQueryable.getKnnQuery(knnQuery, filterQuery, parentBitSetProducer);
-  }
-
-  /**
-   * Resolve (execute) the knn query and apply the boost. Resolving the query produces a new query
-   * that matches the vector top hits. The boost is applied to this new query.
-   *
-   * @param knnQuery lucene knn query
-   * @param boost boost to apply to the query
-   * @param indexSearcher index searcher
-   * @param diagnostics diagnostics builder to add vector diagnostics
-   * @return vector search results query with boost applied
-   * @throws IOException
-   */
-  private static Query resolveKnnQueryAndBoost(
-      Query knnQuery,
-      float boost,
-      IndexSearcher indexSearcher,
-      SearchResponse.Diagnostics.Builder diagnostics)
-      throws IOException {
-    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
-        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
-    long vectorSearchStart = System.nanoTime();
-    // Rewriting the query executes the vector search using the executor from the index searcher
-    Query rewrittenQuery = knnQuery.rewrite(indexSearcher);
-
-    // fill diagnostic info
-    vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
-    setVectorTotalHits(knnQuery, vectorDiagnosticsBuilder);
-    diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
-
-    if (boost != 1.0f) {
-      rewrittenQuery = new BoostQuery(rewrittenQuery, boost);
-    }
-    return rewrittenQuery;
-  }
-
-  private static void setVectorTotalHits(
-      Query knnQuery,
-      SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
-    Query vectorQuery = knnQuery;
-    if (vectorQuery instanceof MinThresholdQuery minThresholdQuery) {
-      vectorQuery = minThresholdQuery.getWrapped();
-    }
-    if (vectorQuery instanceof WithVectorTotalHits withVectorTotalHits) {
-      TotalHits vectorTotalHits = withVectorTotalHits.getTotalHits();
-      vectorDiagnosticsBuilder.setTotalHits(
-          com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
-              .setRelation(
-                  com.yelp.nrtsearch.server.grpc.TotalHits.Relation.valueOf(
-                      vectorTotalHits.relation().name()))
-              .setValue(vectorTotalHits.value())
-              .build());
-    }
   }
 
   /**
@@ -363,7 +318,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      IndexState indexState, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
@@ -378,7 +333,7 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -390,7 +345,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple runtime fields with the same name
    */
   private static Map<String, FieldDef> getRuntimeFields(
-      IndexState indexState, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest) {
     if (searchRequest.getRuntimeFieldsList().isEmpty()) {
       return Map.of();
     }
@@ -404,8 +359,7 @@ public class SearchRequestProcessor {
       RuntimeScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
-      RuntimeScript.SegmentFactory segmentFactory =
-          factory.newFactory(params, indexState.docLookup);
+      RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, docLookup);
       FieldDef runtimeField = new RuntimeFieldDef(vf.getName(), segmentFactory);
       runtimeFields.put(vf.getName(), runtimeField);
     }
@@ -520,7 +474,8 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, state, docLookup);
+      QueryContext queryContext = new QueryContext(docLookup, state.getGlobalState());
+      q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
     if (state.hasNestedChildFields()) {
@@ -566,10 +521,9 @@ public class SearchRequestProcessor {
    * @return collector
    */
   private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
-    SearchRequest searchRequest = collectorCreatorContext.getRequest();
     List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
         additionalCollectors =
-            searchRequest.getCollectorsMap().entrySet().stream()
+            collectorCreatorContext.getCollectors().entrySet().stream()
                 .map(
                     e ->
                         CollectorCreator.getInstance()
@@ -578,60 +532,65 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    int numHitsToCollect = DocCollector.computeNumHitsToCollect(searchRequest);
+    int numHitsToCollect = collectorCreatorContext.getNumHitsToCollect();
     // If we don't need hits, just count recalled docs
     if (numHitsToCollect == 0) {
       docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuery().hasCompletionQuery()) {
+    } else if (collectorCreatorContext.getQuery() != null
+        && collectorCreatorContext.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-      docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
-    } else {
+    } else if (collectorCreatorContext.getQuerySort() != null
+        && !collectorCreatorContext.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       docCollector = new SortFieldCollector(collectorCreatorContext, additionalCollectors);
+    } else {
+      docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
     }
     return docCollector;
   }
 
+  /** Builds a single RescoreTask from a Rescorer proto. */
+  private static RescoreTask buildRescoreTask(
+      IndexState indexState, IndexSearcher searcher, Rescorer rescorer, String defaultRescorerName)
+      throws IOException {
+    String rescorerName = rescorer.getName();
+    RescoreOperation rescoreOperation;
+
+    if (rescorer.hasQueryRescorer()) {
+      QueryRescorer queryRescorer = rescorer.getQueryRescorer();
+      Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
+      query = searcher.rewrite(query);
+
+      rescoreOperation =
+          QueryRescore.newBuilder()
+              .setQuery(query)
+              .setQueryWeight(queryRescorer.getQueryWeight())
+              .setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight())
+              .build();
+    } else if (rescorer.hasPluginRescorer()) {
+      PluginRescorer plugin = rescorer.getPluginRescorer();
+      rescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
+    } else {
+      throw new IllegalArgumentException(
+          "Rescorer should define either QueryRescorer or PluginRescorer");
+    }
+
+    return RescoreTask.newBuilder()
+        .setRescoreOperation(rescoreOperation)
+        .setWindowSize(rescorer.getWindowSize())
+        .setName(
+            rescorerName != null && !rescorerName.isEmpty() ? rescorerName : defaultRescorerName)
+        .build();
+  }
+
   /** Parses rescorers defined in this search request. */
   private static List<RescoreTask> getRescorers(
-      IndexState indexState, IndexSearcher searcher, SearchRequest searchRequest)
+      IndexState indexState, IndexSearcher searcher, List<Rescorer> rescorerList)
       throws IOException {
-
     List<RescoreTask> rescorers = new ArrayList<>();
-
-    for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
-      com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
-      String rescorerName = rescorer.getName();
-      RescoreOperation thisRescoreOperation;
-
-      if (rescorer.hasQueryRescorer()) {
-        QueryRescorer queryRescorer = rescorer.getQueryRescorer();
-        Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
-        query = searcher.rewrite(query);
-
-        thisRescoreOperation =
-            QueryRescore.newBuilder()
-                .setQuery(query)
-                .setQueryWeight(queryRescorer.getQueryWeight())
-                .setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight())
-                .build();
-      } else if (rescorer.hasPluginRescorer()) {
-        PluginRescorer plugin = rescorer.getPluginRescorer();
-        thisRescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
-      } else {
-        throw new IllegalArgumentException(
-            "Rescorer should define either QueryRescorer or PluginRescorer");
-      }
-
+    for (int i = 0; i < rescorerList.size(); ++i) {
       rescorers.add(
-          RescoreTask.newBuilder()
-              .setRescoreOperation(thisRescoreOperation)
-              .setWindowSize(rescorer.getWindowSize())
-              .setName(
-                  rescorerName != null && !rescorerName.equals("")
-                      ? rescorerName
-                      : String.format("rescorer_%d", i))
-              .build());
+          buildRescoreTask(
+              indexState, searcher, rescorerList.get(i), String.format("rescorer_%d", i)));
     }
     return rescorers;
   }
@@ -673,5 +632,153 @@ public class SearchRequestProcessor {
                 : null)
         .withExplain(explain)
         .build(true);
+  }
+
+  private static void validateMultiRetrieverRequest(SearchRequest searchRequest) {
+    if (searchRequest.getMultiRetriever().getRetrieversList().isEmpty()) {
+      throw new IllegalArgumentException("MultiRetriever request must have at least one retriever");
+    }
+    if (searchRequest.hasQuery()) {
+      throw new IllegalArgumentException(
+          "Query should not be set along with a MultiRetriever request");
+    }
+    if (!searchRequest.getQueryText().isEmpty()) {
+      throw new IllegalArgumentException(
+          "QueryText should not be set along with a MultiRetriever request");
+    }
+    if (searchRequest.getKnnCount() != 0) {
+      throw new IllegalArgumentException(
+          "Knn Query should not be set along with a MultiRetriever request");
+    }
+    if (searchRequest.hasQuerySort()) {
+      throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
+    }
+    // TODO: Remove once multi-retriever execution is implemented
+    throw new UnsupportedOperationException("Multi-retriever is not yet supported");
+  }
+
+  private static Query buildMultiRetrieverContextAndUnionQuery(
+      SearchRequest searchRequest,
+      IndexState indexState,
+      ShardState shardState,
+      SearcherAndTaxonomy searcherAndTaxonomy,
+      Map<String, FieldDef> queryFields,
+      DocLookup docLookup,
+      SearchContext.Builder searchContextBuilder,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ProfileResult.Builder profileResult,
+      ExecutorService retrieverExecutor)
+      throws IOException {
+    boolean doProfile = profileResult != null;
+    MultiRetrieverContext.Builder multiRetrieverContextBuilder = MultiRetrieverContext.newBuilder();
+    ProfileResult.MultiRetrieverProfileResult.Builder multiRetrieverProfileResult =
+        doProfile ? ProfileResult.MultiRetrieverProfileResult.newBuilder() : null;
+    SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnostics =
+        SearchResponse.Diagnostics.MultiRetrieverDiagnostics.newBuilder();
+    BooleanQuery.Builder unionQueryBuilder = new BooleanQuery.Builder();
+
+    // Submit all KNN rewrites upfront so they run in parallel while text retrievers are processed
+    IndexSearcher searcher = searcherAndTaxonomy.searcher();
+    Map<String, Future<KnnUtils.KnnResolveResult>> knnFutures = new HashMap<>();
+    for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
+      if (retriever.getRetrieverTypeCase() == Retriever.RetrieverTypeCase.KNNRETRIEVER) {
+        KnnQuery knnQuery = retriever.getKnnRetriever().getKnnQuery();
+        knnFutures.put(
+            retriever.getName(),
+            retrieverExecutor.submit(
+                () -> buildAndResolveKnnQuery(knnQuery, indexState, searcher)));
+      }
+    }
+
+    for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
+      Query query;
+      int numHitsToCollect;
+      ProfileResult.Builder retrieverProfileResult = doProfile ? ProfileResult.newBuilder() : null;
+      RetrieverContext.Builder retrieverContextBuilder =
+          RetrieverContext.newBuilder(retriever.getName()).boost(retriever.getBoost());
+
+      switch (retriever.getRetrieverTypeCase()) {
+        case TEXTRETRIEVER -> {
+          retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.TEXT);
+          TextRetriever textRetriever = retriever.getTextRetriever();
+          String nestedQueryPath =
+              textRetriever.getQueryNestedPath().isEmpty()
+                  ? IndexState.resolveQueryNestedPath("", docLookup)
+                  : IndexState.resolveQueryNestedPath(
+                      textRetriever.getQueryNestedPath(), docLookup);
+          Query extractedQuery =
+              extractQuery(indexState, "", textRetriever.getQuery(), nestedQueryPath, docLookup);
+          query = searcher.rewrite(extractedQuery);
+          if (doProfile) {
+            retrieverProfileResult.setParsedQuery(extractedQuery.toString());
+            retrieverProfileResult.setRewrittenQuery(query.toString());
+          }
+          if (textRetriever.getTopHits() <= 0) {
+            throw new IllegalArgumentException("TextRetriever topHits must be > 0");
+          }
+          numHitsToCollect = textRetriever.getTopHits();
+        }
+        case KNNRETRIEVER -> {
+          retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.KNN);
+          KnnUtils.KnnResolveResult result;
+          try {
+            result = knnFutures.get(retriever.getName()).get();
+          } catch (ExecutionException | InterruptedException e) {
+            throw new IOException(
+                "KNN retriever '" + retriever.getName() + "' failed to execute: " + e.getMessage(),
+                e);
+          }
+          query = result.resolvedQuery();
+          multiRetrieverDiagnostics.putRetrieverDiagnostics(
+              retriever.getName(),
+              SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
+                  .setVectorDiagnostics(result.vectorDiagnostics())
+                  .build());
+          numHitsToCollect = retriever.getKnnRetriever().getKnnQuery().getK();
+        }
+        default ->
+            throw new IllegalArgumentException(
+                "Unsupported Retriever Type: " + retriever.getRetrieverTypeCase());
+      }
+
+      retrieverContextBuilder.query(query);
+      unionQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
+      if (retriever.hasRescorer()) {
+        retrieverContextBuilder.rescoreTask(
+            buildRescoreTask(
+                indexState, searcher, retriever.getRescorer(), retriever.getName() + "_rescorer"));
+      }
+
+      CollectorCreatorContext collectorCreatorContext =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withDisallowPartialResults(searchRequest.getDisallowPartialResults())
+              .withQueryFields(queryFields)
+              .withSearcherAndTaxonomy(searcherAndTaxonomy)
+              .withShardState(shardState)
+              .withNumHitsToCollect(numHitsToCollect)
+              .withTerminateAfterMaxRecallCount(searchRequest.getTerminateAfterMaxRecallCount())
+              .withTimeoutSec(searchRequest.getTimeoutSec())
+              .withTimeoutCheckEvery(searchRequest.getTimeoutCheckEvery())
+              .withTerminateAfter(searchRequest.getTerminateAfter())
+              .withProfile(searchRequest.getProfile())
+              .build();
+
+      retrieverContextBuilder.docCollector(buildDocCollector(collectorCreatorContext));
+      multiRetrieverContextBuilder.addRetrieverContext(retrieverContextBuilder.build());
+      if (doProfile) {
+        multiRetrieverProfileResult.putRetrieverProfileResults(
+            retriever.getName(), retrieverProfileResult.build());
+      }
+    }
+    Blender blenderProto = searchRequest.getMultiRetriever().getBlender();
+    BlenderOperation blenderOperation =
+        BlenderCreator.getInstance().getBlenderOperation(blenderProto);
+    multiRetrieverContextBuilder.blenderOperation(blenderOperation).blender(blenderProto);
+    searchContextBuilder.setMultiRetrieverContext(multiRetrieverContextBuilder.build());
+    diagnostics.setMultiRetrieverDiagnostics(multiRetrieverDiagnostics);
+    if (doProfile) {
+      profileResult.setMultiRetrieverProfileResult(multiRetrieverProfileResult.build());
+    }
+    return unionQueryBuilder.build();
   }
 }

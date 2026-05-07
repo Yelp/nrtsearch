@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.query.multifunction;
 
+import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
-import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptService;
@@ -68,14 +68,14 @@ public abstract class FilterFunction {
    * Builder method to create a {@link FilterFunction} object based on its gRPC message definition.
    *
    * @param filterFunctionGrpc function gRPC definition
-   * @param indexState index state
+   * @param docLookup lookup for document field data
    * @return filter function object
    */
   public static FilterFunction build(
-      MultiFunctionScoreQuery.FilterFunction filterFunctionGrpc, IndexState indexState) {
+      MultiFunctionScoreQuery.FilterFunction filterFunctionGrpc, DocLookup docLookup) {
     Query filterQuery =
         filterFunctionGrpc.hasFilter()
-            ? QueryNodeMapper.getInstance().getQuery(filterFunctionGrpc.getFilter(), indexState)
+            ? QueryNodeMapper.getInstance().getQuery(filterFunctionGrpc.getFilter(), docLookup)
             : null;
     float weight = filterFunctionGrpc.getWeight() != 0.0f ? filterFunctionGrpc.getWeight() : 1.0f;
     switch (filterFunctionGrpc.getFunctionCase()) {
@@ -86,13 +86,13 @@ public abstract class FilterFunction {
         DoubleValuesSource scriptSource =
             factory.newFactory(
                 ScriptParamsUtils.decodeParams(filterFunctionGrpc.getScript().getParamsMap()),
-                indexState.docLookup);
+                docLookup);
         return new ScriptFilterFunction(
             filterQuery, weight, filterFunctionGrpc.getScript(), scriptSource);
       case DECAYFUNCTION:
         MultiFunctionScoreQuery.DecayFunction decayFunction = filterFunctionGrpc.getDecayFunction();
         if (decayFunction.hasGeoPoint()) {
-          return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction, indexState);
+          return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction, docLookup);
         } else {
           throw new IllegalArgumentException(
               "Decay Function should contain a geoPoint for Origin field");

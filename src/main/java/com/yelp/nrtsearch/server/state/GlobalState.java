@@ -67,6 +67,7 @@ public abstract class GlobalState implements Closeable {
   private final ExecutorService fetchExecutor;
   private final ExecutorService searchExecutor;
   private final ExecutorService commitExecutor;
+  private final ExecutorService retrieverExecutor;
 
   public static GlobalState createState(
       NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
@@ -98,6 +99,7 @@ public abstract class GlobalState implements Closeable {
     this.searchExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.SEARCH);
     this.fetchExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.FETCH);
     this.commitExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.COMMIT);
+    this.retrieverExecutor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.RETRIEVER);
     this.configuration = configuration;
   }
 
@@ -322,6 +324,10 @@ public abstract class GlobalState implements Closeable {
 
   public ExecutorService getFetchExecutor() {
     return fetchExecutor;
+  }
+
+  public ExecutorService getRetrieverExecutor() {
+    return retrieverExecutor;
   }
 
   public String getEphemeralId() {

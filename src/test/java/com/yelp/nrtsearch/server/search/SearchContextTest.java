@@ -15,16 +15,22 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
+import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
@@ -44,10 +50,12 @@ public class SearchContextTest extends ServerTestCase {
 
   public static class DummyCollector extends DocCollector {
 
-    public DummyCollector() {
+    public DummyCollector(IndexState indexState) {
       super(
-          new CollectorCreatorContext(
-              SearchRequest.newBuilder().build(), null, null, Collections.emptyMap(), null),
+          CollectorCreatorContext.newBuilder(indexState)
+              .withQueryFields(Collections.emptyMap())
+              .withRequest(SearchRequest.newBuilder().build())
+              .build(),
           Collections.emptyList());
     }
 
@@ -74,9 +82,10 @@ public class SearchContextTest extends ServerTestCase {
   }
 
   private SearchContext.Builder getCompleteBuilder() throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     return SearchContext.newBuilder()
-        .setIndexState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX))
-        .setShardState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0))
+        .setIndexState(indexState)
+        .setShardState(indexState.getShard(0))
         .setSearcherAndTaxonomy(new SearcherAndTaxonomy(null, null))
         .setResponseBuilder(SearchResponse.newBuilder())
         .setTimestampSec(1)
@@ -85,11 +94,10 @@ public class SearchContextTest extends ServerTestCase {
         .setQueryFields(Collections.emptyMap())
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
-        .setCollector(new DummyCollector())
+        .setCollector(new DummyCollector(indexState))
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setDocLookup(
-            new DocLookup(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX)::getFieldOrThrow))
+        .setDocLookup(indexState.docLookup)
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 
@@ -176,5 +184,43 @@ public class SearchContextTest extends ServerTestCase {
   @Test(expected = NullPointerException.class)
   public void testMissingSharedDocContext() throws Exception {
     getCompleteBuilder().setSharedDocContext(null).build(true);
+  }
+
+  @Test
+  public void testWithMultiRetrieverContext() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    RetrieverContext retrieverContext =
+        RetrieverContext.newBuilder("test_retriever")
+            .boost(1.0f)
+            .query(new MatchAllDocsQuery())
+            .docCollector(new DummyCollector(indexState))
+            .build();
+
+    MultiRetrieverContext multiRetrieverContext =
+        MultiRetrieverContext.newBuilder().addRetrieverContext(retrieverContext).build();
+
+    SearchContext context =
+        getCompleteBuilder().setMultiRetrieverContext(multiRetrieverContext).build(true);
+
+    assertNotNull(context.getMultiRetrieverContext());
+    assertNotNull(context.getCollector());
+    assertEquals(1, context.getMultiRetrieverContext().getRetrieverContextMap().size());
+    assertSame(
+        retrieverContext, context.getMultiRetrieverContext().getRetrieverContext("test_retriever"));
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testMultiRetrieverContextWithNullQuery() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    MultiRetrieverContext multiRetrieverContext =
+        MultiRetrieverContext.newBuilder()
+            .addRetrieverContext(
+                RetrieverContext.newBuilder("r1")
+                    .query(new MatchAllDocsQuery())
+                    .docCollector(new DummyCollector(indexState))
+                    .build())
+            .build();
+
+    getCompleteBuilder().setQuery(null).setMultiRetrieverContext(multiRetrieverContext).build(true);
   }
 }

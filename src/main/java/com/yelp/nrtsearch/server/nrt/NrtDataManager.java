@@ -129,8 +129,19 @@ public class NrtDataManager implements Closeable {
     return lastPointState;
   }
 
-  @VisibleForTesting
-  Instant getLastPointTimestamp() {
+  /**
+   * Get the primary generation from the last loaded NRT point state. Returns -1 if no point state
+   * has been loaded (i.e., no remote restore was performed).
+   *
+   * @return primary generation, or -1 if unknown
+   */
+  public long getLastPrimaryGen() {
+    NrtPointState state = lastPointState;
+    return state != null ? state.primaryGen : -1;
+  }
+
+  /** Get the timestamp associated with the last loaded index version */
+  public Instant getLastPointTimestamp() {
     return lastPointTimestamp;
   }
 
