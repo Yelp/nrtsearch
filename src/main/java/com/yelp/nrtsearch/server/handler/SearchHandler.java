@@ -537,10 +537,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     LinkedHashMap<String, RetrieverContext> retrieverContexts =
         new LinkedHashMap<>(multiRetrieverContext.getRetrieverContextMap());
 
-    record RetrieverResult(
-        TopDocs topDocs, long totalHits, double searchTimeMs, double rescoreTimeMs) {}
+    record RetrieverMetrics(TopDocs topDocs, double searchTimeMs, double rescoreTimeMs) {}
 
-    ConcurrentHashMap<String, RetrieverResult> retrieverResults = new ConcurrentHashMap<>();
+    ConcurrentHashMap<String, RetrieverMetrics> retrieverResults = new ConcurrentHashMap<>();
     LinkedHashMap<String, Future<TopDocs>> retrieverFutures = new LinkedHashMap<>();
     for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
       String name = entry.getKey();
@@ -556,7 +555,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                         retrieverContext.getDocCollector().getWrappedManager());
                 TopDocs topDocs = result.getTopDocs();
                 double searchTimeMs = (System.nanoTime() - searchStart) / 1_000_000.0;
-                long totalHits = topDocs.totalHits.value();
 
                 double rescoreTimeMs = 0;
                 if (retrieverContext.getRescoreTask() != null) {
@@ -565,7 +563,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                   rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
                 }
                 retrieverResults.put(
-                    name, new RetrieverResult(topDocs, totalHits, searchTimeMs, rescoreTimeMs));
+                    name, new RetrieverMetrics(topDocs, searchTimeMs, rescoreTimeMs));
                 return topDocs;
               }));
     }
@@ -589,24 +587,25 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     // Populate per-retriever diagnostics
     SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnosticsBuilder =
         diagnostics.getMultiRetrieverDiagnosticsBuilder();
-    for (Map.Entry<String, RetrieverResult> entry : retrieverResults.entrySet()) {
+    for (Map.Entry<String, RetrieverMetrics> entry : retrieverResults.entrySet()) {
       String name = entry.getKey();
-      RetrieverResult retrieverResult = entry.getValue();
+      RetrieverMetrics retrieverResult = entry.getValue();
       RetrieverContext.RetrieverType type = retrieverContexts.get(name).getRetrieverType();
+      org.apache.lucene.search.TotalHits luceneTotalHits = retrieverResult.topDocs().totalHits;
       TotalHits totalHits =
           TotalHits.newBuilder()
-              .setRelation(
-                  TotalHits.Relation.valueOf(retrieverResult.topDocs().totalHits.relation().name()))
-              .setValue(retrieverResult.totalHits())
+              .setRelation(TotalHits.Relation.valueOf(luceneTotalHits.relation().name()))
+              .setValue(luceneTotalHits.value())
               .build();
       SearchResponse.Diagnostics.RetrieverDiagnostics.Builder retrieverDiagBuilder;
       if (type == RetrieverContext.RetrieverType.KNN) {
-        // Preserve vectorDiagnostics already set by SearchRequestProcessor
+        // Preserve vectorDiagnostics already set by SearchRequestProcessor, then add timing
         retrieverDiagBuilder =
             multiRetrieverDiagnosticsBuilder
                 .getRetrieverDiagnosticsOrDefault(
                     name, SearchResponse.Diagnostics.RetrieverDiagnostics.getDefaultInstance())
-                .toBuilder();
+                .toBuilder()
+                .setSearchTimeMs(retrieverResult.searchTimeMs());
       } else {
         retrieverDiagBuilder =
             SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()

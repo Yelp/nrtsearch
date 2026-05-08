@@ -515,8 +515,10 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
     SearchResponse.Diagnostics.RetrieverDiagnostics knnDiag =
         diag.getRetrieverDiagnosticsOrThrow("knn");
-    // KNN retriever: vectorDiagnostics from SearchRequestProcessor, totalHits from handler
+    // KNN retriever: vectorDiagnostics from SearchRequestProcessor, timing and totalHits from
+    // handler
     assertTrue(knnDiag.hasVectorDiagnostics());
+    assertTrue(knnDiag.getSearchTimeMs() >= 0);
     assertEquals(5, knnDiag.getTotalHits().getValue());
 
     assertTrue(diag.getBlenderTimeMs() >= 0);

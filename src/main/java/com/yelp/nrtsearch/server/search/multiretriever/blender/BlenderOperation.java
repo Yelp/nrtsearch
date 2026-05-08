@@ -66,8 +66,7 @@ public interface BlenderOperation {
    * @param retrieverFutures per-retriever futures in declaration order, keyed by retriever name
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by retriever name
    * @param startHit 0-based offset of the first blended hit to include in the result
-   * @param topHits maximum number of blended hits to return; {@code 0} returns empty; negative
-   *     values mean no limit
+   * @param topHits maximum number of blended hits to return; {@code 0} returns empty; must be >= 0
    * @return blended, sorted, paginated {@link TopDocs}
    * @throws RuntimeException wrapping any retriever {@link ExecutionException}, identified by name
    * @throws InterruptedException if the calling thread is interrupted while waiting
@@ -98,15 +97,12 @@ public interface BlenderOperation {
 
   /**
    * Select and return the requested pagination window from merged hits without sorting the full
-   * list. Uses a min-heap of size {@code k = startHit + topHits} to find the top-k hits in O(n log
-   * k) time and O(k) space. The heap entries are then sorted in O(k log k) to produce the final
-   * page order. When {@code topHits < 0} (no limit), {@code k = n} and the complexity degrades
-   * gracefully to O(n log n).
+   * list. Uses a min-heap of size {@code k = topHits} to find the top-k hits in O(n log k) time and
+   * O(k) space. The heap entries are then sorted in O(k log k) to produce the final page order.
    *
    * @param merged unsorted merged hits from {@link #mergeHits}
    * @param startHit 0-based offset of the first hit to include in the returned page
-   * @param topHits maximum number of hits to return; {@code 0} returns empty; negative values mean
-   *     no limit
+   * @param topHits maximum number of hits to return; {@code 0} returns empty; must be >= 0
    * @return paginated {@link TopDocs}
    */
   static TopDocs sortAndPaginate(Collection<BlendedScoreDoc> merged, int startHit, int topHits) {
