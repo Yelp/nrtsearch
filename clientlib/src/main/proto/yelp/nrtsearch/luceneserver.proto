@@ -699,7 +699,10 @@ enum VectorElementType {
 
 // Options for indexing a VECTOR field for search
 message VectorIndexingOptions {
-    // The vector indexing type, supports 'hnsw', 'hnsw_binary_quantized', and 'hnsw_scalar_quantized', default: hnsw
+    reserved 5; // quantized_confidence_interval: removed in Lucene 10.4.0, no longer supported
+    reserved 7; // quantized_compress: removed in Lucene 10.4.0, no longer supported
+
+    // The vector indexing type, supports 'hnsw' and 'hnsw_scalar_quantized', default: hnsw
     optional string type = 1;
     // The number of neighbors each node will be connected to in the HNSW graph, default: 16
     optional int32 hnsw_m = 2;
@@ -707,19 +710,17 @@ message VectorIndexingOptions {
     optional int32 hnsw_ef_construction = 3;
     // Number of threads to use for merging vector data, default: 1
     optional int32 merge_workers = 4;
-    // The confidenceInterval for scalar quantizing the vectors. When unset, it is calculated based on the
-    // vector dimension. When `0`, the quantiles are dynamically determined by sampling many confidence intervals and
-    // determining the most accurate pair. Otherwise, the value must be between 0.9 and 1.0 (both inclusive).
-    // default: unset
-    optional float quantized_confidence_interval = 5;
-    // The number of bits to use for scalar quantizing the vectors. It can have the following values:
-    //      4 - half byte
+    // The number of bits to use for scalar quantizing the vectors (hnsw_scalar_quantized type only).
+    // It can have the following values:
+    //      1 - binary with 4-bit query vectors (asymmetric)
+    //      2 - 2-bit with 4-bit query vectors (asymmetric)
+    //      4 - half byte (packed nibble)
     //      7 - signed byte (default)
+    //      8 - unsigned byte
     optional int32 quantized_bits = 6;
-    // Whether to compress the vectors, if true, the vectors that are (scalar) quantized with <= 4 bits will be compressed into
-    // a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.
-    // default: false
-    optional bool quantized_compress = 7;
+    // Minimum segment size (number of vectors) below which an HNSW graph is not built and brute-force
+    // search is used instead. Applies to all indexing types. default: 100
+    optional int32 tiny_segments_threshold = 8;
 }
 
 // Input to registerFields

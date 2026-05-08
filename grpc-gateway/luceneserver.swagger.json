@@ -6489,7 +6489,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "title": "The vector indexing type, supports 'hnsw', 'hnsw_binary_quantized', and 'hnsw_scalar_quantized', default: hnsw"
+          "title": "The vector indexing type, supports 'hnsw' and 'hnsw_scalar_quantized', default: hnsw"
         },
         "hnswM": {
           "type": "integer",
@@ -6506,19 +6506,15 @@
           "format": "int32",
           "title": "Number of threads to use for merging vector data, default: 1"
         },
-        "quantizedConfidenceInterval": {
-          "type": "number",
-          "format": "float",
-          "title": "The confidenceInterval for scalar quantizing the vectors. When unset, it is calculated based on the\nvector dimension. When `0`, the quantiles are dynamically determined by sampling many confidence intervals and\ndetermining the most accurate pair. Otherwise, the value must be between 0.9 and 1.0 (both inclusive).\ndefault: unset"
-        },
         "quantizedBits": {
           "type": "integer",
           "format": "int32",
-          "title": "The number of bits to use for scalar quantizing the vectors. It can have the following values:\n     4 - half byte\n     7 - signed byte (default)"
+          "title": "The number of bits to use for scalar quantizing the vectors (hnsw_scalar_quantized type only).\nIt can have the following values:\n     1 - binary with 4-bit query vectors (asymmetric)\n     2 - 2-bit with 4-bit query vectors (asymmetric)\n     4 - half byte (packed nibble)\n     7 - signed byte (default)\n     8 - unsigned byte"
         },
-        "quantizedCompress": {
-          "type": "boolean",
-          "title": "Whether to compress the vectors, if true, the vectors that are (scalar) quantized with \u003c= 4 bits will be compressed into\na single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed.\ndefault: false"
+        "tinySegmentsThreshold": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Minimum segment size (number of vectors) below which an HNSW graph is not built and brute-force\nsearch is used instead. Applies to all indexing types. default: 100"
         }
       },
       "title": "Options for indexing a VECTOR field for search"

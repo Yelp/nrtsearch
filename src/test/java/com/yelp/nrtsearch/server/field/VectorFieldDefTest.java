@@ -1102,7 +1102,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -1124,7 +1124,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=5, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=5, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -1149,7 +1149,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=50, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=50, tinySegmentsThreshold=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -1590,7 +1590,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     VectorFieldDef<?> vectorFieldDef = getCosineField();
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -1599,7 +1599,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     VectorFieldDef<?> vectorFieldDef = getQuantizedField();
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertEquals(
-        "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat(name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval=null, bits=7, compress=false, flatVectorScorer=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
+        "Lucene104HnswScalarQuantizedVectorsFormat(name=Lucene104HnswScalarQuantizedVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene104ScalarQuantizedVectorsFormat(name=Lucene104ScalarQuantizedVectorsFormat, encoding=SEVEN_BIT, flatVectorScorer=Lucene104ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
         format.toString());
   }
 
@@ -1608,12 +1608,12 @@ public class VectorFieldDefTest extends ServerTestCase {
     VectorFieldDef<?> vectorFieldDef = getBinaryQuantizedField();
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertEquals(
-        "Lucene102HnswBinaryQuantizedVectorsFormat(name=Lucene102HnswBinaryQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene102BinaryQuantizedVectorsFormat(name=Lucene102BinaryQuantizedVectorsFormat, flatVectorScorer=Lucene102BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
+        "Lucene104HnswScalarQuantizedVectorsFormat(name=Lucene104HnswScalarQuantizedVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene104ScalarQuantizedVectorsFormat(name=Lucene104ScalarQuantizedVectorsFormat, encoding=SINGLE_BIT_QUERY_NIBBLE, flatVectorScorer=Lucene104ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
         format.toString());
   }
 
   @Test
-  public void testInvalidConfidenceInterval() {
+  public void testGetVectorFormat_tinySegmentsThreshold() {
     Field field =
         Field.newBuilder()
             .setName("vector")
@@ -1623,19 +1623,17 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("l2_norm")
             .setVectorIndexingOptions(
                 VectorIndexingOptions.newBuilder()
-                    .setType("hnsw_scalar_quantized")
-                    .setQuantizedConfidenceInterval(0.5f)
+                    .setType("hnsw")
+                    .setTinySegmentsThreshold(50)
                     .build())
             .build();
-    try {
-      VectorFieldDef.createField(
-          "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals(
-          "confidenceInterval must be between 0.9 and 1.0 or 0; confidenceInterval=0.5",
-          e.getMessage());
-    }
+    VectorFieldDef<?> vectorFieldDef =
+        VectorFieldDef.createField(
+            "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertEquals(
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=50, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        format.toString());
   }
 
   @Test
@@ -1658,7 +1656,7 @@ public class VectorFieldDefTest extends ServerTestCase {
           "vector", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("bits must be one of: 4, 7; bits=9", e.getMessage());
+      assertEquals("No encoding for 9 bits", e.getMessage());
     }
   }
 
@@ -1686,7 +1684,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void testInvalidBinaryQuantizedByteVector() {
+  public void testInvalidScalarQuantizedByteVector_1bit() {
     Field field =
         Field.newBuilder()
             .setName("vector")
@@ -1696,7 +1694,10 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("l2_norm")
             .setVectorElementType(VectorElementType.VECTOR_ELEMENT_BYTE)
             .setVectorIndexingOptions(
-                VectorIndexingOptions.newBuilder().setType("hnsw_binary_quantized").build())
+                VectorIndexingOptions.newBuilder()
+                    .setType("hnsw_scalar_quantized")
+                    .setQuantizedBits(1)
+                    .build())
             .build();
     try {
       VectorFieldDef.createField(
@@ -1704,7 +1705,7 @@ public class VectorFieldDefTest extends ServerTestCase {
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
-          "HNSW binary quantized search type is only supported for float vectors", e.getMessage());
+          "HNSW scalar quantized search type is only supported for float vectors", e.getMessage());
     }
   }
 
