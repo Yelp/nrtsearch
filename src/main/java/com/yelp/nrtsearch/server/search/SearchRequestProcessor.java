@@ -653,8 +653,13 @@ public class SearchRequestProcessor {
     if (searchRequest.hasQuerySort()) {
       throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
     }
-    // TODO: Remove once multi-retriever execution is implemented
-    throw new UnsupportedOperationException("Multi-retriever is not yet supported");
+    if (searchRequest.getFacetsCount() > 0) {
+      throw new IllegalArgumentException("Facets are not supported with MultiRetriever requests");
+    }
+    if (searchRequest.getCollectorsCount() > 0) {
+      throw new IllegalArgumentException(
+          "Collectors are not supported with MultiRetriever requests");
+    }
   }
 
   private static Query buildMultiRetrieverContextAndUnionQuery(

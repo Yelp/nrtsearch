@@ -54,6 +54,10 @@ public class RescoreTask {
     return name;
   }
 
+  public int getWindowSize() {
+    return windowSize;
+  }
+
   public static Builder newBuilder() {
     return new Builder();
   }
