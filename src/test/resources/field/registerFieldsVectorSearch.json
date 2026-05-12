@@ -147,7 +147,8 @@
       "vectorDimensions": 3,
       "vectorSimilarity": "cosine",
       "vectorIndexingOptions": {
-        "type": "hnsw_binary_quantized"
+        "type": "hnsw_scalar_quantized",
+        "quantized_bits": 1
       }
     },
     {
