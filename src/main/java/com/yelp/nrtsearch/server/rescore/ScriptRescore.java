@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.rescore;
 
+import com.yelp.nrtsearch.server.query.QueryUtils;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
@@ -28,11 +30,28 @@ import org.apache.lucene.search.TotalHits;
 
 /**
  * {@link RescoreOperation} that re-scores each hit by evaluating a {@link DoubleValuesSource}
- * (typically compiled from a {@link com.yelp.nrtsearch.server.script.ScoreScript}). The script
- * receives the previous-pass score via the {@code _score} expression variable and doc values via
- * {@code doc}.
+ * (typically compiled from a {@link com.yelp.nrtsearch.server.script.ScoreScript}). The
+ * previous-pass score is passed as the {@link DoubleValues} {@code scores} argument to {@link
+ * DoubleValuesSource#getValues}. How that score is surfaced to the script author depends on the
+ * script engine:
+ *
+ * <ul>
+ *   <li><b>JS (Lucene expression)</b> – accessible as the {@code _score} variable, resolved via
+ *       {@link com.yelp.nrtsearch.server.field.FieldDefBindings} to {@link
+ *       DoubleValuesSource#SCORES}.
+ *   <li><b>Custom {@link com.yelp.nrtsearch.server.script.ScoreScript} subclasses</b> – accessible
+ *       via {@link com.yelp.nrtsearch.server.script.ScoreScript#get_score()}.
+ * </ul>
  */
 public class ScriptRescore implements RescoreOperation {
+
+  // Ascending by doc id then shard index — used to walk segment leaves in one forward pass.
+  // Mirrors the ordering of TopDocs' private BY_DOC_ID / DEFAULT_TIE_BREAKER.
+  private static final Comparator<ScoreDoc> BY_DOC_ID =
+      Comparator.comparingInt((ScoreDoc d) -> d.doc).thenComparingInt(d -> d.shardIndex);
+  // Descending by score; ties broken by doc id then shard index (consistent with TopDocs.merge).
+  private static final Comparator<ScoreDoc> BY_SCORE_DESC =
+      Comparator.<ScoreDoc>comparingDouble(d -> -d.score).thenComparing(BY_DOC_ID);
 
   private final DoubleValuesSource scriptSource;
 
@@ -46,13 +65,13 @@ public class ScriptRescore implements RescoreOperation {
 
     // Sort hits by doc id so we can walk leaves in one forward pass.
     ScoreDoc[] scoreDocs = hits.scoreDocs.clone();
-    Arrays.sort(scoreDocs, (a, b) -> Integer.compare(a.doc, b.doc));
+    Arrays.sort(scoreDocs, BY_DOC_ID);
 
     List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
 
     int leafIndex = 0;
     DoubleValues scriptValues = null;
-    TopDocsScoreValues scoreValues = null;
+    QueryUtils.SettableDoubleValues scoreValues = new QueryUtils.SettableDoubleValues();
 
     for (ScoreDoc scoreDoc : scoreDocs) {
       // Advance to the leaf that contains this global doc id.
@@ -63,18 +82,17 @@ public class ScriptRescore implements RescoreOperation {
 
       if (scriptValues == null) {
         LeafReaderContext leaf = leaves.get(leafIndex);
-        // TopDocsScoreValues exposes the previous-pass score as _score to the script.
-        scoreValues = new TopDocsScoreValues(scoreDocs, leaf.docBase);
         scriptValues = scriptSource.getValues(leaf, scoreValues);
       }
 
+      scoreValues.setValue(scoreDoc.score);
       int segmentDocId = scoreDoc.doc - leaves.get(leafIndex).docBase;
       scriptValues.advanceExact(segmentDocId);
       scoreDoc.score = (float) scriptValues.doubleValue();
     }
 
     // Re-sort by new score descending.
-    Arrays.sort(scoreDocs, (a, b) -> Float.compare(b.score, a.score));
+    Arrays.sort(scoreDocs, BY_SCORE_DESC);
 
     // Trim to windowSize, mirroring Lucene QueryRescorer behaviour.
     int windowSize = context.getWindowSize();
@@ -85,38 +103,5 @@ public class ScriptRescore implements RescoreOperation {
     }
 
     return new TopDocs(new TotalHits(hits.totalHits.value(), hits.totalHits.relation()), scoreDocs);
-  }
-
-  /**
-   * Exposes the previous-pass score from a sorted {@link ScoreDoc} array as a {@link DoubleValues},
-   * so the script engine can read it as the {@code _score} expression variable. Looks up the score
-   * by converting the segment-local doc id back to a global doc id using {@code docBase}.
-   */
-  private static class TopDocsScoreValues extends DoubleValues {
-    private final ScoreDoc[] scoreDocs;
-    private final int docBase;
-    private double score;
-
-    TopDocsScoreValues(ScoreDoc[] scoreDocs, int docBase) {
-      this.scoreDocs = scoreDocs;
-      this.docBase = docBase;
-    }
-
-    @Override
-    public double doubleValue() {
-      return score;
-    }
-
-    @Override
-    public boolean advanceExact(int segmentDocId) {
-      int globalDocId = docBase + segmentDocId;
-      for (ScoreDoc sd : scoreDocs) {
-        if (sd.doc == globalDocId) {
-          score = sd.score;
-          return true;
-        }
-      }
-      return false;
-    }
   }
 }
