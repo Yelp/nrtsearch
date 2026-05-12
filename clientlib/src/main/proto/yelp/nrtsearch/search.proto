@@ -1344,6 +1344,14 @@ message QueryRescorer {
     double rescoreQueryWeight = 3;
 }
 
+// Defines a rescorer which uses a script to compute a new score for each hit.
+// The script has access to _score (the score from the previous pass, e.g. blended score)
+// and doc values via the doc map. Useful for boosting blended results with field-level signals.
+message ScriptRescorer {
+    // Script to execute per document; must return a double
+    Script script = 1;
+}
+
 // Defines a rescorer which is executed after the first search pass
 message Rescorer {
     // Maximum number of hits from previous phase to rescore
@@ -1353,6 +1361,8 @@ message Rescorer {
         QueryRescorer queryRescorer = 2;
         // Rescore with plugin registered rescorer
         PluginRescorer pluginRescorer = 3;
+        // Rescore with a script
+        ScriptRescorer scriptRescorer = 5;
     }
     // Must be unique for each Rescorer
     string name = 4;

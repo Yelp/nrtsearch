@@ -42,6 +42,7 @@ import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.rescore.RescorerCreator;
+import com.yelp.nrtsearch.server.rescore.ScriptRescore;
 import com.yelp.nrtsearch.server.script.RuntimeScript;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptService;
@@ -569,9 +570,16 @@ public class SearchRequestProcessor {
     } else if (rescorer.hasPluginRescorer()) {
       PluginRescorer plugin = rescorer.getPluginRescorer();
       rescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
+    } else if (rescorer.hasScriptRescorer()) {
+      com.yelp.nrtsearch.server.grpc.Script script = rescorer.getScriptRescorer().getScript();
+      ScoreScript.Factory factory =
+          ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
+      DocLookup docLookup = indexState.docLookup;
+      rescoreOperation = new ScriptRescore(factory.newFactory(params, docLookup));
     } else {
       throw new IllegalArgumentException(
-          "Rescorer should define either QueryRescorer or PluginRescorer");
+          "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");
     }
 
     return RescoreTask.newBuilder()
