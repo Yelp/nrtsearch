@@ -115,7 +115,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
+import io.grpc.protobuf.services.ProtoReflectionServiceV1;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
@@ -215,7 +215,7 @@ public class NrtsearchServer {
             .addService(
                 ServerInterceptors.intercept(
                     serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
-            .addService(ProtoReflectionService.newInstance())
+            .addService(ProtoReflectionServiceV1.newInstance())
             // Set executor supplier to use different thread pool for metrics method
             .callExecutor(executorSupplier)
             // We still need this executor to run tasks before the point when executorSupplier can

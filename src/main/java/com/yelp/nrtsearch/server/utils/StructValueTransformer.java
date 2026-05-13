@@ -23,7 +23,7 @@ import com.google.protobuf.Value;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import javax.annotation.Nullable;
 
 /**
  * Transformer that converts a {@link Struct} to native java types. This conversion is done lazily
