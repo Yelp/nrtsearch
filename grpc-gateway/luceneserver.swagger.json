@@ -5435,6 +5435,10 @@
           "$ref": "#/definitions/luceneserverPluginRescorer",
           "title": "Rescore with plugin registered rescorer"
         },
+        "scriptRescorer": {
+          "$ref": "#/definitions/luceneserverScriptRescorer",
+          "title": "Rescore with a script"
+        },
         "name": {
           "type": "string",
           "title": "Must be unique for each Rescorer"
@@ -5537,6 +5541,16 @@
         }
       },
       "title": "Definition of user-defined script"
+    },
+    "luceneserverScriptRescorer": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Script to execute per document; must return a double"
+        }
+      },
+      "description": "Defines a rescorer which uses a script to compute a new score for each hit.\nThe script has access to _score (the score from the previous pass, e.g. blended score)\nand doc values via the doc map. Useful for boosting blended results with field-level signals."
     },
     "luceneserverSearchRequest": {
       "type": "object",
