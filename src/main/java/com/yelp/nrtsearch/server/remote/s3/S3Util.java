@@ -31,6 +31,7 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
@@ -220,6 +221,7 @@ public class S3Util {
     private final int connectionTimeoutMs;
     private final int connectionAcquisitionTimeoutMs;
     private final int maxPendingConnectionAcquires;
+    private final String httpClient;
 
     /**
      * Create S3JavaAsyncConfig from NrtsearchConfig.
@@ -252,6 +254,8 @@ public class S3Util {
           configuration
               .getConfigReader()
               .getInteger(CONFIG_PREFIX + "maxPendingConnectionAcquires", 0);
+      String httpClient =
+          configuration.getConfigReader().getString(CONFIG_PREFIX + "httpClient", "netty");
       return new S3JavaAsyncConfig(
           minimumPartSizeInBytes,
           thresholdSizeInBytes,
@@ -261,7 +265,8 @@ public class S3Util {
           maxConnections,
           connectionTimeoutMs,
           connectionAcquisitionTimeoutMs,
-          maxPendingConnectionAcquires);
+          maxPendingConnectionAcquires,
+          httpClient);
     }
 
     /**
@@ -280,8 +285,9 @@ public class S3Util {
      *     milliseconds (0 means SDK default of 10000; config default is 60000)
      * @param maxPendingConnectionAcquires max requests queued waiting for a connection (0 means SDK
      *     default of 10000)
+     * @param httpClient HTTP client type to use: "netty" (default) or "crt"
      * @throws IllegalArgumentException if minimumPartSizeInBytes or thresholdSizeInBytes are <= 0,
-     *     or if any other parameter is < 0
+     *     or if any other parameter is < 0, or if httpClient is not "netty" or "crt"
      */
     public S3JavaAsyncConfig(
         long minimumPartSizeInBytes,
@@ -292,7 +298,8 @@ public class S3Util {
         int maxConnections,
         int connectionTimeoutMs,
         int connectionAcquisitionTimeoutMs,
-        int maxPendingConnectionAcquires) {
+        int maxPendingConnectionAcquires,
+        String httpClient) {
       if (minimumPartSizeInBytes <= 0) {
         throw new IllegalArgumentException("minimumPartSizeInBytes must be > 0");
       }
@@ -320,6 +327,10 @@ public class S3Util {
       if (maxPendingConnectionAcquires < 0) {
         throw new IllegalArgumentException("maxPendingConnectionAcquires must be >= 0");
       }
+      if (!httpClient.equalsIgnoreCase("netty") && !httpClient.equalsIgnoreCase("crt")) {
+        throw new IllegalArgumentException(
+            "httpClient must be 'netty' or 'crt', got: '" + httpClient + "'");
+      }
       this.minimumPartSizeInBytes = minimumPartSizeInBytes;
       this.thresholdSizeInBytes = thresholdSizeInBytes;
       this.apiCallBufferSizeInBytes = apiCallBufferSizeInBytes;
@@ -329,6 +340,7 @@ public class S3Util {
       this.connectionTimeoutMs = connectionTimeoutMs;
       this.connectionAcquisitionTimeoutMs = connectionAcquisitionTimeoutMs;
       this.maxPendingConnectionAcquires = maxPendingConnectionAcquires;
+      this.httpClient = httpClient;
     }
 
     /**
@@ -412,6 +424,15 @@ public class S3Util {
      */
     public int getMaxPendingConnectionAcquires() {
       return maxPendingConnectionAcquires;
+    }
+
+    /**
+     * Get the HTTP client type ("netty" or "crt").
+     *
+     * @return HTTP client type
+     */
+    public String getHttpClient() {
+      return httpClient;
     }
   }
 
@@ -520,7 +541,8 @@ public class S3Util {
       boolean globalBucketAccess) {
     S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(configuration);
     logger.info(
-        "S3 Java async client config: minimumPartSizeInBytes={}, thresholdSizeInBytes={}, apiCallBufferSizeInBytes={}, maxInFlightParts={}, ioThreads={}, maxConnections={}, connectionTimeoutMs={}, connectionAcquisitionTimeoutMs={}, maxPendingConnectionAcquires={}",
+        "S3 Java async client config: httpClient={}, minimumPartSizeInBytes={}, thresholdSizeInBytes={}, apiCallBufferSizeInBytes={}, maxInFlightParts={}, ioThreads={}, maxConnections={}, connectionTimeoutMs={}, connectionAcquisitionTimeoutMs={}, maxPendingConnectionAcquires={}",
+        javaConfig.getHttpClient(),
         javaConfig.getMinimumPartSizeInBytes(),
         javaConfig.getThresholdSizeInBytes(),
         javaConfig.getApiCallBufferSizeInBytes(),
@@ -551,30 +573,47 @@ public class S3Util {
             .region(s3Client.serviceClientConfiguration().region())
             .multipartEnabled(true)
             .multipartConfiguration(multipartBuilder.build());
-    if (javaConfig.getIoThreads() > 0
-        || javaConfig.getMaxConnections() > 0
-        || javaConfig.getConnectionTimeoutMs() > 0
-        || javaConfig.getConnectionAcquisitionTimeoutMs() > 0
-        || javaConfig.getMaxPendingConnectionAcquires() > 0) {
-      NettyNioAsyncHttpClient.Builder nettyBuilder = NettyNioAsyncHttpClient.builder();
-      if (javaConfig.getIoThreads() > 0) {
-        nettyBuilder.eventLoopGroupBuilder(
-            SdkEventLoopGroup.builder().numberOfThreads(javaConfig.getIoThreads()));
-      }
+    if (javaConfig.getHttpClient().equalsIgnoreCase("crt")) {
+      AwsCrtAsyncHttpClient.Builder crtHttpBuilder = AwsCrtAsyncHttpClient.builder();
       if (javaConfig.getMaxConnections() > 0) {
-        nettyBuilder.maxConcurrency(javaConfig.getMaxConnections());
+        crtHttpBuilder.maxConcurrency(javaConfig.getMaxConnections());
       }
       if (javaConfig.getConnectionTimeoutMs() > 0) {
-        nettyBuilder.connectionTimeout(Duration.ofMillis(javaConfig.getConnectionTimeoutMs()));
+        crtHttpBuilder.connectionTimeout(Duration.ofMillis(javaConfig.getConnectionTimeoutMs()));
       }
-      if (javaConfig.getConnectionAcquisitionTimeoutMs() > 0) {
-        nettyBuilder.connectionAcquisitionTimeout(
-            Duration.ofMillis(javaConfig.getConnectionAcquisitionTimeoutMs()));
+      if (javaConfig.getIoThreads() > 0
+          || javaConfig.getConnectionAcquisitionTimeoutMs() > 0
+          || javaConfig.getMaxPendingConnectionAcquires() > 0) {
+        logger.warn(
+            "S3 Java async client: ioThreads, connectionAcquisitionTimeoutMs, and maxPendingConnectionAcquires are not supported with the CRT HTTP client and will be ignored");
       }
-      if (javaConfig.getMaxPendingConnectionAcquires() > 0) {
-        nettyBuilder.maxPendingConnectionAcquires(javaConfig.getMaxPendingConnectionAcquires());
+      builder.httpClientBuilder(crtHttpBuilder);
+    } else {
+      if (javaConfig.getIoThreads() > 0
+          || javaConfig.getMaxConnections() > 0
+          || javaConfig.getConnectionTimeoutMs() > 0
+          || javaConfig.getConnectionAcquisitionTimeoutMs() > 0
+          || javaConfig.getMaxPendingConnectionAcquires() > 0) {
+        NettyNioAsyncHttpClient.Builder nettyBuilder = NettyNioAsyncHttpClient.builder();
+        if (javaConfig.getIoThreads() > 0) {
+          nettyBuilder.eventLoopGroupBuilder(
+              SdkEventLoopGroup.builder().numberOfThreads(javaConfig.getIoThreads()));
+        }
+        if (javaConfig.getMaxConnections() > 0) {
+          nettyBuilder.maxConcurrency(javaConfig.getMaxConnections());
+        }
+        if (javaConfig.getConnectionTimeoutMs() > 0) {
+          nettyBuilder.connectionTimeout(Duration.ofMillis(javaConfig.getConnectionTimeoutMs()));
+        }
+        if (javaConfig.getConnectionAcquisitionTimeoutMs() > 0) {
+          nettyBuilder.connectionAcquisitionTimeout(
+              Duration.ofMillis(javaConfig.getConnectionAcquisitionTimeoutMs()));
+        }
+        if (javaConfig.getMaxPendingConnectionAcquires() > 0) {
+          nettyBuilder.maxPendingConnectionAcquires(javaConfig.getMaxPendingConnectionAcquires());
+        }
+        builder.httpClientBuilder(nettyBuilder);
       }
-      builder.httpClientBuilder(nettyBuilder);
     }
     if (overrideConfig != null) {
       builder.overrideConfiguration(overrideConfig);

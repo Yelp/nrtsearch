@@ -160,6 +160,7 @@ public class S3UtilTest {
     assertEquals(0, javaConfig.getConnectionTimeoutMs());
     assertEquals(60_000, javaConfig.getConnectionAcquisitionTimeoutMs());
     assertEquals(0, javaConfig.getMaxPendingConnectionAcquires());
+    assertEquals("netty", javaConfig.getHttpClient());
   }
 
   @Test
@@ -190,26 +191,61 @@ public class S3UtilTest {
     assertEquals(5000, javaConfig.getConnectionTimeoutMs());
     assertEquals(30000, javaConfig.getConnectionAcquisitionTimeoutMs());
     assertEquals(20000, javaConfig.getMaxPendingConnectionAcquires());
+    assertEquals("netty", javaConfig.getHttpClient());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_httpClientCrt() {
+    String configStr =
+        "bucketName: test-bucket\n"
+            + "remoteConfig:\n"
+            + "  s3:\n"
+            + "    java:\n"
+            + "      httpClient: crt\n";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(config);
+    assertEquals("crt", javaConfig.getHttpClient());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_httpClientNettyExplicit() {
+    String configStr =
+        "bucketName: test-bucket\n"
+            + "remoteConfig:\n"
+            + "  s3:\n"
+            + "    java:\n"
+            + "      httpClient: netty\n";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(config);
+    assertEquals("netty", javaConfig.getHttpClient());
+  }
+
+  @Test
+  public void testS3JavaAsyncConfig_invalidHttpClient() {
+    long minPart = 8 * 1024 * 1024L;
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, 0, "okhttp"));
   }
 
   @Test
   public void testS3JavaAsyncConfig_invalidMinimumPartSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(0L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0, "netty"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(-1L, 8 * 1024 * 1024L, 0L, 0, 0, 0, 0, 0, 0, "netty"));
   }
 
   @Test
   public void testS3JavaAsyncConfig_invalidThresholdSize() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, 0L, 0L, 0, 0, 0, 0, 0, 0, "netty"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0, 0, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(8 * 1024 * 1024L, -1L, 0L, 0, 0, 0, 0, 0, 0, "netty"));
   }
 
   @Test
@@ -217,16 +253,16 @@ public class S3UtilTest {
     long minPart = 8 * 1024 * 1024L;
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, -1, 0, 0, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, -1, 0, 0, 0, "netty"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, -1, 0, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, -1, 0, 0, "netty"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, -1, 0));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, -1, 0, "netty"));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, -1));
+        () -> new S3JavaAsyncConfig(minPart, minPart, 0L, 0, 0, 0, 0, 0, -1, "netty"));
   }
 
   @Test

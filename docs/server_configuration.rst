@@ -619,6 +619,11 @@ Example server configuration
      - Description
      - Default
 
+   * - httpClient
+     - str
+     - HTTP client implementation to use: ``netty`` uses the Netty NIO async HTTP client; ``crt`` uses the AWS Common Runtime (CRT) HTTP client, which can offer better throughput. When set to ``crt``, ``maxConnections`` and ``connectionTimeoutMs`` are applied to the CRT client, while ``ioThreads``, ``connectionAcquisitionTimeoutMs``, and ``maxPendingConnectionAcquires`` are ignored.
+     - netty
+
    * - minimumPartSize
      - str
      - Minimum size of each part in a multipart upload or download. Accepts a plain byte count or a size string with a suffix (e.g. ``16mb``).
