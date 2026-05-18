@@ -86,7 +86,7 @@ public class S3Backend implements RemoteBackend {
   static final String DATA = "data";
   static final String WARMING = "warming";
   public static final String CURRENT_VERSION = "_current";
-  public static final S3BackendConfig DEFAULT_CONFIG = new S3BackendConfig(false, 0, 1, 0, true);
+  public static final S3BackendConfig DEFAULT_CONFIG = new S3BackendConfig(false, 0, 1, 0, 0, true);
 
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
@@ -94,6 +94,7 @@ public class S3Backend implements RemoteBackend {
 
   private final int defaultParallelism;
   private final int downloadBatchSize;
+  private final int uploadBatchSize;
   private final boolean saveBeforeUnzip;
   private final S3Client s3;
   private final S3AsyncClient s3Async;
@@ -122,6 +123,7 @@ public class S3Backend implements RemoteBackend {
     private final long rateLimitBytes;
     private final int rateLimitWindowSeconds;
     private final int downloadBatchSize;
+    private final int uploadBatchSize;
     private final boolean checksumValidationEnabled;
 
     /**
@@ -138,6 +140,7 @@ public class S3Backend implements RemoteBackend {
       int rateLimitWindowSeconds =
           configReader.getInteger(CONFIG_PREFIX + "rateLimitWindowSeconds", 1);
       int downloadBatchSize = configReader.getInteger(CONFIG_PREFIX + "downloadBatchSize", 0);
+      int uploadBatchSize = configReader.getInteger(CONFIG_PREFIX + "uploadBatchSize", 0);
       boolean checksumValidationEnabled =
           configReader.getBoolean(CONFIG_PREFIX + "checksumValidationEnabled", true);
 
@@ -146,6 +149,7 @@ public class S3Backend implements RemoteBackend {
           rateLimitBytes,
           rateLimitWindowSeconds,
           downloadBatchSize,
+          uploadBatchSize,
           checksumValidationEnabled);
     }
 
@@ -157,6 +161,7 @@ public class S3Backend implements RemoteBackend {
      * @param rateLimitWindowSeconds rate limit window in seconds
      * @param downloadBatchSize max concurrent file downloads per batch (0 means use
      *     defaultParallelism)
+     * @param uploadBatchSize max concurrent file uploads per batch (0 means use defaultParallelism)
      * @param checksumValidationEnabled whether to validate S3 response checksums
      * @throws IllegalArgumentException if rateLimitBytes < 0 or rateLimitWindowSeconds <= 0
      */
@@ -165,6 +170,7 @@ public class S3Backend implements RemoteBackend {
         long rateLimitBytes,
         int rateLimitWindowSeconds,
         int downloadBatchSize,
+        int uploadBatchSize,
         boolean checksumValidationEnabled) {
       if (rateLimitBytes < 0) {
         throw new IllegalArgumentException("rateLimitBytes must be >= 0");
@@ -175,10 +181,14 @@ public class S3Backend implements RemoteBackend {
       if (downloadBatchSize < 0) {
         throw new IllegalArgumentException("downloadBatchSize must be >= 0");
       }
+      if (uploadBatchSize < 0) {
+        throw new IllegalArgumentException("uploadBatchSize must be >= 0");
+      }
       this.metrics = metrics;
       this.rateLimitBytes = rateLimitBytes;
       this.rateLimitWindowSeconds = rateLimitWindowSeconds;
       this.downloadBatchSize = downloadBatchSize;
+      this.uploadBatchSize = uploadBatchSize;
       this.checksumValidationEnabled = checksumValidationEnabled;
     }
 
@@ -216,6 +226,15 @@ public class S3Backend implements RemoteBackend {
      */
     public int getDownloadBatchSize() {
       return downloadBatchSize;
+    }
+
+    /**
+     * Get the upload batch size.
+     *
+     * @return max concurrent file uploads per batch (0 means use defaultParallelism)
+     */
+    public int getUploadBatchSize() {
+      return uploadBatchSize;
     }
 
     /**
@@ -319,6 +338,7 @@ public class S3Backend implements RemoteBackend {
             : null;
     this.defaultParallelism = defaultParallelism;
     this.downloadBatchSize = s3BackendConfig.getDownloadBatchSize();
+    this.uploadBatchSize = s3BackendConfig.getUploadBatchSize();
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
 
@@ -356,6 +376,11 @@ public class S3Backend implements RemoteBackend {
   @VisibleForTesting
   int getDownloadBatchSize() {
     return downloadBatchSize;
+  }
+
+  @VisibleForTesting
+  int getUploadBatchSize() {
+    return uploadBatchSize;
   }
 
   @Override
@@ -624,57 +649,77 @@ public class S3Backend implements RemoteBackend {
   public void uploadIndexFiles(
       String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
       throws IOException {
+    if (transferManager == null) {
+      throw new IllegalStateException(
+          "TransferManager is not available. Ensure S3Client is properly configured.");
+    }
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
+    int effectiveBatchSize = uploadBatchSize > 0 ? uploadBatchSize : defaultParallelism;
+    int totalFiles = fileList.size();
+    int batchStart = 0;
     long totalUploadBytes = files.values().stream().mapToLong(m -> m.length).sum();
     S3ProgressListenerImpl uploadProgressListener =
         new S3ProgressListenerImpl(
             service, indexIdentifier, "upload_index_files", totalUploadBytes);
-    List<FileUpload> uploadList = new LinkedList<>();
-    boolean hasFailure = false;
-    Throwable failureCause = null;
-    for (FileNamePair pair : fileList) {
-      String backendKey = backendPrefix + pair.backendFileName;
-      Path localFile = indexDir.resolve(pair.fileName);
-      UploadFileRequest request =
-          UploadFileRequest.builder()
-              .putObjectRequest(
-                  PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-              .source(localFile)
-              .addTransferListener(uploadProgressListener)
-              .build();
-      try {
-        if (transferManager == null) {
-          throw new IllegalStateException(
-              "TransferManager is not available. Ensure S3Client is properly configured.");
-        }
-        FileUpload upload = transferManager.uploadFile(request);
-        uploadList.add(upload);
-      } catch (Throwable t) {
-        hasFailure = true;
-        failureCause = t;
-        break;
-      }
-    }
 
-    for (FileUpload upload : uploadList) {
-      if (hasFailure) {
-        // SDK v2 doesn't have an abort method on FileUpload, just let it complete or fail
+    while (batchStart < totalFiles) {
+      int batchEnd = Math.min(batchStart + effectiveBatchSize, totalFiles);
+      List<FileNamePair> batch = fileList.subList(batchStart, batchEnd);
+      logger.info(
+          "Uploading index files batch {}-{} of {} for {}/{}",
+          batchStart + 1,
+          batchEnd,
+          totalFiles,
+          service,
+          indexIdentifier);
+
+      List<FileUpload> uploadList = new LinkedList<>();
+      boolean hasFailure = false;
+      Throwable failureCause = null;
+
+      for (FileNamePair pair : batch) {
+        String backendKey = backendPrefix + pair.backendFileName;
+        Path localFile = indexDir.resolve(pair.fileName);
+        UploadFileRequest request =
+            UploadFileRequest.builder()
+                .putObjectRequest(
+                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .source(localFile)
+                .addTransferListener(uploadProgressListener)
+                .build();
         try {
-          upload.completionFuture().cancel(true);
-        } catch (Exception ignored) {
-        }
-      } else {
-        try {
-          upload.completionFuture().join();
+          FileUpload upload = transferManager.uploadFile(request);
+          uploadList.add(upload);
         } catch (Throwable t) {
           hasFailure = true;
           failureCause = t;
+          break;
         }
       }
-    }
-    if (hasFailure) {
-      throw new IOException("Error while uploading index files to s3. ", failureCause);
+
+      for (FileUpload upload : uploadList) {
+        if (hasFailure) {
+          // SDK v2 doesn't have an abort method on FileUpload, just let it complete or fail
+          try {
+            upload.completionFuture().cancel(true);
+          } catch (Exception ignored) {
+          }
+        } else {
+          try {
+            upload.completionFuture().join();
+          } catch (Throwable t) {
+            hasFailure = true;
+            failureCause = t;
+          }
+        }
+      }
+
+      if (hasFailure) {
+        throw new IOException("Error while uploading index files to s3. ", failureCause);
+      }
+
+      batchStart = batchEnd;
     }
   }
 

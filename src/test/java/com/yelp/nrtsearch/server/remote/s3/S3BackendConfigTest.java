@@ -31,7 +31,8 @@ public class S3BackendConfigTest {
     long bytesPerSecond = 1024 * 1024; // 1MB
     int windowSeconds = 5;
     boolean metrics = true;
-    S3BackendConfig config = new S3BackendConfig(metrics, bytesPerSecond, windowSeconds, 0, true);
+    S3BackendConfig config =
+        new S3BackendConfig(metrics, bytesPerSecond, windowSeconds, 0, 0, true);
 
     // Verify getters return expected values
     assertEquals(bytesPerSecond, config.getRateLimitBytes());
@@ -191,7 +192,7 @@ public class S3BackendConfigTest {
   public void testInvalidRateLimit() {
     // Test negative rate limit throws IllegalArgumentException
     try {
-      new S3BackendConfig(true, -1024, 5, 0, true);
+      new S3BackendConfig(true, -1024, 5, 0, 0, true);
       fail("Expected IllegalArgumentException");
     } catch (IllegalArgumentException e) {
       // Expected
@@ -209,7 +210,7 @@ public class S3BackendConfigTest {
   public void testInvalidWindowSeconds() {
     // Test zero or negative window seconds throws IllegalArgumentException
     try {
-      new S3BackendConfig(true, 1024, 0, 0, true);
+      new S3BackendConfig(true, 1024, 0, 0, 0, true);
       fail("Expected IllegalArgumentException for zero window seconds");
     } catch (IllegalArgumentException e) {
       // Expected
@@ -217,7 +218,7 @@ public class S3BackendConfigTest {
     }
 
     try {
-      new S3BackendConfig(true, 1024, -5, 0, true);
+      new S3BackendConfig(true, 1024, -5, 0, 0, true);
       fail("Expected IllegalArgumentException for negative window seconds");
     } catch (IllegalArgumentException e) {
       // Expected

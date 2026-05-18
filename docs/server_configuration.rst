@@ -610,6 +610,11 @@ Example server configuration
      - Maximum number of index files downloaded concurrently in a single batch during bootstrap. When set to ``0``, the server's ``defaultParallelism`` value is used.
      - 0
 
+   * - uploadBatchSize
+     - int
+     - Maximum number of index files uploaded concurrently in a single batch. When set to ``0``, the server's ``defaultParallelism`` value is used.
+     - 0
+
    * - checksumValidationEnabled
      - bool
      - If enabled, the S3 client validates response checksums on download. Disabling this reduces CPU usage during bulk index downloads at the cost of skipping network-transfer integrity checks. Lucene's own per-file checksums still apply when the index is opened.
