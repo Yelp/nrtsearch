@@ -31,7 +31,7 @@ public class S3BackendConfigTest {
     long bytesPerSecond = 1024 * 1024; // 1MB
     int windowSeconds = 5;
     boolean metrics = true;
-    S3BackendConfig config = new S3BackendConfig(metrics, bytesPerSecond, windowSeconds, 0);
+    S3BackendConfig config = new S3BackendConfig(metrics, bytesPerSecond, windowSeconds, 0, true);
 
     // Verify getters return expected values
     assertEquals(bytesPerSecond, config.getRateLimitBytes());
@@ -91,6 +91,32 @@ public class S3BackendConfigTest {
     assertEquals(true, config.getMetrics());
     assertEquals(0, config.getRateLimitBytes()); // Default rate limit is 0
     assertEquals(1, config.getRateLimitWindowSeconds()); // Default window is 1
+  }
+
+  @Test
+  public void testFromConfig_ChecksumValidationDefault() {
+    String configStr = "bucketName: test-bucket";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+
+    S3BackendConfig config = S3BackendConfig.fromConfig(nrtsearchConfig);
+
+    assertEquals(true, config.isChecksumValidationEnabled());
+  }
+
+  @Test
+  public void testFromConfig_ChecksumValidationDisabled() {
+    String configStr =
+        "bucketName: test-bucket\n"
+            + "remoteConfig:\n"
+            + "  s3:\n"
+            + "    checksumValidationEnabled: false";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+
+    S3BackendConfig config = S3BackendConfig.fromConfig(nrtsearchConfig);
+
+    assertEquals(false, config.isChecksumValidationEnabled());
   }
 
   @Test
@@ -165,7 +191,7 @@ public class S3BackendConfigTest {
   public void testInvalidRateLimit() {
     // Test negative rate limit throws IllegalArgumentException
     try {
-      new S3BackendConfig(true, -1024, 5, 0);
+      new S3BackendConfig(true, -1024, 5, 0, true);
       fail("Expected IllegalArgumentException");
     } catch (IllegalArgumentException e) {
       // Expected
@@ -183,7 +209,7 @@ public class S3BackendConfigTest {
   public void testInvalidWindowSeconds() {
     // Test zero or negative window seconds throws IllegalArgumentException
     try {
-      new S3BackendConfig(true, 1024, 0, 0);
+      new S3BackendConfig(true, 1024, 0, 0, true);
       fail("Expected IllegalArgumentException for zero window seconds");
     } catch (IllegalArgumentException e) {
       // Expected
@@ -191,7 +217,7 @@ public class S3BackendConfigTest {
     }
 
     try {
-      new S3BackendConfig(true, 1024, -5, 0);
+      new S3BackendConfig(true, 1024, -5, 0, true);
       fail("Expected IllegalArgumentException for negative window seconds");
     } catch (IllegalArgumentException e) {
       // Expected

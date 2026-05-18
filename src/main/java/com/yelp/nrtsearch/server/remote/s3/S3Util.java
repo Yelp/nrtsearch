@@ -36,6 +36,7 @@ import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.internal.crt.S3CrtAsyncClient;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
@@ -518,6 +519,10 @@ public class S3Util {
       S3Client s3Client,
       software.amazon.awssdk.core.client.config.ClientOverrideConfiguration overrideConfig,
       boolean globalBucketAccess) {
+    boolean checksumValidationEnabled =
+        configuration
+            .getConfigReader()
+            .getBoolean("remoteConfig.s3.checksumValidationEnabled", true);
     S3JavaAsyncConfig javaConfig = S3JavaAsyncConfig.fromConfig(configuration);
     logger.info(
         "S3 Java async client config: minimumPartSizeInBytes={}, thresholdSizeInBytes={}, apiCallBufferSizeInBytes={}, maxInFlightParts={}, ioThreads={}, maxConnections={}, connectionTimeoutMs={}, connectionAcquisitionTimeoutMs={}, maxPendingConnectionAcquires={}",
@@ -579,6 +584,10 @@ public class S3Util {
     if (overrideConfig != null) {
       builder.overrideConfiguration(overrideConfig);
     }
+    if (!checksumValidationEnabled) {
+      builder.serviceConfiguration(
+          S3Configuration.builder().checksumValidationEnabled(false).build());
+    }
     if (globalBucketAccess) {
       builder.crossRegionAccessEnabled(true);
     }
@@ -587,6 +596,10 @@ public class S3Util {
 
   private static S3AsyncClient buildCrtAsyncClient(
       NrtsearchConfig configuration, S3Client s3Client, boolean globalBucketAccess) {
+    boolean checksumValidationEnabled =
+        configuration
+            .getConfigReader()
+            .getBoolean("remoteConfig.s3.checksumValidationEnabled", true);
     S3CrtConfig crtConfig = S3CrtConfig.fromConfig(configuration);
     logger.info(
         "S3 CRT client config: targetThroughputInGbps={}, maxConcurrency={}, minimumPartSizeInBytes={}, maxNativeMemoryLimitInBytes={}",
@@ -608,6 +621,9 @@ public class S3Util {
     }
     if (crtConfig.getMaxNativeMemoryLimitInBytes() > 0) {
       builder.maxNativeMemoryLimitInBytes(crtConfig.getMaxNativeMemoryLimitInBytes());
+    }
+    if (!checksumValidationEnabled) {
+      builder.checksumValidationEnabled(false);
     }
     if (globalBucketAccess) {
       builder.crossRegionAccessEnabled(true);

@@ -986,7 +986,7 @@ public class S3BackendTest {
         new S3Backend(
             BUCKET_NAME,
             false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 2),
+            new S3Backend.S3BackendConfig(false, 0, 1, 2, true),
             new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     batchedBackend.downloadIndexFiles(
@@ -1004,7 +1004,7 @@ public class S3BackendTest {
 
   @Test
   public void testS3BackendConfigDefaults() {
-    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0);
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0, true);
     assertEquals(0, config.getDownloadBatchSize());
     assertFalse(config.getMetrics());
     assertEquals(0, config.getRateLimitBytes());
@@ -1013,14 +1013,14 @@ public class S3BackendTest {
 
   @Test
   public void testS3BackendConfigDownloadBatchSize() {
-    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 10);
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 10, true);
     assertEquals(10, config.getDownloadBatchSize());
   }
 
   @Test
   public void testS3BackendConfigDownloadBatchSizeNegative() {
     try {
-      new S3Backend.S3BackendConfig(false, 0, 1, -1);
+      new S3Backend.S3BackendConfig(false, 0, 1, -1, true);
       fail("Expected IllegalArgumentException for negative downloadBatchSize");
     } catch (IllegalArgumentException e) {
       assertEquals("downloadBatchSize must be >= 0", e.getMessage());
@@ -1033,7 +1033,7 @@ public class S3BackendTest {
         new S3Backend(
             BUCKET_NAME,
             false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 5),
+            new S3Backend.S3BackendConfig(false, 0, 1, 5, true),
             new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
       assertEquals(5, backend.getDownloadBatchSize());
     }

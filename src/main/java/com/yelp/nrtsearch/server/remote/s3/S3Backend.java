@@ -86,7 +86,7 @@ public class S3Backend implements RemoteBackend {
   static final String DATA = "data";
   static final String WARMING = "warming";
   public static final String CURRENT_VERSION = "_current";
-  public static final S3BackendConfig DEFAULT_CONFIG = new S3BackendConfig(false, 0, 1, 0);
+  public static final S3BackendConfig DEFAULT_CONFIG = new S3BackendConfig(false, 0, 1, 0, true);
 
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
@@ -122,6 +122,7 @@ public class S3Backend implements RemoteBackend {
     private final long rateLimitBytes;
     private final int rateLimitWindowSeconds;
     private final int downloadBatchSize;
+    private final boolean checksumValidationEnabled;
 
     /**
      * Create S3BackendConfig from NrtsearchConfig.
@@ -137,9 +138,15 @@ public class S3Backend implements RemoteBackend {
       int rateLimitWindowSeconds =
           configReader.getInteger(CONFIG_PREFIX + "rateLimitWindowSeconds", 1);
       int downloadBatchSize = configReader.getInteger(CONFIG_PREFIX + "downloadBatchSize", 0);
+      boolean checksumValidationEnabled =
+          configReader.getBoolean(CONFIG_PREFIX + "checksumValidationEnabled", true);
 
       return new S3BackendConfig(
-          metrics, rateLimitBytes, rateLimitWindowSeconds, downloadBatchSize);
+          metrics,
+          rateLimitBytes,
+          rateLimitWindowSeconds,
+          downloadBatchSize,
+          checksumValidationEnabled);
     }
 
     /**
@@ -150,10 +157,15 @@ public class S3Backend implements RemoteBackend {
      * @param rateLimitWindowSeconds rate limit window in seconds
      * @param downloadBatchSize max concurrent file downloads per batch (0 means use
      *     defaultParallelism)
+     * @param checksumValidationEnabled whether to validate S3 response checksums
      * @throws IllegalArgumentException if rateLimitBytes < 0 or rateLimitWindowSeconds <= 0
      */
     public S3BackendConfig(
-        boolean metrics, long rateLimitBytes, int rateLimitWindowSeconds, int downloadBatchSize) {
+        boolean metrics,
+        long rateLimitBytes,
+        int rateLimitWindowSeconds,
+        int downloadBatchSize,
+        boolean checksumValidationEnabled) {
       if (rateLimitBytes < 0) {
         throw new IllegalArgumentException("rateLimitBytes must be >= 0");
       }
@@ -167,6 +179,7 @@ public class S3Backend implements RemoteBackend {
       this.rateLimitBytes = rateLimitBytes;
       this.rateLimitWindowSeconds = rateLimitWindowSeconds;
       this.downloadBatchSize = downloadBatchSize;
+      this.checksumValidationEnabled = checksumValidationEnabled;
     }
 
     /**
@@ -203,6 +216,15 @@ public class S3Backend implements RemoteBackend {
      */
     public int getDownloadBatchSize() {
       return downloadBatchSize;
+    }
+
+    /**
+     * Get whether S3 response checksum validation is enabled.
+     *
+     * @return true if checksum validation is enabled
+     */
+    public boolean isChecksumValidationEnabled() {
+      return checksumValidationEnabled;
     }
 
     @VisibleForTesting
