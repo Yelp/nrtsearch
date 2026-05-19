@@ -41,12 +41,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +69,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.Download;
 import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
@@ -635,71 +639,76 @@ public class S3Backend implements RemoteBackend {
     }
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
-    int effectiveBatchSize = uploadBatchSize > 0 ? uploadBatchSize : defaultParallelism;
+    int maxConcurrency = uploadBatchSize > 0 ? uploadBatchSize : defaultParallelism;
     int totalFiles = fileList.size();
-    int batchStart = 0;
     long totalUploadBytes = files.values().stream().mapToLong(m -> m.length).sum();
     S3ProgressListenerImpl uploadProgressListener =
         new S3ProgressListenerImpl(
             service, indexIdentifier, "upload_index_files", totalUploadBytes);
+    logger.info(
+        "Uploading {} index files with max concurrency {} for {}/{}",
+        totalFiles,
+        maxConcurrency,
+        service,
+        indexIdentifier);
 
-    while (batchStart < totalFiles) {
-      int batchEnd = Math.min(batchStart + effectiveBatchSize, totalFiles);
-      List<FileNamePair> batch = fileList.subList(batchStart, batchEnd);
-      logger.info(
-          "Uploading index files batch {}-{} of {} for {}/{}",
-          batchStart + 1,
-          batchEnd,
-          totalFiles,
-          service,
-          indexIdentifier);
+    Semaphore semaphore = new Semaphore(maxConcurrency);
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    List<CompletableFuture<CompletedFileUpload>> futures = new ArrayList<>();
 
-      List<FileUpload> uploadList = new LinkedList<>();
-      boolean hasFailure = false;
-      Throwable failureCause = null;
-
-      for (FileNamePair pair : batch) {
-        String backendKey = backendPrefix + pair.backendFileName;
-        Path localFile = indexDir.resolve(pair.fileName);
-        UploadFileRequest request =
-            UploadFileRequest.builder()
-                .putObjectRequest(
-                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-                .source(localFile)
-                .addTransferListener(uploadProgressListener)
-                .build();
-        try {
-          FileUpload upload = transferManager.uploadFile(request);
-          uploadList.add(upload);
-        } catch (Throwable t) {
-          hasFailure = true;
-          failureCause = t;
-          break;
-        }
+    for (FileNamePair pair : fileList) {
+      if (failure.get() != null) {
+        break;
       }
-
-      for (FileUpload upload : uploadList) {
-        if (hasFailure) {
-          // SDK v2 doesn't have an abort method on FileUpload, just let it complete or fail
-          try {
-            upload.completionFuture().cancel(true);
-          } catch (Exception ignored) {
-          }
-        } else {
-          try {
-            upload.completionFuture().join();
-          } catch (Throwable t) {
-            hasFailure = true;
-            failureCause = t;
-          }
-        }
+      try {
+        semaphore.acquire();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Interrupted while waiting to upload index files to s3", e);
       }
-
-      if (hasFailure) {
-        throw new IOException("Error while uploading index files to s3. ", failureCause);
+      if (failure.get() != null) {
+        semaphore.release();
+        break;
       }
+      String backendKey = backendPrefix + pair.backendFileName;
+      Path localFile = indexDir.resolve(pair.fileName);
+      UploadFileRequest request =
+          UploadFileRequest.builder()
+              .putObjectRequest(
+                  PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+              .source(localFile)
+              .addTransferListener(uploadProgressListener)
+              .build();
+      try {
+        FileUpload upload = transferManager.uploadFile(request);
+        CompletableFuture<CompletedFileUpload> future =
+            upload
+                .completionFuture()
+                .whenComplete(
+                    (result, t) -> {
+                      semaphore.release();
+                      if (t != null) {
+                        failure.compareAndSet(null, t);
+                      }
+                    });
+        futures.add(future);
+      } catch (Throwable t) {
+        semaphore.release();
+        failure.compareAndSet(null, t);
+        break;
+      }
+    }
 
-      batchStart = batchEnd;
+    for (CompletableFuture<CompletedFileUpload> future : futures) {
+      try {
+        future.join();
+      } catch (Exception ignored) {
+        // failure already captured in AtomicReference
+      }
+    }
+
+    if (failure.get() != null) {
+      throw new IOException("Error while uploading index files to s3. ", failure.get());
     }
   }
 
@@ -713,70 +722,76 @@ public class S3Backend implements RemoteBackend {
     }
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
-    int effectiveBatchSize = downloadBatchSize > 0 ? downloadBatchSize : defaultParallelism;
+    int maxConcurrency = downloadBatchSize > 0 ? downloadBatchSize : defaultParallelism;
     int totalFiles = fileList.size();
-    int batchStart = 0;
     long totalExpectedBytes = files.values().stream().mapToLong(m -> m.length).sum();
     S3ProgressListenerImpl downloadProgressListener =
         new S3ProgressListenerImpl(
             service, indexIdentifier, "download_index_files", totalExpectedBytes);
+    logger.info(
+        "Downloading {} index files with max concurrency {} for {}/{}",
+        totalFiles,
+        maxConcurrency,
+        service,
+        indexIdentifier);
 
-    while (batchStart < totalFiles) {
-      int batchEnd = Math.min(batchStart + effectiveBatchSize, totalFiles);
-      List<FileNamePair> batch = fileList.subList(batchStart, batchEnd);
-      logger.info(
-          "Downloading index files batch {}-{} of {} for {}/{}",
-          batchStart + 1,
-          batchEnd,
-          totalFiles,
-          service,
-          indexIdentifier);
+    Semaphore semaphore = new Semaphore(maxConcurrency);
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    List<CompletableFuture<?>> futures = new ArrayList<>();
 
-      List<Download<GetObjectResponse>> downloadList = new LinkedList<>();
-      boolean hasFailure = false;
-      Throwable failureCause = null;
-
-      for (FileNamePair pair : batch) {
-        String backendKey = backendPrefix + pair.backendFileName;
-        Path localFile = indexDir.resolve(pair.fileName);
-        DownloadRequest<GetObjectResponse> request =
-            DownloadRequest.builder()
-                .getObjectRequest(
-                    GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-                .responseTransformer(AsyncResponseTransformer.toFile(localFile))
-                .addTransferListener(downloadProgressListener)
-                .build();
-        try {
-          Download<GetObjectResponse> download = transferManager.download(request);
-          downloadList.add(download);
-        } catch (Throwable t) {
-          hasFailure = true;
-          failureCause = t;
-          break;
-        }
+    for (FileNamePair pair : fileList) {
+      if (failure.get() != null) {
+        break;
       }
-
-      for (Download<GetObjectResponse> download : downloadList) {
-        if (hasFailure) {
-          try {
-            download.completionFuture().cancel(true);
-          } catch (Exception ignored) {
-          }
-        } else {
-          try {
-            download.completionFuture().join();
-          } catch (Throwable t) {
-            hasFailure = true;
-            failureCause = t;
-          }
-        }
+      try {
+        semaphore.acquire();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Interrupted while waiting to download index files from s3", e);
       }
-
-      if (hasFailure) {
-        throw new IOException("Error while downloading index files from s3. ", failureCause);
+      if (failure.get() != null) {
+        semaphore.release();
+        break;
       }
+      String backendKey = backendPrefix + pair.backendFileName;
+      Path localFile = indexDir.resolve(pair.fileName);
+      DownloadRequest<GetObjectResponse> request =
+          DownloadRequest.builder()
+              .getObjectRequest(
+                  GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+              .responseTransformer(AsyncResponseTransformer.toFile(localFile))
+              .addTransferListener(downloadProgressListener)
+              .build();
+      try {
+        Download<GetObjectResponse> download = transferManager.download(request);
+        CompletableFuture<?> future =
+            download
+                .completionFuture()
+                .whenComplete(
+                    (result, t) -> {
+                      semaphore.release();
+                      if (t != null) {
+                        failure.compareAndSet(null, t);
+                      }
+                    });
+        futures.add(future);
+      } catch (Throwable t) {
+        semaphore.release();
+        failure.compareAndSet(null, t);
+        break;
+      }
+    }
 
-      batchStart = batchEnd;
+    for (CompletableFuture<?> future : futures) {
+      try {
+        future.join();
+      } catch (Exception ignored) {
+        // failure already captured in AtomicReference
+      }
+    }
+
+    if (failure.get() != null) {
+      throw new IOException("Error while downloading index files from s3. ", failure.get());
     }
   }
 
