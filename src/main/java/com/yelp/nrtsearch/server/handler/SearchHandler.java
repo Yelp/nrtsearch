@@ -537,10 +537,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     LinkedHashMap<String, RetrieverContext> retrieverContexts =
         new LinkedHashMap<>(multiRetrieverContext.getRetrieverContextMap());
 
-    record RetrieverMetrics(TopDocs topDocs, double searchTimeMs, double rescoreTimeMs) {}
+    record RetrieverResult(TopDocs topDocs, double searchTimeMs, double rescoreTimeMs) {}
 
-    ConcurrentHashMap<String, RetrieverMetrics> retrieverResults = new ConcurrentHashMap<>();
-    LinkedHashMap<String, Future<TopDocs>> retrieverFutures = new LinkedHashMap<>();
+    LinkedHashMap<String, Future<RetrieverResult>> retrieverFutures = new LinkedHashMap<>();
     for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
       String name = entry.getKey();
       RetrieverContext retrieverContext = entry.getValue();
@@ -562,9 +561,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                   topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
                   rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
                 }
-                retrieverResults.put(
-                    name, new RetrieverMetrics(topDocs, searchTimeMs, rescoreTimeMs));
-                return topDocs;
+                return new RetrieverResult(topDocs, searchTimeMs, rescoreTimeMs);
               }));
     }
 
@@ -577,19 +574,33 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
             searchContext.getHitsToLog(),
             searchContext.getRescorers());
 
+    LinkedHashMap<String, RetrieverResult> retrieverResults = new LinkedHashMap<>();
+    for (Map.Entry<String, Future<RetrieverResult>> entry : retrieverFutures.entrySet()) {
+      String name = entry.getKey();
+      try {
+        retrieverResults.put(name, entry.getValue().get());
+      } catch (ExecutionException e) {
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        throw new RuntimeException("Retriever '" + name + "' failed: " + cause.getMessage(), cause);
+      }
+    }
+
+    LinkedHashMap<String, TopDocs> retrieverTopDocs = new LinkedHashMap<>();
+    retrieverResults.forEach((name, result) -> retrieverTopDocs.put(name, result.topDocs()));
+
     long blendStartTime = System.nanoTime();
     TopDocs blendedHits =
         multiRetrieverContext
             .getBlenderOperation()
-            .blend(retrieverFutures, retrieverContexts, 0, blendTopHits);
+            .blend(retrieverTopDocs, retrieverContexts, 0, blendTopHits);
     double blenderTimeMs = (System.nanoTime() - blendStartTime) / 1_000_000.0;
 
     // Populate per-retriever diagnostics
     SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnosticsBuilder =
         diagnostics.getMultiRetrieverDiagnosticsBuilder();
-    for (Map.Entry<String, RetrieverMetrics> entry : retrieverResults.entrySet()) {
+    for (Map.Entry<String, RetrieverResult> entry : retrieverResults.entrySet()) {
       String name = entry.getKey();
-      RetrieverMetrics retrieverResult = entry.getValue();
+      RetrieverResult retrieverResult = entry.getValue();
       RetrieverContext.RetrieverType type = retrieverContexts.get(name).getRetrieverType();
       org.apache.lucene.search.TotalHits luceneTotalHits = retrieverResult.topDocs().totalHits;
       TotalHits totalHits =
