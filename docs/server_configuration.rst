@@ -610,6 +610,11 @@ Example server configuration
      - Maximum number of index files downloaded concurrently in a single batch during bootstrap. When set to ``0``, the server's ``defaultParallelism`` value is used.
      - 0
 
+   * - uploadBatchSize
+     - int
+     - Maximum number of index files uploaded concurrently in a single batch. When set to ``0``, the server's ``defaultParallelism`` value is used.
+     - 0
+
 .. list-table:: `S3 Java Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.java.*``)
    :widths: 25 10 50 25
    :header-rows: 1

@@ -22,8 +22,6 @@ import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScor
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -44,10 +42,6 @@ public class ScorelessRawMergeBlenderOperationTest {
 
   private static RetrieverContext retriever(String name) {
     return RetrieverContext.newBuilder(name).build();
-  }
-
-  private static Future<TopDocs> future(TopDocs td) {
-    return CompletableFuture.completedFuture(td);
   }
 
   private static Map<Integer, BlendedScoreDoc> toDocMap(Collection<BlendedScoreDoc> docs) {
@@ -144,31 +138,30 @@ public class ScorelessRawMergeBlenderOperationTest {
   // ---- blend: no sort, no pagination ----
 
   @Test
-  public void testBlendIgnoresPagination() throws InterruptedException {
-    LinkedHashMap<String, Future<TopDocs>> futures = new LinkedHashMap<>();
-    futures.put(
-        "text", future(topDocs(new int[] {1, 2, 3, 4, 5}, new float[] {1f, 1f, 1f, 1f, 1f})));
+  public void testBlendIgnoresPagination() {
+    LinkedHashMap<String, TopDocs> results = new LinkedHashMap<>();
+    results.put("text", topDocs(new int[] {1, 2, 3, 4, 5}, new float[] {1f, 1f, 1f, 1f, 1f}));
 
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text"));
 
-    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(futures, contexts, 2, 2);
+    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(results, contexts, 2, 2);
 
     // All 5 hits returned despite startHit=2 topHits=2
     assertEquals(5, result.scoreDocs.length);
   }
 
   @Test
-  public void testBlendDeduplicates() throws InterruptedException {
-    LinkedHashMap<String, Future<TopDocs>> futures = new LinkedHashMap<>();
-    futures.put("text", future(topDocs(new int[] {7}, new float[] {1f})));
-    futures.put("knn", future(topDocs(new int[] {7}, new float[] {2f})));
+  public void testBlendDeduplicates() {
+    LinkedHashMap<String, TopDocs> results = new LinkedHashMap<>();
+    results.put("text", topDocs(new int[] {7}, new float[] {1f}));
+    results.put("knn", topDocs(new int[] {7}, new float[] {2f}));
 
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text"));
     contexts.put("knn", retriever("knn"));
 
-    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(futures, contexts, 0, 10);
+    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(results, contexts, 0, 10);
 
     assertEquals(1, result.scoreDocs.length);
     assertEquals(0f, result.scoreDocs[0].score, DELTA);

@@ -42,6 +42,7 @@ import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.rescore.RescorerCreator;
+import com.yelp.nrtsearch.server.rescore.ScriptRescore;
 import com.yelp.nrtsearch.server.script.RuntimeScript;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptService;
@@ -569,9 +570,16 @@ public class SearchRequestProcessor {
     } else if (rescorer.hasPluginRescorer()) {
       PluginRescorer plugin = rescorer.getPluginRescorer();
       rescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
+    } else if (rescorer.hasScriptRescorer()) {
+      com.yelp.nrtsearch.server.grpc.Script script = rescorer.getScriptRescorer().getScript();
+      ScoreScript.Factory factory =
+          ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
+      DocLookup docLookup = indexState.docLookup;
+      rescoreOperation = new ScriptRescore(factory.newFactory(params, docLookup));
     } else {
       throw new IllegalArgumentException(
-          "Rescorer should define either QueryRescorer or PluginRescorer");
+          "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");
     }
 
     return RescoreTask.newBuilder()
@@ -653,8 +661,13 @@ public class SearchRequestProcessor {
     if (searchRequest.hasQuerySort()) {
       throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
     }
-    // TODO: Remove once multi-retriever execution is implemented
-    throw new UnsupportedOperationException("Multi-retriever is not yet supported");
+    if (searchRequest.getFacetsCount() > 0) {
+      throw new IllegalArgumentException("Facets are not supported with MultiRetriever requests");
+    }
+    if (searchRequest.getCollectorsCount() > 0) {
+      throw new IllegalArgumentException(
+          "Collectors are not supported with MultiRetriever requests");
+    }
   }
 
   private static Query buildMultiRetrieverContextAndUnionQuery(

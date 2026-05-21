@@ -21,10 +21,7 @@ import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScor
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.PriorityQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -34,10 +31,9 @@ import org.apache.lucene.search.TotalHits;
  * Implementations are registered by name via {@link BlenderPlugin} and instantiated through {@link
  * BlenderCreator}.
  *
- * <p>The entry point is {@link #blend}, which accepts already-submitted per-retriever {@link
- * Future}s (keyed by name), collects their results, then merges, sorts, and paginates. Callers are
- * responsible for submitting retriever searches to an executor before calling {@code blend}; the
- * futures run concurrently and this method blocks until all complete.
+ * <p>The entry point is {@link #blend}, which accepts resolved per-retriever results (keyed by
+ * name), merges, sorts, and paginates them. Callers are responsible for resolving retriever futures
+ * before calling this method.
  *
  * <p>Implementations define the merge logic in {@link #mergeHits}, which operates on the raw
  * per-retriever hits before sorting and pagination are applied by the framework.
@@ -59,54 +55,35 @@ public interface BlenderOperation {
       LinkedHashMap<String, RetrieverContext> retrieverContexts);
 
   /**
-   * Collects results from already-submitted retriever futures, then merges, sorts, and paginates.
-   * Blocks until all futures complete. Callers must submit retriever searches to an executor before
-   * calling this method so that the futures run concurrently.
+   * Merges, sorts, and paginates resolved per-retriever results.
    *
-   * @param retrieverFutures per-retriever futures in declaration order, keyed by retriever name
+   * @param retrieverResults per-retriever {@link TopDocs} in declaration order, keyed by name
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by retriever name
    * @param startHit 0-based offset of the first blended hit to include in the result
-   * @param topHits maximum number of blended hits to return; {@code 0} returns empty; negative
-   *     values mean no limit
+   * @param topHits maximum number of blended hits to return; {@code 0} returns empty; must be >= 0
    * @return blended, sorted, paginated {@link TopDocs}
-   * @throws RuntimeException wrapping any retriever {@link ExecutionException}, identified by name
-   * @throws InterruptedException if the calling thread is interrupted while waiting
    */
   default TopDocs blend(
-      LinkedHashMap<String, Future<TopDocs>> retrieverFutures,
+      LinkedHashMap<String, TopDocs> retrieverResults,
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
-      int topHits)
-      throws InterruptedException {
+      int topHits) {
     if (topHits == 0 || startHit > topHits) {
       return new TopDocs(
           new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
     }
-    LinkedHashMap<String, TopDocs> results = new LinkedHashMap<>();
-    for (Map.Entry<String, Future<TopDocs>> entry : retrieverFutures.entrySet()) {
-      String name = entry.getKey();
-      try {
-        results.put(name, entry.getValue().get());
-      } catch (ExecutionException e) {
-        Throwable cause = e.getCause() != null ? e.getCause() : e;
-        throw new RuntimeException("Retriever '" + name + "' failed: " + cause.getMessage(), cause);
-      }
-    }
-    Collection<BlendedScoreDoc> merged = mergeHits(results, retrieverContexts);
+    Collection<BlendedScoreDoc> merged = mergeHits(retrieverResults, retrieverContexts);
     return sortAndPaginate(merged, startHit, topHits);
   }
 
   /**
    * Select and return the requested pagination window from merged hits without sorting the full
-   * list. Uses a min-heap of size {@code k = startHit + topHits} to find the top-k hits in O(n log
-   * k) time and O(k) space. The heap entries are then sorted in O(k log k) to produce the final
-   * page order. When {@code topHits < 0} (no limit), {@code k = n} and the complexity degrades
-   * gracefully to O(n log n).
+   * list. Uses a min-heap of size {@code k = topHits} to find the top-k hits in O(n log k) time and
+   * O(k) space. The heap entries are then sorted in O(k log k) to produce the final page order.
    *
    * @param merged unsorted merged hits from {@link #mergeHits}
    * @param startHit 0-based offset of the first hit to include in the returned page
-   * @param topHits maximum number of hits to return; {@code 0} returns empty; negative values mean
-   *     no limit
+   * @param topHits maximum number of hits to return; {@code 0} returns empty; must be >= 0
    * @return paginated {@link TopDocs}
    */
   static TopDocs sortAndPaginate(Collection<BlendedScoreDoc> merged, int startHit, int topHits) {
