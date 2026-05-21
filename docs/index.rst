@@ -21,3 +21,5 @@ A high performance gRPC server, with optional REST APIs on top of `Apache Lucene
    reserved_values
    development
    vector_search
+   multi_retriever
+   script_rescorer

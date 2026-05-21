@@ -23,8 +23,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -67,28 +65,16 @@ public class ScorelessRawMergeBlenderOperation implements BlenderOperation {
   }
 
   /**
-   * Collects results via {@link #mergeHits}, then returns them as-is without sorting or pagination.
-   * The {@code startHit} and {@code topHits} parameters are ignored.
+   * Returns all merged hits as-is without sorting or pagination. The {@code startHit} and {@code
+   * topHits} parameters are ignored.
    */
   @Override
   public TopDocs blend(
-      LinkedHashMap<String, Future<TopDocs>> retrieverFutures,
+      LinkedHashMap<String, TopDocs> retrieverResults,
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
-      int topHits)
-      throws InterruptedException {
-    LinkedHashMap<String, TopDocs> results = new LinkedHashMap<>();
-    for (Map.Entry<String, Future<TopDocs>> entry : retrieverFutures.entrySet()) {
-      String name = entry.getKey();
-      try {
-        results.put(name, entry.getValue().get());
-      } catch (ExecutionException e) {
-        Throwable cause = e.getCause() != null ? e.getCause() : e;
-        throw new RuntimeException("Retriever '" + name + "' failed: " + cause.getMessage(), cause);
-      }
-    }
-
-    Collection<BlendedScoreDoc> merged = mergeHits(results, retrieverContexts);
+      int topHits) {
+    Collection<BlendedScoreDoc> merged = mergeHits(retrieverResults, retrieverContexts);
     return new TopDocs(
         new TotalHits(merged.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
         merged.toArray(ScoreDoc[]::new));
