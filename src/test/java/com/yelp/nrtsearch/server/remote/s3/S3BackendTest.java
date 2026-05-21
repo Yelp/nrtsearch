@@ -867,6 +867,137 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testUploadIndexFiles_batched() throws IOException {
+    File indexDir = folder.newFolder("index_dir_upload_batched");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+
+    File f1 = new File(indexDir, "uf1");
+    File f2 = new File(indexDir, "uf2");
+    File f3 = new File(indexDir, "uf3");
+    File f4 = new File(indexDir, "uf4");
+    File f5 = new File(indexDir, "uf5");
+    Files.write(f1.toPath(), "udata1".getBytes());
+    Files.write(f2.toPath(), "udata2".getBytes());
+    Files.write(f3.toPath(), "udata3".getBytes());
+    Files.write(f4.toPath(), "udata4".getBytes());
+    Files.write(f5.toPath(), "udata5".getBytes());
+
+    // Use an uploadBatchSize of 2, smaller than the file count of 5
+    S3Backend batchedBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 2),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    batchedBackend.uploadIndexFiles(
+        "upload_batch_service",
+        "upload_batch_index",
+        indexDir.toPath(),
+        Map.of("uf1", meta1, "uf2", meta2, "uf3", meta3, "uf4", meta4, "uf5", meta5));
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("upload_batch_service", "upload_batch_index");
+    assertEquals(
+        "udata1",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf1", meta1))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata2",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf2", meta2))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata3",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf3", meta3))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata4",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf4", meta4))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata5",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf5", meta5))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+  }
+
+  @Test
+  public void testUploadIndexFiles_stopAfterFailure() throws IOException {
+    File indexDir = folder.newFolder("index_dir_upload_fail");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+
+    // Only write files 1 and 3–5; file 2 ("uf_fail2") does not exist on disk
+    File f1 = new File(indexDir, "uf_fail1");
+    File f3 = new File(indexDir, "uf_fail3");
+    File f4 = new File(indexDir, "uf_fail4");
+    File f5 = new File(indexDir, "uf_fail5");
+    Files.write(f1.toPath(), "fdata1".getBytes());
+    Files.write(f3.toPath(), "fdata3".getBytes());
+    Files.write(f4.toPath(), "fdata4".getBytes());
+    Files.write(f5.toPath(), "fdata5".getBytes());
+
+    // uploadBatchSize of 1 so the missing file is encountered before others can be submitted
+    S3Backend failBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 1),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    try {
+      failBackend.uploadIndexFiles(
+          "upload_fail_service",
+          "upload_fail_index",
+          indexDir.toPath(),
+          Map.of(
+              "uf_fail1", meta1,
+              "uf_fail2", meta2,
+              "uf_fail3", meta3,
+              "uf_fail4", meta4,
+              "uf_fail5", meta5));
+      fail("Expected IOException due to missing file");
+    } catch (IOException e) {
+      // Verify that the method propagated the failure correctly
+      assertTrue(
+          "Expected IOException about uploading index files",
+          e.getMessage().contains("Error while uploading index files to s3"));
+    }
+  }
+
+  @Test
   public void testDownloadIndexFiles() throws IOException {
     File indexDir = folder.newFolder("index_dir");
 
