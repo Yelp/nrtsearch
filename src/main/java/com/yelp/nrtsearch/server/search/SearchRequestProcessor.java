@@ -45,6 +45,7 @@ import com.yelp.nrtsearch.server.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.rescore.ScriptRescore;
 import com.yelp.nrtsearch.server.script.RuntimeScript;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreator;
@@ -334,7 +335,9 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
+          new VirtualFieldDef(
+              vf.getName(),
+              factory.newFactory(ScriptFactoryContext.builder(params, docLookup).build()));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -576,7 +579,7 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
       DocLookup docLookup = indexState.docLookup;
-      rescoreOperation = new ScriptRescore(factory.newFactory(params, docLookup));
+      rescoreOperation = new ScriptRescore(factory, params, docLookup);
     } else {
       throw new IllegalArgumentException(
           "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");

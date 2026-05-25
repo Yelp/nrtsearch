@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
@@ -298,7 +299,8 @@ public class QueryNodeMapper {
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
         getQuery(functionScoreQuery.getQuery(), context),
-        scriptFactory.newFactory(params, context.docLookup()));
+        scriptFactory.newFactory(
+            ScriptFactoryContext.builder(params, context.docLookup()).build()));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
@@ -307,7 +309,9 @@ public class QueryNodeMapper {
         ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
-    return new FunctionMatchQuery(scriptFactory.newFactory(params, docLookup), score -> score > 0);
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(ScriptFactoryContext.builder(params, docLookup).build()),
+        score -> score > 0);
   }
 
   private Query getTermQuery(

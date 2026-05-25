@@ -28,18 +28,18 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 
 /**
- * {@link BlenderOperation} that deduplicates hits across retrievers (accumulating per-retriever
- * {@link ScoreDoc}s in a single {@link WeightedScoreDoc}) but assigns score 0 to every result and
- * skips sorting and pagination. Intended for callers that handle ranking and pagination on the
- * client side.
+ * {@link BlenderOperation} that deduplicates hits across retrievers and assigns score {@code 0} to
+ * every result without sorting or paginating. This is intended for use with an L2 {@link
+ * com.yelp.nrtsearch.server.rescore.ScriptRescore} that takes full ownership of ranking via
+ * retriever side values (e.g. {@code _side_retriever_text}, {@code _side_retriever_knn}).
  */
 public class ScorelessRawMergeBlenderOperation implements BlenderOperation {
 
   /**
-   * Deduplicates hits by doc ID across retrievers. Each unique document is represented by a {@link
-   * WeightedScoreDoc} with weight 0, so {@link BlendedScoreDoc#score} remains 0 regardless of how
-   * many retrievers contributed. All per-retriever hits for the same document are preserved in
-   * {@link BlendedScoreDoc#getScoreDocs()}.
+   * Deduplicates hits by doc ID. Each unique document is represented by a {@link WeightedScoreDoc}
+   * with weight {@code 0}, so {@link BlendedScoreDoc#score} stays {@code 0} regardless of how many
+   * retrievers contributed. All per-retriever raw hits are preserved in {@link
+   * BlendedScoreDoc#getScoreDocs()} for side-value extraction and response diagnostics.
    */
   @Override
   public Collection<BlendedScoreDoc> mergeHits(
@@ -65,8 +65,8 @@ public class ScorelessRawMergeBlenderOperation implements BlenderOperation {
   }
 
   /**
-   * Returns all merged hits as-is without sorting or pagination. The {@code startHit} and {@code
-   * topHits} parameters are ignored.
+   * Returns all merged hits without sorting or pagination. The {@code startHit} and {@code topHits}
+   * parameters are ignored; an L2 rescorer is expected to produce the final ordering.
    */
   @Override
   public TopDocs blend(

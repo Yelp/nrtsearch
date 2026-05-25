@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
@@ -85,8 +86,11 @@ public abstract class FilterFunction {
                 .compile(filterFunctionGrpc.getScript(), ScoreScript.CONTEXT);
         DoubleValuesSource scriptSource =
             factory.newFactory(
-                ScriptParamsUtils.decodeParams(filterFunctionGrpc.getScript().getParamsMap()),
-                docLookup);
+                ScriptFactoryContext.builder(
+                        ScriptParamsUtils.decodeParams(
+                            filterFunctionGrpc.getScript().getParamsMap()),
+                        docLookup)
+                    .build());
         return new ScriptFilterFunction(
             filterQuery, weight, filterFunctionGrpc.getScript(), scriptSource);
       case DECAYFUNCTION:

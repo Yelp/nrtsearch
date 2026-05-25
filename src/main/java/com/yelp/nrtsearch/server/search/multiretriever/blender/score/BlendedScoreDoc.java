@@ -25,8 +25,14 @@ import org.apache.lucene.search.ScoreDoc;
  * score and must be kept up to date by each {@link #add} implementation. It drives result ordering
  * directly — no separate sorting-score indirection.
  *
- * <p>The original per-retriever hits are preserved in {@link #scoreDocs}, keyed by retriever name
- * in insertion order, for diagnostics and downstream inspection.
+ * <p>The raw per-retriever hits are preserved in {@link #scoreDocs}, keyed by retriever name in
+ * insertion order. These are used by {@code SearchHandler} to:
+ *
+ * <ul>
+ *   <li>Populate {@code retrieverScores} in the search response for each hit.
+ *   <li>Populate per-retriever scores in the shared doc context so L2 rescore scripts can read them
+ *       via {@code get_shared_double("retriever_<name>", defaultValue)}.
+ * </ul>
  *
  * <p>Subclasses define their own merging semantics by implementing {@link #add(String, int, float,
  * ScoreDoc)}, which is called for every retriever hit after the first. The first hit is supplied at

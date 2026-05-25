@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
@@ -183,6 +184,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       if (searchContext.getMultiRetrieverContext() != null) {
         hits =
             executeMultiRetriever(searchContext, s.searcher(), diagnostics, profileResultBuilder);
+        populateRetrieverScores(hits, searchContext.getSharedDocContext());
       } else {
         SearcherResult searcherResult;
         if (!searchRequest.getFacetsList().isEmpty()) {
@@ -646,6 +648,23 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     }
 
     return blendedHits;
+  }
+
+  /**
+   * Write per-retriever scores from blended hits into the shared doc context. For retriever {@code
+   * "text"}, the key {@code "retriever_text"} is set on each document's context map, accessible in
+   * JS scripts as {@code _shared_retriever_text} and in ScoreScript subclasses via {@code
+   * get_shared_double("retriever_text", defaultValue)}.
+   */
+  static void populateRetrieverScores(TopDocs hits, SharedDocContext sharedDocContext) {
+    for (ScoreDoc scoreDoc : hits.scoreDocs) {
+      if (scoreDoc instanceof BlendedScoreDoc blended) {
+        Map<String, Object> ctx = sharedDocContext.getContext(scoreDoc.doc);
+        for (Map.Entry<String, ScoreDoc> entry : blended.getScoreDocs().entrySet()) {
+          ctx.put("retriever_" + entry.getKey(), (double) entry.getValue().score);
+        }
+      }
+    }
   }
 
   /**

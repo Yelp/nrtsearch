@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
@@ -132,7 +133,8 @@ public class QueryNodeMapperTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (ScriptFactoryContext ctx) ->
+              new TestScriptFactory(ctx.getParams(), ctx.getDocLookup(), source);
       return context.factoryClazz.cast(factory);
     }
   }
@@ -170,7 +172,7 @@ public class QueryNodeMapperTest extends ServerTestCase {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override

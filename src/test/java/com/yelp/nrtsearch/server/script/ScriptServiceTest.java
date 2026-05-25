@@ -65,7 +65,7 @@ public class ScriptServiceTest {
 
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
-      ScoreScript.Factory factory = ((params, docLookup) -> null);
+      ScoreScript.Factory factory = ((ScriptFactoryContext ctx) -> null);
       return context.factoryClazz.cast(factory);
     }
   }

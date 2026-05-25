@@ -129,7 +129,8 @@ public class ScoreScriptTest {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (ScriptFactoryContext ctx) ->
+              new TestScriptFactory(ctx.getParams(), ctx.getDocLookup(), source);
       return context.factoryClazz.cast(factory);
     }
   }
@@ -183,7 +184,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -345,7 +346,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -454,7 +455,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -485,7 +486,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -524,7 +525,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -553,7 +554,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -611,7 +612,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -633,7 +634,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -666,7 +667,7 @@ public class ScoreScriptTest {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override

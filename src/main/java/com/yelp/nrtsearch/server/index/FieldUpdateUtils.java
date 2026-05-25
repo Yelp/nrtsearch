@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.util.ArrayList;
@@ -168,9 +169,13 @@ public class FieldUpdateUtils {
     Map<String, Object> params = ScriptParamsUtils.decodeParams(field.getScript().getParamsMap());
     DoubleValuesSource values =
         factory.newFactory(
-            params,
-            new DocLookup(
-                fieldStateBuilder.getFields()::get, fieldStateBuilder.getFields()::keySet, null));
+            ScriptFactoryContext.builder(
+                    params,
+                    new DocLookup(
+                        fieldStateBuilder.getFields()::get,
+                        fieldStateBuilder.getFields()::keySet,
+                        null))
+                .build());
 
     FieldDef virtualFieldDef = new VirtualFieldDef(field.getName(), values);
     fieldStateBuilder.addField(virtualFieldDef, field);
