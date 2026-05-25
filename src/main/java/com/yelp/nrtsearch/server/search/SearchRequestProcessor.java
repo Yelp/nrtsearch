@@ -21,6 +21,7 @@ import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
 
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.ObjectFieldDef;
@@ -46,6 +47,7 @@ import com.yelp.nrtsearch.server.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.rescore.ScriptRescore;
 import com.yelp.nrtsearch.server.script.RuntimeScript;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreator;
@@ -129,12 +131,14 @@ public class SearchRequestProcessor {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
     SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
+    SharedDocContext sharedDocContext = new DefaultSharedDocContext();
 
     contextBuilder
         .setIndexState(indexState)
         .setShardState(shardState)
         .setSearcherAndTaxonomy(searcherAndTaxonomy)
         .setResponseBuilder(responseBuilder)
+        .setSharedDocContext(sharedDocContext)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits())
@@ -198,7 +202,7 @@ public class SearchRequestProcessor {
             childPathFilterLookup);
 
     Map<String, FieldDef> queryVirtualFields =
-        getVirtualFields(indexLookupWithSearcher, searchRequest);
+        getVirtualFields(indexLookupWithSearcher, searchRequest, sharedDocContext);
     Map<String, FieldDef> queryRuntimeFields =
         getRuntimeFields(indexLookupWithSearcher, searchRequest);
 
@@ -235,6 +239,7 @@ public class SearchRequestProcessor {
               searcherAndTaxonomy,
               queryFields,
               docLookup,
+              sharedDocContext,
               contextBuilder,
               diagnostics,
               profileResult,
@@ -257,7 +262,8 @@ public class SearchRequestProcessor {
               searchRequest.getQueryText(),
               searchRequest.getQuery(),
               rootQueryNestedPath,
-              docLookup);
+              docLookup,
+              sharedDocContext);
 
       if (profileResult != null) {
         profileResult.setParsedQuery(query.toString());
@@ -361,8 +367,11 @@ public class SearchRequestProcessor {
     // Top-level rescorers are applied post-blending for multi-retriever requests
     // Each retriever has an optional L1 rescorer before blending
     contextBuilder.setRescorers(
-        getRescorers(indexState, searcherAndTaxonomy.searcher(), searchRequest.getRescorersList()));
-    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
+        getRescorers(
+            indexState,
+            searcherAndTaxonomy.searcher(),
+            searchRequest.getRescorersList(),
+            sharedDocContext));
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
@@ -378,7 +387,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      DocLookup docLookup, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest, SharedDocContext sharedDocContext) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
@@ -393,7 +402,12 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
+          new VirtualFieldDef(
+              vf.getName(),
+              factory.newFactory(
+                  ScriptFactoryContext.builder(params, docLookup)
+                      .sharedDocContext(sharedDocContext)
+                      .build()));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -522,7 +536,8 @@ public class SearchRequestProcessor {
       String queryText,
       com.yelp.nrtsearch.server.grpc.Query query,
       String queryNestedPath,
-      DocLookup docLookup) {
+      DocLookup docLookup,
+      SharedDocContext sharedDocContext) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -534,7 +549,8 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      QueryContext queryContext = new QueryContext(docLookup, state.getGlobalState());
+      QueryContext queryContext =
+          new QueryContext(docLookup, state.getGlobalState(), sharedDocContext);
       q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
@@ -610,14 +626,20 @@ public class SearchRequestProcessor {
 
   /** Builds a single RescoreTask from a Rescorer proto. */
   private static RescoreTask buildRescoreTask(
-      IndexState indexState, IndexSearcher searcher, Rescorer rescorer, String defaultRescorerName)
+      IndexState indexState,
+      IndexSearcher searcher,
+      Rescorer rescorer,
+      String defaultRescorerName,
+      SharedDocContext sharedDocContext)
       throws IOException {
     String rescorerName = rescorer.getName();
     RescoreOperation rescoreOperation;
 
     if (rescorer.hasQueryRescorer()) {
       QueryRescorer queryRescorer = rescorer.getQueryRescorer();
-      Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
+      QueryContext queryContext =
+          new QueryContext(indexState.docLookup, indexState.getGlobalState(), sharedDocContext);
+      Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), queryContext);
       query = searcher.rewrite(query);
 
       rescoreOperation =
@@ -635,7 +657,11 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
       DocLookup docLookup = indexState.docLookup;
-      rescoreOperation = new ScriptRescore(factory.newFactory(params, docLookup));
+      ScriptFactoryContext scriptFactoryContext =
+          ScriptFactoryContext.builder(params, docLookup)
+              .sharedDocContext(sharedDocContext)
+              .build();
+      rescoreOperation = new ScriptRescore(factory, scriptFactoryContext);
     } else {
       throw new IllegalArgumentException(
           "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");
@@ -651,13 +677,20 @@ public class SearchRequestProcessor {
 
   /** Parses rescorers defined in this search request. */
   private static List<RescoreTask> getRescorers(
-      IndexState indexState, IndexSearcher searcher, List<Rescorer> rescorerList)
+      IndexState indexState,
+      IndexSearcher searcher,
+      List<Rescorer> rescorerList,
+      SharedDocContext sharedDocContext)
       throws IOException {
     List<RescoreTask> rescorers = new ArrayList<>();
     for (int i = 0; i < rescorerList.size(); ++i) {
       rescorers.add(
           buildRescoreTask(
-              indexState, searcher, rescorerList.get(i), String.format("rescorer_%d", i)));
+              indexState,
+              searcher,
+              rescorerList.get(i),
+              String.format("rescorer_%d", i),
+              sharedDocContext));
     }
     return rescorers;
   }
@@ -675,7 +708,8 @@ public class SearchRequestProcessor {
       DocLookup docLookup) {
     // Do not apply nestedPath here. This is query is used to create a shared
     // weight.
-    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup);
+    Query childQuery =
+        extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup, null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)
@@ -736,6 +770,7 @@ public class SearchRequestProcessor {
       SearcherAndTaxonomy searcherAndTaxonomy,
       Map<String, FieldDef> queryFields,
       DocLookup docLookup,
+      SharedDocContext sharedDocContext,
       SearchContext.Builder searchContextBuilder,
       SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResult,
@@ -779,7 +814,13 @@ public class SearchRequestProcessor {
                   : IndexState.resolveQueryNestedPath(
                       textRetriever.getQueryNestedPath(), docLookup);
           Query extractedQuery =
-              extractQuery(indexState, "", textRetriever.getQuery(), nestedQueryPath, docLookup);
+              extractQuery(
+                  indexState,
+                  "",
+                  textRetriever.getQuery(),
+                  nestedQueryPath,
+                  docLookup,
+                  sharedDocContext);
           query = searcher.rewrite(extractedQuery);
           if (doProfile) {
             retrieverProfileResult.setParsedQuery(extractedQuery.toString());
@@ -818,7 +859,11 @@ public class SearchRequestProcessor {
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
             buildRescoreTask(
-                indexState, searcher, retriever.getRescorer(), retriever.getName() + "_rescorer"));
+                indexState,
+                searcher,
+                retriever.getRescorer(),
+                retriever.getName() + "_rescorer",
+                sharedDocContext));
       }
 
       CollectorCreatorContext collectorCreatorContext =

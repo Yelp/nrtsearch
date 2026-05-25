@@ -171,7 +171,7 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (factoryContext -> new TestScriptFactory(factoryContext.getParams(), factoryContext.getDocLookup(), source));
       return context.factoryClazz.cast(factory);
     }
   }
@@ -214,7 +214,7 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -237,7 +237,7 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
@@ -264,7 +264,7 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
         DocLookup docLookup,
         LeafReaderContext context,
         DoubleValues scores) {
-      super(params, docLookup, context, scores);
+      super(params, docLookup, context, scores, null);
     }
 
     @Override
