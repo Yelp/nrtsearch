@@ -48,12 +48,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
@@ -95,6 +100,10 @@ public abstract class IndexState implements Closeable {
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private final ExecutorService searchExecutor;
   private Warmer warmer = null;
+
+  private volatile BitSetProducer cachedParentBitSetProducer;
+  private final ConcurrentHashMap<String, BitSetProducer> cachedPathBitSetProducers =
+      new ConcurrentHashMap<>();
 
   /** The meta field definitions */
   private static Map<String, FieldDef> metaFields;
@@ -559,6 +568,28 @@ public abstract class IndexState implements Closeable {
   @Override
   public void close() throws IOException {}
 
+  public BitSetProducer getParentBitSetProducer() {
+    if (!hasNestedChildFields()) {
+      return null;
+    }
+    BitSetProducer producer = cachedParentBitSetProducer;
+    if (producer == null) {
+      synchronized (this) {
+        producer = cachedParentBitSetProducer;
+        if (producer == null) {
+          producer = new QueryBitSetProducer(new TermQuery(new Term(NESTED_PATH, ROOT)));
+          cachedParentBitSetProducer = producer;
+        }
+      }
+    }
+    return producer;
+  }
+
+  public BitSetProducer getPathBitSetProducer(String nestedPath) {
+    return cachedPathBitSetProducers.computeIfAbsent(
+        nestedPath, path -> new QueryBitSetProducer(new TermQuery(new Term(NESTED_PATH, path))));
+  }
+
   // Get all predifined meta fields
   private static Map<String, FieldDef> getPredefinedMetaFields(GlobalState globalState) {
     return ImmutableMap.of(
@@ -589,16 +620,6 @@ public abstract class IndexState implements Closeable {
                 NESTED_DOCUMENT_OFFSET,
                 Field.newBuilder()
                     .setName(NESTED_DOCUMENT_OFFSET)
-                    .setType(FieldType.INT)
-                    .setStoreDocValues(true)
-                    .build(),
-                FieldDefCreator.createContext(globalState)),
-        NESTED_CHILD_COUNT,
-        FieldDefCreator.getInstance()
-            .createFieldDef(
-                NESTED_CHILD_COUNT,
-                Field.newBuilder()
-                    .setName(NESTED_CHILD_COUNT)
                     .setType(FieldType.INT)
                     .setStoreDocValues(true)
                     .build(),

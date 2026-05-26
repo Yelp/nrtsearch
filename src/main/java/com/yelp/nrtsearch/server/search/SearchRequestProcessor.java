@@ -84,6 +84,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -143,14 +145,11 @@ public class SearchRequestProcessor {
     Function<String, BitSetProducer> childPathFilterLookup = null;
 
     if (indexState.hasNestedChildFields()) {
-      Query parentQuery =
-          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, IndexState.ROOT);
-      parentQuery = searcherAndTaxonomy.searcher().rewrite(parentQuery);
-      parentBitSetProducer = new QueryBitSetProducer(parentQuery);
+      parentBitSetProducer = indexState.getParentBitSetProducer();
 
       Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
 
-      Map<String, BitSetProducer> pathFilterCache = new HashMap<>();
+      Map<String, BitSetProducer> perRequestFilterCache = new ConcurrentHashMap<>();
 
       final SearcherTaxonomyManager.SearcherAndTaxonomy finalSearcherAndTaxonomy =
           searcherAndTaxonomy;
@@ -161,16 +160,14 @@ public class SearchRequestProcessor {
             if (nestedPath == null) {
               return null;
             }
-            return pathFilterCache.computeIfAbsent(
+            return perRequestFilterCache.computeIfAbsent(
                 nestedPath,
                 path -> {
-                  try {
-                    Query pathQuery =
-                        QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
-                    pathQuery = finalSearcherAndTaxonomy.searcher().rewrite(pathQuery);
-
-                    Query userFilter = userChildFilters.get(path);
-                    if (userFilter != null) {
+                  Query userFilter = userChildFilters.get(path);
+                  if (userFilter != null) {
+                    try {
+                      Query pathQuery =
+                          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
                       Query combined =
                           new BooleanQuery.Builder()
                               .add(pathQuery, BooleanClause.Occur.FILTER)
@@ -178,12 +175,12 @@ public class SearchRequestProcessor {
                               .build();
                       combined = finalSearcherAndTaxonomy.searcher().rewrite(combined);
                       return new QueryBitSetProducer(combined);
+                    } catch (IOException e) {
+                      throw new RuntimeException(
+                          "Failed to build child path filter for: " + path, e);
                     }
-
-                    return new QueryBitSetProducer(pathQuery);
-                  } catch (IOException e) {
-                    throw new RuntimeException("Failed to build child path filter for: " + path, e);
                   }
+                  return indexState.getPathBitSetProducer(path);
                 });
           };
     }

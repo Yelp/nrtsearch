@@ -579,9 +579,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       addGlobalNestedDocumentOffsets(documents);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
-      rootDoc.add(
-          new org.apache.lucene.document.NumericDocValuesField(
-              IndexState.NESTED_CHILD_COUNT, documents.size()));
 
       for (Document doc : documents) {
         for (IndexableField f : rootDoc.getFields(idFieldDef.getName())) {
@@ -617,9 +614,6 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       addGlobalNestedDocumentOffsets(documents);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
-      rootDoc.add(
-          new org.apache.lucene.document.NumericDocValuesField(
-              IndexState.NESTED_CHILD_COUNT, documents.size()));
       documents.add(rootDoc);
       IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc();
       long ns_start = System.nanoTime();

@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,10 +28,10 @@ import org.apache.lucene.util.BitSet;
  * LoadedDocValues implementation that collects doc values from all child documents belonging to a
  * parent document. When setDocId is called with a parent doc ID, this class:
  *
- * <p>Reads the {@code _nested_child_count} field from the parent to determine the child range 2.
- * Scans forward from {@code parentDocId - childCount} to {@code parentDocId - 1} 3. Optionally
- * filters children by their nested path using childPathBitSet 4. Loads the specified field's doc
- * values from each child 5. Exposes all child values as a flat multi-valued list
+ * <p>1. Uses the parent BitSet to find the previous parent via {@code prevSetBit}, deriving the
+ * child range as {@code [prevParent + 1, parentDocId - 1]} 2. Optionally filters children by their
+ * nested path using childPathBitSet 3. Loads the specified field's doc values from each child 4.
+ * Exposes all child values as a flat multi-valued list
  *
  * <p>The childPathBitSet filtering is essential for indexes with multiple nested paths (e.g., both
  * "appointments" and "reviews" under the same parent). Without it, iterating through the child
@@ -40,8 +39,6 @@ import org.apache.lucene.util.BitSet;
  */
 public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
 
-  private final LeafReaderContext leafContext;
-  private final IndexableFieldDef<?> childCountFieldDef;
   private final BitSet parentBitSet;
   private final BitSet childPathBitSet;
   private final boolean hasChildPathFilter;
@@ -57,9 +54,9 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
    * @param parentBitSetProducer produces the BitSet identifying parent docs
    * @param childPathBitSetProducer produces the BitSet identifying children of the target nested
    *     path, or null if no path filtering is needed (single nested path case). Note: Lucene's
-   *     {@link QueryBitSetProducer} returns null from {@code getBitSet()} when no documents match
-   *     the query in a segment. When this producer is non-null but produces a null BitSet, all
-   *     children are excluded (no matches in this segment).
+   *     {@link org.apache.lucene.search.join.QueryBitSetProducer} returns null from {@code
+   *     getBitSet()} when no documents match the query in a segment. When this producer is non-null
+   *     but produces a null BitSet, all children are excluded (no matches in this segment).
    * @throws IOException if the BitSet cannot be loaded for this segment
    */
   public ChildAggregatedDocValues(
@@ -68,9 +65,6 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       BitSetProducer parentBitSetProducer,
       BitSetProducer childPathBitSetProducer)
       throws IOException {
-    this.leafContext = leafContext;
-    this.childCountFieldDef =
-        (IndexableFieldDef<?>) IndexState.getMetaField(IndexState.NESTED_CHILD_COUNT);
     this.parentBitSet = parentBitSetProducer.getBitSet(leafContext);
     this.hasChildPathFilter = childPathBitSetProducer != null;
     this.childPathBitSet =
@@ -107,22 +101,18 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       return;
     }
 
-    LoadedDocValues<?> childCountDocValues = childCountFieldDef.getDocValues(leafContext);
-    childCountDocValues.setDocId(parentDocId);
-    if (childCountDocValues.isEmpty()) {
-      return;
-    }
-    int childCount = ((Number) childCountDocValues.get(0)).intValue();
-    if (childCount <= 0) {
+    // Find the previous parent to determine child range. In Lucene's block join layout,
+    // children are stored contiguously between their parent and the previous parent:
+    //   [prevParent] [child0] [child1] ... [childN] [thisParent]
+    // prevSetBit returns -1 if there is no previous parent (first parent in segment).
+    int prevParent = parentBitSet.prevSetBit(parentDocId - 1);
+    int firstChild = prevParent + 1;
+
+    if (firstChild >= parentDocId) {
       return;
     }
 
-    // Children are stored in the range [parentDocId - childCount, parentDocId - 1]
-    // in block join layout. Scan forward so Lucene's doc values iterators
-    // (which only support forward access) work correctly.
-    int childStart = parentDocId - childCount;
-
-    for (int childDocId = childStart; childDocId < parentDocId; childDocId++) {
+    for (int childDocId = firstChild; childDocId < parentDocId; childDocId++) {
       if (childPathBitSet != null && !childPathBitSet.get(childDocId)) {
         continue;
       }
