@@ -128,8 +128,19 @@ public class QueryNodeMapper {
     }
 
     if (query.getBoost() > 0) {
-      return new BoostQuery(queryNode, query.getBoost());
+      queryNode = new BoostQuery(queryNode, query.getBoost());
     }
+
+    if (query.hasMinScore()) {
+      float minScore = query.getMinScore();
+      if (minScore < 0) {
+        throw new IllegalArgumentException("min_score must be a non-negative number");
+      }
+      if (minScore > 0) {
+        queryNode = new MinThresholdQuery(queryNode, minScore);
+      }
+    }
+
     return queryNode;
   }
 

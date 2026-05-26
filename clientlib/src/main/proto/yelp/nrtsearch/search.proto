@@ -744,6 +744,9 @@ message Query {
         ExactVectorQuery exactVectorQuery = 27;
         CrossIndexQuery crossIndexQuery = 28;
     }
+    // Optional minimum score threshold. Documents with scores below this value are excluded.
+    // Defaults to 0 (no filtering). Negative values are invalid.
+    optional float min_score = 29;
 }
 
 // Search query request

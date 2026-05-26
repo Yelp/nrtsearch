@@ -5200,6 +5200,11 @@
         },
         "crossIndexQuery": {
           "$ref": "#/definitions/luceneserverCrossIndexQuery"
+        },
+        "minScore": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional minimum score threshold. Documents with scores below this value are excluded.\nDefaults to 0 (no filtering). Negative values are invalid."
         }
       },
       "title": "Defines a full query consisting of a QueryNode which may be one of several types"
