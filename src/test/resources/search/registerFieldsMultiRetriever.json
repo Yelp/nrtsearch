@@ -21,6 +21,13 @@
       "search": true,
       "vectorDimensions": 3,
       "vectorSimilarity": "cosine"
+    },
+    {
+      "name": "category",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "facet": "SORTED_SET_DOC_VALUES"
     }
   ]
 }

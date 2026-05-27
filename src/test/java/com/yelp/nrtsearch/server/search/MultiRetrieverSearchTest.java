@@ -89,6 +89,9 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                   MultiValuedField.newBuilder()
                       .addValue(String.format("[%f, %f, %f]", i * 0.1f, i * 0.2f, i * 0.3f))
                       .build())
+              .putFields(
+                  "category",
+                  MultiValuedField.newBuilder().addValue(i <= 5 ? "odd" : "even").build())
               .build());
     }
     addDocuments(docs.stream());
@@ -227,31 +230,152 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         "Unsupported blender type");
   }
 
-  // TODO: Remove after adding Facets and Collectors support
   @Test
-  public void testAggregationsNotSupported() {
+  public void testFacetsWithMultiRetriever() {
     MultiRetrieverRequest twoRetrievers =
         MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(5))
-            .addRetrievers(knnRetriever(5))
+            .addRetrievers(textRetriever(10))
+            .addRetrievers(knnRetriever(10))
+            .setBlender(
+                Blender.newBuilder()
+                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                    .build())
             .build();
 
-    assertSearchError(
-        baseRequest()
-            .setMultiRetriever(twoRetrievers)
-            .addFacets(Facet.newBuilder().setName("doc_id").setTopN(5).build())
-            .build(),
-        "Facets are not supported with MultiRetriever requests");
-    assertSearchError(
-        baseRequest()
-            .setMultiRetriever(twoRetrievers)
-            .putCollectors(
-                "terms",
-                Collector.newBuilder()
-                    .setTerms(TermsCollector.newBuilder().setField("doc_id").setSize(5).build())
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrievers)
+                    .addFacets(
+                        Facet.newBuilder().setName("category_facet").setDim("category").setTopN(5))
+                    .build());
+
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    // All 10 docs matched (union of both retrievers), split into two categories
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+  }
+
+  @Test
+  public void testCollectorsWithMultiRetriever() {
+    MultiRetrieverRequest twoRetrievers =
+        MultiRetrieverRequest.newBuilder()
+            .addRetrievers(textRetriever(10))
+            .addRetrievers(knnRetriever(10))
+            .setBlender(
+                Blender.newBuilder()
+                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
                     .build())
-            .build(),
-        "Collectors are not supported with MultiRetriever requests");
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrievers)
+                    .putCollectors(
+                        "category_terms",
+                        Collector.newBuilder()
+                            .setTerms(
+                                TermsCollector.newBuilder()
+                                    .setField("category")
+                                    .setSize(10)
+                                    .build())
+                            .build())
+                    .build());
+
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    // Both categories should appear across all 10 docs
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
+
+  @Test
+  public void testFacetsAndCollectorsTogetherWithMultiRetriever() {
+    MultiRetrieverRequest twoRetrievers =
+        MultiRetrieverRequest.newBuilder()
+            .addRetrievers(textRetriever(10))
+            .addRetrievers(knnRetriever(10))
+            .setBlender(
+                Blender.newBuilder()
+                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                    .build())
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrievers)
+                    .addFacets(
+                        Facet.newBuilder().setName("category_facet").setDim("category").setTopN(5))
+                    .putCollectors(
+                        "category_terms",
+                        Collector.newBuilder()
+                            .setTerms(TermsCollector.newBuilder().setField("category").setSize(10))
+                            .build())
+                    .build());
+
+    // Facets populated
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    // Collectors populated in the same pass
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
+
+  @Test
+  public void testFacetsWithSampleTopDocsWithMultiRetriever() {
+    MultiRetrieverRequest twoRetrievers =
+        MultiRetrieverRequest.newBuilder()
+            .addRetrievers(textRetriever(10))
+            .addRetrievers(knnRetriever(10))
+            .setBlender(
+                Blender.newBuilder()
+                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                    .build())
+            .build();
+
+    // sampleTopDocs=5 restricts counting to the top 5 blended hits only (computed via
+    // facetTopDocsSample against the pre-blended TopDocs, not via DrillSideways).
+    // The KNN query ranks docs i=1..5 (nearest vectors) at the top, all in category "odd",
+    // so only 1 label appears in the sample window.
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(twoRetrievers)
+                    .addFacets(
+                        Facet.newBuilder()
+                            .setName("category_facet")
+                            .setDim("category")
+                            .setTopN(5)
+                            .setSampleTopDocs(5))
+                    .build());
+
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    // Only the top 5 blended hits are sampled, all from category "odd"
+    assertEquals(1, response.getFacetResult(0).getLabelValuesCount());
+    assertEquals("odd", response.getFacetResult(0).getLabelValues(0).getLabel());
   }
 
   /**
