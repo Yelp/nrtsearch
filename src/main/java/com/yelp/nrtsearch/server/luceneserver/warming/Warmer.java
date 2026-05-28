@@ -112,7 +112,11 @@ public class Warmer {
       warmingQueriesFile = warmingQueriesDir.resolve(WARMING_QUERIES_FILE);
       writer = Files.newBufferedWriter(warmingQueriesFile);
       int count = 0;
-      for (SearchRequest searchRequest : warmingRequests) {
+      List<SearchRequest> warmingRequestsToBackup;
+      synchronized (warmingRequests) {
+        warmingRequestsToBackup = new ArrayList<>(warmingRequests);
+      }
+      for (SearchRequest searchRequest : warmingRequestsToBackup) {
         writer.write(JsonFormat.printer().omittingInsignificantWhitespace().print(searchRequest));
         writer.newLine();
         count++;
