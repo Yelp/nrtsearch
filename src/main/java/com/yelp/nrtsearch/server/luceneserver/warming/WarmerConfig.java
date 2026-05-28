@@ -23,11 +23,13 @@ public class WarmerConfig {
   private static final int DEFAULT_WARMING_PARALLELISM = 1;
   private static final int DEFAULT_WARM_BASIC_QUERY_ONLY_PERC = 0;
   private static final boolean DEFAULT_WARM_ON_STARTUP = false;
+  private static final boolean DEFAULT_PAD_WITH_DOWNLOADED_REQUESTS = false;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
   private final boolean warmOnStartup;
   private final int warmBasicQueryOnlyPerc;
+  private final boolean padWithDownloadedRequests;
 
   /**
    * Configuration for warmer.
@@ -37,16 +39,20 @@ public class WarmerConfig {
    * @param warmOnStartup if true will try to download queries from S3 and use them to warm
    * @param warmBasicQueryOnlyPerc percentage of warming queries that should be basic queries for
    *     the fast boostrap
+   * @param padWithDownloadedRequests if true, pad backup with downloaded queries when observed
+   *     queries fall below the maximum
    */
   public WarmerConfig(
       int maxWarmingQueries,
       int warmingParallelism,
       boolean warmOnStartup,
-      int warmBasicQueryOnlyPerc) {
+      int warmBasicQueryOnlyPerc,
+      boolean padWithDownloadedRequests) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmOnStartup = warmOnStartup;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
+    this.padWithDownloadedRequests = padWithDownloadedRequests;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -60,8 +66,16 @@ public class WarmerConfig {
         configReader.getInteger(
             CONFIG_PREFIX + "warmBasicQueryOnlyPerc", DEFAULT_WARM_BASIC_QUERY_ONLY_PERC);
 
+    boolean padWithDownloadedRequests =
+        configReader.getBoolean(
+            CONFIG_PREFIX + "padWithDownloadedRequests", DEFAULT_PAD_WITH_DOWNLOADED_REQUESTS);
+
     return new WarmerConfig(
-        maxWarmingQueries, warmingParallelism, warmOnStartup, warmBasicQueryOnlyPerc);
+        maxWarmingQueries,
+        warmingParallelism,
+        warmOnStartup,
+        warmBasicQueryOnlyPerc,
+        padWithDownloadedRequests);
   }
 
   public int getMaxWarmingQueries() {
@@ -78,5 +92,9 @@ public class WarmerConfig {
 
   public int getWarmBasicQueryOnlyPerc() {
     return warmBasicQueryOnlyPerc;
+  }
+
+  public boolean isPadWithDownloadedRequests() {
+    return padWithDownloadedRequests;
   }
 }

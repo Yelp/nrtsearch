@@ -205,6 +205,52 @@ public class WarmerTest {
     verifyNoMoreInteractions(mockSearchHandler);
   }
 
+  @Test
+  public void testBackupPadsWithDownloadedQueries()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmer6 = new Warmer(archiver, service, index, 6, 0, true);
+
+    // Upload 6 queries to S3
+    Path uploadBaseDir = folder.newFolder("pad_upload_base").toPath();
+    Path warmingQueriesDir = Files.createDirectory(uploadBaseDir.resolve("warming_queries"));
+    List<String> downloadedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field2\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field3\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field4\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field5\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    try (BufferedWriter writer =
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      for (String line : downloadedJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String versionHash =
+        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(service, resource, versionHash);
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmer6.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // Add only 2 observed queries (deficit of 4)
+    warmer6.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(1).build());
+    warmer6.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(2).build());
+
+    warmer6.backupWarmingQueriesToS3(service);
+
+    Path downloadPath = archiver.download(service, resource);
+    Path warmingQueriesFile =
+        downloadPath.resolve("warming_queries").resolve("warming_queries.txt");
+    List<String> lines = Files.readAllLines(warmingQueriesFile);
+    Assertions.assertThat(lines).hasSize(6);
+  }
+
   private List<SearchRequest> getTestSearchRequests() {
     List<SearchRequest> testRequests = new ArrayList<>();
     for (int i = 0; i < 2; i++) {
