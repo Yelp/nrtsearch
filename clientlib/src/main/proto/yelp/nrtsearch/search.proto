@@ -705,6 +705,17 @@ enum QueryType {
     CONSTANT_SCORE_QUERY = 20;
     GEO_POLYGON = 21;
     SPAN_QUERY = 22;
+    MIN_SCORE_QUERY = 23;
+}
+
+// A query wrapper that filters documents based on a minimum score threshold.
+// Only documents with scores greater than or equal to the specified threshold are included.
+message MinScoreQuery {
+    // The query whose results will be filtered by the minimum score threshold
+    Query query = 1;
+    // Minimum score threshold; documents with scores below this value are excluded.
+    // Must be a non-negative number.
+    float min_score = 2;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types
@@ -743,10 +754,8 @@ message Query {
         MatchAllQuery matchAllQuery = 26;
         ExactVectorQuery exactVectorQuery = 27;
         CrossIndexQuery crossIndexQuery = 28;
+        MinScoreQuery minScoreQuery = 29;
     }
-    // Optional minimum score threshold. Documents with scores below this value are excluded.
-    // Defaults to 0 (no filtering). Negative values are invalid.
-    optional float min_score = 29;
 }
 
 // Search query request

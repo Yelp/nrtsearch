@@ -131,16 +131,6 @@ public class QueryNodeMapper {
       queryNode = new BoostQuery(queryNode, query.getBoost());
     }
 
-    if (query.hasMinScore()) {
-      float minScore = query.getMinScore();
-      if (minScore < 0) {
-        throw new IllegalArgumentException("min_score must be a non-negative number");
-      }
-      if (minScore > 0) {
-        queryNode = new MinThresholdQuery(queryNode, minScore);
-      }
-    }
-
     return queryNode;
   }
 
@@ -205,6 +195,7 @@ public class QueryNodeMapper {
       case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), docLookup);
       case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), docLookup);
       case CROSSINDEXQUERY -> getCrossIndexQuery(query.getCrossIndexQuery(), context);
+      case MINSCOREQUERY -> getMinScoreQuery(query.getMinScoreQuery(), context);
       case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
       default ->
           throw new UnsupportedOperationException(
@@ -637,6 +628,22 @@ public class QueryNodeMapper {
       QueryContext context) {
     Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), context);
     return new ConstantScoreQuery(filterQuery);
+  }
+
+  private Query getMinScoreQuery(
+      com.yelp.nrtsearch.server.grpc.MinScoreQuery minScoreQueryGrpc, QueryContext context) {
+    if (!minScoreQueryGrpc.hasQuery()) {
+      throw new IllegalArgumentException("MinScoreQuery.query must be set");
+    }
+    float minScore = minScoreQueryGrpc.getMinScore();
+    if (minScore < 0) {
+      throw new IllegalArgumentException("MinScoreQuery.min_score must be a non-negative number");
+    }
+    Query innerQuery = getQuery(minScoreQueryGrpc.getQuery(), context);
+    if (minScore == 0) {
+      return innerQuery;
+    }
+    return new MinThresholdQuery(innerQuery, minScore);
   }
 
   private SpanQuery getSpanQuery(
