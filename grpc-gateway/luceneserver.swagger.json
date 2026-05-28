@@ -2725,6 +2725,20 @@
       },
       "title": "Results from bucketing collector"
     },
+    "luceneserverChildFilter": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the nested object (e.g., \"appointments\"). Must match a registered nested field."
+        },
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "description": "Query filter applied to child documents at this path.\nOnly children matching this query will be included in _CHILDREN. aggregation."
+        }
+      },
+      "description": "Filter applied to child documents before aggregation via _CHILDREN. prefix in scripts.\nAllows narrowing which child documents are included based on a query predicate,\nin addition to the automatic nested path filtering."
+    },
     "luceneserverCollector": {
       "type": "object",
       "properties": {
@@ -5739,6 +5753,13 @@
         "multiRetriever": {
           "$ref": "#/definitions/luceneserverMultiRetrieverRequest",
           "title": "When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error"
+        },
+        "childFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverChildFilter"
+          },
+          "description": "Filters applied to child documents when accessed via _CHILDREN. prefix in scripts.\nOnly children matching both the nested path AND the filter will be included in aggregation.\nIf not specified for a path, all children at that path are included (default behavior)."
         }
       },
       "title": "Search query request"

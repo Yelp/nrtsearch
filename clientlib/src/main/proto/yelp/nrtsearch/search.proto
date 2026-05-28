@@ -830,6 +830,21 @@ message SearchRequest {
     map<string, string> additionalOptions = 32;
     // When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error
     MultiRetrieverRequest multiRetriever = 33;
+    // Filters applied to child documents when accessed via _CHILDREN. prefix in scripts.
+    // Only children matching both the nested path AND the filter will be included in aggregation.
+    // If not specified for a path, all children at that path are included (default behavior).
+    repeated ChildFilter childFilters = 34;
+}
+
+// Filter applied to child documents before aggregation via _CHILDREN. prefix in scripts.
+// Allows narrowing which child documents are included based on a query predicate,
+// in addition to the automatic nested path filtering.
+message ChildFilter {
+    // Path to the nested object (e.g., "appointments"). Must match a registered nested field.
+    string path = 1;
+    // Query filter applied to child documents at this path.
+    // Only children matching this query will be included in _CHILDREN. aggregation.
+    Query filter = 2;
 }
 
 // Multi-Retriever Request
