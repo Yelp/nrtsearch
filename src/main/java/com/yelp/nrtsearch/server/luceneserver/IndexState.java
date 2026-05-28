@@ -264,7 +264,8 @@ public abstract class IndexState implements Closeable {
               configuration.getServiceName(),
               indexName,
               warmerConfig.getMaxWarmingQueries(),
-              warmerConfig.getWarmBasicQueryOnlyPerc());
+              warmerConfig.getWarmBasicQueryOnlyPerc(),
+              warmerConfig.isPadWithDownloadedRequests());
     }
   }
 
