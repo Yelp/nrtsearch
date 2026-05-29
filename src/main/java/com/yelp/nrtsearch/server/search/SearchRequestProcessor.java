@@ -576,7 +576,10 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
       DocLookup docLookup = indexState.docLookup;
-      rescoreOperation = new ScriptRescore(factory.newFactory(params, docLookup));
+      rescoreOperation =
+          new ScriptRescore(
+              factory.newFactory(params, docLookup),
+              rescorer.getScriptRescorer().getFilterNonPositive());
     } else {
       throw new IllegalArgumentException(
           "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");

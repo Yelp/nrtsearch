@@ -5567,6 +5567,10 @@
         "script": {
           "$ref": "#/definitions/luceneserverScript",
           "title": "Script to execute per document; must return a double"
+        },
+        "filterNonPositive": {
+          "type": "boolean",
+          "description": "When true, documents whose final script score is \u003c= 0 are dropped from the result set.\nDefaults to false (non-positive scores are kept, matching previous behaviour)."
         }
       },
       "description": "Defines a rescorer which uses a script to compute a new score for each hit.\nThe script has access to _score (the score from the previous pass, e.g. blended score)\nand doc values via the doc map. Useful for boosting blended results with field-level signals."

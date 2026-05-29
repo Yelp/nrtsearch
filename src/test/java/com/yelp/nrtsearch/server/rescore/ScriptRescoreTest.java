@@ -352,6 +352,159 @@ public class ScriptRescoreTest {
   }
 
   @Test
+  public void testFilterNonPositiveDropsNonPositiveDocs() throws Exception {
+    try (org.apache.lucene.store.ByteBuffersDirectory dir =
+            new org.apache.lucene.store.ByteBuffersDirectory();
+        org.apache.lucene.index.IndexWriter writer =
+            new org.apache.lucene.index.IndexWriter(
+                dir,
+                new org.apache.lucene.index.IndexWriterConfig()
+                    .setMergePolicy(org.apache.lucene.index.NoMergePolicy.INSTANCE))) {
+
+      writer.addDocument(Collections.emptyList()); // doc 0
+      writer.addDocument(Collections.emptyList()); // doc 1
+      writer.addDocument(Collections.emptyList()); // doc 2
+      writer.commit();
+
+      try (org.apache.lucene.index.DirectoryReader reader =
+          org.apache.lucene.index.DirectoryReader.open(dir)) {
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        // doc0 scores 2, doc1 scores 0, doc2 scores -1 after the script.
+        // Script assigns fixed values: doc0→2, doc1→0, doc2→-1 via per-doc source.
+        DoubleValuesSource perDocSource =
+            new DoubleValuesSource() {
+              private static final double[] VALUES = {2.0, 0.0, -1.0};
+
+              @Override
+              public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) {
+                return new DoubleValues() {
+                  private int currentDoc;
+
+                  @Override
+                  public double doubleValue() {
+                    return VALUES[currentDoc];
+                  }
+
+                  @Override
+                  public boolean advanceExact(int doc) {
+                    currentDoc = doc;
+                    return true;
+                  }
+                };
+              }
+
+              @Override
+              public boolean needsScores() {
+                return false;
+              }
+
+              @Override
+              public DoubleValuesSource rewrite(IndexSearcher r) {
+                return this;
+              }
+
+              @Override
+              public int hashCode() {
+                return 1;
+              }
+
+              @Override
+              public boolean equals(Object o) {
+                return this == o;
+              }
+
+              @Override
+              public String toString() {
+                return "perDoc";
+              }
+
+              @Override
+              public boolean isCacheable(LeafReaderContext ctx) {
+                return false;
+              }
+            };
+
+        ScoreDoc[] input = {new ScoreDoc(0, 3.0f), new ScoreDoc(1, 2.0f), new ScoreDoc(2, 1.0f)};
+        TopDocs hits = new TopDocs(new TotalHits(10, Relation.GREATER_THAN_OR_EQUAL_TO), input);
+
+        ScriptRescore rescorer = new ScriptRescore(perDocSource, true);
+        TopDocs result = rescorer.rescore(hits, buildContext(searcher));
+
+        // Only doc0 (score 2) survives; doc1 (0) and doc2 (-1) are dropped.
+        assertEquals(1, result.scoreDocs.length);
+        assertEquals(0, result.scoreDocs[0].doc);
+        assertEquals(2.0f, result.scoreDocs[0].score, 0.0001f);
+        // TotalHits from query phase is preserved unchanged.
+        assertEquals(10, result.totalHits.value());
+        assertEquals(Relation.GREATER_THAN_OR_EQUAL_TO, result.totalHits.relation());
+      }
+    }
+  }
+
+  @Test
+  public void testFilterNonPositiveAllDocsDropped() throws Exception {
+    try (org.apache.lucene.store.ByteBuffersDirectory dir =
+            new org.apache.lucene.store.ByteBuffersDirectory();
+        org.apache.lucene.index.IndexWriter writer =
+            new org.apache.lucene.index.IndexWriter(
+                dir,
+                new org.apache.lucene.index.IndexWriterConfig()
+                    .setMergePolicy(org.apache.lucene.index.NoMergePolicy.INSTANCE))) {
+
+      writer.addDocument(Collections.emptyList());
+      writer.addDocument(Collections.emptyList());
+      writer.commit();
+
+      try (org.apache.lucene.index.DirectoryReader reader =
+          org.apache.lucene.index.DirectoryReader.open(dir)) {
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        ScoreDoc[] input = {new ScoreDoc(0, 2.0f), new ScoreDoc(1, 1.0f)};
+        TopDocs hits = new TopDocs(new TotalHits(5, Relation.GREATER_THAN_OR_EQUAL_TO), input);
+
+        ScriptRescore rescorer = new ScriptRescore(constantSource(-1.0), true);
+        TopDocs result = rescorer.rescore(hits, buildContext(searcher));
+
+        assertEquals(0, result.scoreDocs.length);
+        assertEquals(5, result.totalHits.value());
+        assertEquals(Relation.GREATER_THAN_OR_EQUAL_TO, result.totalHits.relation());
+      }
+    }
+  }
+
+  @Test
+  public void testFilterNonPositiveDisabledKeepsNonPositiveDocs() throws Exception {
+    try (org.apache.lucene.store.ByteBuffersDirectory dir =
+            new org.apache.lucene.store.ByteBuffersDirectory();
+        org.apache.lucene.index.IndexWriter writer =
+            new org.apache.lucene.index.IndexWriter(
+                dir,
+                new org.apache.lucene.index.IndexWriterConfig()
+                    .setMergePolicy(org.apache.lucene.index.NoMergePolicy.INSTANCE))) {
+
+      writer.addDocument(Collections.emptyList());
+      writer.commit();
+
+      try (org.apache.lucene.index.DirectoryReader reader =
+          org.apache.lucene.index.DirectoryReader.open(dir)) {
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        TopDocs hits =
+            new TopDocs(
+                new TotalHits(1, Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, 5.0f)});
+
+        // Script produces a negative score; without the toggle the doc is kept.
+        ScriptRescore rescorer = new ScriptRescore(constantSource(-1.0), false);
+        TopDocs result = rescorer.rescore(hits, buildContext(searcher));
+
+        assertEquals(1, result.scoreDocs.length);
+        assertEquals(-1.0f, result.scoreDocs[0].score, 0.0001f);
+      }
+    }
+  }
+
+  @Test
   public void testTotalHitsPreserved() throws Exception {
     try (org.apache.lucene.store.ByteBuffersDirectory dir =
             new org.apache.lucene.store.ByteBuffersDirectory();

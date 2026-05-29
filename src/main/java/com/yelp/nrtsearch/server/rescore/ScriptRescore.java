@@ -54,9 +54,15 @@ public class ScriptRescore implements RescoreOperation {
       Comparator.<ScoreDoc>comparingDouble(d -> -d.score).thenComparing(BY_DOC_ID);
 
   private final DoubleValuesSource scriptSource;
+  private final boolean filterNonPositive;
 
   public ScriptRescore(DoubleValuesSource scriptSource) {
+    this(scriptSource, false);
+  }
+
+  public ScriptRescore(DoubleValuesSource scriptSource, boolean filterNonPositive) {
     this.scriptSource = scriptSource;
+    this.filterNonPositive = filterNonPositive;
   }
 
   @Override
@@ -94,12 +100,16 @@ public class ScriptRescore implements RescoreOperation {
     // Re-sort by new score descending.
     Arrays.sort(scoreDocs, BY_SCORE_DESC);
 
-    // Trim to windowSize, mirroring Lucene QueryRescorer behaviour.
-    int windowSize = context.getWindowSize();
-    if (windowSize < scoreDocs.length) {
-      ScoreDoc[] trimmed = new ScoreDoc[windowSize];
-      System.arraycopy(scoreDocs, 0, trimmed, 0, windowSize);
-      scoreDocs = trimmed;
+    int finalLength = Math.min(context.getWindowSize(), scoreDocs.length);
+    // When filterNonPositive is set, check backwards to exclude the non-negative scored docs from
+    // the tail as the array is already sorted
+    if (filterNonPositive) {
+      while (finalLength > 0 && scoreDocs[finalLength - 1].score <= 0) {
+        finalLength--;
+      }
+    }
+    if (finalLength < scoreDocs.length) {
+      scoreDocs = Arrays.copyOf(scoreDocs, finalLength);
     }
 
     return new TopDocs(new TotalHits(hits.totalHits.value(), hits.totalHits.relation()), scoreDocs);

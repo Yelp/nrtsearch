@@ -1362,6 +1362,9 @@ message QueryRescorer {
 message ScriptRescorer {
     // Script to execute per document; must return a double
     Script script = 1;
+    // When true, documents whose final script score is <= 0 are dropped from the result set.
+    // Defaults to false (non-positive scores are kept, matching previous behaviour).
+    bool filter_non_positive = 2;
 }
 
 // Defines a rescorer which is executed after the first search pass
