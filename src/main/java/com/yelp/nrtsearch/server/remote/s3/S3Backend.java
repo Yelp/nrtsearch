@@ -99,6 +99,8 @@ public class S3Backend implements RemoteBackend {
   private final int defaultParallelism;
   private final int downloadBatchSize;
   private final int uploadBatchSize;
+  private final boolean downloadAdaptiveConcurrency;
+  private final int downloadMaxRetries;
   private final boolean saveBeforeUnzip;
   private final S3Client s3;
   private final S3AsyncClient s3Async;
@@ -123,11 +125,15 @@ public class S3Backend implements RemoteBackend {
   public static class S3BackendConfig {
     private static final String CONFIG_PREFIX = "remoteConfig.s3.";
 
+    private static final int DEFAULT_DOWNLOAD_MAX_RETRIES = 3;
+
     private final boolean metrics;
     private final long rateLimitBytes;
     private final int rateLimitWindowSeconds;
     private final int downloadBatchSize;
     private final int uploadBatchSize;
+    private final boolean downloadAdaptiveConcurrency;
+    private final int downloadMaxRetries;
 
     /**
      * Create S3BackendConfig from NrtsearchConfig.
@@ -144,20 +150,30 @@ public class S3Backend implements RemoteBackend {
           configReader.getInteger(CONFIG_PREFIX + "rateLimitWindowSeconds", 1);
       int downloadBatchSize = configReader.getInteger(CONFIG_PREFIX + "downloadBatchSize", 0);
       int uploadBatchSize = configReader.getInteger(CONFIG_PREFIX + "uploadBatchSize", 0);
+      boolean downloadAdaptiveConcurrency =
+          configReader.getBoolean(CONFIG_PREFIX + "downloadAdaptiveConcurrency", false);
+      int downloadMaxRetries =
+          configReader.getInteger(
+              CONFIG_PREFIX + "downloadMaxRetries", DEFAULT_DOWNLOAD_MAX_RETRIES);
 
       return new S3BackendConfig(
-          metrics, rateLimitBytes, rateLimitWindowSeconds, downloadBatchSize, uploadBatchSize);
+          metrics,
+          rateLimitBytes,
+          rateLimitWindowSeconds,
+          downloadBatchSize,
+          uploadBatchSize,
+          downloadAdaptiveConcurrency,
+          downloadMaxRetries);
     }
 
     /**
-     * Constructor.
+     * Constructor (backward-compatible, adaptive concurrency disabled by default).
      *
      * @param metrics enable s3 metrics
      * @param rateLimitBytes rate limit in bytes
      * @param rateLimitWindowSeconds rate limit window in seconds
-     * @param downloadBatchSize max concurrent file downloads per batch (0 means use
-     *     defaultParallelism)
-     * @param uploadBatchSize max concurrent file uploads per batch (0 means use defaultParallelism)
+     * @param downloadBatchSize max concurrent file downloads (0 means use defaultParallelism)
+     * @param uploadBatchSize max concurrent file uploads (0 means use defaultParallelism)
      * @throws IllegalArgumentException if rateLimitBytes < 0 or rateLimitWindowSeconds <= 0
      */
     public S3BackendConfig(
@@ -166,6 +182,36 @@ public class S3Backend implements RemoteBackend {
         int rateLimitWindowSeconds,
         int downloadBatchSize,
         int uploadBatchSize) {
+      this(
+          metrics,
+          rateLimitBytes,
+          rateLimitWindowSeconds,
+          downloadBatchSize,
+          uploadBatchSize,
+          false,
+          DEFAULT_DOWNLOAD_MAX_RETRIES);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param metrics enable s3 metrics
+     * @param rateLimitBytes rate limit in bytes
+     * @param rateLimitWindowSeconds rate limit window in seconds
+     * @param downloadBatchSize max concurrent file downloads (0 means use defaultParallelism)
+     * @param uploadBatchSize max concurrent file uploads (0 means use defaultParallelism)
+     * @param downloadAdaptiveConcurrency enable adaptive concurrency for downloads
+     * @param downloadMaxRetries max retries per file when adaptive concurrency is enabled
+     * @throws IllegalArgumentException if rateLimitBytes < 0 or rateLimitWindowSeconds <= 0
+     */
+    public S3BackendConfig(
+        boolean metrics,
+        long rateLimitBytes,
+        int rateLimitWindowSeconds,
+        int downloadBatchSize,
+        int uploadBatchSize,
+        boolean downloadAdaptiveConcurrency,
+        int downloadMaxRetries) {
       if (rateLimitBytes < 0) {
         throw new IllegalArgumentException("rateLimitBytes must be >= 0");
       }
@@ -178,11 +224,16 @@ public class S3Backend implements RemoteBackend {
       if (uploadBatchSize < 0) {
         throw new IllegalArgumentException("uploadBatchSize must be >= 0");
       }
+      if (downloadMaxRetries < 0) {
+        throw new IllegalArgumentException("downloadMaxRetries must be >= 0");
+      }
       this.metrics = metrics;
       this.rateLimitBytes = rateLimitBytes;
       this.rateLimitWindowSeconds = rateLimitWindowSeconds;
       this.downloadBatchSize = downloadBatchSize;
       this.uploadBatchSize = uploadBatchSize;
+      this.downloadAdaptiveConcurrency = downloadAdaptiveConcurrency;
+      this.downloadMaxRetries = downloadMaxRetries;
     }
 
     /**
@@ -228,6 +279,24 @@ public class S3Backend implements RemoteBackend {
      */
     public int getUploadBatchSize() {
       return uploadBatchSize;
+    }
+
+    /**
+     * Get whether adaptive concurrency is enabled for downloads.
+     *
+     * @return true if adaptive concurrency is enabled
+     */
+    public boolean isDownloadAdaptiveConcurrency() {
+      return downloadAdaptiveConcurrency;
+    }
+
+    /**
+     * Get the max retries per file when adaptive concurrency is enabled.
+     *
+     * @return max retries
+     */
+    public int getDownloadMaxRetries() {
+      return downloadMaxRetries;
     }
 
     @VisibleForTesting
@@ -323,6 +392,8 @@ public class S3Backend implements RemoteBackend {
     this.defaultParallelism = defaultParallelism;
     this.downloadBatchSize = s3BackendConfig.getDownloadBatchSize();
     this.uploadBatchSize = s3BackendConfig.getUploadBatchSize();
+    this.downloadAdaptiveConcurrency = s3BackendConfig.isDownloadAdaptiveConcurrency();
+    this.downloadMaxRetries = s3BackendConfig.getDownloadMaxRetries();
     this.saveBeforeUnzip = savePluginBeforeUnzip;
     this.serviceBucket = serviceBucket;
 
@@ -729,70 +800,139 @@ public class S3Backend implements RemoteBackend {
         new S3ProgressListenerImpl(
             service, indexIdentifier, "download_index_files", totalExpectedBytes);
     logger.info(
-        "Downloading {} index files with max concurrency {} for {}/{}",
+        "Downloading {} index files with max concurrency {} (adaptive={}) for {}/{}",
         totalFiles,
         maxConcurrency,
+        downloadAdaptiveConcurrency,
         service,
         indexIdentifier);
 
-    Semaphore semaphore = new Semaphore(maxConcurrency);
-    AtomicReference<Throwable> failure = new AtomicReference<>();
-    List<CompletableFuture<?>> futures = new ArrayList<>();
+    ConcurrencyLimiter limiter =
+        downloadAdaptiveConcurrency
+            ? new AdaptiveConcurrencyLimiter(maxConcurrency)
+            : new StaticConcurrencyLimiter(maxConcurrency);
 
-    for (FileNamePair pair : fileList) {
-      if (failure.get() != null) {
-        break;
+    downloadIndexFilesWithLimiter(
+        fileList, backendPrefix, indexDir, downloadProgressListener, limiter);
+  }
+
+  /**
+   * Downloads a list of index files using the given concurrency limiter.
+   *
+   * <p>In adaptive mode (when {@code limiter} is an {@link AdaptiveConcurrencyLimiter}): IO-related
+   * failures are retried up to {@code downloadMaxRetries} times, each time with the concurrency
+   * already reduced by the limiter. Non-IO failures abort immediately.
+   *
+   * <p>In static mode (when {@code limiter} is a {@link StaticConcurrencyLimiter}): the first
+   * failure stops all further submissions and the error is propagated (existing behaviour).
+   */
+  private void downloadIndexFilesWithLimiter(
+      List<FileNamePair> fileList,
+      String backendPrefix,
+      Path indexDir,
+      S3ProgressListenerImpl downloadProgressListener,
+      ConcurrencyLimiter limiter)
+      throws IOException {
+
+    boolean adaptive = limiter instanceof AdaptiveConcurrencyLimiter;
+    List<FileNamePair> toDownload = fileList;
+
+    for (int attempt = 0; attempt <= (adaptive ? downloadMaxRetries : 0); attempt++) {
+      if (attempt > 0) {
+        logger.info(
+            "Retrying {} IO-failed index file downloads (attempt {}/{}), current concurrency {}",
+            toDownload.size(),
+            attempt,
+            downloadMaxRetries,
+            limiter.getCurrentLimit());
       }
-      try {
-        semaphore.acquire();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IOException("Interrupted while waiting to download index files from s3", e);
+
+      AtomicReference<Throwable> nonIoFailure = new AtomicReference<>();
+      List<CompletableFuture<?>> futures = new ArrayList<>();
+      // Concurrent queue because whenComplete runs on S3 callback threads
+      java.util.concurrent.ConcurrentLinkedQueue<FileNamePair> ioFailQueue =
+          adaptive ? new java.util.concurrent.ConcurrentLinkedQueue<>() : null;
+
+      for (FileNamePair pair : toDownload) {
+        if (nonIoFailure.get() != null) {
+          break;
+        }
+        try {
+          limiter.acquire();
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new IOException("Interrupted while waiting to download index files from s3", e);
+        }
+        if (nonIoFailure.get() != null) {
+          limiter.release(null); // release without adjusting limit
+          break;
+        }
+        String backendKey = backendPrefix + pair.backendFileName;
+        Path localFile = indexDir.resolve(pair.fileName);
+        DownloadRequest<GetObjectResponse> request =
+            DownloadRequest.builder()
+                .getObjectRequest(
+                    GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .responseTransformer(AsyncResponseTransformer.toFile(localFile))
+                .addTransferListener(downloadProgressListener)
+                .build();
+        try {
+          final FileNamePair currentPair = pair;
+          Download<GetObjectResponse> download = transferManager.download(request);
+          CompletableFuture<?> future =
+              download
+                  .completionFuture()
+                  .whenComplete(
+                      (result, t) -> {
+                        limiter.release(t);
+                        if (t != null) {
+                          if (adaptive && isIoRelatedFailure(t)) {
+                            ioFailQueue.add(currentPair);
+                          } else {
+                            nonIoFailure.compareAndSet(null, t);
+                          }
+                        }
+                      });
+          futures.add(future);
+        } catch (Throwable t) {
+          limiter.release(t);
+          if (adaptive && isIoRelatedFailure(t)) {
+            if (ioFailQueue != null) ioFailQueue.add(pair);
+          } else {
+            nonIoFailure.compareAndSet(null, t);
+            break;
+          }
+        }
       }
-      if (failure.get() != null) {
-        semaphore.release();
-        break;
+
+      for (CompletableFuture<?> future : futures) {
+        try {
+          future.join();
+        } catch (Exception ignored) {
+          // failures captured in nonIoFailure / ioFailQueue
+        }
       }
-      String backendKey = backendPrefix + pair.backendFileName;
-      Path localFile = indexDir.resolve(pair.fileName);
-      DownloadRequest<GetObjectResponse> request =
-          DownloadRequest.builder()
-              .getObjectRequest(
-                  GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-              .responseTransformer(AsyncResponseTransformer.toFile(localFile))
-              .addTransferListener(downloadProgressListener)
-              .build();
-      try {
-        Download<GetObjectResponse> download = transferManager.download(request);
-        CompletableFuture<?> future =
-            download
-                .completionFuture()
-                .whenComplete(
-                    (result, t) -> {
-                      semaphore.release();
-                      if (t != null) {
-                        failure.compareAndSet(null, t);
-                      }
-                    });
-        futures.add(future);
-      } catch (Throwable t) {
-        semaphore.release();
-        failure.compareAndSet(null, t);
-        break;
+
+      if (nonIoFailure.get() != null) {
+        throw new IOException("Error while downloading index files from s3. ", nonIoFailure.get());
       }
+
+      if (!adaptive || ioFailQueue == null || ioFailQueue.isEmpty()) {
+        // All done (or static mode with no failure)
+        return;
+      }
+
+      // Prepare next retry round
+      toDownload = new ArrayList<>(ioFailQueue);
     }
 
-    for (CompletableFuture<?> future : futures) {
-      try {
-        future.join();
-      } catch (Exception ignored) {
-        // failure already captured in AtomicReference
-      }
-    }
-
-    if (failure.get() != null) {
-      throw new IOException("Error while downloading index files from s3. ", failure.get());
-    }
+    // Exhausted retries
+    throw new IOException(
+        "Error while downloading index files from s3: "
+            + toDownload.size()
+            + " file(s) failed after "
+            + downloadMaxRetries
+            + " retries due to IO errors.");
   }
 
   @Override
@@ -842,6 +982,28 @@ public class S3Backend implements RemoteBackend {
       downloadStream = new GlobalThrottledInputStream(downloadStream, rateLimiter);
     }
     return downloadStream;
+  }
+
+  /**
+   * Returns true if the throwable indicates a local disk IO failure rather than a network or S3
+   * error.
+   *
+   * <p>An {@link java.io.IOException} anywhere in the cause chain is treated as IO-related. A
+   * {@link java.util.concurrent.CancellationException} is also treated as IO-related because it is
+   * the symptom of the {@code FileAsyncResponseTransformer} cancelling its subscription after a
+   * failed async file write.
+   */
+  @VisibleForTesting
+  static boolean isIoRelatedFailure(Throwable t) {
+    Throwable current = t;
+    while (current != null) {
+      if (current instanceof java.io.IOException
+          || current instanceof java.util.concurrent.CancellationException) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
   }
 
   @Override

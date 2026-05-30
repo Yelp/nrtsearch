@@ -1614,6 +1614,81 @@ public class S3BackendTest {
     s3.completeMultipartUpload(compRequest);
   }
 
+  // --- Adaptive concurrency config tests ---
+
+  @Test
+  public void testS3BackendConfig_adaptiveConcurrencyDefaultFalse() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0, 0);
+    assertFalse(config.isDownloadAdaptiveConcurrency());
+  }
+
+  @Test
+  public void testS3BackendConfig_adaptiveConcurrencyEnabled() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, true, 3);
+    assertTrue(config.isDownloadAdaptiveConcurrency());
+  }
+
+  @Test
+  public void testS3BackendConfig_downloadMaxRetriesDefault() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0, 0);
+    assertEquals(3, config.getDownloadMaxRetries());
+  }
+
+  @Test
+  public void testS3BackendConfig_downloadMaxRetriesConfigured() {
+    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, true, 5);
+    assertEquals(5, config.getDownloadMaxRetries());
+  }
+
+  @Test
+  public void testDownloadIndexFiles_adaptiveConcurrency_downloadsAllFiles() throws IOException {
+    File indexDir = folder.newFolder("index_dir_adaptive");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("adaptive_service", "adaptive_index");
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f1", meta1))
+            .build(),
+        RequestBody.fromString("adaptive1"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f2", meta2))
+            .build(),
+        RequestBody.fromString("adaptive2"));
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(BUCKET_NAME)
+            .key(keyPrefix + S3Backend.getIndexBackendFileName("f3", meta3))
+            .build(),
+        RequestBody.fromString("adaptive3"));
+
+    S3Backend adaptiveBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 2, 0, true, 3),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    adaptiveBackend.downloadIndexFiles(
+        "adaptive_service",
+        "adaptive_index",
+        indexDir.toPath(),
+        Map.of("f1", meta1, "f2", meta2, "f3", meta3));
+
+    assertEquals(
+        "adaptive1", convertToString(Files.newInputStream(indexDir.toPath().resolve("f1"))));
+    assertEquals(
+        "adaptive2", convertToString(Files.newInputStream(indexDir.toPath().resolve("f2"))));
+    assertEquals(
+        "adaptive3", convertToString(Files.newInputStream(indexDir.toPath().resolve("f3"))));
+  }
+
   private String convertToString(InputStream inputStream) throws IOException {
     StringWriter writer = new StringWriter();
     IOUtils.copy(inputStream, writer, StandardCharsets.UTF_8);
