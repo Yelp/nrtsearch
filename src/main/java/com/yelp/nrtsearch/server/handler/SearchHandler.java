@@ -1413,6 +1413,11 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       throws IOException {
     DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
     List<FacetResult> grpcFacetResults = new ArrayList<>();
+    // Run the drill sideways search on the direct executor to run subtasks in the
+    // current (grpc) thread. If we use the search thread pool for this, it can cause a
+    // deadlock trying to execute the dependent parallel search tasks. Since we do not
+    // currently add additional drill down definitions, there will only be one drill
+    // sideways task per query.
     DrillSideways drillS =
         new DrillSidewaysImpl(
             s.searcher(),

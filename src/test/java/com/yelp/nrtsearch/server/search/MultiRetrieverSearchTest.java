@@ -135,6 +135,30 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         .build();
   }
 
+  /** Two-retriever (text + KNN, k=10) request with WeightedRRF blending at rankConstant=60. */
+  private MultiRetrieverRequest twoRetrieverRrf() {
+    return MultiRetrieverRequest.newBuilder()
+        .addRetrievers(textRetriever(10))
+        .addRetrievers(knnRetriever(10))
+        .setBlender(
+            Blender.newBuilder()
+                .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                .build())
+        .build();
+  }
+
+  /** Facet over the "category" field, returning up to {@code topN} labels. */
+  private static Facet categoryFacet(int topN) {
+    return Facet.newBuilder().setName("category_facet").setDim("category").setTopN(topN).build();
+  }
+
+  /** Terms collector over the "category" field returning up to {@code size} buckets. */
+  private static Collector categoryTermsCollector(int size) {
+    return Collector.newBuilder()
+        .setTerms(TermsCollector.newBuilder().setField("category").setSize(size).build())
+        .build();
+  }
+
   /**
    * Rescorer that replaces every hit's score with {@code constant} (queryWeight=0 drops original).
    */
@@ -232,24 +256,13 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
   @Test
   public void testFacetsWithMultiRetriever() {
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(10))
-            .addRetrievers(knnRetriever(10))
-            .setBlender(
-                Blender.newBuilder()
-                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
-                    .build())
-            .build();
-
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
             .search(
                 baseRequest()
-                    .setMultiRetriever(twoRetrievers)
-                    .addFacets(
-                        Facet.newBuilder().setName("category_facet").setDim("category").setTopN(5))
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
                     .build());
 
     assertEquals(1, response.getFacetResultCount());
@@ -260,31 +273,13 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
   @Test
   public void testCollectorsWithMultiRetriever() {
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(10))
-            .addRetrievers(knnRetriever(10))
-            .setBlender(
-                Blender.newBuilder()
-                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
-                    .build())
-            .build();
-
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
             .search(
                 baseRequest()
-                    .setMultiRetriever(twoRetrievers)
-                    .putCollectors(
-                        "category_terms",
-                        Collector.newBuilder()
-                            .setTerms(
-                                TermsCollector.newBuilder()
-                                    .setField("category")
-                                    .setSize(10)
-                                    .build())
-                            .build())
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .putCollectors("category_terms", categoryTermsCollector(10))
                     .build());
 
     assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
@@ -300,29 +295,14 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
   @Test
   public void testFacetsAndCollectorsTogetherWithMultiRetriever() {
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(10))
-            .addRetrievers(knnRetriever(10))
-            .setBlender(
-                Blender.newBuilder()
-                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
-                    .build())
-            .build();
-
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
             .search(
                 baseRequest()
-                    .setMultiRetriever(twoRetrievers)
-                    .addFacets(
-                        Facet.newBuilder().setName("category_facet").setDim("category").setTopN(5))
-                    .putCollectors(
-                        "category_terms",
-                        Collector.newBuilder()
-                            .setTerms(TermsCollector.newBuilder().setField("category").setSize(10))
-                            .build())
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
+                    .putCollectors("category_terms", categoryTermsCollector(10))
                     .build());
 
     // Facets populated
@@ -342,16 +322,6 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
   @Test
   public void testFacetsWithSampleTopDocsWithMultiRetriever() {
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(10))
-            .addRetrievers(knnRetriever(10))
-            .setBlender(
-                Blender.newBuilder()
-                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
-                    .build())
-            .build();
-
     // sampleTopDocs=10 covers all blended hits; both categories ("odd" for docs 1-5, "even" for
     // docs 6-10) appear. This confirms counts are drawn from the blended TopDocs, not the full
     // index (which would still yield 2 labels, but via DrillSideways rather than
@@ -362,7 +332,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .search(
                 baseRequest()
                     .setTopHits(10)
-                    .setMultiRetriever(twoRetrievers)
+                    .setMultiRetriever(twoRetrieverRrf())
                     .addFacets(
                         Facet.newBuilder()
                             .setName("category_facet")
@@ -382,7 +352,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .search(
                 baseRequest()
                     .setTopHits(10)
-                    .setMultiRetriever(twoRetrievers)
+                    .setMultiRetriever(twoRetrieverRrf())
                     .addFacets(
                         Facet.newBuilder()
                             .setName("category_facet")
@@ -400,20 +370,10 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     // A profiled multi-retriever request with no facets and no collectors must not produce an
     // aggregationProfileResult sub-message — calling getAggregationProfileResultBuilder()
     // unconditionally would stamp an empty proto message into the serialized response.
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(10))
-            .addRetrievers(knnRetriever(10))
-            .setBlender(
-                Blender.newBuilder()
-                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
-                    .build())
-            .build();
-
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
-            .search(baseRequest().setMultiRetriever(twoRetrievers).setProfile(true).build());
+            .search(baseRequest().setMultiRetriever(twoRetrieverRrf()).setProfile(true).build());
 
     assertTrue(response.hasProfileResult());
     assertTrue(response.getProfileResult().hasMultiRetrieverProfileResult());
