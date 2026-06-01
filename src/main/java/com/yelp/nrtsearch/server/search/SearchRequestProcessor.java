@@ -250,7 +250,9 @@ public class SearchRequestProcessor {
       contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     }
 
-    // Facets are applied on the union query (all matching docs) for multi-retriever requests.
+    // Facets are applied on the union query for multi-retriever requests. Counts reflect the full
+    // match set of each retriever's query, not the recalled top-K — text retrievers may count
+    // beyond their topHits window. KNN retrievers are unaffected (KnnFloatVectorQuery is bounded).
     // Fetch tasks (highlights, innerHits, hitsLogger) run on the final top N hits during fetch.
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);

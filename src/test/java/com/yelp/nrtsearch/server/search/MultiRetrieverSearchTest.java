@@ -352,11 +352,11 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                     .build())
             .build();
 
-    // sampleTopDocs=5 restricts counting to the top 5 blended hits only (computed via
-    // facetTopDocsSample against the pre-blended TopDocs, not via DrillSideways).
-    // The KNN query ranks docs i=1..5 (nearest vectors) at the top, all in category "odd",
-    // so only 1 label appears in the sample window.
-    SearchResponse response =
+    // sampleTopDocs=10 covers all blended hits; both categories ("odd" for docs 1-5, "even" for
+    // docs 6-10) appear. This confirms counts are drawn from the blended TopDocs, not the full
+    // index (which would still yield 2 labels, but via DrillSideways rather than
+    // facetTopDocsSample).
+    SearchResponse fullSampleResponse =
         getGrpcServer()
             .getBlockingStub()
             .search(
@@ -368,14 +368,57 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                             .setName("category_facet")
                             .setDim("category")
                             .setTopN(5)
-                            .setSampleTopDocs(5))
+                            .setSampleTopDocs(10))
                     .build());
+    assertEquals(1, fullSampleResponse.getFacetResultCount());
+    assertEquals("category_facet", fullSampleResponse.getFacetResult(0).getName());
+    assertEquals(2, fullSampleResponse.getFacetResult(0).getLabelValuesCount());
 
-    assertEquals(1, response.getFacetResultCount());
-    assertEquals("category_facet", response.getFacetResult(0).getName());
-    // Only the top 5 blended hits are sampled, all from category "odd"
-    assertEquals(1, response.getFacetResult(0).getLabelValuesCount());
-    assertEquals("odd", response.getFacetResult(0).getLabelValues(0).getLabel());
+    // sampleTopDocs=1 restricts counting to a single blended hit, so only 1 label can appear,
+    // regardless of which doc ranks first. This confirms the sample window is actually bounded.
+    SearchResponse singleSampleResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(twoRetrievers)
+                    .addFacets(
+                        Facet.newBuilder()
+                            .setName("category_facet")
+                            .setDim("category")
+                            .setTopN(5)
+                            .setSampleTopDocs(1))
+                    .build());
+    assertEquals(1, singleSampleResponse.getFacetResultCount());
+    assertEquals("category_facet", singleSampleResponse.getFacetResult(0).getName());
+    assertEquals(1, singleSampleResponse.getFacetResult(0).getLabelValuesCount());
+  }
+
+  @Test
+  public void testProfilingWithNoAggregationDoesNotEmitAggregationProfileResult() {
+    // A profiled multi-retriever request with no facets and no collectors must not produce an
+    // aggregationProfileResult sub-message — calling getAggregationProfileResultBuilder()
+    // unconditionally would stamp an empty proto message into the serialized response.
+    MultiRetrieverRequest twoRetrievers =
+        MultiRetrieverRequest.newBuilder()
+            .addRetrievers(textRetriever(10))
+            .addRetrievers(knnRetriever(10))
+            .setBlender(
+                Blender.newBuilder()
+                    .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                    .build())
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(baseRequest().setMultiRetriever(twoRetrievers).setProfile(true).build());
+
+    assertTrue(response.hasProfileResult());
+    assertTrue(response.getProfileResult().hasMultiRetrieverProfileResult());
+    assertFalse(
+        response.getProfileResult().getMultiRetrieverProfileResult().hasAggregationProfileResult());
   }
 
   /**
