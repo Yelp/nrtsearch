@@ -90,8 +90,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                       .addValue(String.format("[%f, %f, %f]", i * 0.1f, i * 0.2f, i * 0.3f))
                       .build())
               .putFields(
-                  "category",
-                  MultiValuedField.newBuilder().addValue(i <= 5 ? "odd" : "even").build())
+                  "category", MultiValuedField.newBuilder().addValue(i <= 5 ? "a" : "b").build())
               .build());
     }
     addDocuments(docs.stream());
@@ -267,8 +266,10 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
 
     assertEquals(1, response.getFacetResultCount());
     assertEquals("category_facet", response.getFacetResult(0).getName());
-    // All 10 docs matched (union of both retrievers), split into two categories
+    // All 10 docs matched (union of both retrievers), 5 each in category "a" and "b"
     assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
+    assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
   }
 
   @Test

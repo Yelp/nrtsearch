@@ -1120,7 +1120,7 @@ message SearchResponse {
             // Vector diagnostics, only populated for KNN retrievers
             VectorDiagnostics vectorDiagnostics = 4;
             // Whether collection for this retriever was cut short by a timeout
-            bool hadTimeout = 5;
+            bool hitTimeout = 5;
             // Whether collection for this retriever terminated early (terminateAfter reached)
             bool terminatedEarly = 6;
         }

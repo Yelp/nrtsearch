@@ -181,16 +181,6 @@ public class SearchRequestProcessor {
               profileResult,
               indexState.getGlobalState().getRetrieverExecutor());
 
-      // Top-level collector for union query aggregations only (no ranking)
-      CollectorCreatorContext collectorCreatorContext =
-          CollectorCreatorContext.newBuilder(indexState)
-              .withShardState(shardState)
-              .withQueryFields(queryFields)
-              .withSearcherAndTaxonomy(searcherAndTaxonomy)
-              .withRequest(searchRequest)
-              .withNumHitsToCollect(0)
-              .build();
-      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     } else {
       query =
           extractQuery(
@@ -239,21 +229,21 @@ public class SearchRequestProcessor {
         }
         query = queryBuilder.build();
       }
-
-      CollectorCreatorContext collectorCreatorContext =
-          CollectorCreatorContext.newBuilder(indexState)
-              .withShardState(shardState)
-              .withQueryFields(queryFields)
-              .withSearcherAndTaxonomy(searcherAndTaxonomy)
-              .withRequest(searchRequest)
-              .build();
-      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     }
 
-    // Facets are applied on the union query for multi-retriever requests. Counts reflect the full
-    // match set of each retriever's query, not the recalled top-K — text retrievers may count
-    // beyond their topHits window. KNN retrievers are unaffected (KnnFloatVectorQuery is bounded).
-    // Fetch tasks (highlights, innerHits, hitsLogger) run on the final top N hits during fetch.
+    CollectorCreatorContext.Builder collectorContextBuilder =
+        CollectorCreatorContext.newBuilder(indexState)
+            .withShardState(shardState)
+            .withQueryFields(queryFields)
+            .withSearcherAndTaxonomy(searcherAndTaxonomy)
+            .withRequest(searchRequest);
+    if (searchRequest.hasMultiRetriever()) {
+      // Override to 0 — ranking is done by the blender; this pass is aggregation-only.
+      collectorContextBuilder.withNumHitsToCollect(0);
+    }
+    contextBuilder.setCollector(buildDocCollector(collectorContextBuilder.build()));
+
+    // Facets are applied on the union query for multi-retriever requests.
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);
       if (profileResult != null) {

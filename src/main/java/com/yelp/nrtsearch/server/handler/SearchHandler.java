@@ -632,7 +632,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         retrieverDiagBuilder.setRescoreTimeMs(retrieverResult.rescoreTimeMs());
       }
       retrieverDiagBuilder.setTotalHits(totalHits);
-      retrieverDiagBuilder.setHadTimeout(retrieverResult.hadTimeout());
+      retrieverDiagBuilder.setHitTimeout(retrieverResult.hadTimeout());
       retrieverDiagBuilder.setTerminatedEarly(retrieverResult.terminatedEarly());
       multiRetrieverDiagnosticsBuilder.putRetrieverDiagnostics(name, retrieverDiagBuilder.build());
     }
