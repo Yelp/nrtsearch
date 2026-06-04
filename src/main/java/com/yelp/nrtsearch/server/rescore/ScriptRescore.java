@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.rescore;
 
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.query.QueryUtils;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
@@ -23,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
@@ -63,23 +61,16 @@ public class ScriptRescore implements RescoreOperation {
       Comparator.<ScoreDoc>comparingDouble(d -> -d.score).thenComparing(BY_DOC_ID);
 
   private final ScoreScript.Factory factory;
-  private final Map<String, Object> params;
-  private final DocLookup docLookup;
+  private final ScriptFactoryContext scriptFactoryContext;
 
-  public ScriptRescore(
-      ScoreScript.Factory factory, Map<String, Object> params, DocLookup docLookup) {
+  public ScriptRescore(ScoreScript.Factory factory, ScriptFactoryContext scriptFactoryContext) {
     this.factory = factory;
-    this.params = params;
-    this.docLookup = docLookup;
+    this.scriptFactoryContext = scriptFactoryContext;
   }
 
   @Override
   public TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException {
-    ScriptFactoryContext factoryContext =
-        ScriptFactoryContext.builder(params, docLookup)
-            .sharedDocContext(context.getSearchContext().getSharedDocContext())
-            .build();
-    DoubleValuesSource scriptSource = factory.newFactory(factoryContext);
+    DoubleValuesSource scriptSource = factory.newFactory(scriptFactoryContext);
 
     IndexSearcher searcher = context.getSearchContext().getSearcherAndTaxonomy().searcher();
 

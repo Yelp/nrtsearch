@@ -86,6 +86,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
+  public static final String RETRIEVER_KEY_PREFIX = "retriever_";
   private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
   private static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
@@ -661,7 +662,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       if (scoreDoc instanceof BlendedScoreDoc blended) {
         Map<String, Object> ctx = sharedDocContext.getContext(scoreDoc.doc);
         for (Map.Entry<String, ScoreDoc> entry : blended.getScoreDocs().entrySet()) {
-          ctx.put("retriever_" + entry.getKey(), (double) entry.getValue().score);
+          ctx.put(RETRIEVER_KEY_PREFIX + entry.getKey(), (double) entry.getValue().score);
         }
       }
     }

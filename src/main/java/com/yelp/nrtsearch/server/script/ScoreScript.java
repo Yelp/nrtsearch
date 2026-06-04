@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.SegmentDocLookup;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
@@ -147,6 +148,21 @@ public abstract class ScoreScript extends DoubleValues {
       return n.doubleValue();
     }
     return defaultValue;
+  }
+
+  /**
+   * Get the full shared doc context map for the current document. Allows script plugins to access
+   * values of any type stored in the shared context.
+   *
+   * <p>Not available through JS expressions, which are limited to {@code double} values.
+   *
+   * @return shared doc context map for the current document, or an empty map if no context exists
+   */
+  public Map<String, Object> get_shared_doc_context_map() {
+    if (sharedDocContext == null) {
+      return Collections.emptyMap();
+    }
+    return sharedDocContext.getContext(leafDocBase + docId);
   }
 
   /** Get the script parameters provided in the request. */

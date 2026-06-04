@@ -19,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
@@ -146,7 +145,9 @@ public class ScriptRescoreTest {
   /** Wraps a pre-built DoubleValuesSource in a ScoreScript.Factory for testing. */
   private static ScriptRescore rescoreFromSource(DoubleValuesSource source) {
     ScoreScript.Factory factory = (ScriptFactoryContext ctx) -> source;
-    return new ScriptRescore(factory, Collections.emptyMap(), mock(DocLookup.class));
+    ScriptFactoryContext scriptFactoryContext =
+        ScriptFactoryContext.builder(Collections.emptyMap(), mock(DocLookup.class)).build();
+    return new ScriptRescore(factory, scriptFactoryContext);
   }
 
   private RescoreContext buildContext(IndexSearcher searcher) {
@@ -156,7 +157,6 @@ public class ScriptRescoreTest {
         mock(org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy.class);
     when(searchContext.getSearcherAndTaxonomy()).thenReturn(sat);
     when(sat.searcher()).thenReturn(searcher);
-    when(searchContext.getSharedDocContext()).thenReturn(new DefaultSharedDocContext());
     return new RescoreContext(3, searchContext);
   }
 

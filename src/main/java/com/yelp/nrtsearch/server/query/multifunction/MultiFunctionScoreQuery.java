@@ -15,9 +15,9 @@
  */
 package com.yelp.nrtsearch.server.query.multifunction;
 
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery.BoostMode;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery.FunctionScoreMode;
+import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.query.QueryUtils;
 import com.yelp.nrtsearch.server.query.multifunction.FilterFunction.LeafFunction;
@@ -68,18 +68,18 @@ public class MultiFunctionScoreQuery extends Query {
    * Builder method that creates a {@link MultiFunctionScoreQuery} from its gRPC message definiton.
    *
    * @param multiFunctionScoreQueryGrpc grpc definition
-   * @param docLookup lookup for document field data
+   * @param context query context with doc lookup and shared doc context
    * @return multi function score query
    */
   public static MultiFunctionScoreQuery build(
       com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery multiFunctionScoreQueryGrpc,
-      DocLookup docLookup) {
+      QueryContext context) {
     Query innerQuery =
-        QueryNodeMapper.getInstance().getQuery(multiFunctionScoreQueryGrpc.getQuery(), docLookup);
+        QueryNodeMapper.getInstance().getQuery(multiFunctionScoreQueryGrpc.getQuery(), context);
     FilterFunction[] functions =
         new FilterFunction[multiFunctionScoreQueryGrpc.getFunctionsCount()];
     for (int i = 0; i < functions.length; ++i) {
-      functions[i] = FilterFunction.build(multiFunctionScoreQueryGrpc.getFunctions(i), docLookup);
+      functions[i] = FilterFunction.build(multiFunctionScoreQueryGrpc.getFunctions(i), context);
     }
     return new MultiFunctionScoreQuery(
         innerQuery,
