@@ -1714,6 +1714,14 @@
         "vectorDiagnostics": {
           "$ref": "#/definitions/DiagnosticsVectorDiagnostics",
           "title": "Vector diagnostics, only populated for KNN retrievers"
+        },
+        "hitTimeout": {
+          "type": "boolean",
+          "title": "Whether collection for this retriever was cut short by a timeout"
+        },
+        "terminatedEarly": {
+          "type": "boolean",
+          "title": "Whether collection for this retriever terminated early (terminateAfter reached)"
         }
       },
       "title": "Diagnostics for a single retriever in a multi-retriever request"
@@ -2102,6 +2110,10 @@
             "$ref": "#/definitions/luceneserverProfileResult"
           },
           "title": "Per-retriever profile results keyed by retriever name"
+        },
+        "aggregationProfileResult": {
+          "$ref": "#/definitions/luceneserverProfileResult",
+          "title": "Profile result for the aggregation pass (facets + collectors) run after blending"
         }
       },
       "title": "Per-retriever profile results for multi-retriever requests"
@@ -4734,6 +4746,21 @@
       },
       "description": "Definition of collector to find a min double value over documents. Currently only allows for script based\nvalue production."
     },
+    "luceneserverMinScoreQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "The query whose results will be filtered by the minimum score threshold"
+        },
+        "minScore": {
+          "type": "number",
+          "format": "float",
+          "description": "Minimum score threshold; documents with scores below this value are excluded.\nMust be a non-negative number."
+        }
+      },
+      "description": "A query wrapper that filters documents based on a minimum score threshold.\nOnly documents with scores greater than or equal to the specified threshold are included."
+    },
     "luceneserverMode": {
       "type": "string",
       "enum": [
@@ -5228,6 +5255,9 @@
         },
         "crossIndexQuery": {
           "$ref": "#/definitions/luceneserverCrossIndexQuery"
+        },
+        "minScoreQuery": {
+          "$ref": "#/definitions/luceneserverMinScoreQuery"
         }
       },
       "title": "Defines a full query consisting of a QueryNode which may be one of several types"
@@ -5295,7 +5325,8 @@
         "PREFIX",
         "CONSTANT_SCORE_QUERY",
         "GEO_POLYGON",
-        "SPAN_QUERY"
+        "SPAN_QUERY",
+        "MIN_SCORE_QUERY"
       ],
       "default": "NONE",
       "title": "Deprecated: Defines different types of QueryNodes"
