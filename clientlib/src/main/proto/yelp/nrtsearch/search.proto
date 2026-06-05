@@ -1119,6 +1119,10 @@ message SearchResponse {
             TotalHits totalHits = 3;
             // Vector diagnostics, only populated for KNN retrievers
             VectorDiagnostics vectorDiagnostics = 4;
+            // Whether collection for this retriever was cut short by a timeout
+            bool hitTimeout = 5;
+            // Whether collection for this retriever terminated early (terminateAfter reached)
+            bool terminatedEarly = 6;
         }
         // Diagnostics specific to multi-retriever search
         message MultiRetrieverDiagnostics {
@@ -1430,6 +1434,8 @@ message ProfileResult {
     message MultiRetrieverProfileResult {
         // Per-retriever profile results keyed by retriever name
         map<string, ProfileResult> retrieverProfileResults = 1;
+        // Profile result for the aggregation pass (facets + collectors) run after blending
+        ProfileResult aggregationProfileResult = 2;
     }
 
     // Stats for search phase
