@@ -168,7 +168,9 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          (factoryContext -> new TestScriptFactory(factoryContext.getParams(), factoryContext.getDocLookup(), source));
+          (factoryContext ->
+              new TestScriptFactory(
+                  factoryContext.getParams(), factoryContext.getDocLookup(), source));
       return context.factoryClazz.cast(factory);
     }
   }

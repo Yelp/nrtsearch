@@ -89,6 +89,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                   MultiValuedField.newBuilder()
                       .addValue(String.format("[%f, %f, %f]", i * 0.1f, i * 0.2f, i * 0.3f))
                       .build())
+              .putFields(
+                  "category", MultiValuedField.newBuilder().addValue(i <= 5 ? "a" : "b").build())
               .build());
     }
     addDocuments(docs.stream());
@@ -129,6 +131,30 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                         .setK(k)
                         .build())
                 .build())
+        .build();
+  }
+
+  /** Two-retriever (text + KNN, k=10) request with WeightedRRF blending at rankConstant=60. */
+  private MultiRetrieverRequest twoRetrieverRrf() {
+    return MultiRetrieverRequest.newBuilder()
+        .addRetrievers(textRetriever(10))
+        .addRetrievers(knnRetriever(10))
+        .setBlender(
+            Blender.newBuilder()
+                .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                .build())
+        .build();
+  }
+
+  /** Facet over the "category" field, returning up to {@code topN} labels. */
+  private static Facet categoryFacet(int topN) {
+    return Facet.newBuilder().setName("category_facet").setDim("category").setTopN(topN).build();
+  }
+
+  /** Terms collector over the "category" field returning up to {@code size} buckets. */
+  private static Collector categoryTermsCollector(int size) {
+    return Collector.newBuilder()
+        .setTerms(TermsCollector.newBuilder().setField("category").setSize(size).build())
         .build();
   }
 
@@ -227,31 +253,133 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         "Unsupported blender type");
   }
 
-  // TODO: Remove after adding Facets and Collectors support
   @Test
-  public void testAggregationsNotSupported() {
-    MultiRetrieverRequest twoRetrievers =
-        MultiRetrieverRequest.newBuilder()
-            .addRetrievers(textRetriever(5))
-            .addRetrievers(knnRetriever(5))
-            .build();
+  public void testFacetsWithMultiRetriever() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
+                    .build());
 
-    assertSearchError(
-        baseRequest()
-            .setMultiRetriever(twoRetrievers)
-            .addFacets(Facet.newBuilder().setName("doc_id").setTopN(5).build())
-            .build(),
-        "Facets are not supported with MultiRetriever requests");
-    assertSearchError(
-        baseRequest()
-            .setMultiRetriever(twoRetrievers)
-            .putCollectors(
-                "terms",
-                Collector.newBuilder()
-                    .setTerms(TermsCollector.newBuilder().setField("doc_id").setSize(5).build())
-                    .build())
-            .build(),
-        "Collectors are not supported with MultiRetriever requests");
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    // All 10 docs matched (union of both retrievers), 5 each in category "a" and "b"
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
+    assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
+  }
+
+  @Test
+  public void testCollectorsWithMultiRetriever() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .putCollectors("category_terms", categoryTermsCollector(10))
+                    .build());
+
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    // Both categories should appear across all 10 docs
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
+
+  @Test
+  public void testFacetsAndCollectorsTogetherWithMultiRetriever() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
+                    .putCollectors("category_terms", categoryTermsCollector(10))
+                    .build());
+
+    // Facets populated
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    // Collectors populated in the same pass
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
+
+  @Test
+  public void testFacetsWithSampleTopDocsWithMultiRetriever() {
+    // sampleTopDocs=10 covers all blended hits; both categories ("odd" for docs 1-5, "even" for
+    // docs 6-10) appear. This confirms counts are drawn from the blended TopDocs, not the full
+    // index (which would still yield 2 labels, but via DrillSideways rather than
+    // facetTopDocsSample).
+    SearchResponse fullSampleResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(
+                        Facet.newBuilder()
+                            .setName("category_facet")
+                            .setDim("category")
+                            .setTopN(5)
+                            .setSampleTopDocs(10))
+                    .build());
+    assertEquals(1, fullSampleResponse.getFacetResultCount());
+    assertEquals("category_facet", fullSampleResponse.getFacetResult(0).getName());
+    assertEquals(2, fullSampleResponse.getFacetResult(0).getLabelValuesCount());
+
+    // sampleTopDocs=1 restricts counting to a single blended hit, so only 1 label can appear,
+    // regardless of which doc ranks first. This confirms the sample window is actually bounded.
+    SearchResponse singleSampleResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(
+                        Facet.newBuilder()
+                            .setName("category_facet")
+                            .setDim("category")
+                            .setTopN(5)
+                            .setSampleTopDocs(1))
+                    .build());
+    assertEquals(1, singleSampleResponse.getFacetResultCount());
+    assertEquals("category_facet", singleSampleResponse.getFacetResult(0).getName());
+    assertEquals(1, singleSampleResponse.getFacetResult(0).getLabelValuesCount());
+  }
+
+  @Test
+  public void testProfilingWithNoAggregationDoesNotEmitAggregationProfileResult() {
+    // A profiled multi-retriever request with no facets and no collectors must not produce an
+    // aggregationProfileResult sub-message — calling getAggregationProfileResultBuilder()
+    // unconditionally would stamp an empty proto message into the serialized response.
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(baseRequest().setMultiRetriever(twoRetrieverRrf()).setProfile(true).build());
+
+    assertTrue(response.hasProfileResult());
+    assertTrue(response.getProfileResult().hasMultiRetrieverProfileResult());
+    assertFalse(
+        response.getProfileResult().getMultiRetrieverProfileResult().hasAggregationProfileResult());
   }
 
   /**
