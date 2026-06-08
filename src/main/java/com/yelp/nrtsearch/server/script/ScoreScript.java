@@ -59,24 +59,20 @@ public abstract class ScoreScript extends DoubleValues {
   public static final String[] PARAMETERS = new String[] {};
 
   /**
-   * ScoreScript constructor.
+   * ScoreScript constructor. Conforms to the script compile contract: parameters are the
+   * concatenation of {@link Factory#newFactory} params and {@link SegmentFactory#newInstance}
+   * params.
    *
-   * @param params script parameters from {@link com.yelp.nrtsearch.server.grpc.Script}
-   * @param docLookup index level doc values lookup
+   * @param context request-level resources (params, docLookup, sharedDocContext)
    * @param leafContext lucene segment context
    * @param scores provider of segment document scores
-   * @param sharedDocContext per-document context shared across pipeline stages, or {@code null}
    */
   public ScoreScript(
-      Map<String, Object> params,
-      DocLookup docLookup,
-      LeafReaderContext leafContext,
-      DoubleValues scores,
-      SharedDocContext sharedDocContext) {
-    this.params = params;
-    this.segmentDocLookup = docLookup.getSegmentLookup(leafContext);
+      ScriptFactoryContext context, LeafReaderContext leafContext, DoubleValues scores) {
+    this.params = context.getParams();
+    this.segmentDocLookup = context.getDocLookup().getSegmentLookup(leafContext);
     this.scores = scores;
-    this.sharedDocContext = sharedDocContext;
+    this.sharedDocContext = context.getSharedDocContext();
     this.leafDocBase = leafContext.docBase;
   }
 
@@ -189,9 +185,9 @@ public abstract class ScoreScript extends DoubleValues {
     private final Map<String, Object> params;
     private final DocLookup docLookup;
 
-    public SegmentFactory(Map<String, Object> params, DocLookup docLookup) {
-      this.params = params;
-      this.docLookup = docLookup;
+    public SegmentFactory(ScriptFactoryContext context) {
+      this.params = context.getParams();
+      this.docLookup = context.getDocLookup();
     }
 
     public Map<String, Object> getParams() {

@@ -133,21 +133,18 @@ public class QueryNodeMapperTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          (ScriptFactoryContext ctx) ->
-              new TestScriptFactory(ctx.getParams(), ctx.getDocLookup(), source);
+          (ScriptFactoryContext ctx) -> new TestScriptFactory(ctx, source);
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -158,21 +155,18 @@ public class QueryNodeMapperTest extends ServerTestCase {
 
     @Override
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
-      return new DoubleScoreScript(params, docLookup, ctx, scores);
+      return new DoubleScoreScript(factoryContext, ctx, scores);
     }
 
     public DocLookup getDocLookup() {
-      return docLookup;
+      return factoryContext.getDocLookup();
     }
   }
 
   static class DoubleScoreScript extends ScoreScript {
     public DoubleScoreScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores, null);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
