@@ -37,7 +37,7 @@ import org.mockito.junit.MockitoJUnitRunner;
  * _shared_retriever_<name>}.
  */
 @RunWith(MockitoJUnitRunner.class)
-public class JsScriptSideValuesTest {
+public class JsScriptRetrieverScoresTest {
 
   /** A no-op Bindings that throws for any lookup to confirm shared-context bypass field lookup. */
   private static final Bindings EMPTY_BINDINGS =

@@ -182,20 +182,22 @@ public abstract class ScoreScript extends DoubleValues {
    * Engines are also free to create their own {@link DoubleValuesSource} implementations instead.
    */
   public abstract static class SegmentFactory extends DoubleValuesSource {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext context;
 
     public SegmentFactory(ScriptFactoryContext context) {
-      this.params = context.getParams();
-      this.docLookup = context.getDocLookup();
+      this.context = context;
+    }
+
+    public ScriptFactoryContext getContext() {
+      return context;
     }
 
     public Map<String, Object> getParams() {
-      return params;
+      return context.getParams();
     }
 
     public DocLookup getDocLookup() {
-      return docLookup;
+      return context.getDocLookup();
     }
 
     /**
@@ -233,7 +235,7 @@ public abstract class ScoreScript extends DoubleValues {
 
     @Override
     public int hashCode() {
-      return Objects.hash(params, docLookup);
+      return context.hashCode();
     }
 
     @Override
@@ -245,13 +247,12 @@ public abstract class ScoreScript extends DoubleValues {
         return false;
       }
       SegmentFactory factory = (SegmentFactory) obj;
-      return Objects.equals(factory.params, this.params)
-          && Objects.equals(factory.docLookup, this.docLookup);
+      return Objects.equals(factory.context, this.context);
     }
 
     @Override
     public String toString() {
-      return "ScoreScriptDoubleValuesSource: params: " + params + ", docLookup: " + docLookup;
+      return "ScoreScriptDoubleValuesSource: " + context;
     }
 
     @Override

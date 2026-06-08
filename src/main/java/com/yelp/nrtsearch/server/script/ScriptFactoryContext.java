@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.script;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Bundles all request-level resources that a {@link ScoreScript.Factory} may need to produce a
@@ -54,6 +55,27 @@ public final class ScriptFactoryContext {
    */
   public SharedDocContext getSharedDocContext() {
     return sharedDocContext;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(params, docLookup);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (!(obj instanceof ScriptFactoryContext other)) {
+      return false;
+    }
+    return Objects.equals(params, other.params) && Objects.equals(docLookup, other.docLookup);
+  }
+
+  @Override
+  public String toString() {
+    return "ScriptFactoryContext{params=" + params + ", docLookup=" + docLookup + "}";
   }
 
   public static Builder builder(Map<String, Object> params, DocLookup docLookup) {

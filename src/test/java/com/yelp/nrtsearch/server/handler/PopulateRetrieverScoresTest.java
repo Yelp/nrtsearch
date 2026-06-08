@@ -25,7 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.junit.Test;
 
-public class BuildRetrieverSideValuesTest {
+public class PopulateRetrieverScoresTest {
 
   /** Minimal BlendedScoreDoc subclass for testing. */
   private static BlendedScoreDoc blended(
