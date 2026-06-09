@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.query.vector;
 
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 /**
  * A {@link KnnByteVectorQuery} that has its functionality slightly modified. The {@link TotalHits}
@@ -37,8 +38,13 @@ public class NrtKnnByteVectorQuery extends KnnByteVectorQuery implements WithVec
    * @param numCandidates number of candidates to retrieve from each leaf
    */
   public NrtKnnByteVectorQuery(
-      String field, byte[] target, int k, Query filter, int numCandidates) {
-    super(field, target, numCandidates, filter);
+      String field,
+      byte[] target,
+      int k,
+      Query filter,
+      int numCandidates,
+      KnnSearchStrategy searchStrategy) {
+    super(field, target, numCandidates, filter, searchStrategy);
     this.topHits = k;
   }
 

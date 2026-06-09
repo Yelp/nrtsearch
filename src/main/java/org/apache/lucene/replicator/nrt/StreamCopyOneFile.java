@@ -83,7 +83,7 @@ public class StreamCopyOneFile extends CopyOneFile {
       CodecUtil.writeBELong(out, checksum);
       close();
 
-      if (Node.VERBOSE_FILES) {
+      if (dest.isVerboseFiles()) {
         dest.message(
             String.format(
                 Locale.ROOT,

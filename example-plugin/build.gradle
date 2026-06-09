@@ -26,6 +26,19 @@ ext {
     nrtsearchVersion = "1.+"
 }
 
+// Force all io.grpc dependencies to the version declared in the version catalog.
+// This prevents a mixed-version classpath when maven central contains a stale nrtsearch server
+// artifact whose POM references an older gRPC version, which causes AbstractMethodError at runtime.
+// This block can be removed once a nrtsearch server release that declares gRPC ${libs.versions.grpc.get()}
+// in its POM is published and available to plugin developers.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'io.grpc') {
+            details.useVersion libs.versions.grpc.get()
+        }
+    }
+}
+
 dependencies {
     compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"

@@ -44,22 +44,23 @@ Vector Indexing Options
         optional int32 hnsw_m = 2;
         optional int32 hnsw_ef_construction = 3;
         optional int32 merge_workers = 4;
-        optional float quantized_confidence_interval = 5;
         optional int32 quantized_bits = 6;
-        optional bool quantized_compress = 7;
+        optional int32 tiny_segments_threshold = 8;
     }
 
 - **type**: Type of indexing to use. Must be one of:
     - **hnsw**: Hierarchical Navigable Small World graph based vector search. (default)
-    - **hnsw_scalar_quantized**: Only available for float vectors. Uses scalar quantization to reduce the number of bits needed to store the vectors. Allows for trade-off between accuracy and memory usage.
-- **hnsw_m**: Number of of neighbors each node will be connected to in the HNSW graph. Default is 16.
+    - **hnsw_scalar_quantized**: Only available for float vectors. Uses scalar quantization to reduce the number of bits needed to store the vectors. Use ``quantized_bits`` to control the precision/memory trade-off.
+- **hnsw_m**: Number of neighbors each node will be connected to in the HNSW graph. Default is 16.
 - **hnsw_ef_construction**: Number of candidates to evaluate during construction of the HNSW graph. Default is 100.
 - **merge_workers**: Number of threads to use for merging the HNSW graph during segment merges. Default is 1.
-- **quantized_confidence_interval**: Confidence interval for quantization. When unset, it is calculated based on the vector dimension. When 0, the quantiles are dynamically determined by sampling many confidence intervals and determining the most accurate pair. Otherwise, the value must be between 0.9 and 1.0 (both inclusive). Default is unset.
-- **quantized_bits**: Number of bits to use for quantization. Must be one of:
-    - 4 - half byte
+- **quantized_bits**: Number of bits to use for scalar quantization (``hnsw_scalar_quantized`` type only). Must be one of:
+    - 1 - binary with 4-bit query vectors (asymmetric)
+    - 2 - 2-bit storage with 4-bit query vectors (asymmetric)
+    - 4 - half byte (packed nibble)
     - 7 - signed byte (default)
-- **quantized_compress**: Whether to compress the quantized vectors. If true, the vectors that are quantized with <= 4 bits will be compressed into a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed. Default is false.
+    - 8 - unsigned byte
+- **tiny_segments_threshold**: Minimum number of vectors in a segment required for an HNSW graph to be built. Segments smaller than this threshold use brute-force search instead. Applies to all indexing types. Default is 100.
 
 Example Field
 -------------

@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.rescore;
 
-import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import java.io.IOException;
 import org.apache.lucene.search.TopDocs;

@@ -51,7 +51,7 @@ public abstract class CopyOneFile implements Closeable {
     // checksum:
     bytesToCopy = metaData.length() - Long.BYTES;
 
-    if (Node.VERBOSE_FILES) {
+    if (dest.isVerboseFiles()) {
       dest.message(
           "file "
               + name

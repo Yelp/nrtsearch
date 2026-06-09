@@ -201,7 +201,7 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
     }
 
     // Open a new reader, sharing any common segment readers with the old one:
-    DirectoryReader r = StandardDirectoryReader.open(dir, newInfos, subs, null);
+    DirectoryReader r = StandardDirectoryReader.open(dir, newInfos, subs, null, null);
     addReaderClosedListenerFilter(r);
     node.message("refreshed to version=" + newInfos.getVersion() + " r=" + r);
     IndexReader oldReader = old != null ? old.getIndexReader() : null;

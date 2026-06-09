@@ -101,7 +101,7 @@ public class CustomFieldTypeTest {
 
     public TestFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-      super(name, requestField, context, Integer.class);
+      super(name, requestField, context, Integer.class, null);
     }
 
     @Override

@@ -34,7 +34,7 @@ public class LazyQueueTopScoreDocCollectorManager
   private final int numHits;
   private final ScoreDoc after;
   private final int totalHitsThreshold;
-  private final MaxScoreAccumulator minScoreAcc;
+  private final LazyMaxScoreAccumulator minScoreAcc;
 
   /**
    * Creates a new {@link org.apache.lucene.search.TopScoreDocCollectorManager} given the number of
@@ -100,7 +100,8 @@ public class LazyQueueTopScoreDocCollectorManager
     this.numHits = numHits;
     this.after = after;
     this.totalHitsThreshold = Math.max(totalHitsThreshold, numHits);
-    this.minScoreAcc = totalHitsThreshold != Integer.MAX_VALUE ? new MaxScoreAccumulator() : null;
+    this.minScoreAcc =
+        totalHitsThreshold != Integer.MAX_VALUE ? new LazyMaxScoreAccumulator() : null;
   }
 
   /**

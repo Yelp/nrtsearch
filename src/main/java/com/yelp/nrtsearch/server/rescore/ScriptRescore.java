@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.rescore;
 
 import com.yelp.nrtsearch.server.query.QueryUtils;
+import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,18 +31,23 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 
 /**
- * {@link RescoreOperation} that re-scores each hit by evaluating a {@link DoubleValuesSource}
- * (typically compiled from a {@link com.yelp.nrtsearch.server.script.ScoreScript}). The
- * previous-pass score is passed as the {@link DoubleValues} {@code scores} argument to {@link
- * DoubleValuesSource#getValues}. How that score is surfaced to the script author depends on the
- * script engine:
+ * {@link RescoreOperation} that re-scores each hit by evaluating a compiled script. At rescore
+ * time, the factory is called with the current {@link
+ * com.yelp.nrtsearch.server.doc.SharedDocContext} from the search context, allowing the script to
+ * read per-retriever scores (and any other values contributed by earlier pipeline steps) in
+ * addition to the standard inputs.
+ *
+ * <p>Inputs available to scripts:
  *
  * <ul>
- *   <li><b>JS (Lucene expression)</b> – accessible as the {@code _score} variable, resolved via
- *       {@link com.yelp.nrtsearch.server.field.FieldDefBindings} to {@link
- *       DoubleValuesSource#SCORES}.
- *   <li><b>Custom {@link com.yelp.nrtsearch.server.script.ScoreScript} subclasses</b> – accessible
- *       via {@link com.yelp.nrtsearch.server.script.ScoreScript#get_score()}.
+ *   <li><b>{@code _score}</b> — the previous-pass blended score (JS: {@code _score} variable;
+ *       {@link com.yelp.nrtsearch.server.script.ScoreScript} subclasses: {@code get_score()}).
+ *   <li><b>Doc values</b> — index field values via {@code doc['field'].value}.
+ *   <li><b>Shared doc context values</b> — per-document values contributed by earlier pipeline
+ *       steps. For multi-retriever queries, each retriever's raw score is available under the key
+ *       {@code retriever_<name>} (JS: {@code _shared_retriever_<name>}; {@link
+ *       com.yelp.nrtsearch.server.script.ScoreScript} subclasses: {@code
+ *       getSharedDocContext().get("retriever_<name>")}).
  * </ul>
  */
 public class ScriptRescore implements RescoreOperation {
@@ -55,12 +62,13 @@ public class ScriptRescore implements RescoreOperation {
 
   private final DoubleValuesSource scriptSource;
 
-  public ScriptRescore(DoubleValuesSource scriptSource) {
-    this.scriptSource = scriptSource;
+  public ScriptRescore(ScoreScript.Factory factory, ScriptFactoryContext scriptFactoryContext) {
+    this.scriptSource = factory.newFactory(scriptFactoryContext);
   }
 
   @Override
   public TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException {
+
     IndexSearcher searcher = context.getSearchContext().getSearcherAndTaxonomy().searcher();
 
     // Sort hits by doc id so we can walk leaves in one forward pass.

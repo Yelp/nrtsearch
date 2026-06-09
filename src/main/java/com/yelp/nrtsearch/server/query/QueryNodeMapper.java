@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
@@ -113,11 +114,11 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    return getQuery(query, new QueryContext(state.docLookup, state.getGlobalState()));
+    return getQuery(query, new QueryContext(state.docLookup, state.getGlobalState(), null));
   }
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, DocLookup docLookup) {
-    return getQuery(query, new QueryContext(docLookup, null));
+    return getQuery(query, new QueryContext(docLookup, null, null));
   }
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, QueryContext context) {
@@ -183,10 +184,10 @@ public class QueryNodeMapper {
       case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), context);
       case EXISTSQUERY -> getExistsQuery(query.getExistsQuery());
       case GEORADIUSQUERY -> getGeoRadiusQuery(query.getGeoRadiusQuery(), docLookup);
-      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), docLookup);
+      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), context);
       case COMPLETIONQUERY -> getCompletionQuery(query.getCompletionQuery(), docLookup);
       case MULTIFUNCTIONSCOREQUERY ->
-          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), docLookup);
+          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), context);
       case MATCHPHRASEPREFIXQUERY ->
           MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), docLookup);
       case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), docLookup, false);
@@ -298,16 +299,24 @@ public class QueryNodeMapper {
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
         getQuery(functionScoreQuery.getQuery(), context),
-        scriptFactory.newFactory(params, context.docLookup()));
+        scriptFactory.newFactory(
+            ScriptFactoryContext.builder(params, context.docLookup())
+                .sharedDocContext(context.sharedDocContext())
+                .build()));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
-      FunctionFilterQuery functionFilterQuery, DocLookup docLookup) {
+      FunctionFilterQuery functionFilterQuery, QueryContext context) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
-    return new FunctionMatchQuery(scriptFactory.newFactory(params, docLookup), score -> score > 0);
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(
+            ScriptFactoryContext.builder(params, context.docLookup())
+                .sharedDocContext(context.sharedDocContext())
+                .build()),
+        score -> score > 0);
   }
 
   private Query getTermQuery(
@@ -866,7 +875,7 @@ public class QueryNodeMapper {
       Query innerQuery =
           getQuery(
               crossIndexQuery.getQuery(),
-              new QueryContext(secondaryIndex.docLookup, context.globalState()));
+              new QueryContext(secondaryIndex.docLookup, context.globalState(), null));
 
       int maxTerms = crossIndexQuery.getMaxTerms();
       if (maxTerms > 0) {

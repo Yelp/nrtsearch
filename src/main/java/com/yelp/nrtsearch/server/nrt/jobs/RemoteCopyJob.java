@@ -30,7 +30,6 @@ import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyOneFile;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
-import org.apache.lucene.replicator.nrt.Node;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.replicator.nrt.StreamCopyOneFile;
@@ -184,7 +183,7 @@ public class RemoteCopyJob extends VisitableCopyJob {
       String tmpFileName = ent.getValue();
       String fileName = ent.getKey();
 
-      if (Node.VERBOSE_FILES) {
+      if (dest.isVerboseFiles()) {
         dest.message("rename file " + tmpFileName + " to " + fileName);
       }
 
