@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import java.text.ParseException;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
@@ -69,10 +70,12 @@ public class JsScriptEngine implements ScriptEngine {
           String.format("could not parse expression: %s", source), pe);
     }
     ScoreScript.Factory factory =
-        ((params, docLookup) -> {
-          Bindings fieldBindings = new FieldDefBindings(docLookup::getFieldDef);
-          return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, params));
-        });
+        (ScriptFactoryContext factoryContext) -> {
+          Bindings fieldBindings = new FieldDefBindings(factoryContext.getDocLookup()::getFieldDef);
+          return expr.getDoubleValuesSource(
+              new JsScriptBindings(
+                  fieldBindings, factoryContext.getParams(), factoryContext.getSharedDocContext()));
+        };
     return context.factoryClazz.cast(factory);
   }
 }

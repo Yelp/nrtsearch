@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.script.js;
 
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,41 +36,80 @@ import org.apache.lucene.search.IndexSearcher;
  * false being 0.0d.
  *
  * <p>Bound parameters are also cached, since the value is constant for each query.
+ *
+ * <p>Shared doc context values are accessible via the {@code _shared_<key>} variable convention
+ * (the {@code _shared_} prefix is stripped, and the remaining string is the key in the {@link
+ * SharedDocContext} map for each document). Values must be stored as {@link Number} instances.
+ * Retriever scores use the key format {@code retriever_<name>}, so the JS variable is {@code
+ * _shared_retriever_<name>}. {@code advanceExact} returns {@code false} when no entry is present
+ * for that document.
  */
 public final class JsScriptBindings extends Bindings {
+
+  static final String SHARED_CONTEXT_PREFIX = "_shared_";
 
   private final Bindings fieldDefBindings;
   private final Map<String, Object> scriptParams;
   private final Map<String, DoubleValuesSource> paramBindingsCache;
+  private final SharedDocContext sharedDocContext;
 
   /**
-   * Sole constructor.
+   * Constructor without shared doc context.
    *
-   * @param fieldDefBindings bindings for index fields, may contain fields still being registers in
-   *     a {@link com.yelp.nrtsearch.server.grpc.FieldDefRequest}
-   * @param scriptParams params from a {@link com.yelp.nrtsearch.server.grpc.Script} definition,
-   *     converted to java types
+   * @param fieldDefBindings bindings for index fields
+   * @param scriptParams params from a {@link com.yelp.nrtsearch.server.grpc.Script} definition
    * @throws NullPointerException if fieldDefBindings or scriptParams is null
    */
   public JsScriptBindings(Bindings fieldDefBindings, Map<String, Object> scriptParams) {
+    this(fieldDefBindings, scriptParams, null);
+  }
+
+  /**
+   * Constructor with shared doc context.
+   *
+   * @param fieldDefBindings bindings for index fields, may contain fields still being registered in
+   *     a {@link com.yelp.nrtsearch.server.grpc.FieldDefRequest}
+   * @param scriptParams params from a {@link com.yelp.nrtsearch.server.grpc.Script} definition,
+   *     converted to java types
+   * @param sharedDocContext per-document context shared across pipeline stages, or {@code null} if
+   *     not available
+   * @throws NullPointerException if fieldDefBindings or scriptParams is null
+   */
+  public JsScriptBindings(
+      Bindings fieldDefBindings,
+      Map<String, Object> scriptParams,
+      SharedDocContext sharedDocContext) {
     Objects.requireNonNull(fieldDefBindings);
     Objects.requireNonNull(scriptParams);
     this.fieldDefBindings = fieldDefBindings;
     this.scriptParams = scriptParams;
     this.paramBindingsCache = scriptParams.isEmpty() ? Collections.emptyMap() : new HashMap<>();
+    this.sharedDocContext = sharedDocContext;
   }
 
   /**
-   * Get value binding for an expression variable. Binds to script parameter value if present,
-   * otherwise the document field value.
+   * Get value binding for an expression variable. Resolution order:
+   *
+   * <ol>
+   *   <li>Variables prefixed with {@value SHARED_CONTEXT_PREFIX} are resolved against {@link
+   *       SharedDocContext} using the suffix as the key. Retriever scores use the key format {@code
+   *       retriever_<name>}, so the JS variable is {@code _shared_retriever_<name>}.
+   *   <li>Script parameter value (if present).
+   *   <li>Document field value via {@code fieldDefBindings}.
+   * </ol>
    *
    * @param name expression variable name
    * @return {@link DoubleValuesSource} factory to provide per segment variable evaluators.
-   * @throws IllegalArgumentException if then named script parameter exists, but is not of an
-   *     expected type
+   * @throws IllegalArgumentException if the named script parameter exists but is not of an expected
+   *     type
    */
   @Override
   public DoubleValuesSource getDoubleValuesSource(String name) {
+    if (name.startsWith(SHARED_CONTEXT_PREFIX)) {
+      String key = name.substring(SHARED_CONTEXT_PREFIX.length());
+      return new SharedContextDoubleValuesSource(sharedDocContext, key);
+    }
+
     DoubleValuesSource cachedSource = paramBindingsCache.get(name);
     if (cachedSource != null) {
       return cachedSource;
@@ -166,6 +207,92 @@ public final class JsScriptBindings extends Bindings {
     @Override
     public boolean advanceExact(int doc) {
       return true;
+    }
+  }
+
+  /**
+   * {@link DoubleValuesSource} that resolves per-document values from {@link SharedDocContext} by
+   * combining the segment leaf doc base with the segment-local doc id to form the global doc id.
+   */
+  static class SharedContextDoubleValuesSource extends DoubleValuesSource {
+
+    private final SharedDocContext sharedDocContext;
+    private final String key;
+
+    SharedContextDoubleValuesSource(SharedDocContext sharedDocContext, String key) {
+      this.sharedDocContext = sharedDocContext;
+      this.key = key;
+    }
+
+    @Override
+    public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
+      return new SharedContextDoubleValues(sharedDocContext, key, ctx.docBase);
+    }
+
+    @Override
+    public boolean needsScores() {
+      return false;
+    }
+
+    @Override
+    public DoubleValuesSource rewrite(IndexSearcher reader) {
+      return this;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(key);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj instanceof SharedContextDoubleValuesSource other) {
+        return Objects.equals(key, other.key) && sharedDocContext == other.sharedDocContext;
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return "SharedContextDoubleValuesSource(" + key + ")";
+    }
+
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+      return false;
+    }
+  }
+
+  /** Resolves the shared context value for the current segment document as a double. */
+  static class SharedContextDoubleValues extends DoubleValues {
+
+    private final SharedDocContext sharedDocContext;
+    private final String key;
+    private final int leafDocBase;
+    private double currentValue;
+
+    SharedContextDoubleValues(SharedDocContext sharedDocContext, String key, int leafDocBase) {
+      this.sharedDocContext = sharedDocContext;
+      this.key = key;
+      this.leafDocBase = leafDocBase;
+    }
+
+    @Override
+    public double doubleValue() {
+      return currentValue;
+    }
+
+    @Override
+    public boolean advanceExact(int doc) {
+      if (sharedDocContext == null) {
+        return false;
+      }
+      Object value = sharedDocContext.getContext(leafDocBase + doc).get(key);
+      if (value instanceof Number n) {
+        currentValue = n.doubleValue();
+        return true;
+      }
+      return false;
     }
   }
 }

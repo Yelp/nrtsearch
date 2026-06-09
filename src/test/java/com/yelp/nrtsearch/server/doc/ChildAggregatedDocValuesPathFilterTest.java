@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
@@ -178,20 +179,18 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (factoryContext -> new TestScriptFactory(factoryContext, source));
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -204,10 +203,10 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       return switch (scriptId) {
         case "children_appointments_sum" ->
-            new ChildrenAppointmentsSumScript(params, docLookup, ctx, scores);
-        case "children_reviews_sum" -> new ChildrenReviewsSumScript(params, docLookup, ctx, scores);
-        case "children_both_paths" -> new ChildrenBothPathsScript(params, docLookup, ctx, scores);
-        case "children_count_test" -> new ChildrenCountTestScript(params, docLookup, ctx, scores);
+            new ChildrenAppointmentsSumScript(factoryContext, ctx, scores);
+        case "children_reviews_sum" -> new ChildrenReviewsSumScript(factoryContext, ctx, scores);
+        case "children_both_paths" -> new ChildrenBothPathsScript(factoryContext, ctx, scores);
+        case "children_count_test" -> new ChildrenCountTestScript(factoryContext, ctx, scores);
         default -> throw new IllegalArgumentException("Unknown script: " + scriptId);
       };
     }
@@ -224,11 +223,8 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     private static int executionCount = 0;
 
     public ChildrenAppointmentsSumScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -265,11 +261,8 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     private static int executionCount = 0;
 
     public ChildrenReviewsSumScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -309,11 +302,8 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     private static int executionCount = 0;
 
     public ChildrenBothPathsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -360,11 +350,8 @@ public class ChildAggregatedDocValuesPathFilterTest extends ServerTestCase {
     private static int executionCount = 0;
 
     public ChildrenCountTestScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override

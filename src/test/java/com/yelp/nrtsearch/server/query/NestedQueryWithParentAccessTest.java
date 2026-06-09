@@ -21,7 +21,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -29,6 +28,7 @@ import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
@@ -138,20 +138,18 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (ScriptFactoryContext ctx) -> new TestScriptFactory(ctx, source);
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -163,24 +161,17 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
     @Override
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       if ("parent_access_test".equals(scriptId)) {
-        return new ParentAccessDoubleScoreScript(params, docLookup, ctx, scores);
+        return new ParentAccessDoubleScoreScript(factoryContext, ctx, scores);
       } else {
-        return new DoubleScoreScript(params, docLookup, ctx, scores);
+        return new DoubleScoreScript(factoryContext, ctx, scores);
       }
-    }
-
-    public DocLookup getDocLookup() {
-      return docLookup;
     }
   }
 
   static class DoubleScoreScript extends ScoreScript {
     public DoubleScoreScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -259,11 +250,8 @@ public class NestedQueryWithParentAccessTest extends ServerTestCase {
     private static int executionCount = 0;
 
     public ParentAccessDoubleScoreScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override

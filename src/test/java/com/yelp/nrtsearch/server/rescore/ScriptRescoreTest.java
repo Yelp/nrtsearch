@@ -19,6 +19,9 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.lucene.index.LeafReaderContext;
@@ -139,6 +142,14 @@ public class ScriptRescoreTest {
     };
   }
 
+  /** Wraps a pre-built DoubleValuesSource in a ScoreScript.Factory for testing. */
+  private static ScriptRescore rescoreFromSource(DoubleValuesSource source) {
+    ScoreScript.Factory factory = (ScriptFactoryContext ctx) -> source;
+    ScriptFactoryContext scriptFactoryContext =
+        ScriptFactoryContext.builder(Collections.emptyMap(), mock(DocLookup.class)).build();
+    return new ScriptRescore(factory, scriptFactoryContext);
+  }
+
   private RescoreContext buildContext(IndexSearcher searcher) {
     com.yelp.nrtsearch.server.search.SearchContext searchContext =
         mock(com.yelp.nrtsearch.server.search.SearchContext.class);
@@ -173,7 +184,7 @@ public class ScriptRescoreTest {
         ScoreDoc[] input = {new ScoreDoc(0, 3.0f), new ScoreDoc(1, 2.0f), new ScoreDoc(2, 1.0f)};
         TopDocs hits = new TopDocs(new TotalHits(3, Relation.EQUAL_TO), input);
 
-        ScriptRescore rescorer = new ScriptRescore(constantSource(5.0));
+        ScriptRescore rescorer = rescoreFromSource(constantSource(5.0));
         TopDocs result = rescorer.rescore(hits, buildContext(searcher));
 
         assertEquals(3, result.scoreDocs.length);
@@ -210,7 +221,7 @@ public class ScriptRescoreTest {
         TopDocs hits = new TopDocs(new TotalHits(3, Relation.EQUAL_TO), input);
 
         // Script doubles the previous score.
-        ScriptRescore rescorer = new ScriptRescore(multiplierOfPreviousScore(2.0));
+        ScriptRescore rescorer = rescoreFromSource(multiplierOfPreviousScore(2.0));
         TopDocs result = rescorer.rescore(hits, buildContext(searcher));
 
         assertEquals(3, result.scoreDocs.length);
@@ -249,7 +260,7 @@ public class ScriptRescoreTest {
         ScoreDoc[] input = {new ScoreDoc(0, 10.0f), new ScoreDoc(1, 5.0f), new ScoreDoc(2, 1.0f)};
         TopDocs hits = new TopDocs(new TotalHits(3, Relation.EQUAL_TO), input);
 
-        ScriptRescore rescorer = new ScriptRescore(multiplierOfPreviousScore(3.0));
+        ScriptRescore rescorer = rescoreFromSource(multiplierOfPreviousScore(3.0));
         TopDocs result = rescorer.rescore(hits, buildContext(searcher));
 
         assertEquals(3, result.scoreDocs.length);
@@ -336,7 +347,7 @@ public class ScriptRescoreTest {
               }
             };
 
-        ScriptRescore rescorer = new ScriptRescore(invertingSource);
+        ScriptRescore rescorer = rescoreFromSource(invertingSource);
         TopDocs result = rescorer.rescore(hits, buildContext(searcher));
 
         assertEquals(3, result.scoreDocs.length);
@@ -373,7 +384,7 @@ public class ScriptRescoreTest {
                 new TotalHits(999, Relation.GREATER_THAN_OR_EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(0, 1.0f)});
 
-        ScriptRescore rescorer = new ScriptRescore(constantSource(2.0));
+        ScriptRescore rescorer = rescoreFromSource(constantSource(2.0));
         TopDocs result = rescorer.rescore(hits, buildContext(searcher));
 
         assertEquals(999, result.totalHits.value());

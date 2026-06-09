@@ -22,7 +22,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -30,6 +29,7 @@ import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
@@ -171,20 +171,18 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (factoryContext -> new TestScriptFactory(factoryContext, source));
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -196,10 +194,10 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
     @Override
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       return switch (scriptId) {
-        case "count_appointments" -> new CountAppointmentsScript(params, docLookup, ctx, scores);
+        case "count_appointments" -> new CountAppointmentsScript(factoryContext, ctx, scores);
         case "sum_appointment_prices" ->
-            new SumAppointmentPricesScript(params, docLookup, ctx, scores);
-        case "count_reviews" -> new CountReviewsScript(params, docLookup, ctx, scores);
+            new SumAppointmentPricesScript(factoryContext, ctx, scores);
+        case "count_reviews" -> new CountReviewsScript(factoryContext, ctx, scores);
         default -> throw new IllegalArgumentException("Unknown script: " + scriptId);
       };
     }
@@ -210,11 +208,8 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
   /** Returns the count of appointment children visible via _CHILDREN.appointments.price. */
   static class CountAppointmentsScript extends ScoreScript {
     public CountAppointmentsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -233,11 +228,8 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
   /** Returns the sum of appointment prices visible via _CHILDREN.appointments.price. */
   static class SumAppointmentPricesScript extends ScoreScript {
     public SumAppointmentPricesScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -260,11 +252,8 @@ public class ChildFilterIntegrationTest extends ServerTestCase {
   /** Returns the count of review children visible via _CHILDREN.reviews.stars. */
   static class CountReviewsScript extends ScoreScript {
     public CountReviewsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override

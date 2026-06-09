@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
@@ -168,20 +169,18 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (factoryContext -> new TestScriptFactory(factoryContext, source));
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -193,9 +192,9 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
     @Override
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       return switch (scriptId) {
-        case "docvalues_reuse_test" -> new DocValuesReuseScript(params, docLookup, ctx, scores);
-        case "zero_children_test" -> new ZeroChildrenScript(params, docLookup, ctx, scores);
-        case "set_doc_id_twice_test" -> new SetDocIdTwiceScript(params, docLookup, ctx, scores);
+        case "docvalues_reuse_test" -> new DocValuesReuseScript(factoryContext, ctx, scores);
+        case "zero_children_test" -> new ZeroChildrenScript(factoryContext, ctx, scores);
+        case "set_doc_id_twice_test" -> new SetDocIdTwiceScript(factoryContext, ctx, scores);
         default -> throw new IllegalArgumentException("Unknown script: " + scriptId);
       };
     }
@@ -215,11 +214,8 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
     private LoadedDocValues<?> previousReference = null;
 
     public DocValuesReuseScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -255,11 +251,8 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
    */
   static class ZeroChildrenScript extends ScoreScript {
     public ZeroChildrenScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -290,11 +283,8 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
    */
   static class SetDocIdTwiceScript extends ScoreScript {
     public SetDocIdTwiceScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override

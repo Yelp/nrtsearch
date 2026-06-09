@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
@@ -85,6 +86,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
+  public static final String RETRIEVER_KEY_PREFIX = "retriever_";
   private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
   private static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
@@ -188,8 +190,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         MultiRetrieverResult multiRetrieverResult =
             executeMultiRetriever(searchContext, s.searcher(), diagnostics, profileResultBuilder);
         hits = multiRetrieverResult.topDocs();
+
         DeadlineUtils.checkDeadline(
             "SearchHandler: post multi-retriever recall", diagnostics, "SEARCH");
+
+        populateRetrieverScores(hits, searchContext.getSharedDocContext());
+
         // Run aggregations (facets + collectors) against the union query after blending.
         // Note: facet counts reflect the full match set of the union query, not the recalled
         // top-K per retriever. For KNN retrievers this is equivalent (KnnFloatVectorQuery is
@@ -655,6 +661,23 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
     return new MultiRetrieverResult(
         blendedHits, anyRetrieverHadTimeout, anyRetrieverTerminatedEarly);
+  }
+
+  /**
+   * Write per-retriever scores from blended hits into the shared doc context. For retriever {@code
+   * "text"}, the key {@code "retriever_text"} is set on each document's context map, accessible in
+   * JS scripts as {@code _shared_retriever_text} and in ScoreScript subclasses via {@code
+   * getSharedDocContext().get("retriever_text")}.
+   */
+  static void populateRetrieverScores(TopDocs hits, SharedDocContext sharedDocContext) {
+    for (ScoreDoc scoreDoc : hits.scoreDocs) {
+      if (scoreDoc instanceof BlendedScoreDoc blended) {
+        Map<String, Object> ctx = sharedDocContext.getContext(scoreDoc.doc);
+        for (Map.Entry<String, ScoreDoc> entry : blended.getScoreDocs().entrySet()) {
+          ctx.put(RETRIEVER_KEY_PREFIX + entry.getKey(), (double) entry.getValue().score);
+        }
+      }
+    }
   }
 
   /**
