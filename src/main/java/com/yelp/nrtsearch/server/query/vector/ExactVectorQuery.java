@@ -186,7 +186,12 @@ public abstract class ExactVectorQuery extends Query {
      * @param queryVector the query vector
      */
     public ExactFloatVectorQuery(String field, float[] queryVector) {
-      super(field, reader -> reader.getFloatVectorValues(field).scorer(queryVector));
+      super(
+          field,
+          reader -> {
+            var vectorValues = reader.getFloatVectorValues(field);
+            return vectorValues == null ? null : vectorValues.scorer(queryVector);
+          });
       this.queryVector = queryVector;
     }
 
@@ -232,7 +237,12 @@ public abstract class ExactVectorQuery extends Query {
      * @param queryVector the query vector
      */
     public ExactByteVectorQuery(String field, byte[] queryVector) {
-      super(field, reader -> reader.getByteVectorValues(field).scorer(queryVector));
+      super(
+          field,
+          reader -> {
+            var vectorValues = reader.getByteVectorValues(field);
+            return vectorValues == null ? null : vectorValues.scorer(queryVector);
+          });
       this.queryVector = queryVector;
     }
 

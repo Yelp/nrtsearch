@@ -2231,6 +2231,53 @@ public class VectorFieldDefTest extends ServerTestCase {
     }
   }
 
+  @Test
+  public void testFloatExactSearch_noData() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_no_data";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setExactVectorQuery(
+                                ExactVectorQuery.newBuilder()
+                                    .setField(field)
+                                    .addAllQueryFloatVector(queryVector)
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(0, searchResponse.getHitsCount());
+  }
+
+  @Test
+  public void testByteExactSearch_noData() {
+    String field = "byte_vector_no_data";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setExactVectorQuery(
+                                ExactVectorQuery.newBuilder()
+                                    .setField(field)
+                                    .setQueryByteVector(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(0, searchResponse.getHitsCount());
+  }
+
   record VectorSearchResult(int docId, float score) {}
 
   private List<VectorSearchResult> getTrueFloatTopHits(
