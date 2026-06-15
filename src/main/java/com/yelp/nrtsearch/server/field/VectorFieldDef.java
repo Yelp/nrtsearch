@@ -47,7 +47,8 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104HnswScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -62,6 +63,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
@@ -209,6 +211,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
             : Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
     int mergeWorkers =
         vectorIndexingOptions.hasMergeWorkers() ? vectorIndexingOptions.getMergeWorkers() : 1;
+    int tinySegmentsThreshold =
+        vectorIndexingOptions.hasTinySegmentsThreshold()
+            ? vectorIndexingOptions.getTinySegmentsThreshold()
+            : Lucene99HnswVectorsFormat.HNSW_GRAPH_THRESHOLD;
     ExecutorService executorService =
         mergeWorkers > 1
             ? fieldDefCreatorContext
@@ -217,10 +223,17 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
             : null;
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {
-          case HNSW -> getHnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+          case HNSW ->
+              getHnswVectorsFormat(
+                  m, efConstruction, mergeWorkers, executorService, tinySegmentsThreshold);
           case HNSW_SCALAR_QUANTIZED ->
               getHnswScalarQuantizedVectorsFormat(
-                  m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
+                  m,
+                  efConstruction,
+                  mergeWorkers,
+                  executorService,
+                  vectorIndexingOptions,
+                  tinySegmentsThreshold);
         };
 
     return new KnnVectorsFormat(vectorsFormat.getName()) {
@@ -247,8 +260,13 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   private static KnnVectorsFormat getHnswVectorsFormat(
-      int m, int efConstruction, int mergeWorkers, ExecutorService executorService) {
-    return new Lucene99HnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+      int m,
+      int efConstruction,
+      int mergeWorkers,
+      ExecutorService executorService,
+      int tinySegmentsThreshold) {
+    return new Lucene99HnswVectorsFormat(
+        m, efConstruction, mergeWorkers, executorService, tinySegmentsThreshold);
   }
 
   private static KnnVectorsFormat getHnswScalarQuantizedVectorsFormat(
@@ -256,21 +274,24 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       int efConstruction,
       int mergeWorkers,
       ExecutorService executorService,
-      VectorIndexingOptions vectorIndexingOptions) {
-    Float confidenceInterval =
-        vectorIndexingOptions.hasQuantizedConfidenceInterval()
-            ? vectorIndexingOptions.getQuantizedConfidenceInterval()
-            : null;
+      VectorIndexingOptions vectorIndexingOptions,
+      int tinySegmentsThreshold) {
     int bits =
         vectorIndexingOptions.hasQuantizedBits()
             ? vectorIndexingOptions.getQuantizedBits()
             : DEFAULT_QUANTIZED_BITS;
-    boolean compress =
-        vectorIndexingOptions.hasQuantizedCompress()
-            && vectorIndexingOptions.getQuantizedCompress();
+    ScalarEncoding encoding = ScalarEncoding.fromNumBits(bits);
+    return new Lucene104HnswScalarQuantizedVectorsFormat(
+        encoding, m, efConstruction, mergeWorkers, executorService, tinySegmentsThreshold);
+  }
 
-    return new Lucene99HnswScalarQuantizedVectorsFormat(
-        m, efConstruction, mergeWorkers, bits, compress, confidenceInterval, executorService);
+  @VisibleForTesting
+  static KnnSearchStrategy createKnnSearchStrategy(KnnQuery.FilterStrategy filterStrategy) {
+    return switch (filterStrategy) {
+      case DEFAULT, FANOUT -> new KnnSearchStrategy.Hnsw(0);
+      case ACORN -> new KnnSearchStrategy.Hnsw(60);
+      default -> throw new IllegalArgumentException("Unknown filter strategy: " + filterStrategy);
+    };
   }
 
   /**
@@ -296,20 +317,22 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    * @param requestField field definition from grpc request
    * @param context creation context
    * @param docValuesClass class of doc values object
+   * @param previousField previous instance of this field definition, or null if there is none
    */
   protected VectorFieldDef(
       String name,
       Field requestField,
       FieldDefCreator.FieldDefCreatorContext context,
-      Class<T> docValuesClass) {
-    super(name, requestField, context, docValuesClass);
+      Class<T> docValuesClass,
+      VectorFieldDef<?> previousField) {
+    super(name, requestField, context, docValuesClass, previousField);
     this.vectorDimensions = requestField.getVectorDimensions();
     this.embeddingProviderName =
         requestField.getEmbeddingProvider().isEmpty() ? null : requestField.getEmbeddingProvider();
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
-      setupNormalizedVectorField(requestField.getVectorSimilarity(), context);
+      setupNormalizedVectorField(requestField.getVectorSimilarity(), context, previousField);
       this.vectorsFormat =
           createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions(), context);
     } else {
@@ -320,9 +343,13 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   private void setupNormalizedVectorField(
-      String similarity, FieldDefCreator.FieldDefCreatorContext context) {
+      String similarity,
+      FieldDefCreator.FieldDefCreatorContext context,
+      VectorFieldDef<?> previousField) {
     if (NORMALIZED_COSINE.equals(similarity)) {
       // add field to store magnitude before normalization
+      FloatFieldDef previousMagnitudeField =
+          previousField != null ? previousField.magnitudeField : null;
       magnitudeField =
           new FloatFieldDef(
               getName() + MAGNITUDE_FIELD_SUFFIX,
@@ -331,7 +358,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                   .setType(FieldType.FLOAT)
                   .setStoreDocValues(true)
                   .build(),
-              context);
+              context,
+              previousMagnitudeField);
       Map<String, IndexableFieldDef<?>> childFieldsMap = new HashMap<>(super.getChildFields());
       childFieldsMap.put(magnitudeField.getName(), magnitudeField);
       childFieldsWithMagnitude = Collections.unmodifiableMap(childFieldsMap);
@@ -454,7 +482,24 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
     public FloatVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-      super(name, requestField, context, FloatVectorType.class);
+      this(name, requestField, context, null);
+    }
+
+    /**
+     * Constructor for creating an instance of this field based on a previous instance. This is used
+     * when updating field properties.
+     *
+     * @param name name of the field
+     * @param requestField the field definition from the request
+     * @param context context for creating the field definition
+     * @param previousField the previous instance of this field definition, or null if there is none
+     */
+    protected FloatVectorFieldDef(
+        String name,
+        Field requestField,
+        FieldDefCreator.FieldDefCreatorContext context,
+        FloatVectorFieldDef previousField) {
+      super(name, requestField, context, FloatVectorType.class, previousField);
       if (getEmbeddingProviderName() != null && EmbeddingCreator.getInstance() != null) {
         EmbeddingProvider provider =
             EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
@@ -514,10 +559,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     @Override
     void parseVectorField(String value, Document document) {
       float[] floatArr = null;
-      // If an embedding provider is configured and the value is not a JSON array,
-      // treat the value as text and embed it using the provider.
-      // Note: values starting with '[' are always treated as JSON vector arrays.
-      if (getEmbeddingProviderName() != null && !value.trim().startsWith("[")) {
+
+      if (looksLikeVectorJson(value)) {
+        // Looks like a JSON numeric array — parse as vector. Dimension errors are real errors.
+        floatArr = parseVectorFieldToFloatArr(value);
+      } else if (getEmbeddingProviderName() != null) {
+        // Doesn't look like a vector — embed the text
         EmbeddingProvider provider =
             EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
         if (provider == null) {
@@ -612,12 +659,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         normalizeVector(queryVector, magnitude);
       }
       Query query;
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
         query =
             new NrtDiversifyingChildrenFloatKnnVectorQuery(
-                getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+                getName(),
+                queryVector,
+                filterQuery,
+                k,
+                numCandidates,
+                parentBitSetProducer,
+                searchStrategy);
       } else {
-        query = new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query =
+            new NrtKnnFloatVectorQuery(
+                getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
       if (similarityThreshold != Float.NEGATIVE_INFINITY) {
         float similarityScore = similarityToScore(similarityThreshold, similarityFunction);
@@ -685,6 +741,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       }
     }
 
+    @Override
+    public FieldDef createUpdatedFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      return new FloatVectorFieldDef(name, requestField, context, this);
+    }
+
     @VisibleForTesting
     static float similarityToScore(float similarity, VectorSimilarityFunction similarityFunction) {
       return switch (similarityFunction) {
@@ -702,7 +764,24 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   public static class ByteVectorFieldDef extends VectorFieldDef<ByteVectorType> {
     public ByteVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-      super(name, requestField, context, ByteVectorType.class);
+      this(name, requestField, context, null);
+    }
+
+    /**
+     * Constructor for creating an instance of this field based on a previous instance. This is used
+     * when updating field properties.
+     *
+     * @param name name of the field
+     * @param requestField the field definition from the request
+     * @param context context for creating the field definition
+     * @param previousField the previous instance of this field definition, or null if there is none
+     */
+    protected ByteVectorFieldDef(
+        String name,
+        Field requestField,
+        FieldDefCreator.FieldDefCreatorContext context,
+        ByteVectorFieldDef previousField) {
+      super(name, requestField, context, ByteVectorType.class, previousField);
       if (NORMALIZED_COSINE.equals(requestField.getVectorSimilarity())) {
         throw new IllegalArgumentException(
             "Normalized cosine similarity is not supported for byte vectors");
@@ -765,10 +844,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     @Override
     void parseVectorField(String value, Document document) {
       byte[] byteArr = null;
-      // If an embedding provider is configured and the value is not a JSON array,
-      // treat the value as text and embed it using the provider's embedBytes method.
-      // Note: values starting with '[' are always treated as JSON vector arrays.
-      if (getEmbeddingProviderName() != null && !value.trim().startsWith("[")) {
+
+      if (looksLikeVectorJson(value)) {
+        // Looks like a JSON numeric array — parse as vector. Dimension errors are real errors.
+        byteArr = parseVectorFieldToByteArr(value);
+      } else if (getEmbeddingProviderName() != null) {
+        // Doesn't look like a vector — embed the text
         EmbeddingProvider provider =
             EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
         if (provider == null) {
@@ -851,12 +932,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       validateVectorForSearch(queryVector);
 
       Query query;
+      KnnSearchStrategy searchStrategy = createKnnSearchStrategy(knnQuery.getFilterStrategy());
       if (parentBitSetProducer != null) {
         query =
             new NrtDiversifyingChildrenByteKnnVectorQuery(
-                getName(), queryVector, filterQuery, k, numCandidates, parentBitSetProducer);
+                getName(),
+                queryVector,
+                filterQuery,
+                k,
+                numCandidates,
+                parentBitSetProducer,
+                searchStrategy);
       } else {
-        query = new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+        query =
+            new NrtKnnByteVectorQuery(
+                getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
       }
       if (similarityThreshold != Float.NEGATIVE_INFINITY) {
         float similarityScore =
@@ -896,6 +986,12 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
               "Vector magnitude cannot be 0 when using cosine similarity");
         }
       }
+    }
+
+    @Override
+    public FieldDef createUpdatedFieldDef(
+        String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+      return new ByteVectorFieldDef(name, requestField, context, this);
     }
 
     @VisibleForTesting

@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchCutoffWrapper;
@@ -89,6 +90,21 @@ public abstract class DocCollector {
       }
     }
     for (Rescorer rescorer : request.getRescorersList()) {
+      int windowSize = rescorer.getWindowSize();
+      if (windowSize > 0 && windowSize > collectHits) {
+        collectHits = windowSize;
+      }
+    }
+    return collectHits;
+  }
+
+  public static int computeNumHitsToCollect(
+      int startHit, int topHits, int logHits, List<RescoreTask> rescorers) {
+    int collectHits = topHits;
+    if (logHits > 0) {
+      collectHits = Math.max(collectHits, logHits + startHit);
+    }
+    for (RescoreTask rescorer : rescorers) {
       int windowSize = rescorer.getWindowSize();
       if (windowSize > 0 && windowSize > collectHits) {
         collectHits = windowSize;

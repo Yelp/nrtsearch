@@ -642,6 +642,44 @@ message ExactVectorQuery {
     bytes query_byte_vector = 3;
 }
 
+// Filters the primary index to documents whose join key matches documents
+// in a secondary index. The query runs on the secondary index; matching
+// values of secondary_field are collected and used to build a TermsQuery on
+// the primary_field in the primary index.
+message CrossIndexQuery {
+    // How to aggregate scores from secondary index matches.
+    enum JoinScoreMode {
+        // Unset — treated as JOIN_SCORE_NONE (filter only)
+        JOIN_SCORE_UNSET = 0;
+        // No scoring — filter only
+        JOIN_SCORE_NONE = 1;
+        // Average score of matching secondary documents
+        JOIN_SCORE_AVG = 2;
+        // Maximum score of matching secondary documents
+        JOIN_SCORE_MAX = 3;
+        // Minimum score of matching secondary documents
+        JOIN_SCORE_MIN = 4;
+        // Sum of scores of matching secondary documents
+        JOIN_SCORE_TOTAL = 5;
+    }
+
+    // Name of the secondary index (must be on the same nrtsearch node)
+    string index = 1;
+    // Field in the primary index containing the join key
+    string primary_field = 2;
+    // Field in the secondary index containing the join key
+    string secondary_field = 3;
+    // Query to execute on the secondary index
+    Query query = 4;
+    // Score aggregation mode from secondary matches (default: JOIN_SCORE_NONE = filter only)
+    JoinScoreMode score_mode = 5;
+    // Maximum number of matching secondary documents allowed (default: 0 = unlimited).
+    // If the inner query matches more documents than this limit, an error is returned.
+    // Use this to guard against excessive memory usage from large secondary result sets.
+    // Note: this counts matching documents, not unique join-key values.
+    uint32 max_terms = 6;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -667,6 +705,17 @@ enum QueryType {
     CONSTANT_SCORE_QUERY = 20;
     GEO_POLYGON = 21;
     SPAN_QUERY = 22;
+    MIN_SCORE_QUERY = 23;
+}
+
+// A query wrapper that filters documents based on a minimum score threshold.
+// Only documents with scores greater than or equal to the specified threshold are included.
+message MinScoreQuery {
+    // The query whose results will be filtered by the minimum score threshold
+    Query query = 1;
+    // Minimum score threshold; documents with scores below this value are excluded.
+    // Must be a non-negative number.
+    float min_score = 2;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types
@@ -704,6 +753,8 @@ message Query {
         SpanQuery spanQuery = 25;
         MatchAllQuery matchAllQuery = 26;
         ExactVectorQuery exactVectorQuery = 27;
+        CrossIndexQuery crossIndexQuery = 28;
+        MinScoreQuery minScoreQuery = 29;
     }
 }
 
@@ -791,6 +842,21 @@ message SearchRequest {
     map<string, string> additionalOptions = 32;
     // When Multi-Retriever is set, top level query, queryText and knn fields should not be set and will error
     MultiRetrieverRequest multiRetriever = 33;
+    // Filters applied to child documents when accessed via _CHILDREN. prefix in scripts.
+    // Only children matching both the nested path AND the filter will be included in aggregation.
+    // If not specified for a path, all children at that path are included (default behavior).
+    repeated ChildFilter childFilters = 34;
+}
+
+// Filter applied to child documents before aggregation via _CHILDREN. prefix in scripts.
+// Allows narrowing which child documents are included based on a query predicate,
+// in addition to the automatic nested path filtering.
+message ChildFilter {
+    // Path to the nested object (e.g., "appointments"). Must match a registered nested field.
+    string path = 1;
+    // Query filter applied to child documents at this path.
+    // Only children matching this query will be included in _CHILDREN. aggregation.
+    Query filter = 2;
 }
 
 // Multi-Retriever Request
@@ -836,11 +902,12 @@ message KnnRetriever {
 }
 
 // Blender to merge Multi-Retriever topDocs
-// TODO: Additional blenders will be added
 message Blender {
     oneof blenderType {
         WeightedRrfBlender weightedRrf = 1;
+        WeightedScoreOrderBlender weightedScoreOrder = 2;
         PluginBlender plugin = 3;
+        ScorelessRawMergeBlender scorelessRawMerge = 4;
     }
 }
 
@@ -849,6 +916,33 @@ message WeightedRrfBlender {
     // Reduces the impact of rank differences between retrievers. Default: 60
     int32 rankConstant = 1;
 }
+
+// Weighted Score Order Blender. Blends raw retriever scores multiplied by each retriever's boost.
+message WeightedScoreOrderBlender {
+    // How per-retriever weighted scores are combined for documents appearing in multiple retrievers.
+    // Default: MAX
+    ScoreMode scoreMode = 1;
+
+    // How per-retriever weighted scores are combined when the same document appears in multiple
+    // retrievers.
+    enum ScoreMode {
+        // Use the highest weighted score across all retrievers.
+        MAX = 0;
+        // Sum all weighted retriever scores.
+        SUM = 1;
+        // Average all weighted retriever scores.
+        AVG = 2;
+    }
+}
+
+// Scoreless Raw Merge Blender. Deduplicates hits across retrievers and preserves all per-retriever
+// raw ScoreDocs under each BlendedScoreDoc, but assigns score 0 to every result. Sorting and
+// pagination are skipped.
+// set is returned. Intended for two use cases:
+//   1. Client-side ranking: the caller applies its own ranking (e.g. global RRF across shards)
+//      over the returned raw per-retriever scores.
+//   2. Server-side rescoring: a downstream rescorer receives all deduplicated candidates and do rescoring.
+message ScorelessRawMergeBlender {}
 
 message PluginBlender {
     // Registered blender plugin name
@@ -1040,6 +1134,10 @@ message SearchResponse {
             TotalHits totalHits = 3;
             // Vector diagnostics, only populated for KNN retrievers
             VectorDiagnostics vectorDiagnostics = 4;
+            // Whether collection for this retriever was cut short by a timeout
+            bool hitTimeout = 5;
+            // Whether collection for this retriever terminated early (terminateAfter reached)
+            bool terminatedEarly = 6;
         }
         // Diagnostics specific to multi-retriever search
         message MultiRetrieverDiagnostics {
@@ -1277,6 +1375,14 @@ message QueryRescorer {
     double rescoreQueryWeight = 3;
 }
 
+// Defines a rescorer which uses a script to compute a new score for each hit.
+// The script has access to _score (the score from the previous pass, e.g. blended score)
+// and doc values via the doc map. Useful for boosting blended results with field-level signals.
+message ScriptRescorer {
+    // Script to execute per document; must return a double
+    Script script = 1;
+}
+
 // Defines a rescorer which is executed after the first search pass
 message Rescorer {
     // Maximum number of hits from previous phase to rescore
@@ -1286,6 +1392,8 @@ message Rescorer {
         QueryRescorer queryRescorer = 2;
         // Rescore with plugin registered rescorer
         PluginRescorer pluginRescorer = 3;
+        // Rescore with a script
+        ScriptRescorer scriptRescorer = 5;
     }
     // Must be unique for each Rescorer
     string name = 4;
@@ -1341,6 +1449,8 @@ message ProfileResult {
     message MultiRetrieverProfileResult {
         // Per-retriever profile results keyed by retriever name
         map<string, ProfileResult> retrieverProfileResults = 1;
+        // Profile result for the aggregation pass (facets + collectors) run after blending
+        ProfileResult aggregationProfileResult = 2;
     }
 
     // Stats for search phase
@@ -1606,10 +1716,20 @@ message KnnQuery {
     // greater than or equal to this value will be returned. If unset, all results are returned.
     // Note: This value is specified as the raw similarity, not the normalized/boosted score.
     optional float similarityThreshold = 8;
+    enum FilterStrategy {
+      // Currently defaults to FANOUT, this may be changed in future versions
+      DEFAULT = 0;
+      // Compare against all vector neighbors, keeping only those that match the filter (default)
+      FANOUT = 1;
+      // Compare only against vector neighbors that match the filter
+      ACORN = 2;
+    }
+    // Strategy to use when applying filter
+    FilterStrategy filter_strategy = 9;
     // Text to embed as query vector. Mutually exclusive with query_vector/query_byte_vector.
     // Uses the field's configured embeddingProvider, or the embedding_provider override.
-    string query_text = 9;
+    string query_text = 10;
     // Optional override for the embedding provider to use with query_text.
     // If not set, falls back to the vector field's configured embeddingProvider.
-    string embedding_provider = 10;
+    string embedding_provider = 11;
 }

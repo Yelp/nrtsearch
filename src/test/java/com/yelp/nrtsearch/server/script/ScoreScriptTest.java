@@ -24,7 +24,6 @@ import static org.junit.Assert.fail;
 
 import com.google.common.primitives.Floats;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.geo.GeoPoint;
@@ -129,20 +128,18 @@ public class ScoreScriptTest {
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
       ScoreScript.Factory factory =
-          ((params, docLookup) -> new TestScriptFactory(params, docLookup, source));
+          (ScriptFactoryContext ctx) -> new TestScriptFactory(ctx, source);
       return context.factoryClazz.cast(factory);
     }
   }
 
   static class TestScriptFactory extends ScoreScript.SegmentFactory {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext factoryContext;
     private final String scriptId;
 
-    public TestScriptFactory(Map<String, Object> params, DocLookup docLookup, String scriptId) {
-      super(params, docLookup);
-      this.params = params;
-      this.docLookup = docLookup;
+    public TestScriptFactory(ScriptFactoryContext factoryContext, String scriptId) {
+      super(factoryContext);
+      this.factoryContext = factoryContext;
       this.scriptId = scriptId;
     }
 
@@ -155,23 +152,23 @@ public class ScoreScriptTest {
     public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       switch (scriptId) {
         case "verify_doc_values":
-          return new VerifyDocValuesScript(params, docLookup, ctx, scores);
+          return new VerifyDocValuesScript(factoryContext, ctx, scores);
         case "verify_lat_lon":
-          return new VerifyLatLonScript(params, docLookup, ctx, scores);
+          return new VerifyLatLonScript(factoryContext, ctx, scores);
         case "verify_score":
-          return new VerifyScoreScript(params, docLookup, ctx, scores);
+          return new VerifyScoreScript(factoryContext, ctx, scores);
         case "verify_empty_doc_values":
-          return new VerifyEmptyDocValuesScript(params, docLookup, ctx, scores);
+          return new VerifyEmptyDocValuesScript(factoryContext, ctx, scores);
         case "verify_empty_lat_lon_values":
-          return new VerifyEmptyLatLonValuesScript(params, docLookup, ctx, scores);
+          return new VerifyEmptyLatLonValuesScript(factoryContext, ctx, scores);
         case "doc_values_errors":
-          return new DocValuesExceptionsScript(params, docLookup, ctx, scores);
+          return new DocValuesExceptionsScript(factoryContext, ctx, scores);
         case "test_no_params":
-          return new TestNoParamsScript(params, docLookup, ctx, scores);
+          return new TestNoParamsScript(factoryContext, ctx, scores);
         case "test_params":
-          return new TestParamsScript(params, docLookup, ctx, scores);
+          return new TestParamsScript(factoryContext, ctx, scores);
         case "verify_vector_type_doc_values":
-          return new VerifyVectorTypeScript(params, docLookup, ctx, scores);
+          return new VerifyVectorTypeScript(factoryContext, ctx, scores);
       }
       throw new IllegalArgumentException("Unknown script id: " + scriptId);
     }
@@ -179,11 +176,8 @@ public class ScoreScriptTest {
 
   static class VerifyDocValuesScript extends ScoreScript {
     public VerifyDocValuesScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -341,11 +335,8 @@ public class ScoreScriptTest {
 
   static class VerifyLatLonScript extends ScoreScript {
     public VerifyLatLonScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -450,11 +441,8 @@ public class ScoreScriptTest {
 
   static class VerifyScoreScript extends ScoreScript {
     public VerifyScoreScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -481,11 +469,8 @@ public class ScoreScriptTest {
 
   static class VerifyEmptyDocValuesScript extends ScoreScript {
     public VerifyEmptyDocValuesScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -520,11 +505,8 @@ public class ScoreScriptTest {
 
   static class VerifyEmptyLatLonValuesScript extends ScoreScript {
     public VerifyEmptyLatLonValuesScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -549,11 +531,8 @@ public class ScoreScriptTest {
 
   static class DocValuesExceptionsScript extends ScoreScript {
     public DocValuesExceptionsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -607,11 +586,8 @@ public class ScoreScriptTest {
 
   static class TestNoParamsScript extends ScoreScript {
     public TestNoParamsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -629,11 +605,8 @@ public class ScoreScriptTest {
 
   static class TestParamsScript extends ScoreScript {
     public TestParamsScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override
@@ -662,11 +635,8 @@ public class ScoreScriptTest {
   static class VerifyVectorTypeScript extends ScoreScript {
 
     public VerifyVectorTypeScript(
-        Map<String, Object> params,
-        DocLookup docLookup,
-        LeafReaderContext context,
-        DoubleValues scores) {
-      super(params, docLookup, context, scores);
+        ScriptFactoryContext factoryContext, LeafReaderContext context, DoubleValues scores) {
+      super(factoryContext, context, scores);
     }
 
     @Override

@@ -20,7 +20,9 @@ import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.PluginBlender;
 import com.yelp.nrtsearch.server.plugins.BlenderPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.operation.ScorelessRawMergeBlenderOperation;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.operation.WeightedRrfBlenderOperation;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.operation.WeightedScoreOrderBlenderOperation;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +49,9 @@ public class BlenderCreator {
   public BlenderOperation getBlenderOperation(Blender blender) {
     return switch (blender.getBlenderTypeCase()) {
       case WEIGHTEDRRF -> new WeightedRrfBlenderOperation(blender.getWeightedRrf());
+      case WEIGHTEDSCOREORDER ->
+          new WeightedScoreOrderBlenderOperation(blender.getWeightedScoreOrder());
+      case SCORELESSRAWMERGE -> new ScorelessRawMergeBlenderOperation();
       case PLUGIN -> getPluginBlender(blender.getPlugin());
       default ->
           throw new IllegalArgumentException(

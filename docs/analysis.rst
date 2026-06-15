@@ -399,3 +399,46 @@ Available token filters:
   * elision
 
 
+Normalizers
+-----------------------------
+
+A normalizer is similar to an analyzer, but is intended for use with ATOM (keyword) fields. It treats the entire field value as a single token (using a keyword tokenizer internally) and applies only char filters and token filters. Normalizers are applied at both index time and query time (for term queries, term-in-set queries, prefix queries, and range queries), ensuring consistent matching.
+
+Proto definition for Normalizer:
+
+.. code-block::
+
+  message CustomNormalizer {
+      repeated NameAndParams charFilters = 1;
+      repeated NameAndParams tokenFilters = 2;
+  }
+
+  message Normalizer {
+      oneof NormalizerType {
+          string predefined = 1;       // Predefined normalizer name (e.g. "lowercase")
+          CustomNormalizer custom = 2;  // Custom normalizer with char filters and token filters
+      }
+  }
+
+Predefined Normalizers
+^^^^^^^^^^^^^^^^^^^^^
+
+  * ``lowercase`` — Lowercases the entire field value.
+
+Custom Normalizers
+^^^^^^^^^^^^^^^^^
+
+A custom normalizer is created by combining char filters and token filters (no tokenizer is specified, as the keyword tokenizer is always used). The available char filters and token filters are the same as those listed in the `Building Custom Analyzers`_ section above.
+
+Example using ``lowercase`` and ``asciiFolding`` token filters:
+
+.. code-block:: json
+
+    {
+        "custom": {
+            "tokenFilters": [
+                {"name": "lowercase"},
+                {"name": "asciiFolding"}
+            ]
+        }
+    }

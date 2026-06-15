@@ -20,6 +20,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
@@ -172,6 +173,176 @@ public class WarmerTest {
       verify(mockSearchHandler, times(warmingCountPerQuery)).handle(mockIndexState, testRequest);
     }
     verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testBackupPadsWithDownloadedQueries()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmer6 = new Warmer(remoteBackend, service, index, 6, 0, true);
+    List<String> downloadedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
+    // Add 2 more distinct queries to get 6 total
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field4\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    downloadedJson.add(
+        "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field5\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(downloadedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmer6.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // Add only 2 observed queries (deficit of 4)
+    warmer6.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(1).build());
+    warmer6.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(2).build());
+
+    warmer6.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    Assertions.assertThat(backedUpLines).hasSize(6);
+  }
+
+  @Test
+  public void testBackupNoPaddingWhenFull()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmerWithPad = new Warmer(remoteBackend, service, index, 4, 0, true);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmerWithPad.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // Fill reservoir completely
+    getTestSearchRequests().forEach(warmerWithPad::addSearchRequest);
+
+    warmerWithPad.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    // Only the 4 observed queries, no padding needed
+    Assertions.assertThat(backedUpLines).hasSize(4);
+    Assertions.assertThat(backedUpLines).containsAll(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testBackupNoPaddingWhenNoDownload() throws IOException {
+    // Never call warmFromS3
+    warmer.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(1).build());
+    warmer.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(2).build());
+
+    warmer.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    Assertions.assertThat(backedUpLines).hasSize(2);
+  }
+
+  @Test
+  public void testBackupNoPaddingWhenFlagDisabled()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    // padWithDownloadedRequests defaults to false
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // Only 1 observed query -- would be padded if flag were enabled
+    warmer.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(1).build());
+
+    warmer.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    // No padding: only the 1 observed query
+    Assertions.assertThat(backedUpLines).hasSize(1);
+  }
+
+  @Test
+  public void testBackupPaddingWithFewerDownloadedThanDeficit()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmer6 = new Warmer(remoteBackend, service, index, 6, 0, true);
+    // Only 2 downloaded, deficit will be 5 when 1 observed
+    List<String> downloadedJson =
+        List.of(
+            getTestSearchRequestsAsJsonStrings().get(0),
+            getTestSearchRequestsAsJsonStrings().get(1));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(downloadedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmer6.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    warmer6.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).setTopHits(1).build());
+
+    warmer6.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    // 2 downloaded + 1 observed = 3 total (less than maxWarmingQueries=6)
+    Assertions.assertThat(backedUpLines).hasSize(3);
+  }
+
+  @Test
+  public void testBackupPaddingOrderIsCorrect()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmerWithPad = new Warmer(remoteBackend, service, index, 4, 0, true);
+    // Upload 4 queries [A, B, C, D]
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmerWithPad.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // Add 1 observed query [E] -- distinct from the downloaded ones
+    SearchRequest observedRequest =
+        SearchRequest.newBuilder().setIndexName(index).setTopHits(99).build();
+    warmerWithPad.addSearchRequest(observedRequest);
+
+    warmerWithPad.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    // Should be [B, C, D, E] -- last 3 from downloaded prepended, then the 1 observed
+    Assertions.assertThat(backedUpLines).hasSize(4);
+    // Observed query appears last
+    String observedJson =
+        JsonFormat.printer().omittingInsignificantWhitespace().print(observedRequest);
+    Assertions.assertThat(backedUpLines.get(3)).isEqualTo(observedJson);
+    // First 3 are the last 3 downloaded queries (B, C, D = indices 1, 2, 3)
+    List<String> expectedDownloaded = getTestSearchRequestsAsJsonStrings();
+    Assertions.assertThat(backedUpLines.get(0)).isEqualTo(expectedDownloaded.get(1));
+    Assertions.assertThat(backedUpLines.get(1)).isEqualTo(expectedDownloaded.get(2));
+    Assertions.assertThat(backedUpLines.get(2)).isEqualTo(expectedDownloaded.get(3));
+  }
+
+  @Test
+  public void testBackupAllFromDownloadedWhenNoObserved()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer warmerWithPad = new Warmer(remoteBackend, service, index, 4, 0, true);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    warmerWithPad.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    // No observed queries added
+    warmerWithPad.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    Assertions.assertThat(backedUpLines).hasSize(4);
+    Assertions.assertThat(backedUpLines)
+        .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  private List<String> readBackedUpLines() throws IOException {
+    InputStream queriesStream = remoteBackend.downloadWarmingQueries(service, index);
+    List<String> lines = new ArrayList<>();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        lines.add(line);
+      }
+    }
+    return lines;
   }
 
   private byte[] getWarmingBytes(List<String> queryStrings) throws IOException {

@@ -94,6 +94,7 @@ import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.ProcStatCollector;
 import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
+import com.yelp.nrtsearch.server.monitoring.S3ClientMetrics;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
@@ -115,7 +116,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
+import io.grpc.protobuf.services.ProtoReflectionServiceV1;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
@@ -215,7 +216,7 @@ public class NrtsearchServer {
             .addService(
                 ServerInterceptors.intercept(
                     serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
-            .addService(ProtoReflectionService.newInstance())
+            .addService(ProtoReflectionServiceV1.newInstance())
             // Set executor supplier to use different thread pool for metrics method
             .callExecutor(executorSupplier)
             // We still need this executor to run tasks before the point when executorSupplier can
@@ -276,6 +277,7 @@ public class NrtsearchServer {
     // register Indexing metrics such as individual addDocument, updateDocValue latencies and qps
     IndexingMetrics.register(prometheusRegistry);
     S3DownloadStreamWrapper.register(prometheusRegistry);
+    S3ClientMetrics.register(prometheusRegistry);
   }
 
   /** Main launches the server from the command line. */

@@ -60,3 +60,24 @@ message Analyzer {
         CustomAnalyzer custom = 2;
     }
 }
+
+// Custom normalizer definition. Uses a keyword tokenizer internally — only char filters and
+// token filters may be specified. For use with ATOM field types.
+message CustomNormalizer {
+    // Char filters to apply before tokenization
+    repeated NameAndParams charFilters = 1;
+    // Token filters to apply (e.g. lowercase, asciifolding)
+    repeated NameAndParams tokenFilters = 2;
+}
+
+// Normalizer definition for ATOM fields. A normalizer applies char filters and token filters
+// to the entire field value as a single token (keyword tokenizer is implied).
+// Predefined normalizers: "lowercase"
+message Normalizer {
+    oneof NormalizerType {
+        // Predefined normalizer name (e.g. "lowercase")
+        string predefined = 1;
+        // Custom normalizer with char filters and token filters
+        CustomNormalizer custom = 2;
+    }
+}

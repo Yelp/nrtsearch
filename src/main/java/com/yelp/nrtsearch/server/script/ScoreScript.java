@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.script;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.SegmentDocLookup;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -27,10 +28,21 @@ import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 
 /**
- * Script to produce a double value for a given document. Implementations must have an execute
- * function. This class conforms with the script compile contract, see {@link ScriptContext}. The
- * script has access to the query parameters, the document doc values through {@link
- * SegmentDocLookup}, and the document score through get_score.
+ * Script to produce a double value for a given document. Implementations must provide an {@link
+ * #execute()} method. This class conforms with the script compile contract defined by {@link
+ * ScriptContext}.
+ *
+ * <p>Scripts have access to:
+ *
+ * <ul>
+ *   <li><b>Parameters</b> — via {@link #getParams()}, set in the {@link
+ *       com.yelp.nrtsearch.server.grpc.Script} request.
+ *   <li><b>Doc values</b> — via {@link #getDoc()}, backed by {@link SegmentDocLookup}.
+ *   <li><b>Previous-pass score</b> — via {@link #get_score()}.
+ *   <li><b>Shared doc context values</b> — per-document values contributed by earlier pipeline
+ *       steps, accessed via {@link #getSharedDocContext()}. For multi-retriever queries each
+ *       retriever's raw score is available under the key {@code retriever_<name>}.
+ * </ul>
  */
 public abstract class ScoreScript extends DoubleValues {
   private static final int DOC_UNSET = -1;
@@ -38,28 +50,30 @@ public abstract class ScoreScript extends DoubleValues {
   private final Map<String, Object> params;
   private final SegmentDocLookup segmentDocLookup;
   private final DoubleValues scores;
+  private final SharedDocContext sharedDocContext;
   private int docId = DOC_UNSET;
   private int scoreDocId = DOC_UNSET;
+  private int leafDocBase = 0;
 
   // names for parameters to execute
   public static final String[] PARAMETERS = new String[] {};
 
   /**
-   * ScoreScript constructor.
+   * ScoreScript constructor. Conforms to the script compile contract: parameters are the
+   * concatenation of {@link Factory#newFactory} params and {@link SegmentFactory#newInstance}
+   * params.
    *
-   * @param params script parameters from {@link com.yelp.nrtsearch.server.grpc.Script}
-   * @param docLookup index level doc values lookup
+   * @param context request-level resources (params, docLookup, sharedDocContext)
    * @param leafContext lucene segment context
    * @param scores provider of segment document scores
    */
   public ScoreScript(
-      Map<String, Object> params,
-      DocLookup docLookup,
-      LeafReaderContext leafContext,
-      DoubleValues scores) {
-    this.params = params;
-    this.segmentDocLookup = docLookup.getSegmentLookup(leafContext);
+      ScriptFactoryContext context, LeafReaderContext leafContext, DoubleValues scores) {
+    this.params = context.getParams();
+    this.segmentDocLookup = context.getDocLookup().getSegmentLookup(leafContext);
     this.scores = scores;
+    this.sharedDocContext = context.getSharedDocContext();
+    this.leafDocBase = leafContext.docBase;
   }
 
   /**
@@ -110,6 +124,25 @@ public abstract class ScoreScript extends DoubleValues {
     }
   }
 
+  /**
+   * Get the shared doc context map for the current document. Allows script implementations to
+   * access per-document values contributed by earlier pipeline stages.
+   *
+   * <p>For multi-retriever queries, each retriever's raw score is stored under {@code
+   * retriever_<name>} (e.g. {@code "retriever_text"}, {@code "retriever_knn"}).
+   *
+   * <p>JS expressions access these values via the {@code _shared_<key>} variable convention, which
+   * casts to double internally. ScoreScript subclasses use this method directly.
+   *
+   * @return shared doc context map for the current document, or an empty map if no context exists
+   */
+  public Map<String, Object> getSharedDocContext() {
+    if (sharedDocContext == null) {
+      return Map.of();
+    }
+    return sharedDocContext.getContext(leafDocBase + docId);
+  }
+
   /** Get the script parameters provided in the request. */
   public Map<String, Object> getParams() {
     return params;
@@ -128,11 +161,10 @@ public abstract class ScoreScript extends DoubleValues {
     /**
      * Create request level {@link DoubleValuesSource}.
      *
-     * @param params parameters from script request
-     * @param docLookup index level doc value lookup provider
+     * @param context request-level resources available to the script factory
      * @return {@link DoubleValuesSource} to evaluate script
      */
-    DoubleValuesSource newFactory(Map<String, Object> params, DocLookup docLookup);
+    DoubleValuesSource newFactory(ScriptFactoryContext context);
   }
 
   // compile context for the ScoreScript, contains script type info
@@ -141,28 +173,31 @@ public abstract class ScoreScript extends DoubleValues {
           "score", ScoreScript.Factory.class, ScoreScript.SegmentFactory.class, ScoreScript.class);
 
   /**
-   * Simple abstract implementation of a {@link DoubleValuesSource} this can be extended for engines
-   * that need to implement a custom {@link ScoreScript}. The newInstance and needs_score must be
-   * implemented. If more state is needed, the equals/hashCode should be redefined appropriately.
+   * Abstract {@link DoubleValuesSource} that script engines extend to produce per-segment {@link
+   * ScoreScript} instances. Subclasses must implement {@link #newInstance} and {@link
+   * #needs_score}. If additional state is held, {@link #equals} and {@link #hashCode} should be
+   * overridden accordingly.
    *
    * <p>This class conforms with the script compile contract, see {@link ScriptContext}. However,
-   * Engines are also free to create there own {@link DoubleValuesSource} implementations instead.
+   * Engines are also free to create their own {@link DoubleValuesSource} implementations instead.
    */
   public abstract static class SegmentFactory extends DoubleValuesSource {
-    private final Map<String, Object> params;
-    private final DocLookup docLookup;
+    private final ScriptFactoryContext context;
 
-    public SegmentFactory(Map<String, Object> params, DocLookup docLookup) {
-      this.params = params;
-      this.docLookup = docLookup;
+    public SegmentFactory(ScriptFactoryContext context) {
+      this.context = context;
+    }
+
+    public ScriptFactoryContext getContext() {
+      return context;
     }
 
     public Map<String, Object> getParams() {
-      return params;
+      return context.getParams();
     }
 
     public DocLookup getDocLookup() {
-      return docLookup;
+      return context.getDocLookup();
     }
 
     /**
@@ -200,7 +235,7 @@ public abstract class ScoreScript extends DoubleValues {
 
     @Override
     public int hashCode() {
-      return Objects.hash(params, docLookup);
+      return context.hashCode();
     }
 
     @Override
@@ -212,13 +247,12 @@ public abstract class ScoreScript extends DoubleValues {
         return false;
       }
       SegmentFactory factory = (SegmentFactory) obj;
-      return Objects.equals(factory.params, this.params)
-          && Objects.equals(factory.docLookup, this.docLookup);
+      return Objects.equals(factory.context, this.context);
     }
 
     @Override
     public String toString() {
-      return "ScoreScriptDoubleValuesSource: params: " + params + ", docLookup: " + docLookup;
+      return "ScoreScriptDoubleValuesSource: " + context;
     }
 
     @Override

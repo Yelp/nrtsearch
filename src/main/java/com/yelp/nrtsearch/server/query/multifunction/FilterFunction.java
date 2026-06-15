@@ -17,8 +17,10 @@ package com.yelp.nrtsearch.server.query.multifunction;
 
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
+import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
@@ -68,14 +70,15 @@ public abstract class FilterFunction {
    * Builder method to create a {@link FilterFunction} object based on its gRPC message definition.
    *
    * @param filterFunctionGrpc function gRPC definition
-   * @param docLookup lookup for document field data
+   * @param context query context with doc lookup and shared doc context
    * @return filter function object
    */
   public static FilterFunction build(
-      MultiFunctionScoreQuery.FilterFunction filterFunctionGrpc, DocLookup docLookup) {
+      MultiFunctionScoreQuery.FilterFunction filterFunctionGrpc, QueryContext context) {
+    DocLookup docLookup = context.docLookup();
     Query filterQuery =
         filterFunctionGrpc.hasFilter()
-            ? QueryNodeMapper.getInstance().getQuery(filterFunctionGrpc.getFilter(), docLookup)
+            ? QueryNodeMapper.getInstance().getQuery(filterFunctionGrpc.getFilter(), context)
             : null;
     float weight = filterFunctionGrpc.getWeight() != 0.0f ? filterFunctionGrpc.getWeight() : 1.0f;
     switch (filterFunctionGrpc.getFunctionCase()) {
@@ -85,8 +88,12 @@ public abstract class FilterFunction {
                 .compile(filterFunctionGrpc.getScript(), ScoreScript.CONTEXT);
         DoubleValuesSource scriptSource =
             factory.newFactory(
-                ScriptParamsUtils.decodeParams(filterFunctionGrpc.getScript().getParamsMap()),
-                docLookup);
+                ScriptFactoryContext.builder(
+                        ScriptParamsUtils.decodeParams(
+                            filterFunctionGrpc.getScript().getParamsMap()),
+                        docLookup)
+                    .sharedDocContext(context.sharedDocContext())
+                    .build());
         return new ScriptFilterFunction(
             filterQuery, weight, filterFunctionGrpc.getScript(), scriptSource);
       case DECAYFUNCTION:

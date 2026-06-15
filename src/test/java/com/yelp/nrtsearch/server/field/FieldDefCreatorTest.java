@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.field;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -148,5 +150,22 @@ public class FieldDefCreatorTest {
     FieldDefCreator.FieldDefCreatorContext context = FieldDefCreator.createContext(mockGlobalState);
 
     assertSame(config, context.config());
+  }
+
+  @Test
+  public void testCreateFieldDefFromPreviousNullUpdatedField() {
+    FieldDef mockFieldDef = mock(FieldDef.class);
+    when(mockFieldDef.getName()).thenReturn("test_field");
+    try {
+      FieldDefCreator.getInstance()
+          .createFieldDefFromPrevious(
+              "field",
+              Field.newBuilder().build(),
+              mockFieldDef,
+              mock(FieldDefCreator.FieldDefCreatorContext.class));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("FieldDef test_field cannot be updated", e.getMessage());
+    }
   }
 }

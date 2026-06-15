@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
@@ -50,6 +51,10 @@ import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.search.SearcherResult;
+import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
@@ -62,6 +67,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,6 +86,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
+  public static final String RETRIEVER_KEY_PREFIX = "retriever_";
   private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
   private static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
@@ -87,6 +94,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ExecutorService searchExecutor;
   private final boolean warming;
+
+  /** Return value of {@link #executeMultiRetriever}. */
+  private record MultiRetrieverResult(
+      TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly) {}
 
   public SearchHandler(GlobalState globalState) {
     super(globalState);
@@ -174,86 +185,82 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       long searchStartTime = System.nanoTime();
 
-      SearcherResult searcherResult;
-      if (!searchRequest.getFacetsList().isEmpty()) {
-        DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
+      TopDocs hits;
+      if (searchContext.getMultiRetrieverContext() != null) {
+        MultiRetrieverResult multiRetrieverResult =
+            executeMultiRetriever(searchContext, s.searcher(), diagnostics, profileResultBuilder);
+        hits = multiRetrieverResult.topDocs();
 
-        List<FacetResult> grpcFacetResults = new ArrayList<>();
-        // Run the drill sideways search on the direct executor to run subtasks in the
-        // current (grpc) thread. If we use the search thread pool for this, it can cause a
-        // deadlock trying to execute the dependent parallel search tasks. Since we do not
-        // currently add additional drill down definitions, there will only be one drill
-        // sideways task per query.
-        DrillSideways drillS =
-            new DrillSidewaysImpl(
-                s.searcher(),
-                indexState.getFacetsConfig(),
-                s.taxonomyReader(),
-                searchRequest.getFacetsList(),
-                s,
-                indexState,
-                shardState,
-                searchContext.getQueryFields(),
-                grpcFacetResults,
-                DIRECT_EXECUTOR,
-                diagnostics);
-        DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
-        try {
-          concurrentDrillSidewaysResult =
-              drillS.search(ddq, searchContext.getCollector().getWrappedManager());
-        } catch (RuntimeException e) {
-          // Searching with DrillSideways wraps exceptions in a few layers.
-          // Try to find if this was caused by a timeout, if so, re-wrap
-          // so that the top level exception is the same as when not using facets.
-          CollectionTimeoutException timeoutException = findTimeoutException(e);
-          if (timeoutException != null) {
-            throw new CollectionTimeoutException(timeoutException.getMessage(), e);
-          }
-          throw e;
+        DeadlineUtils.checkDeadline(
+            "SearchHandler: post multi-retriever recall", diagnostics, "SEARCH");
+
+        populateRetrieverScores(hits, searchContext.getSharedDocContext());
+
+        // Run aggregations (facets + collectors) against the union query after blending.
+        // Note: facet counts reflect the full match set of the union query, not the recalled
+        // top-K per retriever. For KNN retrievers this is equivalent (KnnFloatVectorQuery is
+        // inherently bounded to k). For text retrievers, counts may include documents beyond
+        // the topHits recall window if the underlying query matches more docs than topHits.
+        if (!searchRequest.getFacetsList().isEmpty()) {
+          SearcherResult searcherResult =
+              runDrillSidewaysSearch(
+                  s, indexState, shardState, searchContext, searchRequest, diagnostics, hits);
+          searchContext
+              .getResponseBuilder()
+              .putAllCollectorResults(searcherResult.getCollectorResults());
+        } else if (searchRequest.getCollectorsCount() > 0) {
+          SearcherResult searcherResult = executeSearch(s.searcher(), searchContext);
+          searchContext
+              .getResponseBuilder()
+              .putAllCollectorResults(searcherResult.getCollectorResults());
         }
-        searcherResult = concurrentDrillSidewaysResult.collectorResult;
-        searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
+
         searchContext
             .getResponseBuilder()
-            .addAllFacetResult(
-                FacetTopDocs.facetTopDocsSample(
-                    searcherResult.getTopDocs(),
-                    searchRequest.getFacetsList(),
-                    indexState,
-                    s.searcher(),
-                    diagnostics));
-      } else {
-        try {
-          searcherResult =
-              s.searcher()
-                  .search(
-                      searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
-        } catch (RuntimeException e) {
-          CollectionTimeoutException timeoutException = findTimeoutException(e);
-          if (timeoutException != null) {
-            throw new CollectionTimeoutException(timeoutException.getMessage(), e);
-          }
-          throw e;
+            .setHitTimeout(
+                multiRetrieverResult.hadTimeout() || searchContext.getCollector().hadTimeout());
+        searchContext
+            .getResponseBuilder()
+            .setTerminatedEarly(
+                multiRetrieverResult.terminatedEarly()
+                    || searchContext.getCollector().terminatedEarly());
+
+        if (profileResultBuilder != null
+            && (!searchRequest.getFacetsList().isEmpty()
+                || searchRequest.getCollectorsCount() > 0)) {
+          searchContext
+              .getCollector()
+              .maybeAddProfiling(
+                  profileResultBuilder
+                      .getMultiRetrieverProfileResultBuilder()
+                      .getAggregationProfileResultBuilder());
         }
+      } else {
+        SearcherResult searcherResult;
+        if (!searchRequest.getFacetsList().isEmpty()) {
+          searcherResult =
+              runDrillSidewaysSearch(
+                  s, indexState, shardState, searchContext, searchRequest, diagnostics, null);
+        } else {
+          searcherResult = executeSearch(s.searcher(), searchContext);
+        }
+        hits = searcherResult.getTopDocs();
+
+        searchContext
+            .getResponseBuilder()
+            .putAllCollectorResults(searcherResult.getCollectorResults());
+
+        searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
+        searchContext
+            .getResponseBuilder()
+            .setTerminatedEarly(searchContext.getCollector().terminatedEarly());
       }
-      TopDocs hits = searcherResult.getTopDocs();
-
-      // add results from any extra collectors
-      searchContext
-          .getResponseBuilder()
-          .putAllCollectorResults(searcherResult.getCollectorResults());
-
-      searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
-      searchContext
-          .getResponseBuilder()
-          .setTerminatedEarly(searchContext.getCollector().terminatedEarly());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
       DeadlineUtils.checkDeadline("SearchHandler: post recall", diagnostics, "SEARCH");
 
-      // add detailed timing metrics for query execution
-      if (profileResultBuilder != null) {
+      if (profileResultBuilder != null && searchContext.getMultiRetrieverContext() == null) {
         searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
       }
 
@@ -513,6 +520,167 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   }
 
   /**
+   * Execute per-retriever searches in parallel, apply optional per-retriever L1 rescoring, then
+   * blend the results into a single ranked TopDocs.
+   */
+  private MultiRetrieverResult executeMultiRetriever(
+      SearchContext searchContext,
+      IndexSearcher searcher,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ProfileResult.Builder profileResultBuilder)
+      throws InterruptedException {
+    MultiRetrieverContext multiRetrieverContext = searchContext.getMultiRetrieverContext();
+    LinkedHashMap<String, RetrieverContext> retrieverContexts =
+        new LinkedHashMap<>(multiRetrieverContext.getRetrieverContextMap());
+
+    record RetrieverResult(
+        TopDocs topDocs,
+        double searchTimeMs,
+        double rescoreTimeMs,
+        boolean hadTimeout,
+        boolean terminatedEarly) {}
+
+    LinkedHashMap<String, Future<RetrieverResult>> retrieverFutures = new LinkedHashMap<>();
+    for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
+      String name = entry.getKey();
+      RetrieverContext retrieverContext = entry.getValue();
+      retrieverFutures.put(
+          name,
+          searchExecutor.submit(
+              () -> {
+                DocCollector docCollector = retrieverContext.getDocCollector();
+                long searchStart = System.nanoTime();
+                SearcherResult result =
+                    searcher.search(retrieverContext.getQuery(), docCollector.getWrappedManager());
+                TopDocs topDocs = result.getTopDocs();
+                double searchTimeMs = (System.nanoTime() - searchStart) / 1_000_000.0;
+
+                double rescoreTimeMs = 0;
+                if (retrieverContext.getRescoreTask() != null) {
+                  long rescoreStart = System.nanoTime();
+                  topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
+                  rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
+                }
+                return new RetrieverResult(
+                    topDocs,
+                    searchTimeMs,
+                    rescoreTimeMs,
+                    docCollector.hadTimeout(),
+                    docCollector.terminatedEarly());
+              }));
+    }
+
+    // Compute the blend window to cover rescorer windows and hits to log.
+    // L2 rescorer then trims to the final topHits window.
+    int blendTopHits =
+        DocCollector.computeNumHitsToCollect(
+            searchContext.getStartHit(),
+            searchContext.getTopHits(),
+            searchContext.getHitsToLog(),
+            searchContext.getRescorers());
+
+    LinkedHashMap<String, RetrieverResult> retrieverResults = new LinkedHashMap<>();
+    boolean anyRetrieverHadTimeout = false;
+    boolean anyRetrieverTerminatedEarly = false;
+    for (Map.Entry<String, Future<RetrieverResult>> entry : retrieverFutures.entrySet()) {
+      String name = entry.getKey();
+      try {
+        RetrieverResult result = entry.getValue().get();
+        retrieverResults.put(name, result);
+        anyRetrieverHadTimeout |= result.hadTimeout();
+        anyRetrieverTerminatedEarly |= result.terminatedEarly();
+      } catch (ExecutionException e) {
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        throw new RuntimeException("Retriever '" + name + "' failed: " + cause.getMessage(), cause);
+      }
+    }
+
+    DeadlineUtils.checkDeadline("SearchHandler: post retriever recall", diagnostics, "SEARCH");
+
+    LinkedHashMap<String, TopDocs> retrieverTopDocs = new LinkedHashMap<>();
+    retrieverResults.forEach((name, result) -> retrieverTopDocs.put(name, result.topDocs()));
+
+    long blendStartTime = System.nanoTime();
+    TopDocs blendedHits =
+        multiRetrieverContext
+            .getBlenderOperation()
+            .blend(retrieverTopDocs, retrieverContexts, 0, blendTopHits);
+    double blenderTimeMs = (System.nanoTime() - blendStartTime) / 1_000_000.0;
+
+    // Populate per-retriever diagnostics
+    SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnosticsBuilder =
+        diagnostics.getMultiRetrieverDiagnosticsBuilder();
+    for (Map.Entry<String, RetrieverResult> entry : retrieverResults.entrySet()) {
+      String name = entry.getKey();
+      RetrieverResult retrieverResult = entry.getValue();
+      RetrieverContext.RetrieverType type = retrieverContexts.get(name).getRetrieverType();
+      org.apache.lucene.search.TotalHits luceneTotalHits = retrieverResult.topDocs().totalHits;
+      TotalHits totalHits =
+          TotalHits.newBuilder()
+              .setRelation(TotalHits.Relation.valueOf(luceneTotalHits.relation().name()))
+              .setValue(luceneTotalHits.value())
+              .build();
+      SearchResponse.Diagnostics.RetrieverDiagnostics.Builder retrieverDiagBuilder;
+      if (type == RetrieverContext.RetrieverType.KNN) {
+        // Preserve vectorDiagnostics already set by SearchRequestProcessor, then add timing
+        retrieverDiagBuilder =
+            multiRetrieverDiagnosticsBuilder
+                .getRetrieverDiagnosticsOrDefault(
+                    name, SearchResponse.Diagnostics.RetrieverDiagnostics.getDefaultInstance())
+                .toBuilder()
+                .setSearchTimeMs(retrieverResult.searchTimeMs());
+      } else {
+        retrieverDiagBuilder =
+            SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
+                .setSearchTimeMs(retrieverResult.searchTimeMs());
+      }
+      if (retrieverResult.rescoreTimeMs() > 0) {
+        retrieverDiagBuilder.setRescoreTimeMs(retrieverResult.rescoreTimeMs());
+      }
+      retrieverDiagBuilder.setTotalHits(totalHits);
+      retrieverDiagBuilder.setHitTimeout(retrieverResult.hadTimeout());
+      retrieverDiagBuilder.setTerminatedEarly(retrieverResult.terminatedEarly());
+      multiRetrieverDiagnosticsBuilder.putRetrieverDiagnostics(name, retrieverDiagBuilder.build());
+    }
+    multiRetrieverDiagnosticsBuilder.setBlenderTimeMs(blenderTimeMs);
+
+    // Add per-retriever profiling stats
+    if (profileResultBuilder != null) {
+      ProfileResult.MultiRetrieverProfileResult.Builder multiRetrieverProfileBuilder =
+          profileResultBuilder.getMultiRetrieverProfileResultBuilder();
+      for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
+        String name = entry.getKey();
+        ProfileResult.Builder retrieverProfile =
+            multiRetrieverProfileBuilder
+                .getRetrieverProfileResultsOrDefault(name, ProfileResult.getDefaultInstance())
+                .toBuilder();
+        entry.getValue().getDocCollector().maybeAddProfiling(retrieverProfile);
+        multiRetrieverProfileBuilder.putRetrieverProfileResults(name, retrieverProfile.build());
+      }
+    }
+
+    return new MultiRetrieverResult(
+        blendedHits, anyRetrieverHadTimeout, anyRetrieverTerminatedEarly);
+  }
+
+  /**
+   * Write per-retriever scores from blended hits into the shared doc context. For retriever {@code
+   * "text"}, the key {@code "retriever_text"} is set on each document's context map, accessible in
+   * JS scripts as {@code _shared_retriever_text} and in ScoreScript subclasses via {@code
+   * getSharedDocContext().get("retriever_text")}.
+   */
+  static void populateRetrieverScores(TopDocs hits, SharedDocContext sharedDocContext) {
+    for (ScoreDoc scoreDoc : hits.scoreDocs) {
+      if (scoreDoc instanceof BlendedScoreDoc blended) {
+        Map<String, Object> ctx = sharedDocContext.getContext(scoreDoc.doc);
+        for (Map.Entry<String, ScoreDoc> entry : blended.getScoreDocs().entrySet()) {
+          ctx.put(RETRIEVER_KEY_PREFIX + entry.getKey(), (double) entry.getValue().score);
+        }
+      }
+    }
+  }
+
+  /**
    * Given all the top documents, produce a slice of the documents starting from a start offset and
    * going up to the query needed maximum hits. There may be more top docs than the hitsCount limit,
    * if top docs sampling facets are used.
@@ -570,7 +738,21 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       var hitResponse = context.getResponseBuilder().addHitsBuilder();
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
-      context.getCollector().fillHitRanking(hitResponse, hit);
+      if (context.getMultiRetrieverContext() != null) {
+        // Expose per-retriever scores.
+        if (!Float.isNaN(hit.score)) {
+          hitResponse.setScore(hit.score);
+        }
+        if (hit instanceof BlendedScoreDoc blendedHit) {
+          for (Map.Entry<String, ScoreDoc> entry : blendedHit.getScoreDocs().entrySet()) {
+            if (!Float.isNaN(entry.getValue().score)) {
+              hitResponse.putRetrieverScores(entry.getKey(), entry.getValue().score);
+            }
+          }
+        }
+      } else {
+        context.getCollector().fillHitRanking(hitResponse, hit);
+      }
     }
   }
 
@@ -1214,6 +1396,88 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     public SearchHandlerException(String message, Throwable err) {
       super(message, err);
     }
+  }
+
+  /**
+   * Runs {@link org.apache.lucene.search.IndexSearcher#search} against the search context query and
+   * collector, unwrapping any {@link CollectionTimeoutException} from the call stack.
+   */
+  private static SearcherResult executeSearch(
+      org.apache.lucene.search.IndexSearcher searcher, SearchContext searchContext)
+      throws IOException {
+    try {
+      return searcher.search(
+          searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Builds a {@link DrillSidewaysImpl}, executes the search, writes facet results to the response
+   * builder, and returns the {@link SearcherResult} from the drill sideways pass.
+   *
+   * @param topDocsForSample top docs to use for {@link FacetTopDocs#facetTopDocsSample}. Pass the
+   *     pre-blended hits for multi-retriever queries (where ranking is already determined), or
+   *     {@code null} to use the top docs produced by this search (single-retriever path).
+   */
+  private SearcherResult runDrillSidewaysSearch(
+      SearcherTaxonomyManager.SearcherAndTaxonomy s,
+      IndexState indexState,
+      ShardState shardState,
+      SearchContext searchContext,
+      SearchRequest searchRequest,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      TopDocs topDocsForSample)
+      throws IOException {
+    DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
+    List<FacetResult> grpcFacetResults = new ArrayList<>();
+    // Run the drill sideways search on the direct executor to run subtasks in the
+    // current (grpc) thread. If we use the search thread pool for this, it can cause a
+    // deadlock trying to execute the dependent parallel search tasks. Since we do not
+    // currently add additional drill down definitions, there will only be one drill
+    // sideways task per query.
+    DrillSideways drillS =
+        new DrillSidewaysImpl(
+            s.searcher(),
+            indexState.getFacetsConfig(),
+            s.taxonomyReader(),
+            searchRequest.getFacetsList(),
+            s,
+            indexState,
+            shardState,
+            searchContext.getQueryFields(),
+            grpcFacetResults,
+            DIRECT_EXECUTOR,
+            diagnostics);
+    DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> drillResult;
+    try {
+      drillResult = drillS.search(ddq, searchContext.getCollector().getWrappedManager());
+    } catch (RuntimeException e) {
+      // DrillSideways wraps exceptions in a few layers; unwrap timeouts so the top-level
+      // exception type is consistent with the non-facets path.
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+    SearcherResult searcherResult = drillResult.collectorResult;
+    searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
+    searchContext
+        .getResponseBuilder()
+        .addAllFacetResult(
+            FacetTopDocs.facetTopDocsSample(
+                topDocsForSample != null ? topDocsForSample : searcherResult.getTopDocs(),
+                searchRequest.getFacetsList(),
+                indexState,
+                s.searcher(),
+                diagnostics));
+    return searcherResult;
   }
 
   /**

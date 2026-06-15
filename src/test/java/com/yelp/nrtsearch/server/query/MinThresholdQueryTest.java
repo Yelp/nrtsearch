@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
+import com.yelp.nrtsearch.server.grpc.MinScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -287,5 +288,81 @@ public class MinThresholdQueryTest extends ServerTestCase {
     // These should not be equal due to float precision differences
     assertNotEquals(
         "Queries with slightly different thresholds should not be equal", query1, query2);
+  }
+
+  @Test
+  public void testMinScoreQueryNodeFiltersDocuments() throws Exception {
+    SearchRequest.Builder searchRequestBuilder = SearchRequest.newBuilder();
+    searchRequestBuilder.setIndexName(DEFAULT_TEST_INDEX);
+    searchRequestBuilder.setStartHit(0);
+    searchRequestBuilder.setTopHits(10);
+    searchRequestBuilder.addRetrieveFields("doc_id");
+
+    MatchQuery matchQuery = MatchQuery.newBuilder().setField("text_field").setQuery("test").build();
+    Query inner = Query.newBuilder().setMatchQuery(matchQuery).build();
+
+    MinScoreQuery minScoreQuery =
+        MinScoreQuery.newBuilder().setQuery(inner).setMinScore(0.5f).build();
+    Query query = Query.newBuilder().setMinScoreQuery(minScoreQuery).build();
+    searchRequestBuilder.setQuery(query);
+
+    SearchResponse noThresholdResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(Query.newBuilder().setMatchQuery(matchQuery).build())
+                    .build());
+
+    SearchResponse filteredResponse =
+        getGrpcServer().getBlockingStub().search(searchRequestBuilder.build());
+
+    // Filtered results should have fewer or equal hits than unfiltered
+    assertTrue(
+        "MinScoreQuery should filter out low-scoring documents",
+        filteredResponse.getHitsCount() <= noThresholdResponse.getHitsCount());
+    // All returned hits must have score >= threshold
+    for (Hit hit : filteredResponse.getHitsList()) {
+      assertTrue("All hits must have score >= min_score threshold", hit.getScore() >= 0.5f);
+    }
+  }
+
+  @Test
+  public void testMinScoreQueryNodeWithZeroThresholdReturnsAll() throws Exception {
+    MatchQuery matchQuery = MatchQuery.newBuilder().setField("text_field").setQuery("test").build();
+    Query inner = Query.newBuilder().setMatchQuery(matchQuery).build();
+
+    MinScoreQuery minScoreQuery = MinScoreQuery.newBuilder().setQuery(inner).setMinScore(0).build();
+    Query query = Query.newBuilder().setMinScoreQuery(minScoreQuery).build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(query)
+                    .build());
+
+    SearchResponse baseResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(Query.newBuilder().setMatchQuery(matchQuery).build())
+                    .build());
+
+    assertEquals(
+        "Zero threshold should return same hits as no threshold",
+        baseResponse.getHitsCount(),
+        response.getHitsCount());
   }
 }

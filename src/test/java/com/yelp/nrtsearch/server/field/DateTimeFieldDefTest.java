@@ -16,12 +16,16 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
@@ -47,6 +51,11 @@ import org.junit.Test;
 public class DateTimeFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  private DateTimeFieldDef createFieldDef(Field field) {
+    return new DateTimeFieldDef(
+        "test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));
+  }
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);
@@ -919,5 +928,23 @@ public class DateTimeFieldDefTest extends ServerTestCase {
         "io.grpc.StatusRuntimeException: INTERNAL: error while trying to addDocuments \n"
             + "%s could not parse %s as date_time with format %s",
         dateTimeField, dateTimeValue, dateTimeFormat);
+  }
+
+  @Test
+  public void testCreateUpdatedFieldDef() {
+    DateTimeFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setName("field").setStoreDocValues(true).build());
+    FieldDef updatedField =
+        fieldDef.createUpdatedFieldDef(
+            "field",
+            Field.newBuilder().setStoreDocValues(false).build(),
+            mock(FieldDefCreator.FieldDefCreatorContext.class));
+    assertTrue(updatedField instanceof DateTimeFieldDef);
+    DateTimeFieldDef updatedFieldDef = (DateTimeFieldDef) updatedField;
+
+    assertNotSame(fieldDef, updatedFieldDef);
+    assertEquals("field", updatedFieldDef.getName());
+    assertTrue(fieldDef.hasDocValues());
+    assertFalse(updatedFieldDef.hasDocValues());
   }
 }

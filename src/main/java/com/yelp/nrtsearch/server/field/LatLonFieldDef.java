@@ -49,7 +49,24 @@ import org.apache.lucene.search.SortField;
 public class LatLonFieldDef extends IndexableFieldDef<GeoPoint> implements Sortable, GeoQueryable {
   public LatLonFieldDef(
       String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
-    super(name, requestField, context, GeoPoint.class);
+    this(name, requestField, context, null);
+  }
+
+  /**
+   * Constructor for creating an instance of this field based on a previous instance. This is used
+   * when updating field properties.
+   *
+   * @param name name of the field
+   * @param requestField the field definition from the request
+   * @param context context for creating the field definition
+   * @param previousField the previous instance of this field definition, or null if there is none
+   */
+  protected LatLonFieldDef(
+      String name,
+      Field requestField,
+      FieldDefCreator.FieldDefCreatorContext context,
+      LatLonFieldDef previousField) {
+    super(name, requestField, context, GeoPoint.class, previousField);
   }
 
   @Override
@@ -117,6 +134,12 @@ public class LatLonFieldDef extends IndexableFieldDef<GeoPoint> implements Sorta
   @Override
   public String getType() {
     return "LAT_LON";
+  }
+
+  @Override
+  public FieldDef createUpdatedFieldDef(
+      String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
+    return new LatLonFieldDef(name, requestField, context, this);
   }
 
   @Override

@@ -867,6 +867,137 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testUploadIndexFiles_batched() throws IOException {
+    File indexDir = folder.newFolder("index_dir_upload_batched");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+
+    File f1 = new File(indexDir, "uf1");
+    File f2 = new File(indexDir, "uf2");
+    File f3 = new File(indexDir, "uf3");
+    File f4 = new File(indexDir, "uf4");
+    File f5 = new File(indexDir, "uf5");
+    Files.write(f1.toPath(), "udata1".getBytes());
+    Files.write(f2.toPath(), "udata2".getBytes());
+    Files.write(f3.toPath(), "udata3".getBytes());
+    Files.write(f4.toPath(), "udata4".getBytes());
+    Files.write(f5.toPath(), "udata5".getBytes());
+
+    // Use an uploadBatchSize of 2, smaller than the file count of 5
+    S3Backend batchedBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 2, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    batchedBackend.uploadIndexFiles(
+        "upload_batch_service",
+        "upload_batch_index",
+        indexDir.toPath(),
+        Map.of("uf1", meta1, "uf2", meta2, "uf3", meta3, "uf4", meta4, "uf5", meta5));
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("upload_batch_service", "upload_batch_index");
+    assertEquals(
+        "udata1",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf1", meta1))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata2",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf2", meta2))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata3",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf3", meta3))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata4",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf4", meta4))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+    assertEquals(
+        "udata5",
+        convertToString(
+            s3.getObject(
+                GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(keyPrefix + S3Backend.getIndexBackendFileName("uf5", meta5))
+                    .build(),
+                ResponseTransformer.toInputStream())));
+  }
+
+  @Test
+  public void testUploadIndexFiles_stopAfterFailure() throws IOException {
+    File indexDir = folder.newFolder("index_dir_upload_fail");
+
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+
+    // Only write files 1 and 3–5; file 2 ("uf_fail2") does not exist on disk
+    File f1 = new File(indexDir, "uf_fail1");
+    File f3 = new File(indexDir, "uf_fail3");
+    File f4 = new File(indexDir, "uf_fail4");
+    File f5 = new File(indexDir, "uf_fail5");
+    Files.write(f1.toPath(), "fdata1".getBytes());
+    Files.write(f3.toPath(), "fdata3".getBytes());
+    Files.write(f4.toPath(), "fdata4".getBytes());
+    Files.write(f5.toPath(), "fdata5".getBytes());
+
+    // uploadBatchSize of 1 so the missing file is encountered before others can be submitted
+    S3Backend failBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 1, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    try {
+      failBackend.uploadIndexFiles(
+          "upload_fail_service",
+          "upload_fail_index",
+          indexDir.toPath(),
+          Map.of(
+              "uf_fail1", meta1,
+              "uf_fail2", meta2,
+              "uf_fail3", meta3,
+              "uf_fail4", meta4,
+              "uf_fail5", meta5));
+      fail("Expected IOException due to missing file");
+    } catch (IOException e) {
+      // Verify that the method propagated the failure correctly
+      assertTrue(
+          "Expected IOException about uploading index files",
+          e.getMessage().contains("Error while uploading index files to s3"));
+    }
+  }
+
+  @Test
   public void testDownloadIndexFiles() throws IOException {
     File indexDir = folder.newFolder("index_dir");
 
@@ -986,7 +1117,7 @@ public class S3BackendTest {
         new S3Backend(
             BUCKET_NAME,
             false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 2),
+            new S3Backend.S3BackendConfig(false, 0, 1, 2, 0, 1, 0, 0, false),
             new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
 
     batchedBackend.downloadIndexFiles(
@@ -1004,7 +1135,8 @@ public class S3BackendTest {
 
   @Test
   public void testS3BackendConfigDefaults() {
-    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 0);
+    S3Backend.S3BackendConfig config =
+        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false);
     assertEquals(0, config.getDownloadBatchSize());
     assertFalse(config.getMetrics());
     assertEquals(0, config.getRateLimitBytes());
@@ -1013,14 +1145,15 @@ public class S3BackendTest {
 
   @Test
   public void testS3BackendConfigDownloadBatchSize() {
-    S3Backend.S3BackendConfig config = new S3Backend.S3BackendConfig(false, 0, 1, 10);
+    S3Backend.S3BackendConfig config =
+        new S3Backend.S3BackendConfig(false, 0, 1, 10, 0, 1, 0, 0, false);
     assertEquals(10, config.getDownloadBatchSize());
   }
 
   @Test
   public void testS3BackendConfigDownloadBatchSizeNegative() {
     try {
-      new S3Backend.S3BackendConfig(false, 0, 1, -1);
+      new S3Backend.S3BackendConfig(false, 0, 1, -1, 0, 1, 0, 0, false);
       fail("Expected IllegalArgumentException for negative downloadBatchSize");
     } catch (IllegalArgumentException e) {
       assertEquals("downloadBatchSize must be >= 0", e.getMessage());
@@ -1033,9 +1166,38 @@ public class S3BackendTest {
         new S3Backend(
             BUCKET_NAME,
             false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 5),
+            new S3Backend.S3BackendConfig(false, 0, 1, 5, 0, 1, 0, 0, false),
             new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
       assertEquals(5, backend.getDownloadBatchSize());
+    }
+  }
+
+  @Test
+  public void testS3BackendConfigUploadBatchSize() {
+    S3Backend.S3BackendConfig config =
+        new S3Backend.S3BackendConfig(false, 0, 1, 0, 10, 1, 0, 0, false);
+    assertEquals(10, config.getUploadBatchSize());
+  }
+
+  @Test
+  public void testS3BackendConfigUploadBatchSizeNegative() {
+    try {
+      new S3Backend.S3BackendConfig(false, 0, 1, 0, -1, 1, 0, 0, false);
+      fail("Expected IllegalArgumentException for negative uploadBatchSize");
+    } catch (IllegalArgumentException e) {
+      assertEquals("uploadBatchSize must be >= 0", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testUploadBatchSizeGetter() {
+    try (S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 7, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
+      assertEquals(7, backend.getUploadBatchSize());
     }
   }
 
@@ -1062,9 +1224,9 @@ public class S3BackendTest {
     List<S3Backend.FileNamePair> fileNamePairs =
         S3Backend.getFileNamePairs(Map.of("file1", fileMetaData1, "file2", fileMetaData2));
     S3Backend.FileNamePair expected1 =
-        new S3Backend.FileNamePair("file1", "time_string_1-pid1-file1");
+        new S3Backend.FileNamePair("file1", "time_string_1-pid1-file1", 1);
     S3Backend.FileNamePair expected2 =
-        new S3Backend.FileNamePair("file2", "time_string_2-pid2-file2");
+        new S3Backend.FileNamePair("file2", "time_string_2-pid2-file2", 1);
     assertEquals(2, fileNamePairs.size());
     assertTrue(fileNamePairs.contains(expected1));
     assertTrue(fileNamePairs.contains(expected2));
@@ -1453,6 +1615,198 @@ public class S3BackendTest {
             .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())
             .build();
     s3.completeMultipartUpload(compRequest);
+  }
+
+  @Test
+  public void testDownloadIndexFiles_retrySucceeds() throws IOException {
+    // Verify that a missing file on the first attempt fails, but succeeds when present on retry.
+    // We simulate this by uploading the file to S3 before calling downloadIndexFiles with
+    // downloadRetryMaxAttempts=2 and no delay so the test is fast.
+    File indexDir = folder.newFolder("index_dir_retry_success");
+
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts_retry1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts_retry2");
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("retry_service", "retry_index");
+    String filename1 = S3Backend.getIndexBackendFileName("rf1", fileMetaData1);
+    String filename2 = S3Backend.getIndexBackendFileName("rf2", fileMetaData2);
+
+    // Only upload file1 initially; file2 is missing (will cause first attempt to fail)
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename1).build(),
+        RequestBody.fromString("retry_data1"));
+
+    // Backend configured with 2 max attempts and 0ms delay
+    S3Backend retryBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 2, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    // Upload file2 to S3 right before the download call so it exists on the retry round
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + filename2).build(),
+        RequestBody.fromString("retry_data2"));
+
+    // Both files exist now — should succeed on first attempt
+    retryBackend.downloadIndexFiles(
+        "retry_service",
+        "retry_index",
+        indexDir.toPath(),
+        Map.of("rf1", fileMetaData1, "rf2", fileMetaData2));
+
+    assertEquals(
+        "retry_data1", convertToString(Files.newInputStream(indexDir.toPath().resolve("rf1"))));
+    assertEquals(
+        "retry_data2", convertToString(Files.newInputStream(indexDir.toPath().resolve("rf2"))));
+  }
+
+  @Test
+  public void testDownloadIndexFiles_allAttemptsExhausted() throws IOException {
+    // Verify that when all retry attempts fail the IOException is thrown.
+    File indexDir = folder.newFolder("index_dir_retry_fail");
+
+    NrtFileMetaData metaMissing =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid_miss", "ts_miss");
+
+    // Backend with 2 attempts, 0ms delay, and no concurrency reduction
+    S3Backend retryBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 2, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    try {
+      retryBackend.downloadIndexFiles(
+          "retry_fail_service",
+          "retry_fail_index",
+          indexDir.toPath(),
+          Map.of("missing_file", metaMissing));
+      fail("Expected IOException");
+    } catch (IOException e) {
+      assertTrue(
+          "Expected error about downloading index files, got: " + e.getMessage(),
+          e.getMessage().contains("Error while downloading index files from s3"));
+    }
+  }
+
+  @Test
+  public void testDownloadIndexFiles_noRetryOnSuccess() throws IOException {
+    // Verify downloadRetryMaxAttempts=1 (no retry) behaves like the original: fails fast.
+    File indexDir = folder.newFolder("index_dir_no_retry");
+
+    NrtFileMetaData metaMissing =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid_nr", "ts_nr");
+
+    S3Backend noRetryBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    try {
+      noRetryBackend.downloadIndexFiles(
+          "no_retry_service",
+          "no_retry_index",
+          indexDir.toPath(),
+          Map.of("missing_file", metaMissing));
+      fail("Expected IOException");
+    } catch (IOException e) {
+      assertTrue(
+          "Expected error about downloading index files",
+          e.getMessage().contains("Error while downloading index files from s3"));
+    }
+  }
+
+  @Test
+  public void testCalculateRetryDelay() {
+    S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 5, 1000L, 30000L, false),
+            new S3Util.S3ClientBundle(mock(S3Client.class), null));
+
+    // attempt 2 -> base delay (1000ms)
+    assertEquals(1000L, backend.calculateRetryDelay(2));
+    // attempt 3 -> 2 * base (2000ms)
+    assertEquals(2000L, backend.calculateRetryDelay(3));
+    // attempt 4 -> 4 * base (4000ms)
+    assertEquals(4000L, backend.calculateRetryDelay(4));
+    // attempt 5 -> 8 * base (8000ms)
+    assertEquals(8000L, backend.calculateRetryDelay(5));
+  }
+
+  @Test
+  public void testCalculateRetryDelay_cappedAtMax() {
+    S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 10, 1000L, 5000L, false),
+            new S3Util.S3ClientBundle(mock(S3Client.class), null));
+
+    // 8 * 1000 = 8000, exceeds max of 5000 -> capped at 5000
+    assertEquals(5000L, backend.calculateRetryDelay(5));
+    assertEquals(5000L, backend.calculateRetryDelay(6));
+  }
+
+  @Test
+  public void testS3BackendConfigRetryDefaults() {
+    S3Backend.S3BackendConfig config =
+        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 3, 1000L, 30000L, true);
+    assertEquals(3, config.getDownloadRetryMaxAttempts());
+    assertEquals(1000L, config.getDownloadRetryBaseDelayMs());
+    assertEquals(30000L, config.getDownloadRetryMaxDelayMs());
+    assertTrue(config.getDownloadRetryReduceConcurrency());
+  }
+
+  @Test
+  public void testS3BackendConfigRetryInvalidMaxAttempts() {
+    try {
+      new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 0, 1000L, 30000L, false);
+      fail("Expected IllegalArgumentException for maxAttempts < 1");
+    } catch (IllegalArgumentException e) {
+      assertEquals("downloadRetryMaxAttempts must be >= 1", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testS3BackendConfigRetryFromConfig() {
+    String configStr =
+        "bucketName: test-bucket\n"
+            + "remoteConfig:\n"
+            + "  s3:\n"
+            + "    downloadRetryMaxAttempts: 5\n"
+            + "    downloadRetryBaseDelayMs: 500\n"
+            + "    downloadRetryMaxDelayMs: 10000\n"
+            + "    downloadRetryReduceConcurrency: false";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
+
+    assertEquals(5, config.getDownloadRetryMaxAttempts());
+    assertEquals(500L, config.getDownloadRetryBaseDelayMs());
+    assertEquals(10000L, config.getDownloadRetryMaxDelayMs());
+    assertFalse(config.getDownloadRetryReduceConcurrency());
+  }
+
+  @Test
+  public void testS3BackendConfigRetryFromConfig_defaults() {
+    String configStr = "bucketName: test-bucket";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
+
+    assertEquals(3, config.getDownloadRetryMaxAttempts());
+    assertEquals(1000L, config.getDownloadRetryBaseDelayMs());
+    assertEquals(30000L, config.getDownloadRetryMaxDelayMs());
+    assertTrue(config.getDownloadRetryReduceConcurrency());
   }
 
   private String convertToString(InputStream inputStream) throws IOException {

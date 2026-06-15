@@ -20,6 +20,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 /**
  * A {@link DiversifyingChildrenFloatKnnVectorQuery} that has its functionality slightly modified.
@@ -38,8 +39,9 @@ public class NrtDiversifyingChildrenFloatKnnVectorQuery
       Query filter,
       int k,
       int numCandidates,
-      BitSetProducer parentsFilter) {
-    super(field, target, filter, numCandidates, parentsFilter);
+      BitSetProducer parentsFilter,
+      KnnSearchStrategy searchStrategy) {
+    super(field, target, filter, numCandidates, parentsFilter, searchStrategy);
     this.topHits = k;
   }
 

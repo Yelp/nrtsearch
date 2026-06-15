@@ -1,0 +1,38 @@
+{
+  "indexName": "test_index",
+  "startHit": 0,
+  "topHits": 10,
+  "retrieveFields": ["doc_id", "text_field"],
+  "multiRetriever": {
+    "retrievers": [
+      {
+        "name": "text",
+        "textRetriever": {
+          "query": {
+            "matchQuery": {
+              "field": "text_field",
+              "query": "test"
+            }
+          },
+          "topHits": 10
+        }
+      },
+      {
+        "name": "knn",
+        "knnRetriever": {
+          "knnQuery": {
+            "field": "vector_field",
+            "queryVector": [0.1, 0.2, 0.3],
+            "numCandidates": 10,
+            "k": 5
+          }
+        }
+      }
+    ],
+    "blender": {
+      "weightedRrf": {
+        "rankConstant": 60
+      }
+    }
+  }
+}

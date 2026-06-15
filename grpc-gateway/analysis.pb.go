@@ -375,6 +375,151 @@ func (*Analyzer_Predefined) isAnalyzer_AnalyzerType() {}
 
 func (*Analyzer_Custom) isAnalyzer_AnalyzerType() {}
 
+// Custom normalizer definition. Uses a keyword tokenizer internally — only char filters and
+// token filters may be specified. For use with ATOM field types.
+type CustomNormalizer struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Char filters to apply before tokenization
+	CharFilters []*NameAndParams `protobuf:"bytes,1,rep,name=charFilters,proto3" json:"charFilters,omitempty"`
+	// Token filters to apply (e.g. lowercase, asciifolding)
+	TokenFilters []*NameAndParams `protobuf:"bytes,2,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`
+}
+
+func (x *CustomNormalizer) Reset() {
+	*x = CustomNormalizer{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_analysis_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CustomNormalizer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CustomNormalizer) ProtoMessage() {}
+
+func (x *CustomNormalizer) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_analysis_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CustomNormalizer.ProtoReflect.Descriptor instead.
+func (*CustomNormalizer) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_analysis_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CustomNormalizer) GetCharFilters() []*NameAndParams {
+	if x != nil {
+		return x.CharFilters
+	}
+	return nil
+}
+
+func (x *CustomNormalizer) GetTokenFilters() []*NameAndParams {
+	if x != nil {
+		return x.TokenFilters
+	}
+	return nil
+}
+
+// Normalizer definition for ATOM fields. A normalizer applies char filters and token filters
+// to the entire field value as a single token (keyword tokenizer is implied).
+// Predefined normalizers: "lowercase"
+type Normalizer struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to NormalizerType:
+	//
+	//	*Normalizer_Predefined
+	//	*Normalizer_Custom
+	NormalizerType isNormalizer_NormalizerType `protobuf_oneof:"NormalizerType"`
+}
+
+func (x *Normalizer) Reset() {
+	*x = Normalizer{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_analysis_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Normalizer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Normalizer) ProtoMessage() {}
+
+func (x *Normalizer) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_analysis_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Normalizer.ProtoReflect.Descriptor instead.
+func (*Normalizer) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_analysis_proto_rawDescGZIP(), []int{6}
+}
+
+func (m *Normalizer) GetNormalizerType() isNormalizer_NormalizerType {
+	if m != nil {
+		return m.NormalizerType
+	}
+	return nil
+}
+
+func (x *Normalizer) GetPredefined() string {
+	if x, ok := x.GetNormalizerType().(*Normalizer_Predefined); ok {
+		return x.Predefined
+	}
+	return ""
+}
+
+func (x *Normalizer) GetCustom() *CustomNormalizer {
+	if x, ok := x.GetNormalizerType().(*Normalizer_Custom); ok {
+		return x.Custom
+	}
+	return nil
+}
+
+type isNormalizer_NormalizerType interface {
+	isNormalizer_NormalizerType()
+}
+
+type Normalizer_Predefined struct {
+	// Predefined normalizer name (e.g. "lowercase")
+	Predefined string `protobuf:"bytes,1,opt,name=predefined,proto3,oneof"`
+}
+
+type Normalizer_Custom struct {
+	// Custom normalizer with char filters and token filters
+	Custom *CustomNormalizer `protobuf:"bytes,2,opt,name=custom,proto3,oneof"`
+}
+
+func (*Normalizer_Predefined) isNormalizer_NormalizerType() {}
+
+func (*Normalizer_Custom) isNormalizer_NormalizerType() {}
+
 var File_yelp_nrtsearch_analysis_proto protoreflect.FileDescriptor
 
 var file_yelp_nrtsearch_analysis_proto_rawDesc = []byte{
@@ -439,13 +584,30 @@ var file_yelp_nrtsearch_analysis_proto_rawDesc = []byte{
 	0x6d, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
 	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x41, 0x6e, 0x61,
 	0x6c, 0x79, 0x7a, 0x65, 0x72, 0x48, 0x00, 0x52, 0x06, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x42,
-	0x0e, 0x0a, 0x0c, 0x41, 0x6e, 0x61, 0x6c, 0x79, 0x7a, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x42,
-	0x52, 0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73,
-	0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70,
-	0x63, 0x42, 0x0d, 0x41, 0x6e, 0x61, 0x6c, 0x79, 0x73, 0x69, 0x73, 0x50, 0x72, 0x6f, 0x74, 0x6f,
-	0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x59,
-	0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0xa2, 0x02, 0x03,
-	0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x0e, 0x0a, 0x0c, 0x41, 0x6e, 0x61, 0x6c, 0x79, 0x7a, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x22,
+	0x92, 0x01, 0x0a, 0x10, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c,
+	0x69, 0x7a, 0x65, 0x72, 0x12, 0x3d, 0x0a, 0x0b, 0x63, 0x68, 0x61, 0x72, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4e, 0x61, 0x6d, 0x65, 0x41, 0x6e, 0x64,
+	0x50, 0x61, 0x72, 0x61, 0x6d, 0x73, 0x52, 0x0b, 0x63, 0x68, 0x61, 0x72, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x73, 0x12, 0x3f, 0x0a, 0x0c, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4e, 0x61, 0x6d, 0x65, 0x41, 0x6e, 0x64,
+	0x50, 0x61, 0x72, 0x61, 0x6d, 0x73, 0x52, 0x0c, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x46, 0x69, 0x6c,
+	0x74, 0x65, 0x72, 0x73, 0x22, 0x7a, 0x0a, 0x0a, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a,
+	0x65, 0x72, 0x12, 0x20, 0x0a, 0x0a, 0x70, 0x72, 0x65, 0x64, 0x65, 0x66, 0x69, 0x6e, 0x65, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x0a, 0x70, 0x72, 0x65, 0x64, 0x65, 0x66,
+	0x69, 0x6e, 0x65, 0x64, 0x12, 0x38, 0x0a, 0x06, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c,
+	0x69, 0x7a, 0x65, 0x72, 0x48, 0x00, 0x52, 0x06, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x42, 0x10,
+	0x0a, 0x0e, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65,
+	0x42, 0x52, 0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74,
+	0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72,
+	0x70, 0x63, 0x42, 0x0d, 0x41, 0x6e, 0x61, 0x6c, 0x79, 0x73, 0x69, 0x73, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f,
+	0x59, 0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0xa2, 0x02,
+	0x03, 0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -460,17 +622,19 @@ func file_yelp_nrtsearch_analysis_proto_rawDescGZIP() []byte {
 	return file_yelp_nrtsearch_analysis_proto_rawDescData
 }
 
-var file_yelp_nrtsearch_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_yelp_nrtsearch_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_yelp_nrtsearch_analysis_proto_goTypes = []interface{}{
 	(*NameAndParams)(nil),          // 0: luceneserver.NameAndParams
 	(*ConditionalTokenFilter)(nil), // 1: luceneserver.ConditionalTokenFilter
 	(*IntObject)(nil),              // 2: luceneserver.IntObject
 	(*CustomAnalyzer)(nil),         // 3: luceneserver.CustomAnalyzer
 	(*Analyzer)(nil),               // 4: luceneserver.Analyzer
-	nil,                            // 5: luceneserver.NameAndParams.ParamsEntry
+	(*CustomNormalizer)(nil),       // 5: luceneserver.CustomNormalizer
+	(*Normalizer)(nil),             // 6: luceneserver.Normalizer
+	nil,                            // 7: luceneserver.NameAndParams.ParamsEntry
 }
 var file_yelp_nrtsearch_analysis_proto_depIdxs = []int32{
-	5,  // 0: luceneserver.NameAndParams.params:type_name -> luceneserver.NameAndParams.ParamsEntry
+	7,  // 0: luceneserver.NameAndParams.params:type_name -> luceneserver.NameAndParams.ParamsEntry
 	0,  // 1: luceneserver.ConditionalTokenFilter.condition:type_name -> luceneserver.NameAndParams
 	0,  // 2: luceneserver.ConditionalTokenFilter.tokenFilters:type_name -> luceneserver.NameAndParams
 	0,  // 3: luceneserver.CustomAnalyzer.charFilters:type_name -> luceneserver.NameAndParams
@@ -480,11 +644,14 @@ var file_yelp_nrtsearch_analysis_proto_depIdxs = []int32{
 	2,  // 7: luceneserver.CustomAnalyzer.positionIncrementGap:type_name -> luceneserver.IntObject
 	2,  // 8: luceneserver.CustomAnalyzer.offsetGap:type_name -> luceneserver.IntObject
 	3,  // 9: luceneserver.Analyzer.custom:type_name -> luceneserver.CustomAnalyzer
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	0,  // 10: luceneserver.CustomNormalizer.charFilters:type_name -> luceneserver.NameAndParams
+	0,  // 11: luceneserver.CustomNormalizer.tokenFilters:type_name -> luceneserver.NameAndParams
+	5,  // 12: luceneserver.Normalizer.custom:type_name -> luceneserver.CustomNormalizer
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_yelp_nrtsearch_analysis_proto_init() }
@@ -553,10 +720,38 @@ func file_yelp_nrtsearch_analysis_proto_init() {
 				return nil
 			}
 		}
+		file_yelp_nrtsearch_analysis_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CustomNormalizer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_analysis_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Normalizer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_yelp_nrtsearch_analysis_proto_msgTypes[4].OneofWrappers = []interface{}{
 		(*Analyzer_Predefined)(nil),
 		(*Analyzer_Custom)(nil),
+	}
+	file_yelp_nrtsearch_analysis_proto_msgTypes[6].OneofWrappers = []interface{}{
+		(*Normalizer_Predefined)(nil),
+		(*Normalizer_Custom)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -564,7 +759,7 @@ func file_yelp_nrtsearch_analysis_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yelp_nrtsearch_analysis_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

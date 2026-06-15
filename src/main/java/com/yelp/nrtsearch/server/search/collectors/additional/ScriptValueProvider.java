@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.query.QueryUtils;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
@@ -41,7 +42,10 @@ class ScriptValueProvider implements ValueProvider {
   ScriptValueProvider(Script script, DocLookup lookup, double unsetValue) {
     ScoreScript.Factory factory = ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
     valuesSource =
-        factory.newFactory(ScriptParamsUtils.decodeParams(script.getParamsMap()), lookup);
+        factory.newFactory(
+            ScriptFactoryContext.builder(
+                    ScriptParamsUtils.decodeParams(script.getParamsMap()), lookup)
+                .build());
     unsetVal = unsetValue;
   }
 

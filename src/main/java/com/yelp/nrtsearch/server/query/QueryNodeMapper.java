@@ -20,8 +20,11 @@ import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.isAnalyzerDefin
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.field.properties.*;
+import com.yelp.nrtsearch.server.grpc.CrossIndexQuery;
+import com.yelp.nrtsearch.server.grpc.CrossIndexQuery.JoinScoreMode;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
@@ -33,14 +36,18 @@ import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery.MatchType;
+import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,6 +57,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -72,6 +80,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -83,10 +92,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
 public class QueryNodeMapper {
 
+  private static final Logger logger = LoggerFactory.getLogger(QueryNodeMapper.class);
   private static final QueryNodeMapper INSTANCE = new QueryNodeMapper();
 
   public static QueryNodeMapper getInstance() {
@@ -102,19 +114,24 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    return getQuery(query, state.docLookup);
+    return getQuery(query, new QueryContext(state.docLookup, state.getGlobalState(), null));
   }
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, DocLookup docLookup) {
-    Query queryNode = getQueryNode(query, docLookup);
+    return getQuery(query, new QueryContext(docLookup, null, null));
+  }
+
+  public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, QueryContext context) {
+    Query queryNode = getQueryNode(query, context);
 
     if (query.getBoost() < 0) {
       throw new IllegalArgumentException("Boost must be a positive number");
     }
 
     if (query.getBoost() > 0) {
-      return new BoostQuery(queryNode, query.getBoost());
+      queryNode = new BoostQuery(queryNode, query.getBoost());
     }
+
     return queryNode;
   }
 
@@ -149,34 +166,37 @@ public class QueryNodeMapper {
         new Term(IndexState.NESTED_PATH, IndexState.resolveQueryNestedPath(path, docLookup)));
   }
 
-  private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, DocLookup docLookup) {
+  private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, QueryContext context) {
+    DocLookup docLookup = context.docLookup();
     return switch (query.getQueryNodeCase()) {
-      case BOOLEANQUERY -> getBooleanQuery(query.getBooleanQuery(), docLookup);
+      case BOOLEANQUERY -> getBooleanQuery(query.getBooleanQuery(), context);
       case PHRASEQUERY -> getPhraseQuery(query.getPhraseQuery());
-      case FUNCTIONSCOREQUERY -> getFunctionScoreQuery(query.getFunctionScoreQuery(), docLookup);
+      case FUNCTIONSCOREQUERY -> getFunctionScoreQuery(query.getFunctionScoreQuery(), context);
       case TERMQUERY -> getTermQuery(query.getTermQuery(), docLookup);
       case TERMINSETQUERY -> getTermInSetQuery(query.getTermInSetQuery(), docLookup);
-      case DISJUNCTIONMAXQUERY -> getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), docLookup);
+      case DISJUNCTIONMAXQUERY -> getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), context);
       case MATCHQUERY -> getMatchQuery(query.getMatchQuery(), docLookup);
       case MATCHPHRASEQUERY -> getMatchPhraseQuery(query.getMatchPhraseQuery(), docLookup);
       case MULTIMATCHQUERY -> getMultiMatchQuery(query.getMultiMatchQuery(), docLookup);
       case RANGEQUERY -> getRangeQuery(query.getRangeQuery(), docLookup);
       case GEOBOUNDINGBOXQUERY -> getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), docLookup);
       case GEOPOINTQUERY -> getGeoPointQuery(query.getGeoPointQuery(), docLookup);
-      case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), docLookup);
+      case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), context);
       case EXISTSQUERY -> getExistsQuery(query.getExistsQuery());
       case GEORADIUSQUERY -> getGeoRadiusQuery(query.getGeoRadiusQuery(), docLookup);
-      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), docLookup);
+      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), context);
       case COMPLETIONQUERY -> getCompletionQuery(query.getCompletionQuery(), docLookup);
       case MULTIFUNCTIONSCOREQUERY ->
-          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), docLookup);
+          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), context);
       case MATCHPHRASEPREFIXQUERY ->
           MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), docLookup);
       case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), docLookup, false);
-      case CONSTANTSCOREQUERY -> getConstantScoreQuery(query.getConstantScoreQuery(), docLookup);
+      case CONSTANTSCOREQUERY -> getConstantScoreQuery(query.getConstantScoreQuery(), context);
       case SPANQUERY -> getSpanQuery(query.getSpanQuery(), docLookup);
       case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), docLookup);
       case EXACTVECTORQUERY -> getExactVectorQuery(query.getExactVectorQuery(), docLookup);
+      case CROSSINDEXQUERY -> getCrossIndexQuery(query.getCrossIndexQuery(), context);
+      case MINSCOREQUERY -> getMinScoreQuery(query.getMinScoreQuery(), context);
       case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
       default ->
           throw new UnsupportedOperationException(
@@ -207,20 +227,21 @@ public class QueryNodeMapper {
     return contextQuery;
   }
 
-  private Query getNestedQuery(
-      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, DocLookup docLookup) {
-    Query childRawQuery = getQuery(nestedQuery.getQuery(), docLookup);
+  private Query getNestedQuery(NestedQuery nestedQuery, QueryContext queryContext) {
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), queryContext);
     Query childQuery =
         new BooleanQuery.Builder()
-            .add(getNestedPathQuery(docLookup, nestedQuery.getPath()), BooleanClause.Occur.FILTER)
+            .add(
+                getNestedPathQuery(queryContext.docLookup(), nestedQuery.getPath()),
+                BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = getNestedPathQuery(docLookup, IndexState.ROOT);
+    Query parentQuery = getNestedPathQuery(queryContext.docLookup(), IndexState.ROOT);
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
 
-  private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
+  private ScoreMode getScoreMode(NestedQuery nestedQuery) {
     return switch (nestedQuery.getScoreMode()) {
       case NONE -> ScoreMode.None;
       case AVG -> ScoreMode.Avg;
@@ -234,7 +255,7 @@ public class QueryNodeMapper {
   }
 
   private BooleanQuery getBooleanQuery(
-      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery, DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery, QueryContext context) {
     BooleanQuery.Builder builder =
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
@@ -249,7 +270,7 @@ public class QueryNodeMapper {
         .forEach(
             clause -> {
               com.yelp.nrtsearch.server.grpc.BooleanClause.Occur occur = clause.getOccur();
-              builder.add(getQuery(clause.getQuery(), docLookup), occurMapping.get(occur));
+              builder.add(getQuery(clause.getQuery(), context), occurMapping.get(occur));
               if (occur != com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.MUST_NOT) {
                 allMustNot.set(false);
               }
@@ -270,24 +291,32 @@ public class QueryNodeMapper {
   }
 
   private FunctionScoreQuery getFunctionScoreQuery(
-      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, QueryContext context) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
 
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
-        getQuery(functionScoreQuery.getQuery(), docLookup),
-        scriptFactory.newFactory(params, docLookup));
+        getQuery(functionScoreQuery.getQuery(), context),
+        scriptFactory.newFactory(
+            ScriptFactoryContext.builder(params, context.docLookup())
+                .sharedDocContext(context.sharedDocContext())
+                .build()));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
-      FunctionFilterQuery functionFilterQuery, DocLookup docLookup) {
+      FunctionFilterQuery functionFilterQuery, QueryContext context) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
-    return new FunctionMatchQuery(scriptFactory.newFactory(params, docLookup), score -> score > 0);
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(
+            ScriptFactoryContext.builder(params, context.docLookup())
+                .sharedDocContext(context.sharedDocContext())
+                .build()),
+        score -> score > 0);
   }
 
   private Query getTermQuery(
@@ -319,10 +348,11 @@ public class QueryNodeMapper {
   }
 
   private DisjunctionMaxQuery getDisjunctionMaxQuery(
-      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery, DocLookup docLookup) {
+      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery,
+      QueryContext context) {
     List<Query> disjuncts =
         disjunctionMaxQuery.getDisjunctsList().stream()
-            .map(query -> getQuery(query, docLookup))
+            .map(query -> getQuery(query, context))
             .collect(Collectors.toList());
     return new DisjunctionMaxQuery(disjuncts, disjunctionMaxQuery.getTieBreakerMultiplier());
   }
@@ -604,9 +634,25 @@ public class QueryNodeMapper {
 
   private Query getConstantScoreQuery(
       com.yelp.nrtsearch.server.grpc.ConstantScoreQuery constantScoreQueryGrpc,
-      DocLookup docLookup) {
-    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), docLookup);
+      QueryContext context) {
+    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), context);
     return new ConstantScoreQuery(filterQuery);
+  }
+
+  private Query getMinScoreQuery(
+      com.yelp.nrtsearch.server.grpc.MinScoreQuery minScoreQueryGrpc, QueryContext context) {
+    if (!minScoreQueryGrpc.hasQuery()) {
+      throw new IllegalArgumentException("MinScoreQuery.query must be set");
+    }
+    float minScore = minScoreQueryGrpc.getMinScore();
+    if (minScore < 0) {
+      throw new IllegalArgumentException("MinScoreQuery.min_score must be a non-negative number");
+    }
+    Query innerQuery = getQuery(minScoreQueryGrpc.getQuery(), context);
+    if (minScore == 0) {
+      return innerQuery;
+    }
+    return new MinThresholdQuery(innerQuery, minScore);
   }
 
   private SpanQuery getSpanQuery(
@@ -776,5 +822,103 @@ public class QueryNodeMapper {
     }
     throw new IllegalArgumentException(
         "Field: " + fieldName + " does not support ExactVectorQuery");
+  }
+
+  private Query getCrossIndexQuery(CrossIndexQuery crossIndexQuery, QueryContext context) {
+    if (context.globalState() == null) {
+      throw new IllegalStateException(
+          "GlobalState is required for CrossIndexQuery but was not provided");
+    }
+
+    String index = crossIndexQuery.getIndex();
+    if (index.isEmpty()) {
+      throw new IllegalArgumentException("CrossIndexQuery.index must not be empty");
+    }
+    String primaryField = crossIndexQuery.getPrimaryField();
+    if (primaryField.isEmpty()) {
+      throw new IllegalArgumentException("CrossIndexQuery.primary_field must not be empty");
+    }
+    String secondaryField = crossIndexQuery.getSecondaryField();
+    if (secondaryField.isEmpty()) {
+      throw new IllegalArgumentException("CrossIndexQuery.secondary_field must not be empty");
+    }
+    if (!crossIndexQuery.hasQuery()) {
+      throw new IllegalArgumentException("CrossIndexQuery.query must be set");
+    }
+
+    IndexState secondaryIndex;
+    try {
+      secondaryIndex = context.globalState().getIndexOrThrow(index);
+    } catch (Exception e) {
+      throw new IllegalArgumentException(
+          "CrossIndexQuery: secondary index \"" + index + "\" not found", e);
+    }
+
+    // Validate that fields exist and determine if secondary field is multi-valued
+    FieldDef secondaryFieldDef = secondaryIndex.docLookup.getFieldDefOrThrow(secondaryField);
+    context.docLookup().getFieldDefOrThrow(primaryField);
+    boolean multipleValuesPerDocument =
+        secondaryFieldDef instanceof IndexableFieldDef<?> indexable && indexable.isMultiValue();
+
+    ShardState secondaryShard = secondaryIndex.getShard(0);
+    SearcherTaxonomyManager.SearcherAndTaxonomy secondarySearcher;
+    try {
+      secondarySearcher = secondaryShard.acquire();
+    } catch (Exception e) {
+      throw new IllegalStateException(
+          "CrossIndexQuery: failed to acquire searcher for index \"" + index + "\"", e);
+    }
+
+    try {
+      // Build the query against the secondary index's field definitions,
+      // propagating GlobalState so nested cross-index queries are supported.
+      Query innerQuery =
+          getQuery(
+              crossIndexQuery.getQuery(),
+              new QueryContext(secondaryIndex.docLookup, context.globalState(), null));
+
+      int maxTerms = crossIndexQuery.getMaxTerms();
+      if (maxTerms > 0) {
+        int matchCount = secondarySearcher.searcher().count(innerQuery);
+        if (matchCount > maxTerms) {
+          throw new IllegalStateException(
+              "CrossIndexQuery: inner query matched "
+                  + matchCount
+                  + " secondary documents, exceeding max_terms limit of "
+                  + maxTerms);
+        }
+      }
+
+      ScoreMode scoreMode = mapJoinScoreMode(crossIndexQuery.getScoreMode());
+
+      // JoinUtil collects matching values eagerly at construction time, building a TermsQuery.
+      // The secondary searcher is NOT held open during primary search execution.
+      return JoinUtil.createJoinQuery(
+          secondaryField,
+          multipleValuesPerDocument,
+          primaryField,
+          innerQuery,
+          secondarySearcher.searcher(),
+          scoreMode);
+    } catch (IOException e) {
+      throw new RuntimeException("CrossIndexQuery: failed to create join query", e);
+    } finally {
+      try {
+        secondaryShard.release(secondarySearcher);
+      } catch (Exception releaseEx) {
+        logger.error("CrossIndexQuery: failed to release secondary searcher", releaseEx);
+      }
+    }
+  }
+
+  private static ScoreMode mapJoinScoreMode(JoinScoreMode mode) {
+    return switch (mode) {
+      case JOIN_SCORE_UNSET, JOIN_SCORE_NONE -> ScoreMode.None;
+      case JOIN_SCORE_AVG -> ScoreMode.Avg;
+      case JOIN_SCORE_MAX -> ScoreMode.Max;
+      case JOIN_SCORE_MIN -> ScoreMode.Min;
+      case JOIN_SCORE_TOTAL -> ScoreMode.Total;
+      default -> throw new IllegalArgumentException("Unsupported JoinScoreMode: " + mode);
+    };
   }
 }

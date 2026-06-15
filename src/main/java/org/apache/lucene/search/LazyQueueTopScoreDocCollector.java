@@ -39,12 +39,12 @@ public class LazyQueueTopScoreDocCollector extends TopDocsCollector<ScoreDoc> {
 
   private final ScoreDoc after;
   final int totalHitsThreshold;
-  final MaxScoreAccumulator minScoreAcc;
+  final LazyMaxScoreAccumulator minScoreAcc;
   private final int numHits;
 
   // prevents instantiation
   LazyQueueTopScoreDocCollector(
-      int numHits, ScoreDoc after, int totalHitsThreshold, MaxScoreAccumulator minScoreAcc) {
+      int numHits, ScoreDoc after, int totalHitsThreshold, LazyMaxScoreAccumulator minScoreAcc) {
     super(new HitQueue(numHits, false));
     this.after = after;
     this.totalHitsThreshold = totalHitsThreshold;
@@ -162,8 +162,9 @@ public class LazyQueueTopScoreDocCollector extends TopDocsCollector<ScoreDoc> {
           // since we tie-break on doc id and collect in doc id order we can require
           // the next float if the global minimum score is set on a document id that is
           // smaller than the ids in the current leaf
-          float score = MaxScoreAccumulator.toScore(maxMinScore);
-          score = docBase >= MaxScoreAccumulator.docId(maxMinScore) ? Math.nextUp(score) : score;
+          float score = LazyMaxScoreAccumulator.toScore(maxMinScore);
+          score =
+              docBase >= LazyMaxScoreAccumulator.docId(maxMinScore) ? Math.nextUp(score) : score;
           if (score > minCompetitiveScore) {
             scorer.setMinCompetitiveScore(score);
             minCompetitiveScore = score;

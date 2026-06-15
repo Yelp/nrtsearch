@@ -21,8 +21,10 @@ import static com.yelp.nrtsearch.server.search.KnnUtils.resolveKnnQueryAndBoost;
 
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -36,13 +38,16 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
+import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.rescore.RescorerCreator;
+import com.yelp.nrtsearch.server.rescore.ScriptRescore;
 import com.yelp.nrtsearch.server.script.RuntimeScript;
 import com.yelp.nrtsearch.server.script.ScoreScript;
+import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreator;
@@ -68,6 +73,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -80,6 +86,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -123,17 +131,63 @@ public class SearchRequestProcessor {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
     SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
+    SharedDocContext sharedDocContext = new DefaultSharedDocContext();
 
     contextBuilder
         .setIndexState(indexState)
         .setShardState(shardState)
         .setSearcherAndTaxonomy(searcherAndTaxonomy)
         .setResponseBuilder(responseBuilder)
+        .setSharedDocContext(sharedDocContext)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits())
         .setExplain(searchRequest.getExplain())
         .setWarming(warming);
+
+    BitSetProducer parentBitSetProducer = null;
+    Function<String, BitSetProducer> childPathFilterLookup = null;
+
+    if (indexState.hasNestedChildFields()) {
+      parentBitSetProducer = indexState.getParentBitSetProducer();
+
+      Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
+
+      Map<String, BitSetProducer> perRequestFilterCache = new ConcurrentHashMap<>();
+
+      final SearcherTaxonomyManager.SearcherAndTaxonomy finalSearcherAndTaxonomy =
+          searcherAndTaxonomy;
+
+      childPathFilterLookup =
+          (fieldName) -> {
+            String nestedPath = IndexState.getFieldBaseNestedPath(fieldName, indexState);
+            if (nestedPath == null) {
+              return null;
+            }
+            return perRequestFilterCache.computeIfAbsent(
+                nestedPath,
+                path -> {
+                  Query userFilter = userChildFilters.get(path);
+                  if (userFilter != null) {
+                    try {
+                      Query pathQuery =
+                          QueryNodeMapper.getInstance().getNestedPathQuery(indexState, path);
+                      Query combined =
+                          new BooleanQuery.Builder()
+                              .add(pathQuery, BooleanClause.Occur.FILTER)
+                              .add(userFilter, BooleanClause.Occur.FILTER)
+                              .build();
+                      combined = finalSearcherAndTaxonomy.searcher().rewrite(combined);
+                      return new QueryBitSetProducer(combined);
+                    } catch (IOException e) {
+                      throw new RuntimeException(
+                          "Failed to build child path filter for: " + path, e);
+                    }
+                  }
+                  return indexState.getPathBitSetProducer(path);
+                });
+          };
+    }
 
     // We do this to make the searcher available to scripting engines, by adding it to the
     // DocLookup. It would be better to change the script factory interface to take a
@@ -141,9 +195,14 @@ public class SearchRequestProcessor {
     // these changes in a future minor version.
     DocLookup indexLookupWithSearcher =
         new DocLookup(
-            indexState::getField, () -> indexState.getAllFields().keySet(), searcherAndTaxonomy);
+            indexState::getField,
+            () -> indexState.getAllFields().keySet(),
+            searcherAndTaxonomy,
+            parentBitSetProducer,
+            childPathFilterLookup);
+
     Map<String, FieldDef> queryVirtualFields =
-        getVirtualFields(indexLookupWithSearcher, searchRequest);
+        getVirtualFields(indexLookupWithSearcher, searchRequest, sharedDocContext);
     Map<String, FieldDef> queryRuntimeFields =
         getRuntimeFields(indexLookupWithSearcher, searchRequest);
 
@@ -157,7 +216,13 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    DocLookup docLookup = new DocLookup(queryFields::get, queryFields::keySet, searcherAndTaxonomy);
+    DocLookup docLookup =
+        new DocLookup(
+            queryFields::get,
+            queryFields::keySet,
+            searcherAndTaxonomy,
+            parentBitSetProducer,
+            childPathFilterLookup);
     contextBuilder.setDocLookup(docLookup);
     String rootQueryNestedPath =
         IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
@@ -174,21 +239,12 @@ public class SearchRequestProcessor {
               searcherAndTaxonomy,
               queryFields,
               docLookup,
+              sharedDocContext,
               contextBuilder,
               diagnostics,
               profileResult,
               indexState.getGlobalState().getRetrieverExecutor());
 
-      // Top-level collector for union query aggregations only (no ranking)
-      CollectorCreatorContext collectorCreatorContext =
-          CollectorCreatorContext.newBuilder(indexState)
-              .withShardState(shardState)
-              .withQueryFields(queryFields)
-              .withSearcherAndTaxonomy(searcherAndTaxonomy)
-              .withRequest(searchRequest)
-              .withNumHitsToCollect(0)
-              .build();
-      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     } else {
       query =
           extractQuery(
@@ -196,7 +252,8 @@ public class SearchRequestProcessor {
               searchRequest.getQueryText(),
               searchRequest.getQuery(),
               rootQueryNestedPath,
-              docLookup);
+              docLookup,
+              sharedDocContext);
 
       if (profileResult != null) {
         profileResult.setParsedQuery(query.toString());
@@ -237,19 +294,21 @@ public class SearchRequestProcessor {
         }
         query = queryBuilder.build();
       }
-
-      CollectorCreatorContext collectorCreatorContext =
-          CollectorCreatorContext.newBuilder(indexState)
-              .withShardState(shardState)
-              .withQueryFields(queryFields)
-              .withSearcherAndTaxonomy(searcherAndTaxonomy)
-              .withRequest(searchRequest)
-              .build();
-      contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
     }
 
-    // Facets are applied on the union query (all matching docs) for multi-retriever requests.
-    // Fetch tasks (highlights, innerHits, hitsLogger) run on the final top N hits during fetch.
+    CollectorCreatorContext.Builder collectorContextBuilder =
+        CollectorCreatorContext.newBuilder(indexState)
+            .withShardState(shardState)
+            .withQueryFields(queryFields)
+            .withSearcherAndTaxonomy(searcherAndTaxonomy)
+            .withRequest(searchRequest);
+    if (searchRequest.hasMultiRetriever()) {
+      // Override to 0 — ranking is done by the blender; this pass is aggregation-only.
+      collectorContextBuilder.withNumHitsToCollect(0);
+    }
+    contextBuilder.setCollector(buildDocCollector(collectorContextBuilder.build()));
+
+    // Facets are applied on the union query for multi-retriever requests.
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);
       if (profileResult != null) {
@@ -300,8 +359,11 @@ public class SearchRequestProcessor {
     // Top-level rescorers are applied post-blending for multi-retriever requests
     // Each retriever has an optional L1 rescorer before blending
     contextBuilder.setRescorers(
-        getRescorers(indexState, searcherAndTaxonomy.searcher(), searchRequest.getRescorersList()));
-    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
+        getRescorers(
+            indexState,
+            searcherAndTaxonomy.searcher(),
+            searchRequest.getRescorersList(),
+            sharedDocContext));
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
@@ -317,7 +379,7 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      DocLookup docLookup, SearchRequest searchRequest) {
+      DocLookup docLookup, SearchRequest searchRequest, SharedDocContext sharedDocContext) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
@@ -332,7 +394,12 @@ public class SearchRequestProcessor {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       FieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, docLookup));
+          new VirtualFieldDef(
+              vf.getName(),
+              factory.newFactory(
+                  ScriptFactoryContext.builder(params, docLookup)
+                      .sharedDocContext(sharedDocContext)
+                      .build()));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -461,7 +528,8 @@ public class SearchRequestProcessor {
       String queryText,
       com.yelp.nrtsearch.server.grpc.Query query,
       String queryNestedPath,
-      DocLookup docLookup) {
+      DocLookup docLookup,
+      SharedDocContext sharedDocContext) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -473,7 +541,9 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, docLookup);
+      QueryContext queryContext =
+          new QueryContext(docLookup, state.getGlobalState(), sharedDocContext);
+      q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
     if (state.hasNestedChildFields()) {
@@ -548,14 +618,20 @@ public class SearchRequestProcessor {
 
   /** Builds a single RescoreTask from a Rescorer proto. */
   private static RescoreTask buildRescoreTask(
-      IndexState indexState, IndexSearcher searcher, Rescorer rescorer, String defaultRescorerName)
+      IndexState indexState,
+      IndexSearcher searcher,
+      Rescorer rescorer,
+      String defaultRescorerName,
+      SharedDocContext sharedDocContext)
       throws IOException {
     String rescorerName = rescorer.getName();
     RescoreOperation rescoreOperation;
 
     if (rescorer.hasQueryRescorer()) {
       QueryRescorer queryRescorer = rescorer.getQueryRescorer();
-      Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
+      QueryContext queryContext =
+          new QueryContext(indexState.docLookup, indexState.getGlobalState(), sharedDocContext);
+      Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), queryContext);
       query = searcher.rewrite(query);
 
       rescoreOperation =
@@ -567,9 +643,20 @@ public class SearchRequestProcessor {
     } else if (rescorer.hasPluginRescorer()) {
       PluginRescorer plugin = rescorer.getPluginRescorer();
       rescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
+    } else if (rescorer.hasScriptRescorer()) {
+      com.yelp.nrtsearch.server.grpc.Script script = rescorer.getScriptRescorer().getScript();
+      ScoreScript.Factory factory =
+          ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(script.getParamsMap());
+      DocLookup docLookup = indexState.docLookup;
+      ScriptFactoryContext scriptFactoryContext =
+          ScriptFactoryContext.builder(params, docLookup)
+              .sharedDocContext(sharedDocContext)
+              .build();
+      rescoreOperation = new ScriptRescore(factory, scriptFactoryContext);
     } else {
       throw new IllegalArgumentException(
-          "Rescorer should define either QueryRescorer or PluginRescorer");
+          "Rescorer should define one of: QueryRescorer, PluginRescorer, ScriptRescorer");
     }
 
     return RescoreTask.newBuilder()
@@ -582,13 +669,20 @@ public class SearchRequestProcessor {
 
   /** Parses rescorers defined in this search request. */
   private static List<RescoreTask> getRescorers(
-      IndexState indexState, IndexSearcher searcher, List<Rescorer> rescorerList)
+      IndexState indexState,
+      IndexSearcher searcher,
+      List<Rescorer> rescorerList,
+      SharedDocContext sharedDocContext)
       throws IOException {
     List<RescoreTask> rescorers = new ArrayList<>();
     for (int i = 0; i < rescorerList.size(); ++i) {
       rescorers.add(
           buildRescoreTask(
-              indexState, searcher, rescorerList.get(i), String.format("rescorer_%d", i)));
+              indexState,
+              searcher,
+              rescorerList.get(i),
+              String.format("rescorer_%d", i),
+              sharedDocContext));
     }
     return rescorers;
   }
@@ -606,7 +700,8 @@ public class SearchRequestProcessor {
       DocLookup docLookup) {
     // Do not apply nestedPath here. This is query is used to create a shared
     // weight.
-    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup);
+    Query childQuery =
+        extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup, null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)
@@ -651,8 +746,6 @@ public class SearchRequestProcessor {
     if (searchRequest.hasQuerySort()) {
       throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
     }
-    // TODO: Remove once multi-retriever execution is implemented
-    throw new UnsupportedOperationException("Multi-retriever is not yet supported");
   }
 
   private static Query buildMultiRetrieverContextAndUnionQuery(
@@ -662,6 +755,7 @@ public class SearchRequestProcessor {
       SearcherAndTaxonomy searcherAndTaxonomy,
       Map<String, FieldDef> queryFields,
       DocLookup docLookup,
+      SharedDocContext sharedDocContext,
       SearchContext.Builder searchContextBuilder,
       SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResult,
@@ -705,7 +799,13 @@ public class SearchRequestProcessor {
                   : IndexState.resolveQueryNestedPath(
                       textRetriever.getQueryNestedPath(), docLookup);
           Query extractedQuery =
-              extractQuery(indexState, "", textRetriever.getQuery(), nestedQueryPath, docLookup);
+              extractQuery(
+                  indexState,
+                  "",
+                  textRetriever.getQuery(),
+                  nestedQueryPath,
+                  docLookup,
+                  sharedDocContext);
           query = searcher.rewrite(extractedQuery);
           if (doProfile) {
             retrieverProfileResult.setParsedQuery(extractedQuery.toString());
@@ -744,7 +844,11 @@ public class SearchRequestProcessor {
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
             buildRescoreTask(
-                indexState, searcher, retriever.getRescorer(), retriever.getName() + "_rescorer"));
+                indexState,
+                searcher,
+                retriever.getRescorer(),
+                retriever.getName() + "_rescorer",
+                sharedDocContext));
       }
 
       CollectorCreatorContext collectorCreatorContext =
@@ -778,5 +882,38 @@ public class SearchRequestProcessor {
       profileResult.setMultiRetrieverProfileResult(multiRetrieverProfileResult.build());
     }
     return unionQueryBuilder.build();
+  }
+
+  private static Map<String, Query> parseChildFilters(
+      SearchRequest searchRequest, IndexState indexState) {
+    if (searchRequest.getChildFiltersList().isEmpty()) {
+      return Map.of();
+    }
+
+    Map<String, Query> userChildFilters = new HashMap<>();
+    for (ChildFilter childFilter : searchRequest.getChildFiltersList()) {
+      String path = childFilter.getPath();
+      if (path.isEmpty()) {
+        throw new IllegalArgumentException("ChildFilter path must not be empty");
+      }
+      if (!childFilter.hasFilter()) {
+        throw new IllegalArgumentException(
+            "ChildFilter must have a filter query for path: " + path);
+      }
+
+      FieldDef fieldDef = indexState.getField(path);
+      if (!(fieldDef instanceof ObjectFieldDef objectFieldDef) || !objectFieldDef.isNestedDoc()) {
+        throw new IllegalArgumentException(
+            "ChildFilter path must be a nested object field: " + path);
+      }
+
+      if (userChildFilters.containsKey(path)) {
+        throw new IllegalArgumentException("Duplicate ChildFilter for path: " + path);
+      }
+
+      Query filterQuery = QUERY_NODE_MAPPER.getQuery(childFilter.getFilter(), indexState);
+      userChildFilters.put(path, filterQuery);
+    }
+    return userChildFilters;
   }
 }

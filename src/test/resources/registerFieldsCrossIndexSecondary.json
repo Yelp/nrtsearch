@@ -1,0 +1,23 @@
+{
+  "indexName": "secondary_index",
+  "field": [
+    {
+      "name": "biz_id_secondary",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "time_slot",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "covers",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}

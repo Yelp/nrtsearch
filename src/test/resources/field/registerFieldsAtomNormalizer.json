@@ -1,0 +1,76 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "atom_lower",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "normalizer": {
+        "predefined": "lowercase"
+      }
+    },
+    {
+      "name": "atom_lower_stored",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "normalizer": {
+        "predefined": "lowercase"
+      }
+    },
+    {
+      "name": "atom_lower_multi",
+      "type": "ATOM",
+      "search": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "normalizer": {
+        "predefined": "lowercase"
+      }
+    },
+    {
+      "name": "atom_custom_lower",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "normalizer": {
+        "custom": {
+          "tokenFilters": [
+            {"name": "lowercase"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "atom_no_normalizer",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "atom_lower_prefix",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "normalizer": {
+        "predefined": "lowercase"
+      }
+    },
+    {
+      "name": "atom_lower_range",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "normalizer": {
+        "predefined": "lowercase"
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "indexName": "primary_index",
+  "field": [
+    {
+      "name": "biz_id_primary",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "rating",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}
