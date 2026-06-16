@@ -120,6 +120,7 @@ public class SearchResponseCollector implements MultiCollector {
             .labelValues(index, "facet:" + entry.getKey())
             .observe(entry.getValue());
       }
+      searchStageLatencyMs.labelValues(index, "rescore").observe(diagnostics.getRescoreTimeMs());//adding extra rescore metric to avoid calculating average of all rescorers
       for (Map.Entry<String, Double> entry : diagnostics.getRescorersTimeMsMap().entrySet()) {
         searchStageLatencyMs
             .labelValues(index, "rescorer:" + entry.getKey())
@@ -139,6 +140,9 @@ public class SearchResponseCollector implements MultiCollector {
     try {
       metrics.add(searchTimeoutCount.collect());
       metrics.add(searchTerminatedEarlyCount.collect());
+      metrics.add(searchStageLatencyMs.collect());// Just adding this here should mean it gets published to prometheus, is that what we want?
+      // when is publishVerboseMetrics set to true, I couldn't find this metric in the grafana shard without any filters?
+      // maybe it makes sense to add an extra parameter like publishSearchStageLatencyMs with default value true (?)
 
       boolean publishVerboseMetrics = false;
       Set<String> indexNames = globalState.getIndexNames();
@@ -151,7 +155,6 @@ public class SearchResponseCollector implements MultiCollector {
       if (publishVerboseMetrics) {
         metrics.add(searchResponseSizeBytes.collect());
         metrics.add(searchResponseTotalHits.collect());
-        metrics.add(searchStageLatencyMs.collect());
       }
     } catch (Exception e) {
       logger.warn("Error getting search response metrics: ", e);
