@@ -47,6 +47,7 @@ import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
+import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.grpc.WeightedScoreOrderBlender;
 import io.grpc.StatusRuntimeException;
@@ -270,6 +271,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
     assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
     assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -292,6 +295,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .get("category_terms")
             .getBucketResult()
             .getBucketsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -319,6 +324,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .get("category_terms")
             .getBucketResult()
             .getBucketsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -364,6 +371,19 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertEquals(1, singleSampleResponse.getFacetResultCount());
     assertEquals("category_facet", singleSampleResponse.getFacetResult(0).getName());
     assertEquals(1, singleSampleResponse.getFacetResult(0).getLabelValuesCount());
+  }
+
+  @Test
+  public void testTotalHitsWithoutAggregation() {
+    // Without facets or collectors, totalHits should come from the blender recall window
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(baseRequest().setMultiRetriever(twoRetrieverRrf()).build());
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(
+        TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
