@@ -202,11 +202,13 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           searchContext
               .getResponseBuilder()
               .putAllCollectorResults(searcherResult.getCollectorResults());
+          hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         } else if (searchRequest.getCollectorsCount() > 0) {
           SearcherResult searcherResult = executeSearch(s.searcher(), searchContext);
           searchContext
               .getResponseBuilder()
               .putAllCollectorResults(searcherResult.getCollectorResults());
+          hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         }
 
         searchContext
