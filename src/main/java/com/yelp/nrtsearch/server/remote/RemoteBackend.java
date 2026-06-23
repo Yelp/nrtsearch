@@ -151,9 +151,37 @@ public interface RemoteBackend extends PluginDownloader {
    * @param files map of file names to metadata
    * @throws IOException on error downloading files
    */
-  void downloadIndexFiles(
+  default void downloadIndexFiles(
       String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      throws IOException {
+    downloadIndexFiles(service, indexIdentifier, indexDir, files, path -> {});
+  }
+
+  /**
+   * Download index files from the remote backend, invoking a callback for each file after it is
+   * successfully written to disk.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param indexDir directory to download files to
+   * @param files map of file names to metadata
+   * @param onFileDownloaded callback invoked with the local {@link Path} of each successfully
+   *     downloaded file
+   * @throws IOException on error downloading files
+   */
+  void downloadIndexFiles(
+      String service,
+      String indexIdentifier,
+      Path indexDir,
+      Map<String, NrtFileMetaData> files,
+      FileDownloadedCallback onFileDownloaded)
       throws IOException;
+
+  /** Callback invoked after each index file is successfully written to disk during download. */
+  @FunctionalInterface
+  interface FileDownloadedCallback {
+    void onFileDownloaded(Path localFile) throws IOException;
+  }
 
   /**
    * Download a single index file from the remote backend.

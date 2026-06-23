@@ -803,13 +803,17 @@ public class S3Backend implements RemoteBackend {
 
   @Override
   public void downloadIndexFiles(
-      String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      String service,
+      String indexIdentifier,
+      Path indexDir,
+      Map<String, NrtFileMetaData> files,
+      FileDownloadedCallback onFileDownloaded)
       throws IOException {
     if (transferManager == null) {
       throw new IllegalStateException(
           "TransferManager is not available. Ensure S3Client is properly configured.");
     }
-    List<FileNamePair> fileList = getFileNamePairs(files);
+    List<FileNamePair> fileList = sortForCfsEviction(getFileNamePairs(files));
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     int maxConcurrency = downloadBatchSize > 0 ? downloadBatchSize : defaultParallelism;
     logger.info(
@@ -847,7 +851,12 @@ public class S3Backend implements RemoteBackend {
 
       List<FailedDownload> failures =
           downloadBatch(
-              filesToDownload, indexDir, backendPrefix, maxConcurrency, downloadProgressListener);
+              filesToDownload,
+              indexDir,
+              backendPrefix,
+              maxConcurrency,
+              downloadProgressListener,
+              onFileDownloaded);
 
       if (failures.isEmpty()) {
         return;
@@ -868,6 +877,44 @@ public class S3Backend implements RemoteBackend {
   }
 
   /**
+   * Sorts file name pairs so that for each segment, the .cfe file appears immediately before the
+   * .cfs file. This improves page cache eviction by making CFS+CFE pairs complete close together
+   * during concurrent downloads.
+   */
+  static List<FileNamePair> sortForCfsEviction(List<FileNamePair> files) {
+    // Separate into three groups: .cfe files, .cfs files, and everything else
+    List<FileNamePair> cfeFiles = new ArrayList<>();
+    List<FileNamePair> cfsFiles = new ArrayList<>();
+    List<FileNamePair> otherFiles = new ArrayList<>();
+    for (FileNamePair pair : files) {
+      String ext = org.apache.lucene.store.FileSwitchDirectory.getExtension(pair.fileName);
+      if ("cfe".equals(ext)) {
+        cfeFiles.add(pair);
+      } else if ("cfs".equals(ext)) {
+        cfsFiles.add(pair);
+      } else {
+        otherFiles.add(pair);
+      }
+    }
+    // Sort each group by file name so .cfe and .cfs for the same segment are adjacent
+    cfeFiles.sort(java.util.Comparator.comparing(p -> p.fileName));
+    cfsFiles.sort(java.util.Comparator.comparing(p -> p.fileName));
+    List<FileNamePair> result = new ArrayList<>(files.size());
+    result.addAll(otherFiles);
+    // Interleave: .cfe then .cfs for each segment
+    int cfeIdx = 0, cfsIdx = 0;
+    while (cfeIdx < cfeFiles.size() || cfsIdx < cfsFiles.size()) {
+      if (cfeIdx < cfeFiles.size()) {
+        result.add(cfeFiles.get(cfeIdx++));
+      }
+      if (cfsIdx < cfsFiles.size()) {
+        result.add(cfsFiles.get(cfsIdx++));
+      }
+    }
+    return result;
+  }
+
+  /**
    * Download a batch of files concurrently and return any that failed.
    *
    * @param files list of files to download
@@ -883,7 +930,8 @@ public class S3Backend implements RemoteBackend {
       Path indexDir,
       String backendPrefix,
       int maxConcurrency,
-      S3ProgressListenerImpl progressListener)
+      S3ProgressListenerImpl progressListener,
+      FileDownloadedCallback onFileDownloaded)
       throws IOException {
     Semaphore semaphore = new Semaphore(maxConcurrency);
     ConcurrentLinkedQueue<FailedDownload> failures = new ConcurrentLinkedQueue<>();
@@ -921,6 +969,15 @@ public class S3Backend implements RemoteBackend {
                       semaphore.release();
                       if (t != null) {
                         failures.add(new FailedDownload(pair, t));
+                      } else {
+                        try {
+                          onFileDownloaded.onFileDownloaded(localFile);
+                        } catch (Exception e) {
+                          logger.warn(
+                              "Error in post-download callback for {}: {}",
+                              pair.fileName,
+                              e.getMessage());
+                        }
                       }
                     });
         futures.add(future);

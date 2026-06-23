@@ -26,8 +26,10 @@ import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import com.yelp.nrtsearch.server.utils.PageCacheEvictionService;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,6 +39,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +61,8 @@ public class NRTReplicaNode extends ReplicaNode {
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
    * on sendReplicas and it can build its channel over this pair */
   private final HostPort hostPort;
+  private final Path indexDirPath;
+  private PageCacheEvictionService pageCacheEvictionService;
   private static final Logger logger = LoggerFactory.getLogger(NRTReplicaNode.class);
 
   public NRTReplicaNode(
@@ -85,6 +90,7 @@ public class NRTReplicaNode extends ReplicaNode {
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     this.nrtDataManager = nrtDataManager;
+    this.indexDirPath = indexDir instanceof FSDirectory fsDir ? fsDir.getDirectory() : null;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
 
@@ -108,6 +114,15 @@ public class NRTReplicaNode extends ReplicaNode {
     nrtCopyThread.setName("R" + id + ".copyJobs");
     nrtCopyThread.setDaemon(true);
     nrtCopyThread.start();
+  }
+
+  /**
+   * Set the page cache eviction service used to evict cold file data after NRT copy jobs complete.
+   *
+   * @param pageCacheEvictionService eviction service, or null to disable eviction
+   */
+  public void setPageCacheEvictionService(PageCacheEvictionService pageCacheEvictionService) {
+    this.pageCacheEvictionService = pageCacheEvictionService;
   }
 
   @VisibleForTesting
@@ -226,6 +241,9 @@ public class NRTReplicaNode extends ReplicaNode {
     if (job.getFailed()) {
       NrtMetrics.nrtPointFailure.labelValues(indexName).inc();
     } else {
+      if (pageCacheEvictionService != null && indexDirPath != null) {
+        pageCacheEvictionService.evictColdData(indexDirPath, job.getFileNames());
+      }
       NrtMetrics.nrtPointTime
           .labelValues(indexName)
           .observe((System.nanoTime() - startNS) / 1000000.0);

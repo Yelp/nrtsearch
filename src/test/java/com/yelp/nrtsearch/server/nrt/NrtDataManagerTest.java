@@ -229,7 +229,11 @@ public class NrtDataManagerTest {
     verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
-            SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
+            eq(SERVICE_NAME),
+            eq(INDEX_NAME),
+            eq(folder.getRoot().toPath()),
+            eq(nrtFileMetaDataMap),
+            any(RemoteBackend.FileDownloadedCallback.class));
   }
 
   @Test
@@ -280,7 +284,11 @@ public class NrtDataManagerTest {
     verify(mockRemoteBackend, times(1)).downloadPointState(SERVICE_NAME, INDEX_NAME, null);
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
-            SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
+            eq(SERVICE_NAME),
+            eq(INDEX_NAME),
+            eq(folder.getRoot().toPath()),
+            eq(nrtFileMetaDataMap),
+            any(RemoteBackend.FileDownloadedCallback.class));
   }
 
   @Test
@@ -979,7 +987,11 @@ public class NrtDataManagerTest {
             SERVICE_NAME, INDEX_NAME, new RemoteBackend.UpdateIntervalContext(60, null, 0));
     verify(mockRemoteBackend, times(1))
         .downloadIndexFiles(
-            SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), nrtFileMetaDataMap);
+            eq(SERVICE_NAME),
+            eq(INDEX_NAME),
+            eq(folder.getRoot().toPath()),
+            eq(nrtFileMetaDataMap),
+            any(RemoteBackend.FileDownloadedCallback.class));
   }
 
   private void verifyPointStates(NrtPointState expected, NrtPointState actual) {

@@ -31,6 +31,8 @@ import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import com.yelp.nrtsearch.server.utils.PageCacheEvictionService;
+import com.yelp.nrtsearch.server.utils.PageCacheEvictor;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
 import io.grpc.StatusRuntimeException;
 import io.prometheus.metrics.core.datapoints.Timer;
@@ -474,6 +476,15 @@ public class ShardState implements Closeable {
   }
 
   /** Start the searcher pruning thread. */
+  private static PageCacheEvictionService buildPageCacheEvictionService(
+      NrtsearchConfig configuration) {
+    if (!configuration.getPageCacheEvictionConfig().isEnabled()) {
+      return null;
+    }
+    return new PageCacheEvictionService(
+        configuration.getPageCacheEvictionConfig(), new PageCacheEvictor());
+  }
+
   private void startSearcherPruningThread(CountDownLatch shutdownNow) {
     // nocommit make one thread in GlobalState
     if (searcherPruningThread == null) {
@@ -568,12 +579,13 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
+      NrtsearchConfig startConfiguration = indexState.getGlobalState().getConfiguration();
+      nrtDataManager.setPageCacheEvictionService(buildPageCacheEvictionService(startConfiguration));
       nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState
               .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+              .open(indexDirFile, startConfiguration.getPreloadConfig());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -927,6 +939,9 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
+      PageCacheEvictionService pageCacheEvictionService =
+          buildPageCacheEvictionService(configuration);
+      nrtDataManager.setPageCacheEvictionService(pageCacheEvictionService);
       nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
@@ -969,6 +984,7 @@ public class ShardState implements Closeable {
               configuration.getDecInitialCommit(),
               configuration.getFilterIncompatibleSegmentReaders(),
               configuration.getLowPriorityCopyPercentage());
+      nrtReplicaNode.setPageCacheEvictionService(pageCacheEvictionService);
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

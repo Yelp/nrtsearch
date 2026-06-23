@@ -113,6 +113,7 @@ public class NrtsearchConfig {
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
   private final IsolatedReplicaConfig isolatedReplicaConfig;
+  private final PageCacheEvictionConfig pageCacheEvictionConfig;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -192,6 +193,7 @@ public class NrtsearchConfig {
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
     requireIdField = configReader.getBoolean("requireIdField", false);
     isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
+    pageCacheEvictionConfig = PageCacheEvictionConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -282,6 +284,10 @@ public class NrtsearchConfig {
 
   public IndexPreloadConfig getPreloadConfig() {
     return preloadConfig;
+  }
+
+  public PageCacheEvictionConfig getPageCacheEvictionConfig() {
+    return pageCacheEvictionConfig;
   }
 
   public QueryCacheConfig getQueryCacheConfig() {

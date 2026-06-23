@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.FileUtils;
+import com.yelp.nrtsearch.server.utils.PageCacheEvictionService;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.Closeable;
 import java.io.FileOutputStream;
@@ -40,9 +41,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.store.FileSwitchDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +68,7 @@ public class NrtDataManager implements Closeable {
   private final RemoteBackend remoteBackend;
   private final RestoreIndex restoreIndex;
   private final boolean remoteCommit;
+  private PageCacheEvictionService pageCacheEvictionService;
 
   // Set during startUploadManager
   private NRTPrimaryNode primaryNode;
@@ -123,6 +127,15 @@ public class NrtDataManager implements Closeable {
    * @param timestamp Instant representing the time the point state was uploaded
    */
   public record PointStateWithTimestamp(NrtPointState pointState, Instant timestamp) {}
+
+  /**
+   * Set the page cache eviction service used to evict cold file data after bootstrap downloads.
+   *
+   * @param pageCacheEvictionService eviction service, or null to disable eviction
+   */
+  public void setPageCacheEvictionService(PageCacheEvictionService pageCacheEvictionService) {
+    this.pageCacheEvictionService = pageCacheEvictionService;
+  }
 
   @VisibleForTesting
   NrtPointState getLastPointState() {
@@ -241,8 +254,12 @@ public class NrtDataManager implements Closeable {
 
       long start = System.nanoTime();
       try {
+        RemoteBackend.FileDownloadedCallback callback =
+            pageCacheEvictionService != null
+                ? new CfsEvictionTracker(pageCacheEvictionService, shardDataDir)
+                : path -> {};
         remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
+            serviceName, indexIdentifier, shardDataDir, pointState.files, callback);
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -578,6 +595,55 @@ public class NrtDataManager implements Closeable {
     Exception e = new IllegalStateException("NrtDataManager is closed");
     for (RefreshUploadFuture watcher : task.watchers) {
       watcher.setDone(e);
+    }
+  }
+
+  /**
+   * Tracks completion of .cfe/.cfs file pairs during concurrent S3 downloads and triggers page
+   * cache eviction for cold sub-file ranges once both files of a pair are available on disk.
+   * Standalone cold files (non-CFS) are evicted immediately.
+   */
+  static class CfsEvictionTracker implements RemoteBackend.FileDownloadedCallback {
+    private static final Logger trackerLogger = LoggerFactory.getLogger(CfsEvictionTracker.class);
+
+    private final PageCacheEvictionService evictionService;
+    private final Path indexDir;
+    // Tracks which of .cfe / .cfs have completed for each segment prefix
+    private final ConcurrentHashMap<String, Boolean> completedCfe = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean> completedCfs = new ConcurrentHashMap<>();
+
+    CfsEvictionTracker(PageCacheEvictionService evictionService, Path indexDir) {
+      this.evictionService = evictionService;
+      this.indexDir = indexDir;
+    }
+
+    @Override
+    public void onFileDownloaded(Path localFile) {
+      String fileName = localFile.getFileName().toString();
+      String ext = FileSwitchDirectory.getExtension(fileName);
+      String segPrefix = fileName.substring(0, fileName.length() - ext.length() - 1);
+
+      if ("cfe".equals(ext)) {
+        completedCfe.put(segPrefix, Boolean.TRUE);
+        if (completedCfs.containsKey(segPrefix)) {
+          evictCfsSegment(segPrefix);
+        }
+      } else if ("cfs".equals(ext)) {
+        completedCfs.put(segPrefix, Boolean.TRUE);
+        if (completedCfe.containsKey(segPrefix)) {
+          evictCfsSegment(segPrefix);
+        }
+      } else {
+        evictionService.evictColdData(indexDir, List.of(fileName));
+      }
+    }
+
+    private void evictCfsSegment(String segPrefix) {
+      try {
+        evictionService.evictColdDataForCfs(indexDir, segPrefix + ".cfs");
+      } catch (Exception e) {
+        trackerLogger.warn("Error evicting CFS segment {}: {}", segPrefix, e.getMessage());
+      }
     }
   }
 }

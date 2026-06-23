@@ -25,6 +25,18 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['--enable-preview']
+}
+
+tasks.withType(Test).configureEach {
+    jvmArgs += ['--enable-preview', '--enable-native-access=ALL-UNNAMED']
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs += ['--enable-preview', '--enable-native-access=ALL-UNNAMED']
+}
+
 allprojects {
     version = '1.4.1'
     group = 'com.yelp.nrtsearch'
