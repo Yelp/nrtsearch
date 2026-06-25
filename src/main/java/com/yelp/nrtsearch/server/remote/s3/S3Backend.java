@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,6 +77,7 @@ import software.amazon.awssdk.transfer.s3.model.Download;
 import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
+import software.amazon.awssdk.transfer.s3.progress.TransferListener;
 
 /** Backend implementation that stored data in amazon s3 object storage. */
 public class S3Backend implements RemoteBackend {
@@ -107,6 +109,16 @@ public class S3Backend implements RemoteBackend {
   private final long downloadRetryBaseDelayMs;
   private final long downloadRetryMaxDelayMs;
   private final boolean downloadRetryReduceConcurrency;
+  private final boolean adaptiveConcurrency;
+  private final int adaptiveInitialLimit;
+  private final int adaptiveMinLimit;
+  private final int adaptiveMaxLimit;
+  private final double adaptiveShortAlpha;
+  private final double adaptiveLongAlpha;
+  private final double adaptiveDecreaseThreshold;
+  private final double adaptiveDecreaseFactor;
+  private final int adaptiveWindowDurationMs;
+  private final int adaptiveWarmupWindows;
   private final S3Client s3;
   private final S3AsyncClient s3Async;
   private final String serviceBucket;
@@ -139,6 +151,16 @@ public class S3Backend implements RemoteBackend {
     private final long downloadRetryBaseDelayMs;
     private final long downloadRetryMaxDelayMs;
     private final boolean downloadRetryReduceConcurrency;
+    private final boolean adaptiveConcurrency;
+    private final int adaptiveInitialLimit;
+    private final int adaptiveMinLimit;
+    private final int adaptiveMaxLimit;
+    private final double adaptiveShortAlpha;
+    private final double adaptiveLongAlpha;
+    private final double adaptiveDecreaseThreshold;
+    private final double adaptiveDecreaseFactor;
+    private final int adaptiveWindowDurationMs;
+    private final int adaptiveWarmupWindows;
 
     /**
      * Create S3BackendConfig from NrtsearchConfig.
@@ -163,6 +185,22 @@ public class S3Backend implements RemoteBackend {
           configReader.getLong(CONFIG_PREFIX + "downloadRetryMaxDelayMs", 30000L);
       boolean downloadRetryReduceConcurrency =
           configReader.getBoolean(CONFIG_PREFIX + "downloadRetryReduceConcurrency", true);
+      boolean adaptiveConcurrency =
+          configReader.getBoolean(CONFIG_PREFIX + "adaptiveConcurrency", false);
+      int adaptiveInitialLimit =
+          configReader.getInteger(CONFIG_PREFIX + "adaptiveInitialLimit", 16);
+      int adaptiveMinLimit = configReader.getInteger(CONFIG_PREFIX + "adaptiveMinLimit", 1);
+      int adaptiveMaxLimit = configReader.getInteger(CONFIG_PREFIX + "adaptiveMaxLimit", 100);
+      double adaptiveShortAlpha = configReader.getDouble(CONFIG_PREFIX + "adaptiveShortAlpha", 0.3);
+      double adaptiveLongAlpha = configReader.getDouble(CONFIG_PREFIX + "adaptiveLongAlpha", 0.1);
+      double adaptiveDecreaseThreshold =
+          configReader.getDouble(CONFIG_PREFIX + "adaptiveDecreaseThreshold", 0.85);
+      double adaptiveDecreaseFactor =
+          configReader.getDouble(CONFIG_PREFIX + "adaptiveDecreaseFactor", 0.75);
+      int adaptiveWindowDurationMs =
+          configReader.getInteger(CONFIG_PREFIX + "adaptiveWindowDurationMs", 2000);
+      int adaptiveWarmupWindows =
+          configReader.getInteger(CONFIG_PREFIX + "adaptiveWarmupWindows", 3);
 
       return new S3BackendConfig(
           metrics,
@@ -173,7 +211,53 @@ public class S3Backend implements RemoteBackend {
           downloadRetryMaxAttempts,
           downloadRetryBaseDelayMs,
           downloadRetryMaxDelayMs,
-          downloadRetryReduceConcurrency);
+          downloadRetryReduceConcurrency,
+          adaptiveConcurrency,
+          adaptiveInitialLimit,
+          adaptiveMinLimit,
+          adaptiveMaxLimit,
+          adaptiveShortAlpha,
+          adaptiveLongAlpha,
+          adaptiveDecreaseThreshold,
+          adaptiveDecreaseFactor,
+          adaptiveWindowDurationMs,
+          adaptiveWarmupWindows);
+    }
+
+    /**
+     * Convenience constructor with adaptive concurrency disabled. Adaptive parameters are set to
+     * their defaults.
+     */
+    public S3BackendConfig(
+        boolean metrics,
+        long rateLimitBytes,
+        int rateLimitWindowSeconds,
+        int downloadBatchSize,
+        int uploadBatchSize,
+        int downloadRetryMaxAttempts,
+        long downloadRetryBaseDelayMs,
+        long downloadRetryMaxDelayMs,
+        boolean downloadRetryReduceConcurrency) {
+      this(
+          metrics,
+          rateLimitBytes,
+          rateLimitWindowSeconds,
+          downloadBatchSize,
+          uploadBatchSize,
+          downloadRetryMaxAttempts,
+          downloadRetryBaseDelayMs,
+          downloadRetryMaxDelayMs,
+          downloadRetryReduceConcurrency,
+          false,
+          16,
+          1,
+          100,
+          0.3,
+          0.1,
+          0.85,
+          0.75,
+          2000,
+          3);
     }
 
     /**
@@ -190,6 +274,17 @@ public class S3Backend implements RemoteBackend {
      * @param downloadRetryBaseDelayMs base delay in ms for exponential backoff between retry rounds
      * @param downloadRetryMaxDelayMs max delay cap in ms for exponential backoff
      * @param downloadRetryReduceConcurrency whether to halve concurrency on each retry round
+     * @param adaptiveConcurrency enable adaptive concurrency limiting
+     * @param adaptiveInitialLimit initial concurrency for the adaptive limiter
+     * @param adaptiveMinLimit minimum concurrency for the adaptive limiter
+     * @param adaptiveMaxLimit maximum concurrency for the adaptive limiter (hard ceiling)
+     * @param adaptiveShortAlpha fast EMA smoothing factor
+     * @param adaptiveLongAlpha slow EMA smoothing factor
+     * @param adaptiveDecreaseThreshold gradient ratio below which concurrency is decreased
+     * @param adaptiveDecreaseFactor multiplicative factor applied on decrease
+     * @param adaptiveWindowDurationMs duration of each throughput measurement window in ms
+     * @param adaptiveWarmupWindows number of initial windows during which only increases are
+     *     allowed
      * @throws IllegalArgumentException if parameters are invalid
      */
     public S3BackendConfig(
@@ -201,7 +296,17 @@ public class S3Backend implements RemoteBackend {
         int downloadRetryMaxAttempts,
         long downloadRetryBaseDelayMs,
         long downloadRetryMaxDelayMs,
-        boolean downloadRetryReduceConcurrency) {
+        boolean downloadRetryReduceConcurrency,
+        boolean adaptiveConcurrency,
+        int adaptiveInitialLimit,
+        int adaptiveMinLimit,
+        int adaptiveMaxLimit,
+        double adaptiveShortAlpha,
+        double adaptiveLongAlpha,
+        double adaptiveDecreaseThreshold,
+        double adaptiveDecreaseFactor,
+        int adaptiveWindowDurationMs,
+        int adaptiveWarmupWindows) {
       if (rateLimitBytes < 0) {
         throw new IllegalArgumentException("rateLimitBytes must be >= 0");
       }
@@ -232,6 +337,16 @@ public class S3Backend implements RemoteBackend {
       this.downloadRetryBaseDelayMs = downloadRetryBaseDelayMs;
       this.downloadRetryMaxDelayMs = downloadRetryMaxDelayMs;
       this.downloadRetryReduceConcurrency = downloadRetryReduceConcurrency;
+      this.adaptiveConcurrency = adaptiveConcurrency;
+      this.adaptiveInitialLimit = adaptiveInitialLimit;
+      this.adaptiveMinLimit = adaptiveMinLimit;
+      this.adaptiveMaxLimit = adaptiveMaxLimit;
+      this.adaptiveShortAlpha = adaptiveShortAlpha;
+      this.adaptiveLongAlpha = adaptiveLongAlpha;
+      this.adaptiveDecreaseThreshold = adaptiveDecreaseThreshold;
+      this.adaptiveDecreaseFactor = adaptiveDecreaseFactor;
+      this.adaptiveWindowDurationMs = adaptiveWindowDurationMs;
+      this.adaptiveWarmupWindows = adaptiveWarmupWindows;
     }
 
     /**
@@ -313,6 +428,46 @@ public class S3Backend implements RemoteBackend {
      */
     public boolean getDownloadRetryReduceConcurrency() {
       return downloadRetryReduceConcurrency;
+    }
+
+    public boolean getAdaptiveConcurrency() {
+      return adaptiveConcurrency;
+    }
+
+    public int getAdaptiveInitialLimit() {
+      return adaptiveInitialLimit;
+    }
+
+    public int getAdaptiveMinLimit() {
+      return adaptiveMinLimit;
+    }
+
+    public int getAdaptiveMaxLimit() {
+      return adaptiveMaxLimit;
+    }
+
+    public double getAdaptiveShortAlpha() {
+      return adaptiveShortAlpha;
+    }
+
+    public double getAdaptiveLongAlpha() {
+      return adaptiveLongAlpha;
+    }
+
+    public double getAdaptiveDecreaseThreshold() {
+      return adaptiveDecreaseThreshold;
+    }
+
+    public double getAdaptiveDecreaseFactor() {
+      return adaptiveDecreaseFactor;
+    }
+
+    public int getAdaptiveWindowDurationMs() {
+      return adaptiveWindowDurationMs;
+    }
+
+    public int getAdaptiveWarmupWindows() {
+      return adaptiveWarmupWindows;
     }
 
     @VisibleForTesting
@@ -413,6 +568,16 @@ public class S3Backend implements RemoteBackend {
     this.downloadRetryBaseDelayMs = s3BackendConfig.getDownloadRetryBaseDelayMs();
     this.downloadRetryMaxDelayMs = s3BackendConfig.getDownloadRetryMaxDelayMs();
     this.downloadRetryReduceConcurrency = s3BackendConfig.getDownloadRetryReduceConcurrency();
+    this.adaptiveConcurrency = s3BackendConfig.getAdaptiveConcurrency();
+    this.adaptiveInitialLimit = s3BackendConfig.getAdaptiveInitialLimit();
+    this.adaptiveMinLimit = s3BackendConfig.getAdaptiveMinLimit();
+    this.adaptiveMaxLimit = s3BackendConfig.getAdaptiveMaxLimit();
+    this.adaptiveShortAlpha = s3BackendConfig.getAdaptiveShortAlpha();
+    this.adaptiveLongAlpha = s3BackendConfig.getAdaptiveLongAlpha();
+    this.adaptiveDecreaseThreshold = s3BackendConfig.getAdaptiveDecreaseThreshold();
+    this.adaptiveDecreaseFactor = s3BackendConfig.getAdaptiveDecreaseFactor();
+    this.adaptiveWindowDurationMs = s3BackendConfig.getAdaptiveWindowDurationMs();
+    this.adaptiveWarmupWindows = s3BackendConfig.getAdaptiveWarmupWindows();
     this.serviceBucket = serviceBucket;
 
     this.s3Metrics = s3BackendConfig.metrics;
@@ -867,6 +1032,40 @@ public class S3Backend implements RemoteBackend {
     }
   }
 
+  private TransferListener createThroughputListener(ConcurrencyLimiter limiter) {
+    // lastSeenBytes tracks the last cumulative snapshot per request, same as
+    // S3ProgressListenerImpl,
+    // so we can compute the delta on each bytesTransferred callback.
+    ConcurrentHashMap<Object, Long> lastSeenBytes = new ConcurrentHashMap<>();
+    return new TransferListener() {
+      @Override
+      public void bytesTransferred(TransferListener.Context.BytesTransferred context) {
+        long current = context.progressSnapshot().transferredBytes();
+        Long prev = lastSeenBytes.put(context.request(), current);
+        long delta = prev == null ? current : current - prev;
+        if (delta > 0) {
+          limiter.recordBytes(delta);
+        }
+      }
+    };
+  }
+
+  private ConcurrencyLimiter createConcurrencyLimiter(int maxConcurrency) {
+    if (adaptiveConcurrency) {
+      return new AdaptiveConcurrencyLimiter(
+          adaptiveInitialLimit,
+          adaptiveMinLimit,
+          Math.min(adaptiveMaxLimit, maxConcurrency > 0 ? maxConcurrency : Integer.MAX_VALUE),
+          adaptiveShortAlpha,
+          adaptiveLongAlpha,
+          adaptiveDecreaseThreshold,
+          adaptiveDecreaseFactor,
+          adaptiveWindowDurationMs,
+          adaptiveWarmupWindows);
+    }
+    return new StaticConcurrencyLimiter(maxConcurrency);
+  }
+
   /**
    * Download a batch of files concurrently and return any that failed.
    *
@@ -876,7 +1075,7 @@ public class S3Backend implements RemoteBackend {
    * @param maxConcurrency max number of concurrent downloads
    * @param progressListener listener for download progress
    * @return list of files that failed to download (empty if all succeeded)
-   * @throws IOException if interrupted while acquiring the semaphore
+   * @throws IOException if interrupted while waiting to acquire a concurrency permit
    */
   private List<FailedDownload> downloadBatch(
       List<FileNamePair> files,
@@ -885,13 +1084,14 @@ public class S3Backend implements RemoteBackend {
       int maxConcurrency,
       S3ProgressListenerImpl progressListener)
       throws IOException {
-    Semaphore semaphore = new Semaphore(maxConcurrency);
+    ConcurrencyLimiter limiter = createConcurrencyLimiter(maxConcurrency);
+    TransferListener throughputListener = createThroughputListener(limiter);
     ConcurrentLinkedQueue<FailedDownload> failures = new ConcurrentLinkedQueue<>();
     List<CompletableFuture<?>> futures = new ArrayList<>();
 
     for (FileNamePair pair : files) {
       try {
-        semaphore.acquire();
+        limiter.acquire();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new IOException("Interrupted while waiting to download index files from s3", e);
@@ -910,6 +1110,7 @@ public class S3Backend implements RemoteBackend {
                   GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
               .responseTransformer(AsyncResponseTransformer.toFile(localFile))
               .addTransferListener(progressListener)
+              .addTransferListener(throughputListener)
               .build();
       try {
         Download<GetObjectResponse> download = transferManager.download(request);
@@ -918,14 +1119,16 @@ public class S3Backend implements RemoteBackend {
                 .completionFuture()
                 .whenComplete(
                     (result, t) -> {
-                      semaphore.release();
                       if (t != null) {
+                        limiter.onError();
                         failures.add(new FailedDownload(pair, t));
+                      } else {
+                        limiter.onSuccess();
                       }
                     });
         futures.add(future);
       } catch (Throwable t) {
-        semaphore.release();
+        limiter.onError();
         failures.add(new FailedDownload(pair, t));
       }
     }
