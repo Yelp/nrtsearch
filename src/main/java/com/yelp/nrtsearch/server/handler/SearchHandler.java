@@ -52,6 +52,8 @@ import com.yelp.nrtsearch.server.search.SearchCutoffWrapper.CollectionTimeoutExc
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.search.SearcherResult;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.multiretriever.DocIdSetCache;
+import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverAggregationQuery;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
@@ -92,12 +94,21 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       ProtoMessagePrinter.omittingInsignificantWhitespace();
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
+
+  /**
+   * Per-retriever threshold for the DocIdSetCache. If any single retriever collects more than this
+   * many docs, the cache is invalidated and the aggregation pass falls back to re-executing the
+   * union query. 10k covers typical hybrid KNN+text queries where each retriever is naturally
+   * bounded.
+   */
+  static final int DOC_ID_SET_CACHE_MAX_HITS = 7_000;
+
   private final ExecutorService searchExecutor;
   private final boolean warming;
 
   /** Return value of {@link #executeMultiRetriever}. */
   private record MultiRetrieverResult(
-      TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly) {}
+      TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly, DocIdSetCache docIdSetCache) {}
 
   public SearchHandler(GlobalState globalState) {
     super(globalState);
@@ -188,7 +199,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       TopDocs hits;
       if (searchContext.getMultiRetrieverContext() != null) {
         MultiRetrieverResult multiRetrieverResult =
-            executeMultiRetriever(searchContext, s.searcher(), diagnostics, profileResultBuilder);
+            executeMultiRetriever(
+                searchContext, s.searcher(), searchRequest, diagnostics, profileResultBuilder);
         hits = multiRetrieverResult.topDocs();
 
         DeadlineUtils.checkDeadline(
@@ -196,21 +208,27 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
         populateRetrieverScores(hits, searchContext.getSharedDocContext());
 
-        // Run aggregations (facets + collectors) against the union query after blending.
-        // Note: facet counts reflect the full match set of the union query, not the recalled
-        // top-K per retriever. For KNN retrievers this is equivalent (KnnFloatVectorQuery is
-        // inherently bounded to k). For text retrievers, counts may include documents beyond
-        // the topHits recall window if the underlying query matches more docs than topHits.
-        if (!searchRequest.getFacetsList().isEmpty()) {
-          SearcherResult searcherResult =
-              runDrillSidewaysSearch(
-                  s, indexState, shardState, searchContext, searchRequest, diagnostics, hits);
-          searchContext
-              .getResponseBuilder()
-              .putAllCollectorResults(searcherResult.getCollectorResults());
-          hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
-        } else if (searchRequest.getCollectorsCount() > 0) {
-          SearcherResult searcherResult = executeSearch(s.searcher(), searchContext);
+        // Run aggregations (facets + collectors). Uses the cached bitset query when valid,
+        // otherwise rewrites transparently to the union query.
+        if (!searchRequest.getFacetsList().isEmpty() || searchRequest.getCollectorsCount() > 0) {
+          Query aggregationQuery =
+              new MultiRetrieverAggregationQuery(
+                  multiRetrieverResult.docIdSetCache(), searchContext.getQuery());
+          SearcherResult searcherResult;
+          if (!searchRequest.getFacetsList().isEmpty()) {
+            searcherResult =
+                runDrillSidewaysSearchWithQuery(
+                    s,
+                    indexState,
+                    shardState,
+                    searchContext,
+                    searchRequest,
+                    diagnostics,
+                    hits,
+                    aggregationQuery);
+          } else {
+            searcherResult = executeSearchWithQuery(s.searcher(), searchContext, aggregationQuery);
+          }
           searchContext
               .getResponseBuilder()
               .putAllCollectorResults(searcherResult.getCollectorResults());
@@ -528,6 +546,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private MultiRetrieverResult executeMultiRetriever(
       SearchContext searchContext,
       IndexSearcher searcher,
+      SearchRequest searchRequest,
       SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResultBuilder)
       throws InterruptedException {
@@ -542,6 +561,12 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         boolean hadTimeout,
         boolean terminatedEarly) {}
 
+    boolean needsAggregation =
+        !searchRequest.getFacetsList().isEmpty() || searchRequest.getCollectorsCount() > 0;
+    // Create DocIdSetCache when aggregations are needed. This is a request level object
+    DocIdSetCache docIdSetCache =
+        needsAggregation ? new DocIdSetCache(DOC_ID_SET_CACHE_MAX_HITS) : null;
+
     LinkedHashMap<String, Future<RetrieverResult>> retrieverFutures = new LinkedHashMap<>();
     for (Map.Entry<String, RetrieverContext> entry : retrieverContexts.entrySet()) {
       String name = entry.getKey();
@@ -551,9 +576,13 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           searchExecutor.submit(
               () -> {
                 DocCollector docCollector = retrieverContext.getDocCollector();
+                CollectorManager<? extends Collector, SearcherResult> manager =
+                    docCollector.getWrappedManager();
+                if (docIdSetCache != null) {
+                  manager = docIdSetCache.wrapWithCaching(manager);
+                }
                 long searchStart = System.nanoTime();
-                SearcherResult result =
-                    searcher.search(retrieverContext.getQuery(), docCollector.getWrappedManager());
+                SearcherResult result = searcher.search(retrieverContext.getQuery(), manager);
                 TopDocs topDocs = result.getTopDocs();
                 double searchTimeMs = (System.nanoTime() - searchStart) / 1_000_000.0;
 
@@ -662,7 +691,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     }
 
     return new MultiRetrieverResult(
-        blendedHits, anyRetrieverHadTimeout, anyRetrieverTerminatedEarly);
+        blendedHits, anyRetrieverHadTimeout, anyRetrieverTerminatedEarly, docIdSetCache);
   }
 
   /**
@@ -1420,6 +1449,26 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   }
 
   /**
+   * Like {@link #executeSearch} but uses an explicit query instead of the one stored in the search
+   * context. Used when the DocIdSetCache provides a lightweight cached query for aggregation.
+   */
+  private static SearcherResult executeSearchWithQuery(
+      org.apache.lucene.search.IndexSearcher searcher,
+      SearchContext searchContext,
+      org.apache.lucene.search.Query query)
+      throws IOException {
+    try {
+      return searcher.search(query, searchContext.getCollector().getWrappedManager());
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+  }
+
+  /**
    * Builds a {@link DrillSidewaysImpl}, executes the search, writes facet results to the response
    * builder, and returns the {@link SearcherResult} from the drill sideways pass.
    *
@@ -1462,6 +1511,59 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     } catch (RuntimeException e) {
       // DrillSideways wraps exceptions in a few layers; unwrap timeouts so the top-level
       // exception type is consistent with the non-facets path.
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+    SearcherResult searcherResult = drillResult.collectorResult;
+    searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
+    searchContext
+        .getResponseBuilder()
+        .addAllFacetResult(
+            FacetTopDocs.facetTopDocsSample(
+                topDocsForSample != null ? topDocsForSample : searcherResult.getTopDocs(),
+                searchRequest.getFacetsList(),
+                indexState,
+                s.searcher(),
+                diagnostics));
+    return searcherResult;
+  }
+
+  /**
+   * Like {@link #runDrillSidewaysSearch} but uses an explicit base query (e.g. a cached DocIdSet
+   * query) instead of the drill-down query stored in the search context.
+   */
+  private SearcherResult runDrillSidewaysSearchWithQuery(
+      SearcherTaxonomyManager.SearcherAndTaxonomy s,
+      IndexState indexState,
+      ShardState shardState,
+      SearchContext searchContext,
+      SearchRequest searchRequest,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      TopDocs topDocsForSample,
+      org.apache.lucene.search.Query baseQuery)
+      throws IOException {
+    DrillDownQuery ddq = new DrillDownQuery(indexState.getFacetsConfig(), baseQuery);
+    List<FacetResult> grpcFacetResults = new ArrayList<>();
+    DrillSideways drillS =
+        new DrillSidewaysImpl(
+            s.searcher(),
+            indexState.getFacetsConfig(),
+            s.taxonomyReader(),
+            searchRequest.getFacetsList(),
+            s,
+            indexState,
+            shardState,
+            searchContext.getQueryFields(),
+            grpcFacetResults,
+            DIRECT_EXECUTOR,
+            diagnostics);
+    DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> drillResult;
+    try {
+      drillResult = drillS.search(ddq, searchContext.getCollector().getWrappedManager());
+    } catch (RuntimeException e) {
       CollectionTimeoutException timeoutException = findTimeoutException(e);
       if (timeoutException != null) {
         throw new CollectionTimeoutException(timeoutException.getMessage(), e);

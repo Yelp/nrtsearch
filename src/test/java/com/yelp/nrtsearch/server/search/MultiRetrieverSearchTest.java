@@ -732,4 +732,75 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     for (int i = 0; i < 5; i++) assertTrue(hits.get(i).getScore() > RRF_RANK1_K60);
     for (int i = 5; i < 10; i++) assertTrue(hits.get(i).getScore() <= RRF_RANK1_K60);
   }
+
+  // --- DocIdSetCache tests ---
+  // The cache is always active (threshold = 10k). These tests verify it produces correct results.
+  // With only 10 docs in the test index, the cache is always within threshold.
+
+  @Test
+  public void testDocIdSetCacheCollectorsProduceSameResults() {
+    // Cache is active under the hood; verify collectors produce correct results
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .putCollectors("category_terms", categoryTermsCollector(10))
+                    .build());
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
+
+  @Test
+  public void testDocIdSetCacheFacetsProduceSameResults() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
+                    .build());
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals("category_facet", response.getFacetResult(0).getName());
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
+    assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
+  }
+
+  @Test
+  public void testDocIdSetCacheFacetsAndCollectorsTogether() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrf())
+                    .addFacets(categoryFacet(5))
+                    .putCollectors("category_terms", categoryTermsCollector(10))
+                    .build());
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(1, response.getFacetResultCount());
+    assertTrue(response.getCollectorResultsMap().containsKey("category_terms"));
+    assertEquals(
+        2,
+        response
+            .getCollectorResultsMap()
+            .get("category_terms")
+            .getBucketResult()
+            .getBucketsCount());
+  }
 }
