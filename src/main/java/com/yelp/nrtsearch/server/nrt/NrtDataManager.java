@@ -65,6 +65,7 @@ public class NrtDataManager implements Closeable {
   private final RemoteBackend remoteBackend;
   private final RestoreIndex restoreIndex;
   private final boolean remoteCommit;
+  private final boolean s3RefreshUpload;
 
   // Set during startUploadManager
   private NRTPrimaryNode primaryNode;
@@ -100,6 +101,7 @@ public class NrtDataManager implements Closeable {
    * @param remoteBackend Remote backend to use for uploading and downloading index files
    * @param restoreIndex RestoreIndex object to use for restoring index files, or null if no restore
    * @param remoteCommit Whether to commit to the remote backend
+   * @param s3RefreshUpload Whether to upload index data to S3 on every refresh
    */
   public NrtDataManager(
       String serviceName,
@@ -107,13 +109,15 @@ public class NrtDataManager implements Closeable {
       String ephemeralId,
       RemoteBackend remoteBackend,
       RestoreIndex restoreIndex,
-      boolean remoteCommit) {
+      boolean remoteCommit,
+      boolean s3RefreshUpload) {
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.indexIdentifier = indexIdentifier;
     this.remoteBackend = remoteBackend;
     this.restoreIndex = restoreIndex;
     this.remoteCommit = remoteCommit;
+    this.s3RefreshUpload = s3RefreshUpload;
   }
 
   /**
@@ -197,6 +201,15 @@ public class NrtDataManager implements Closeable {
    */
   public boolean doRemoteCommit() {
     return remoteCommit;
+  }
+
+  /**
+   * Check if index data should be uploaded to S3 on every refresh.
+   *
+   * @return true if S3 refresh upload is enabled, false otherwise
+   */
+  public boolean doS3RefreshUpload() {
+    return s3RefreshUpload;
   }
 
   /**
@@ -346,8 +359,9 @@ public class NrtDataManager implements Closeable {
    * @param watchers List of RefreshUploadFuture objects to notify when the upload is complete
    */
   public synchronized void enqueueUpload(CopyState copyState, List<RefreshUploadFuture> watchers) {
-    if (!remoteCommit) {
-      throw new IllegalStateException("Remote commit is not available for this configuration");
+    if (!remoteCommit && !s3RefreshUpload) {
+      throw new IllegalStateException(
+          "Neither remoteCommit nor s3RefreshUpload is enabled for this configuration");
     }
     if (closed) {
       throw new IllegalStateException("NrtDataManager is closed");

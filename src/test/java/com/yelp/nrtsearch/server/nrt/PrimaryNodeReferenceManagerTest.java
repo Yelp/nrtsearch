@@ -54,6 +54,9 @@ public class PrimaryNodeReferenceManagerTest {
     SearcherFactory mockSearcherFactory = mock(SearcherFactory.class);
     when(mockSearcherFactory.newSearcher(eq(mockIndexReader), any())).thenReturn(mockSearcher);
 
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.doS3RefreshUpload()).thenReturn(false);
+    when(mockPrimaryNode.getNrtDataManager()).thenReturn(mockNrtDataManager);
     when(mockPrimaryNode.flushAndRefresh()).thenReturn(true);
 
     NRTPrimaryNode.PrimaryNodeReferenceManager primaryNodeReferenceManager =
@@ -64,12 +67,19 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(2)).getSearcherManager();
     verify(mockPrimaryNode, times(1)).flushAndRefresh();
     verify(mockPrimaryNode, times(1)).sendNewNRTPointToReplicas();
+    verify(mockPrimaryNode, times(1)).getNrtDataManager();
+    verify(mockNrtDataManager, times(1)).doS3RefreshUpload();
     verify(mockReferenceManager, times(2)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, mockIndexReader);
     verify(mockSearcher, times(5)).getIndexReader();
     verifyNoMoreInteractions(
-        mockPrimaryNode, mockReferenceManager, mockSearcher, mockIndexReader, mockSearcherFactory);
+        mockPrimaryNode,
+        mockReferenceManager,
+        mockSearcher,
+        mockIndexReader,
+        mockSearcherFactory,
+        mockNrtDataManager);
   }
 
   @Test
