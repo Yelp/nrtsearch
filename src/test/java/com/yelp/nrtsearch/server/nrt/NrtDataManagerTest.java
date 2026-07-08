@@ -859,6 +859,39 @@ public class NrtDataManagerTest {
   }
 
   @Test
+  public void testDoS3RefreshUpload_true() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
+    assertTrue(nrtDataManager.doS3RefreshUpload());
+  }
+
+  @Test
+  public void testDoS3RefreshUpload_false() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
+    assertFalse(nrtDataManager.doS3RefreshUpload());
+  }
+
+  @Test
+  public void testEnqueueUpload_s3RefreshUploadOnly() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
+    CopyState mockCopyState = mock(CopyState.class);
+    List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
+    nrtDataManager.enqueueUpload(mockCopyState, refreshUploadFutures);
+
+    assertSame(mockCopyState, nrtDataManager.getCurrentUploadTask().copyState());
+    assertSame(refreshUploadFutures, nrtDataManager.getCurrentUploadTask().watchers());
+    assertNull(nrtDataManager.getNextUploadTask());
+  }
+
+  @Test
   public void testEnqueueNoRemoteCommit() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
