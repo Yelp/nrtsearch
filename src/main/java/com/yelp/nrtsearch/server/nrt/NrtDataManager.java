@@ -111,6 +111,9 @@ public class NrtDataManager implements Closeable {
       RestoreIndex restoreIndex,
       boolean remoteCommit,
       boolean s3RefreshUpload) {
+    if (s3RefreshUpload && !remoteCommit) {
+      throw new IllegalArgumentException("s3RefreshUpload requires remoteCommit to be enabled");
+    }
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.indexIdentifier = indexIdentifier;
@@ -359,9 +362,8 @@ public class NrtDataManager implements Closeable {
    * @param watchers List of RefreshUploadFuture objects to notify when the upload is complete
    */
   public synchronized void enqueueUpload(CopyState copyState, List<RefreshUploadFuture> watchers) {
-    if (!remoteCommit && !s3RefreshUpload) {
-      throw new IllegalStateException(
-          "Neither remoteCommit nor s3RefreshUpload is enabled for this configuration");
+    if (!remoteCommit) {
+      throw new IllegalStateException("Remote commit is not available for this configuration");
     }
     if (closed) {
       throw new IllegalStateException("NrtDataManager is closed");

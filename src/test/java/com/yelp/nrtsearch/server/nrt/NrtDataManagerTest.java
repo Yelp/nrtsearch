@@ -863,7 +863,7 @@ public class NrtDataManagerTest {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, true);
     assertTrue(nrtDataManager.doS3RefreshUpload());
   }
 
@@ -877,18 +877,15 @@ public class NrtDataManagerTest {
   }
 
   @Test
-  public void testEnqueueUpload_s3RefreshUploadOnly() {
+  public void testS3RefreshUpload_requiresRemoteCommit() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
-    NrtDataManager nrtDataManager =
-        new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
-    CopyState mockCopyState = mock(CopyState.class);
-    List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
-    nrtDataManager.enqueueUpload(mockCopyState, refreshUploadFutures);
-
-    assertSame(mockCopyState, nrtDataManager.getCurrentUploadTask().copyState());
-    assertSame(refreshUploadFutures, nrtDataManager.getCurrentUploadTask().watchers());
-    assertNull(nrtDataManager.getNextUploadTask());
+    try {
+      new NrtDataManager(
+          SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("s3RefreshUpload requires remoteCommit to be enabled", e.getMessage());
+    }
   }
 
   @Test
@@ -901,9 +898,7 @@ public class NrtDataManagerTest {
       nrtDataManager.enqueueUpload(mock(CopyState.class), List.of());
       fail();
     } catch (IllegalStateException e) {
-      assertEquals(
-          "Neither remoteCommit nor s3RefreshUpload is enabled for this configuration",
-          e.getMessage());
+      assertEquals("Remote commit is not available for this configuration", e.getMessage());
     }
   }
 
