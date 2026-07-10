@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,7 +76,6 @@ import software.amazon.awssdk.transfer.s3.model.Download;
 import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
-import software.amazon.awssdk.transfer.s3.progress.TransferListener;
 
 /** Backend implementation that stored data in amazon s3 object storage. */
 public class S3Backend implements RemoteBackend {
@@ -1019,24 +1017,6 @@ public class S3Backend implements RemoteBackend {
     }
   }
 
-  private TransferListener createThroughputListener(ConcurrencyLimiter limiter) {
-    // lastSeenBytes tracks the last cumulative snapshot per request, same as
-    // S3ProgressListenerImpl,
-    // so we can compute the delta on each bytesTransferred callback.
-    ConcurrentHashMap<Object, Long> lastSeenBytes = new ConcurrentHashMap<>();
-    return new TransferListener() {
-      @Override
-      public void bytesTransferred(TransferListener.Context.BytesTransferred context) {
-        long current = context.progressSnapshot().transferredBytes();
-        Long prev = lastSeenBytes.put(context.request(), current);
-        long delta = prev == null ? current : current - prev;
-        if (delta > 0) {
-          limiter.recordBytes(delta);
-        }
-      }
-    };
-  }
-
   @VisibleForTesting
   ConcurrencyLimiter createConcurrencyLimiter(int maxConcurrency) {
     if (adaptiveConcurrencyConfig.isEnabled()) {
@@ -1073,7 +1053,7 @@ public class S3Backend implements RemoteBackend {
       S3ProgressListenerImpl progressListener)
       throws IOException {
     ConcurrencyLimiter limiter = createConcurrencyLimiter(maxConcurrency);
-    TransferListener throughputListener = createThroughputListener(limiter);
+    progressListener.setDeltaCallback(limiter::recordBytes);
     ConcurrentLinkedQueue<FailedDownload> failures = new ConcurrentLinkedQueue<>();
     List<CompletableFuture<?>> futures = new ArrayList<>();
 
@@ -1098,7 +1078,6 @@ public class S3Backend implements RemoteBackend {
                   GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
               .responseTransformer(AsyncResponseTransformer.toFile(localFile))
               .addTransferListener(progressListener)
-              .addTransferListener(throughputListener)
               .build();
       try {
         Download<GetObjectResponse> download = transferManager.download(request);

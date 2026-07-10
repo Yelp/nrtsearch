@@ -290,17 +290,20 @@ public class AdaptiveConcurrencyLimiter implements ConcurrencyLimiter {
   /** Release a permit, absorbing it against outstanding debt if any exists. */
   private void releasePermit() {
     inflight.decrementAndGet();
-    while (true) {
-      int debt = permitDebt.get();
-      if (debt <= 0) {
-        semaphore.release();
-        return;
-      }
-      if (permitDebt.compareAndSet(debt, debt - 1)) {
+    // Fast path: no debt, release immediately without acquiring the lock.
+    if (permitDebt.get() <= 0) {
+      semaphore.release();
+      return;
+    }
+    // Slow path: acquire the lock so the absorption is atomic with respect to
+    // applyLimitChange, which also modifies permitDebt under the same lock.
+    synchronized (this) {
+      if (permitDebt.get() > 0) {
+        permitDebt.decrementAndGet();
         // Permit absorbed — do not release to the semaphore.
-        return;
+      } else {
+        semaphore.release();
       }
-      // CAS missed; retry.
     }
   }
 }
