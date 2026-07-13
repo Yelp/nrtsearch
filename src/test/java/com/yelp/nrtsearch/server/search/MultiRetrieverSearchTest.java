@@ -714,6 +714,72 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   }
 
   @Test
+  public void testL1RescorerWindowSize() {
+    // topHits=3 but rescorer windowSize=10: all 10 docs should be rescored
+    Retriever textWithLargeWindow =
+        textRetriever(3).toBuilder()
+            .setRescorer(constantScoreRescorer(7.0, 10, "l1_large_window"))
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(textWithLargeWindow)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+
+    // Only 3 docs fed to blender (truncated after rescore), all with score 7.0
+    assertEquals(3, response.getHitsCount());
+    for (Hit hit : response.getHitsList()) {
+      assertEquals(7.0, hit.getScore(), SCORE_DELTA);
+    }
+  }
+
+  @Test
+  public void testL1RescorerTruncatesToTopHitsBeforeBlend() {
+    // topHits=5 with rescorer windowSize=10 and only one retriever:
+    // all 10 docs get rescored but only 5 are fed to blender
+    Retriever textWithLargeWindow =
+        textRetriever(5).toBuilder().setRescorer(constantScoreRescorer(7.0, 10, "l1_text")).build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(textWithLargeWindow)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+
+    // Only 5 docs returned despite requesting topHits=10, because truncation limits to 5
+    assertEquals(5, response.getHitsCount());
+    for (Hit hit : response.getHitsList()) {
+      assertEquals(7.0, hit.getScore(), SCORE_DELTA);
+    }
+  }
+
+  @Test
   public void testJsonMultiRetrieverRrfRequest() throws Exception {
     SearchResponse response =
         getGrpcServer()
