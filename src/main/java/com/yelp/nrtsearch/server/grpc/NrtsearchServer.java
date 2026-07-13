@@ -27,6 +27,7 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.LoggingUncaughtExceptionHandler;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.custom.request.CustomRequestProcessor;
@@ -303,6 +304,7 @@ public class NrtsearchServer {
 
     @Override
     public Integer call() throws Exception {
+      Thread.setDefaultUncaughtExceptionHandler(LoggingUncaughtExceptionHandler.getInstance());
       NrtsearchServer server;
       try {
         Injector injector = Guice.createInjector(new NrtsearchModule(this));
