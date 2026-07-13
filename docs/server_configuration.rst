@@ -615,6 +615,85 @@ Example server configuration
      - Maximum number of index files uploaded concurrently in a single batch. When set to ``0``, the server's ``defaultParallelism`` value is used.
      - 0
 
+   * - downloadRetryMaxAttempts
+     - int
+     - Maximum total download attempts per file including the initial attempt. Set to ``1`` to disable retries.
+     - 3
+
+   * - downloadRetryBaseDelayMs
+     - long
+     - Base delay in milliseconds for exponential backoff between retry rounds.
+     - 1000
+
+   * - downloadRetryMaxDelayMs
+     - long
+     - Maximum delay cap in milliseconds for exponential backoff between retry rounds.
+     - 30000
+
+   * - downloadRetryReduceConcurrency
+     - bool
+     - If enabled, the download concurrency limit is halved on each retry round. Has no effect when ``adaptiveConcurrency.enabled`` is true, since the adaptive limiter manages its own concurrency.
+     - true
+
+.. list-table:: `S3 Adaptive Concurrency Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Backend.java>`_ (``remoteConfig.s3.adaptiveConcurrency.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - enabled
+     - bool
+     - Enables the adaptive concurrency limiter for index file downloads. When enabled, the limiter starts at ``initialLimit`` concurrent downloads and continuously adjusts based on observed aggregate throughput. The ``downloadBatchSize`` setting is ignored as a concurrency cap; only ``maxLimit`` applies. Recommended for IO-limited nodes or when ``downloadBatchSize`` is set higher than the number of files, which would otherwise submit all files simultaneously and cause heap pressure.
+     - false
+
+   * - initialLimit
+     - int
+     - Starting concurrency when the limiter is first created for a download batch.
+     - 16
+
+   * - minLimit
+     - int
+     - Minimum concurrency the limiter will ever decrease to.
+     - 1
+
+   * - maxLimit
+     - int
+     - Hard ceiling on concurrency. The limiter will never exceed this value regardless of throughput signals. Acts as a safety net against GC pressure from too many simultaneous in-flight transfers.
+     - 100
+
+   * - shortAlpha
+     - double
+     - Smoothing factor for the fast (short-window) EMA of aggregate throughput. Higher values make the EMA respond more quickly to recent changes.
+     - 0.3
+
+   * - longAlpha
+     - double
+     - Smoothing factor for the slow (long-window) EMA of aggregate throughput. This EMA tracks the baseline throughput against which the short EMA is compared.
+     - 0.1
+
+   * - decreaseThreshold
+     - double
+     - Gradient ratio (``shortEma / longEma``) below which the concurrency limit is decreased. A value of ``0.85`` means a 15% throughput drop triggers a decrease.
+     - 0.85
+
+   * - decreaseFactor
+     - double
+     - Multiplicative factor applied to the current limit when a decrease is triggered. Must be in (0, 1). A value of ``0.75`` reduces the limit by 25%.
+     - 0.75
+
+   * - windowDurationMs
+     - int
+     - Duration in milliseconds of each throughput measurement window. Throughput is computed as total bytes received across all concurrent transfers in the window divided by the elapsed time. Shorter windows produce faster but noisier gradient signals.
+     - 2000
+
+   * - warmupWindows
+     - int
+     - Number of initial measurement windows during which only increases are allowed. This prevents premature decreases during connection pool warm-up at the start of a download batch.
+     - 3
+
 .. list-table:: `S3 Java Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.java.*``)
    :widths: 25 10 50 25
    :header-rows: 1

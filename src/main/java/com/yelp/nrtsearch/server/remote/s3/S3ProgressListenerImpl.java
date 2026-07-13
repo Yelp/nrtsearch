@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.remote.s3;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.transfer.s3.progress.TransferListener;
@@ -45,6 +46,9 @@ public class S3ProgressListenerImpl implements TransferListener {
   private final ConcurrentHashMap<Object, Long> lastSeenBytes = new ConcurrentHashMap<>();
   private final AtomicLong totalBytesTransferred = new AtomicLong();
   private final AtomicLong lastLoggedNanos = new AtomicLong(System.nanoTime());
+  // Optional callback invoked with each computed delta, allowing other listeners to piggyback
+  // on this class's cumulative-to-delta computation rather than duplicating the map.
+  private volatile LongConsumer deltaCallback = null;
 
   /**
    * Constructor.
@@ -63,6 +67,14 @@ public class S3ProgressListenerImpl implements TransferListener {
     this.totalExpectedBytes = totalExpectedBytes;
   }
 
+  /**
+   * Register a callback to be invoked with each computed byte delta. Allows other listeners to
+   * piggyback on this class's cumulative-to-delta conversion without maintaining a separate map.
+   */
+  public void setDeltaCallback(LongConsumer callback) {
+    this.deltaCallback = callback;
+  }
+
   @Override
   public void bytesTransferred(Context.BytesTransferred context) {
     // transferredBytes() is cumulative for this individual file transfer; compute the delta.
@@ -70,6 +82,10 @@ public class S3ProgressListenerImpl implements TransferListener {
     Long prev = lastSeenBytes.put(context.request(), current);
     long delta = prev == null ? current : current - prev;
     long total = totalBytesTransferred.addAndGet(delta);
+    LongConsumer cb = deltaCallback;
+    if (cb != null && delta > 0) {
+      cb.accept(delta);
+    }
 
     long now = System.nanoTime();
     long last = lastLoggedNanos.get();
