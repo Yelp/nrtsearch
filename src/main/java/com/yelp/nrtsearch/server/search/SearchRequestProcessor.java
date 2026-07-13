@@ -841,7 +841,7 @@ public class SearchRequestProcessor {
 
       retrieverContextBuilder.query(query).topHits(topHits);
       unionQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
-      int numHitsToCollect = topHits;
+      int numHitsToCollect = computeRetrieverNumHitsToCollect(topHits, retriever);
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
             buildRescoreTask(
@@ -850,10 +850,6 @@ public class SearchRequestProcessor {
                 retriever.getRescorer(),
                 retriever.getName() + "_rescorer",
                 sharedDocContext));
-        int windowSize = retriever.getRescorer().getWindowSize();
-        if (windowSize > numHitsToCollect) {
-          numHitsToCollect = windowSize;
-        }
       }
 
       CollectorCreatorContext collectorCreatorContext =
@@ -920,5 +916,15 @@ public class SearchRequestProcessor {
       userChildFilters.put(path, filterQuery);
     }
     return userChildFilters;
+  }
+
+  static int computeRetrieverNumHitsToCollect(int topHits, Retriever retriever) {
+    if (retriever.hasRescorer()) {
+      int windowSize = retriever.getRescorer().getWindowSize();
+      if (windowSize > topHits) {
+        return windowSize;
+      }
+    }
+    return topHits;
   }
 }

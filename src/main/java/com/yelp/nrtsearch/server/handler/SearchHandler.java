@@ -562,12 +562,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                   long rescoreStart = System.nanoTime();
                   topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
                   rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
-                  int topHits = retrieverContext.getTopHits();
-                  if (topDocs.scoreDocs.length > topHits) {
-                    ScoreDoc[] truncated = new ScoreDoc[topHits];
-                    System.arraycopy(topDocs.scoreDocs, 0, truncated, 0, topHits);
-                    topDocs = new TopDocs(topDocs.totalHits, truncated);
-                  }
+                  topDocs = getHitsFromOffset(topDocs, 0, retrieverContext.getTopHits());
                 }
                 return new RetrieverResult(
                     topDocs,

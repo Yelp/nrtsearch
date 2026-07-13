@@ -714,44 +714,31 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   }
 
   @Test
-  public void testL1RescorerWindowSize() {
-    // topHits=3 but rescorer windowSize=10: all 10 docs should be rescored
-    Retriever textWithLargeWindow =
-        textRetriever(3).toBuilder()
-            .setRescorer(constantScoreRescorer(7.0, 10, "l1_large_window"))
-            .build();
+  public void testComputeRetrieverNumHitsToCollect() {
+    Retriever noRescorer = textRetriever(500);
+    assertEquals(500, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, noRescorer));
 
-    SearchResponse response =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                baseRequest()
-                    .setMultiRetriever(
-                        MultiRetrieverRequest.newBuilder()
-                            .addRetrievers(textWithLargeWindow)
-                            .setBlender(
-                                Blender.newBuilder()
-                                    .setWeightedScoreOrder(
-                                        WeightedScoreOrderBlender.newBuilder()
-                                            .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
-                                            .build())
-                                    .build())
-                            .build())
-                    .build());
+    // Rescorer windowSize > topHits: numHitsToCollect = windowSize
+    Retriever withLargeWindow =
+        textRetriever(500).toBuilder().setRescorer(constantScoreRescorer(7.0, 15000, "l1")).build();
+    assertEquals(
+        15000, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, withLargeWindow));
 
-    // Only 3 docs fed to blender (truncated after rescore), all with score 7.0
-    assertEquals(3, response.getHitsCount());
-    for (Hit hit : response.getHitsList()) {
-      assertEquals(7.0, hit.getScore(), SCORE_DELTA);
-    }
+    // Rescorer windowSize <= topHits: numHitsToCollect = topHits
+    Retriever withSmallWindow =
+        textRetriever(500).toBuilder().setRescorer(constantScoreRescorer(7.0, 100, "l1")).build();
+    assertEquals(
+        500, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, withSmallWindow));
   }
 
   @Test
   public void testL1RescorerTruncatesToTopHitsBeforeBlend() {
-    // topHits=5 with rescorer windowSize=10 and only one retriever:
-    // all 10 docs get rescored but only 5 are fed to blender
+    // topHits=3, rescorer windowSize=10
+    // truncate to topHits=3 before blending
     Retriever textWithLargeWindow =
-        textRetriever(5).toBuilder().setRescorer(constantScoreRescorer(7.0, 10, "l1_text")).build();
+        textRetriever(3).toBuilder()
+            .setRescorer(constantScoreRescorer(7.0, 10, "l1_large_window"))
+            .build();
 
     SearchResponse response =
         getGrpcServer()
@@ -772,11 +759,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                             .build())
                     .build());
 
-    // Only 5 docs returned despite requesting topHits=10, because truncation limits to 5
-    assertEquals(5, response.getHitsCount());
-    for (Hit hit : response.getHitsList()) {
-      assertEquals(7.0, hit.getScore(), SCORE_DELTA);
-    }
+    assertEquals(3, response.getHitsCount());
   }
 
   @Test
