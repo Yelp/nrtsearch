@@ -851,7 +851,7 @@ public class SearchRequestProcessor {
                 sharedDocContext));
       }
 
-      CollectorCreatorContext collectorCreatorContext =
+      CollectorCreatorContext.Builder collectorContextBuilder =
           CollectorCreatorContext.newBuilder(indexState)
               .withDisallowPartialResults(searchRequest.getDisallowPartialResults())
               .withQueryFields(queryFields)
@@ -862,8 +862,13 @@ public class SearchRequestProcessor {
               .withTimeoutSec(searchRequest.getTimeoutSec())
               .withTimeoutCheckEvery(searchRequest.getTimeoutCheckEvery())
               .withTerminateAfter(searchRequest.getTerminateAfter())
-              .withProfile(searchRequest.getProfile())
-              .build();
+              .withProfile(searchRequest.getProfile());
+      if (retriever.hasSortedFields()
+          && !retriever.getSortedFields().getSortedFieldsList().isEmpty()) {
+        collectorContextBuilder.withQuerySort(
+            QuerySortField.newBuilder().setFields(retriever.getSortedFields()).build());
+      }
+      CollectorCreatorContext collectorCreatorContext = collectorContextBuilder.build();
 
       retrieverContextBuilder.docCollector(buildDocCollector(collectorCreatorContext));
       multiRetrieverContextBuilder.addRetrieverContext(retrieverContextBuilder.build());
