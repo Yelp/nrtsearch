@@ -690,7 +690,7 @@ public class SearchRequestProcessor {
 
     for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
       Query query;
-      int numHitsToCollect;
+      int topHits;
       ProfileResult.Builder retrieverProfileResult = doProfile ? ProfileResult.newBuilder() : null;
       RetrieverContext.Builder retrieverContextBuilder =
           RetrieverContext.newBuilder(retriever.getName()).boost(retriever.getBoost());
@@ -714,7 +714,7 @@ public class SearchRequestProcessor {
           if (textRetriever.getTopHits() <= 0) {
             throw new IllegalArgumentException("TextRetriever topHits must be > 0");
           }
-          numHitsToCollect = textRetriever.getTopHits();
+          topHits = textRetriever.getTopHits();
         }
         case KNNRETRIEVER -> {
           retrieverContextBuilder.retrieverType(RetrieverContext.RetrieverType.KNN);
@@ -732,15 +732,16 @@ public class SearchRequestProcessor {
               SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
                   .setVectorDiagnostics(result.vectorDiagnostics())
                   .build());
-          numHitsToCollect = retriever.getKnnRetriever().getKnnQuery().getK();
+          topHits = retriever.getKnnRetriever().getKnnQuery().getK();
         }
         default ->
             throw new IllegalArgumentException(
                 "Unsupported Retriever Type: " + retriever.getRetrieverTypeCase());
       }
 
-      retrieverContextBuilder.query(query);
+      retrieverContextBuilder.query(query).topHits(topHits);
       unionQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
+      int numHitsToCollect = computeRetrieverNumHitsToCollect(topHits, retriever);
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
             buildRescoreTask(
@@ -778,5 +779,15 @@ public class SearchRequestProcessor {
       profileResult.setMultiRetrieverProfileResult(multiRetrieverProfileResult.build());
     }
     return unionQueryBuilder.build();
+  }
+
+  static int computeRetrieverNumHitsToCollect(int topHits, Retriever retriever) {
+    if (retriever.hasRescorer()) {
+      int windowSize = retriever.getRescorer().getWindowSize();
+      if (windowSize > topHits) {
+        return windowSize;
+      }
+    }
+    return topHits;
   }
 }

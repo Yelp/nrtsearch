@@ -556,6 +556,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                   long rescoreStart = System.nanoTime();
                   topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
                   rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
+                  topDocs = getHitsFromOffset(topDocs, 0, retrieverContext.getTopHits());
                 }
                 return new RetrieverResult(
                     topDocs,
