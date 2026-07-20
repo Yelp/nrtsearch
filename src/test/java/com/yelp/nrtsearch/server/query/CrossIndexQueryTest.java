@@ -678,6 +678,231 @@ public class CrossIndexQueryTest extends ServerTestCase {
     }
   }
 
+  /** Basic retrieve_fields: fetch covers and time_slot from matched secondary docs. */
+  @Test
+  public void testRetrieveFieldsBasic() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("biz_id_primary")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setCrossIndexQuery(
+                                CrossIndexQuery.newBuilder()
+                                    .setIndex(SECONDARY_INDEX)
+                                    .setSecondaryField("biz_id_secondary")
+                                    .setPrimaryField("biz_id_primary")
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchAllQuery(MatchAllQuery.newBuilder()))
+                                    .setScoreMode(CrossIndexQuery.JoinScoreMode.JOIN_SCORE_NONE)
+                                    .addRetrieveFields("time_slot")
+                                    .addRetrieveFields("covers"))
+                            .build())
+                    .build());
+
+    assertEquals(3, response.getHitsCount());
+
+    // Check that each hit has inner_hits with "cross:secondary_index"
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      String bizId = hit.getFieldsMap().get("biz_id_primary").getFieldValue(0).getTextValue();
+      assertTrue(
+          "Hit for " + bizId + " should have cross:secondary_index inner hits",
+          hit.containsInnerHits("cross:" + SECONDARY_INDEX));
+
+      HitsResult innerHits = hit.getInnerHitsMap().get("cross:" + SECONDARY_INDEX);
+      assertTrue("Inner hits for " + bizId + " should not be empty", innerHits.getHitsCount() > 0);
+
+      // Verify each inner hit has the requested fields
+      for (SearchResponse.Hit innerHit : innerHits.getHitsList()) {
+        assertTrue("Inner hit should have time_slot field", innerHit.containsFields("time_slot"));
+        assertTrue("Inner hit should have covers field", innerHit.containsFields("covers"));
+      }
+    }
+
+    // biz_1 has 2 secondary docs: (time_slot=1200, covers=2) and (time_slot=1800, covers=4)
+    Map<String, HitsResult> innerHitsByBiz = getInnerHitsByBizId(response);
+    HitsResult biz1Hits = innerHitsByBiz.get("biz_1");
+    assertEquals(2, biz1Hits.getHitsCount());
+
+    // biz_2 has 1 secondary doc: (time_slot=1300, covers=2)
+    HitsResult biz2Hits = innerHitsByBiz.get("biz_2");
+    assertEquals(1, biz2Hits.getHitsCount());
+    assertEquals(
+        1300, biz2Hits.getHits(0).getFieldsMap().get("time_slot").getFieldValue(0).getIntValue());
+    assertEquals(
+        2, biz2Hits.getHits(0).getFieldsMap().get("covers").getFieldValue(0).getIntValue());
+  }
+
+  /** retrieve_fields with top_hits=1: only return 1 secondary hit per primary. */
+  @Test
+  public void testRetrieveFieldsTopHits() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("biz_id_primary")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setCrossIndexQuery(
+                                CrossIndexQuery.newBuilder()
+                                    .setIndex(SECONDARY_INDEX)
+                                    .setSecondaryField("biz_id_secondary")
+                                    .setPrimaryField("biz_id_primary")
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchAllQuery(MatchAllQuery.newBuilder()))
+                                    .setScoreMode(CrossIndexQuery.JoinScoreMode.JOIN_SCORE_NONE)
+                                    .addRetrieveFields("covers")
+                                    .setTopHits(1))
+                            .build())
+                    .build());
+
+    // biz_1 has 2 secondary docs but top_hits=1, so only 1 returned
+    Map<String, HitsResult> innerHitsByBiz = getInnerHitsByBizId(response);
+    HitsResult biz1Hits = innerHitsByBiz.get("biz_1");
+    assertEquals(1, biz1Hits.getHitsCount());
+    // totalHits should still reflect the actual count
+    assertEquals(2, biz1Hits.getTotalHits().getValue());
+  }
+
+  /** retrieve_fields with inner filter: only matching secondary docs are returned. */
+  @Test
+  public void testRetrieveFieldsWithInnerFilter() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("biz_id_primary")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setCrossIndexQuery(
+                                CrossIndexQuery.newBuilder()
+                                    .setIndex(SECONDARY_INDEX)
+                                    .setSecondaryField("biz_id_secondary")
+                                    .setPrimaryField("biz_id_primary")
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setRangeQuery(
+                                                RangeQuery.newBuilder()
+                                                    .setField("covers")
+                                                    .setLower("4")
+                                                    .setUpper("100")))
+                                    .setScoreMode(CrossIndexQuery.JoinScoreMode.JOIN_SCORE_NONE)
+                                    .addRetrieveFields("covers")
+                                    .addRetrieveFields("time_slot"))
+                            .build())
+                    .build());
+
+    // Only biz_1 (covers=4) and biz_3 (covers=6) match the inner filter
+    assertEquals(2, response.getHitsCount());
+    Map<String, HitsResult> innerHitsByBiz = getInnerHitsByBizId(response);
+
+    // biz_1: only the covers=4 doc matches the filter (not covers=2)
+    HitsResult biz1Hits = innerHitsByBiz.get("biz_1");
+    assertEquals(1, biz1Hits.getHitsCount());
+    assertEquals(
+        4, biz1Hits.getHits(0).getFieldsMap().get("covers").getFieldValue(0).getIntValue());
+    assertEquals(
+        1800, biz1Hits.getHits(0).getFieldsMap().get("time_slot").getFieldValue(0).getIntValue());
+
+    // biz_3: covers=6
+    HitsResult biz3Hits = innerHitsByBiz.get("biz_3");
+    assertEquals(1, biz3Hits.getHitsCount());
+    assertEquals(
+        6, biz3Hits.getHits(0).getFieldsMap().get("covers").getFieldValue(0).getIntValue());
+  }
+
+  /** No retrieve_fields: no inner hits should be added (backward compatible). */
+  @Test
+  public void testNoRetrieveFieldsNoInnerHits() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("biz_id_primary")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setCrossIndexQuery(
+                                CrossIndexQuery.newBuilder()
+                                    .setIndex(SECONDARY_INDEX)
+                                    .setSecondaryField("biz_id_secondary")
+                                    .setPrimaryField("biz_id_primary")
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchAllQuery(MatchAllQuery.newBuilder()))
+                                    .setScoreMode(CrossIndexQuery.JoinScoreMode.JOIN_SCORE_NONE))
+                            .build())
+                    .build());
+
+    // No retrieve_fields set, so no inner hits
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      assertTrue(
+          "Should have no inner hits when retrieve_fields is empty",
+          hit.getInnerHitsMap().isEmpty());
+    }
+  }
+
+  /** retrieve_fields works even when primary_field is NOT in top-level retrieveFields. */
+  @Test
+  public void testRetrieveFieldsWithoutPrimaryFieldInRetrieve() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("name") // NOT biz_id_primary
+                    .setQuery(
+                        Query.newBuilder()
+                            .setCrossIndexQuery(
+                                CrossIndexQuery.newBuilder()
+                                    .setIndex(SECONDARY_INDEX)
+                                    .setSecondaryField("biz_id_secondary")
+                                    .setPrimaryField("biz_id_primary")
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setTermQuery(
+                                                TermQuery.newBuilder()
+                                                    .setField("biz_id_secondary")
+                                                    .setTextValue("biz_2")))
+                                    .setScoreMode(CrossIndexQuery.JoinScoreMode.JOIN_SCORE_NONE)
+                                    .addRetrieveFields("covers"))
+                            .build())
+                    .build());
+
+    // Should still get inner hits — join key is read from doc values directly
+    assertEquals(1, response.getHitsCount());
+    SearchResponse.Hit hit = response.getHits(0);
+    assertTrue(hit.containsInnerHits("cross:" + SECONDARY_INDEX));
+    HitsResult innerHits = hit.getInnerHitsMap().get("cross:" + SECONDARY_INDEX);
+    assertEquals(1, innerHits.getHitsCount());
+    assertEquals(
+        2, innerHits.getHits(0).getFieldsMap().get("covers").getFieldValue(0).getIntValue());
+  }
+
+  private Map<String, HitsResult> getInnerHitsByBizId(SearchResponse response) {
+    return response.getHitsList().stream()
+        .collect(
+            Collectors.toMap(
+                hit -> hit.getFieldsMap().get("biz_id_primary").getFieldValue(0).getTextValue(),
+                hit -> hit.getInnerHitsMap().get("cross:" + SECONDARY_INDEX)));
+  }
+
   private Set<String> extractBizIds(SearchResponse response) {
     return response.getHitsList().stream()
         .map(hit -> hit.getFieldsMap().get("biz_id_primary"))

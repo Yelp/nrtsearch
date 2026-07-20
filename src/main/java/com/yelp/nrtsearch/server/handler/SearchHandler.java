@@ -168,7 +168,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     }
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    SearchContext searchContext;
+    SearchContext searchContext = null;
     try {
       s =
           getSearcherAndTaxonomy(
@@ -345,6 +345,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
     } finally {
+      // Release resources held by deferred fetch tasks (e.g. secondary index searchers)
+      if (searchContext != null) {
+        searchContext.getFetchTasks().close();
+      }
       // NOTE: this is a little iffy, because we may not
       // have obtained this searcher from the NRTManager
       // (i.e. sometimes we pulled from

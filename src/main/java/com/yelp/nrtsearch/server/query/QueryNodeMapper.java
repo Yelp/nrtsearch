@@ -46,6 +46,7 @@ import com.yelp.nrtsearch.server.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.script.ScoreScript;
 import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
+import com.yelp.nrtsearch.server.search.FetchTasks;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -856,9 +857,21 @@ public class QueryNodeMapper {
 
     // Validate that fields exist and determine if secondary field is multi-valued
     FieldDef secondaryFieldDef = secondaryIndex.docLookup.getFieldDefOrThrow(secondaryField);
-    context.docLookup().getFieldDefOrThrow(primaryField);
+    FieldDef primaryFieldDef = context.docLookup().getFieldDefOrThrow(primaryField);
     boolean multipleValuesPerDocument =
         secondaryFieldDef instanceof IndexableFieldDef<?> indexable && indexable.isMultiValue();
+
+    // When retrieve_fields is specified, the primary field must have doc values so we can
+    // read the join key during the fetch phase
+    if (!crossIndexQuery.getRetrieveFieldsList().isEmpty()) {
+      if (!(primaryFieldDef instanceof IndexableFieldDef<?> primaryIndexable)
+          || !primaryIndexable.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "CrossIndexQuery.retrieve_fields requires primary_field \""
+                + primaryField
+                + "\" to have doc values enabled (storeDocValues: true)");
+      }
+    }
 
     ShardState secondaryShard = secondaryIndex.getShard(0);
     SearcherTaxonomyManager.SearcherAndTaxonomy secondarySearcher;
@@ -869,13 +882,17 @@ public class QueryNodeMapper {
           "CrossIndexQuery: failed to acquire searcher for index \"" + index + "\"", e);
     }
 
+    boolean releaseSearcher = true;
     try {
       // Build the query against the secondary index's field definitions,
       // propagating GlobalState so nested cross-index queries are supported.
-      Query innerQuery =
-          getQuery(
-              crossIndexQuery.getQuery(),
-              new QueryContext(secondaryIndex.docLookup, context.globalState(), null));
+      QueryContext innerContext =
+          new QueryContext(secondaryIndex.docLookup, context.globalState(), null);
+      Query innerQuery = getQuery(crossIndexQuery.getQuery(), innerContext);
+      // Propagate any deferred fetch tasks from the inner context to the parent
+      for (FetchTasks.FetchTask task : innerContext.getDeferredFetchTasks()) {
+        context.addDeferredFetchTask(task);
+      }
 
       int maxTerms = crossIndexQuery.getMaxTerms();
       if (maxTerms > 0) {
@@ -891,22 +908,44 @@ public class QueryNodeMapper {
 
       ScoreMode scoreMode = mapJoinScoreMode(crossIndexQuery.getScoreMode());
 
-      // JoinUtil collects matching values eagerly at construction time, building a TermsQuery.
-      // The secondary searcher is NOT held open during primary search execution.
-      return JoinUtil.createJoinQuery(
-          secondaryField,
-          multipleValuesPerDocument,
-          primaryField,
-          innerQuery,
-          secondarySearcher.searcher(),
-          scoreMode);
+      Query joinQuery =
+          JoinUtil.createJoinQuery(
+              secondaryField,
+              multipleValuesPerDocument,
+              primaryField,
+              innerQuery,
+              secondarySearcher.searcher(),
+              scoreMode);
+
+      // If retrieve_fields is specified, keep the searcher open for the fetch phase
+      if (!crossIndexQuery.getRetrieveFieldsList().isEmpty()) {
+        Map<String, FieldDef> retrieveFieldDefs = new java.util.LinkedHashMap<>();
+        for (String fieldName : crossIndexQuery.getRetrieveFieldsList()) {
+          retrieveFieldDefs.put(fieldName, secondaryIndex.docLookup.getFieldDefOrThrow(fieldName));
+        }
+        context.addDeferredFetchTask(
+            new CrossIndexHitFetchTask(
+                index,
+                primaryField,
+                secondaryField,
+                innerQuery,
+                secondarySearcher,
+                secondaryShard,
+                retrieveFieldDefs,
+                crossIndexQuery.getTopHits()));
+        releaseSearcher = false;
+      }
+
+      return joinQuery;
     } catch (IOException e) {
       throw new RuntimeException("CrossIndexQuery: failed to create join query", e);
     } finally {
-      try {
-        secondaryShard.release(secondarySearcher);
-      } catch (Exception releaseEx) {
-        logger.error("CrossIndexQuery: failed to release secondary searcher", releaseEx);
+      if (releaseSearcher) {
+        try {
+          secondaryShard.release(secondarySearcher);
+        } catch (Exception releaseEx) {
+          logger.error("CrossIndexQuery: failed to release secondary searcher", releaseEx);
+        }
       }
     }
   }

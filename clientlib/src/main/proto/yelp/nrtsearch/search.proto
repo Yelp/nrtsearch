@@ -678,6 +678,12 @@ message CrossIndexQuery {
     // Use this to guard against excessive memory usage from large secondary result sets.
     // Note: this counts matching documents, not unique join-key values.
     uint32 max_terms = 6;
+    // Fields to retrieve from matched secondary documents. When non-empty, matched secondary
+    // documents are returned as inner hits on each primary hit (keyed by "cross:<index>").
+    // The same searcher snapshot used for filtering is reused for retrieval, ensuring consistency.
+    repeated string retrieve_fields = 7;
+    // Maximum number of secondary hits to return per primary hit (default: 3).
+    uint32 top_hits = 8;
 }
 
 // Deprecated: Defines different types of QueryNodes

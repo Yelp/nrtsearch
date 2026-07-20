@@ -89,12 +89,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.util.QueryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class to process a {@link SearchRequest} grpc message into the data structures required for
  * search. Produces a {@link SearchContext} usable to perform search operations.
  */
 public class SearchRequestProcessor {
+  private static final Logger logger = LoggerFactory.getLogger(SearchRequestProcessor.class);
+
   /**
    * By default we count hits accurately up to 1000. This makes sure that we don't spend most time
    * on computing hit counts
@@ -229,6 +233,7 @@ public class SearchRequestProcessor {
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
 
     Query query;
+    List<FetchTasks.FetchTask> deferredFetchTasks = Collections.emptyList();
     if (searchRequest.hasMultiRetriever()) {
       validateMultiRetrieverRequest(searchRequest);
       query =
@@ -246,14 +251,16 @@ public class SearchRequestProcessor {
               indexState.getGlobalState().getRetrieverExecutor());
 
     } else {
+      QueryContext queryContext =
+          new QueryContext(docLookup, indexState.getGlobalState(), sharedDocContext);
       query =
           extractQuery(
               indexState,
               searchRequest.getQueryText(),
               searchRequest.getQuery(),
               rootQueryNestedPath,
-              docLookup,
-              sharedDocContext);
+              queryContext);
+      deferredFetchTasks = queryContext.getDeferredFetchTasks();
 
       if (profileResult != null) {
         profileResult.setParsedQuery(query.toString());
@@ -296,65 +303,75 @@ public class SearchRequestProcessor {
       }
     }
 
-    CollectorCreatorContext.Builder collectorContextBuilder =
-        CollectorCreatorContext.newBuilder(indexState)
-            .withShardState(shardState)
-            .withQueryFields(queryFields)
-            .withSearcherAndTaxonomy(searcherAndTaxonomy)
-            .withRequest(searchRequest);
-    if (searchRequest.hasMultiRetriever()) {
-      // Override to 0 — ranking is done by the blender; this pass is aggregation-only.
-      collectorContextBuilder.withNumHitsToCollect(0);
-    }
-    contextBuilder.setCollector(buildDocCollector(collectorContextBuilder.build()));
-
-    // Facets are applied on the union query for multi-retriever requests.
-    if (searchRequest.getFacetsCount() > 0) {
-      query = addDrillDowns(indexState, query);
-      if (profileResult != null) {
-        profileResult.setDrillDownQuery(query.toString());
+    // From here on, deferred fetch tasks hold resources (e.g. secondary searchers). If anything
+    // below throws before FetchTasks is constructed and ownership transfers to SearchContext,
+    // we must release them to avoid leaks.
+    try {
+      CollectorCreatorContext.Builder collectorContextBuilder =
+          CollectorCreatorContext.newBuilder(indexState)
+              .withShardState(shardState)
+              .withQueryFields(queryFields)
+              .withSearcherAndTaxonomy(searcherAndTaxonomy)
+              .withRequest(searchRequest);
+      if (searchRequest.hasMultiRetriever()) {
+        // Override to 0 — ranking is done by the blender; this pass is aggregation-only.
+        collectorContextBuilder.withNumHitsToCollect(0);
       }
-    }
+      contextBuilder.setCollector(buildDocCollector(collectorContextBuilder.build()));
 
-    contextBuilder.setQuery(query);
-
-    Highlight highlight = searchRequest.getHighlight();
-    HighlightFetchTask highlightFetchTask = null;
-    if (!highlight.getFieldsList().isEmpty()) {
-      highlightFetchTask =
-          new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
-    }
-
-    HitsLoggerFetchTask hitsLoggerFetchTask = null;
-    if (searchRequest.hasLoggingHits()) {
-      hitsLoggerFetchTask = new HitsLoggerFetchTask(searchRequest.getLoggingHits());
-    }
-
-    List<InnerHitFetchTask> innerHitFetchTasks = null;
-    if (searchRequest.getInnerHitsCount() > 0) {
-      innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
-      for (Entry<String, InnerHit> entry : searchRequest.getInnerHitsMap().entrySet()) {
-        innerHitFetchTasks.add(
-            new InnerHitFetchTask(
-                buildInnerHitContext(
-                    indexState,
-                    shardState,
-                    queryFields,
-                    searcherAndTaxonomy,
-                    rootQueryNestedPath,
-                    entry.getKey(),
-                    entry.getValue(),
-                    searchRequest.getExplain(),
-                    docLookup)));
+      // Facets are applied on the union query for multi-retriever requests.
+      if (searchRequest.getFacetsCount() > 0) {
+        query = addDrillDowns(indexState, query);
+        if (profileResult != null) {
+          profileResult.setDrillDownQuery(query.toString());
+        }
       }
-    }
 
-    contextBuilder.setFetchTasks(
-        new FetchTasks(
-            searchRequest.getFetchTasksList(),
-            highlightFetchTask,
-            innerHitFetchTasks,
-            hitsLoggerFetchTask));
+      contextBuilder.setQuery(query);
+
+      Highlight highlight = searchRequest.getHighlight();
+      HighlightFetchTask highlightFetchTask = null;
+      if (!highlight.getFieldsList().isEmpty()) {
+        highlightFetchTask =
+            new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
+      }
+
+      HitsLoggerFetchTask hitsLoggerFetchTask = null;
+      if (searchRequest.hasLoggingHits()) {
+        hitsLoggerFetchTask = new HitsLoggerFetchTask(searchRequest.getLoggingHits());
+      }
+
+      List<InnerHitFetchTask> innerHitFetchTasks = null;
+      if (searchRequest.getInnerHitsCount() > 0) {
+        innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
+        for (Entry<String, InnerHit> entry : searchRequest.getInnerHitsMap().entrySet()) {
+          innerHitFetchTasks.add(
+              new InnerHitFetchTask(
+                  buildInnerHitContext(
+                      indexState,
+                      shardState,
+                      queryFields,
+                      searcherAndTaxonomy,
+                      rootQueryNestedPath,
+                      entry.getKey(),
+                      entry.getValue(),
+                      searchRequest.getExplain(),
+                      docLookup)));
+        }
+      }
+
+      contextBuilder.setFetchTasks(
+          new FetchTasks(
+              searchRequest.getFetchTasksList(),
+              highlightFetchTask,
+              innerHitFetchTasks,
+              hitsLoggerFetchTask,
+              deferredFetchTasks));
+    } catch (RuntimeException | IOException e) {
+      // Release deferred fetch task resources before re-throwing
+      closeDeferredFetchTasks(deferredFetchTasks);
+      throw e;
+    }
 
     // Top-level rescorers are applied post-blending for multi-retriever requests
     // Each retriever has an optional L1 rescorer before blending
@@ -530,6 +547,33 @@ public class SearchRequestProcessor {
       String queryNestedPath,
       DocLookup docLookup,
       SharedDocContext sharedDocContext) {
+    QueryContext queryContext =
+        new QueryContext(docLookup, state.getGlobalState(), sharedDocContext);
+    Query q = extractQuery(state, queryText, query, queryNestedPath, queryContext);
+    // This overload is used by callers that don't support deferred fetch tasks (rescorers, inner
+    // hits, text retrievers). Close any accidentally created tasks to prevent resource leaks.
+    List<FetchTasks.FetchTask> leaked = queryContext.getDeferredFetchTasks();
+    if (!leaked.isEmpty()) {
+      closeDeferredFetchTasks(leaked);
+      throw new IllegalArgumentException(
+          "CrossIndexQuery.retrieve_fields is not supported in this query context "
+              + "(e.g., rescorers, inner hits, nested queries). "
+              + "Use retrieve_fields only in the top-level search query.");
+    }
+    return q;
+  }
+
+  /**
+   * Build the lucene query from the request. The provided {@link QueryContext} may accumulate
+   * deferred fetch tasks during query building (e.g. for cross-index field retrieval). Callers can
+   * retrieve them via {@link QueryContext#getDeferredFetchTasks()}.
+   */
+  static Query extractQuery(
+      IndexState state,
+      String queryText,
+      com.yelp.nrtsearch.server.grpc.Query query,
+      String queryNestedPath,
+      QueryContext queryContext) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -541,8 +585,6 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      QueryContext queryContext =
-          new QueryContext(docLookup, state.getGlobalState(), sharedDocContext);
       q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
@@ -550,6 +592,19 @@ public class SearchRequestProcessor {
       return QUERY_NODE_MAPPER.applyQueryNestedPath(q, state, queryNestedPath);
     }
     return q;
+  }
+
+  /** Release resources held by deferred fetch tasks when ownership transfer fails. */
+  private static void closeDeferredFetchTasks(List<FetchTasks.FetchTask> tasks) {
+    for (FetchTasks.FetchTask task : tasks) {
+      if (task instanceof AutoCloseable closeable) {
+        try {
+          closeable.close();
+        } catch (Exception e) {
+          logger.error("Error closing deferred fetch task during cleanup", e);
+        }
+      }
+    }
   }
 
   /** If field is non-null it overrides any specified defaultField. */

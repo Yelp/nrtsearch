@@ -86,7 +86,7 @@ public class InnerHitContext implements FieldFetchContext {
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
     this.explain = builder.explain;
-    this.fetchTasks = new FetchTasks(List.of(), builder.highlightFetchTask, null, null);
+    this.fetchTasks = new FetchTasks(List.of(), builder.highlightFetchTask, null, null, List.of());
 
     if (builder.querySort == null) {
       // relevance collector

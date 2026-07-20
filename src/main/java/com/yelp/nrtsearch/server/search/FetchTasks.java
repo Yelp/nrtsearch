@@ -21,12 +21,17 @@ import com.yelp.nrtsearch.server.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.lucene.index.LeafReaderContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Class that manages the execution of custom {@link FetchTask}s. */
-public class FetchTasks {
+public class FetchTasks implements AutoCloseable {
+  private static final Logger logger = LoggerFactory.getLogger(FetchTasks.class);
 
   /**
    * Interface for a custom task that should be run while fetching field values. There are two
@@ -74,6 +79,7 @@ public class FetchTasks {
   }
 
   private final List<FetchTask> taskList;
+  private final List<AutoCloseable> closeables;
 
   // TopHitsCollector supports highlightFetchTask only for now. Use this to retrieve
   // highlightFetchTasks only.
@@ -111,7 +117,7 @@ public class FetchTasks {
    * @param grpcTaskList fetch task definitions from search request
    */
   public FetchTasks(List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList) {
-    this(grpcTaskList, null, null, null);
+    this(grpcTaskList, null, null, null, Collections.emptyList());
   }
 
   /**
@@ -121,19 +127,30 @@ public class FetchTasks {
    * @param highlightFetchTask highlight fetch task
    * @param innerHitFetchTaskList innerHit fetch tasks
    * @param hitsLoggerFetchTask hitsLogger fetch task
+   * @param deferredFetchTasks fetch tasks accumulated during query building (e.g. cross-index
+   *     retrieval). Tasks implementing {@link AutoCloseable} will be closed when this FetchTasks is
+   *     closed.
    */
   public FetchTasks(
       List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList,
       HighlightFetchTask highlightFetchTask,
       List<InnerHitFetchTask> innerHitFetchTaskList,
-      HitsLoggerFetchTask hitsLoggerFetchTask) {
+      HitsLoggerFetchTask hitsLoggerFetchTask,
+      List<FetchTask> deferredFetchTasks) {
     taskList =
         grpcTaskList.stream()
             .map(t -> FetchTaskCreator.getInstance().createFetchTask(t))
             .collect(Collectors.toList());
+    taskList.addAll(deferredFetchTasks);
     this.highlightFetchTask = highlightFetchTask;
     this.innerHitFetchTaskList = innerHitFetchTaskList;
     this.hitsLoggerFetchTask = hitsLoggerFetchTask;
+    this.closeables = new ArrayList<>();
+    for (FetchTask task : deferredFetchTasks) {
+      if (task instanceof AutoCloseable closeable) {
+        closeables.add(closeable);
+      }
+    }
   }
 
   /**
@@ -179,6 +196,21 @@ public class FetchTasks {
     if (innerHitFetchTaskList != null) {
       for (InnerHitFetchTask innerHitFetchTask : innerHitFetchTaskList) {
         innerHitFetchTask.processHit(searchContext, segment, hit);
+      }
+    }
+  }
+
+  /**
+   * Release resources held by deferred fetch tasks (e.g. secondary index searchers). Must be called
+   * after the fetch phase completes, typically in the SearchHandler's finally block.
+   */
+  @Override
+  public void close() {
+    for (AutoCloseable closeable : closeables) {
+      try {
+        closeable.close();
+      } catch (Exception e) {
+        logger.error("Error closing fetch task resource", e);
       }
     }
   }
