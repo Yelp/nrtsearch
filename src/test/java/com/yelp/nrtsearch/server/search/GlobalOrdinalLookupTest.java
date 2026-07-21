@@ -31,6 +31,13 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
@@ -87,8 +94,9 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     assertNotNull(ordinalLookup);
     assertEquals(0, ordinalLookup.getNumOrdinals());
     assertSame(GlobalOrdinalLookup.IDENTITY_MAPPING, ordinalLookup.getSegmentMapping(0));
+    GlobalOrdinalLookup.TermLookup termLookup = ordinalLookup.createTermLookup(reader);
     try {
-      ordinalLookup.lookupGlobalOrdinal(0);
+      termLookup.lookupGlobalOrdinal(0);
       fail();
     } catch (IllegalStateException e) {
       assertEquals("No ordinals for field: " + fieldDef.getName(), e.getMessage());
@@ -120,7 +128,8 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     assertNotNull(ordinalLookup);
     assertEquals(1, ordinalLookup.getNumOrdinals());
     assertSame(GlobalOrdinalLookup.IDENTITY_MAPPING, ordinalLookup.getSegmentMapping(0));
-    assertEquals("1", ordinalLookup.lookupGlobalOrdinal(0));
+    GlobalOrdinalLookup.TermLookup termLookup = ordinalLookup.createTermLookup(reader);
+    assertEquals("1", termLookup.lookupGlobalOrdinal(0));
   }
 
   @Test
@@ -154,8 +163,70 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     assertEquals(0, mapping.get(0));
     mapping = ordinalLookup.getSegmentMapping(1);
     assertEquals(1, mapping.get(0));
-    assertEquals("1", ordinalLookup.lookupGlobalOrdinal(0));
-    assertEquals("3", ordinalLookup.lookupGlobalOrdinal(1));
+    GlobalOrdinalLookup.TermLookup termLookup = ordinalLookup.createTermLookup(reader);
+    assertEquals("1", termLookup.lookupGlobalOrdinal(0));
+    assertEquals("3", termLookup.lookupGlobalOrdinal(1));
+  }
+
+  /**
+   * Verifies that concurrent TermLookup instances created from the same cached GlobalOrdinalLookup
+   * do not interfere with each other's LZ4 decompression state.
+   */
+  @Test
+  public void testConcurrentTermLookup() throws Exception {
+    addData("1");
+    addData("3");
+
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    ShardState shardState = indexState.getShard(0);
+    try {
+      s = shardState.acquire();
+      final IndexReader reader = s.searcher().getIndexReader();
+      final GlobalOrdinalLookup ordinalLookup =
+          ((GlobalOrdinalable) indexState.getFieldOrThrow(VALUE_FIELD)).getOrdinalLookup(reader);
+
+      int threadCount = 8;
+      int iterations = 500;
+      ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+      CountDownLatch startLatch = new CountDownLatch(1);
+      AtomicInteger errorCount = new AtomicInteger(0);
+
+      List<Future<?>> futures = new ArrayList<>();
+      for (int t = 0; t < threadCount; t++) {
+        futures.add(
+            executor.submit(
+                () -> {
+                  try {
+                    startLatch.await();
+                    for (int i = 0; i < iterations; i++) {
+                      // each thread gets its own TermLookup — this is the correct usage
+                      GlobalOrdinalLookup.TermLookup termLookup =
+                          ordinalLookup.createTermLookup(reader);
+                      String v0 = termLookup.lookupGlobalOrdinal(0);
+                      String v1 = termLookup.lookupGlobalOrdinal(1);
+                      if (!"1".equals(v0) || !"3".equals(v1)) {
+                        errorCount.incrementAndGet();
+                      }
+                    }
+                  } catch (Exception e) {
+                    errorCount.incrementAndGet();
+                  }
+                  return null;
+                }));
+      }
+
+      startLatch.countDown();
+      for (Future<?> f : futures) {
+        f.get();
+      }
+      executor.shutdown();
+      assertEquals("Concurrent term lookups produced errors", 0, errorCount.get());
+    } finally {
+      if (s != null) {
+        shardState.release(s);
+      }
+    }
   }
 
   private void addData(String value) throws Exception {
