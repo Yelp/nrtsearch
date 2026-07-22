@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -51,6 +52,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
 
   private final IndexableFieldDef<?> fieldDef;
   private final GlobalOrdinalLookup globalOrdinalLookup;
+  private final IndexReader indexReader;
 
   /**
    * Constructor.
@@ -74,10 +76,9 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       BucketOrder bucketOrder) {
     super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers, bucketOrder);
     fieldDef = indexableFieldDef;
+    indexReader = context.getSearcherAndTaxonomy().searcher().getIndexReader();
     try {
-      globalOrdinalLookup =
-          globalOrdinalable.getOrdinalLookup(
-              context.getSearcherAndTaxonomy().searcher().getIndexReader());
+      globalOrdinalLookup = globalOrdinalable.getOrdinalLookup(indexReader);
     } catch (IOException e) {
       throw new RuntimeException("Error getting ordinal map");
     }
@@ -99,7 +100,8 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
     } else {
       nestedCollectors = Collections.emptyList();
     }
-    fillBucketResult(bucketBuilder, combinedCounts, globalOrdinalLookup, nestedCollectors);
+    GlobalOrdinalLookup.TermLookup termLookup = globalOrdinalLookup.createTermLookup(indexReader);
+    fillBucketResult(bucketBuilder, combinedCounts, termLookup, nestedCollectors);
 
     return CollectorResult.newBuilder().setBucketResult(bucketBuilder.build()).build();
   }
