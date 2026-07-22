@@ -377,6 +377,23 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     // if we are out of time, don't bother with serialization
     DeadlineUtils.checkDeadline("SearchHandler: end", diagnostics, "SEARCH");
     SearchResponse searchResponse = searchContext.getResponseBuilder().build();
+    if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
+      int responseSize = searchResponse.getSerializedSize();
+      if (responseSize > 10 * 1024 * 1024) {
+        try {
+          String requestJson = protoMessagePrinter.print(searchRequest);
+          String responseJson = protoMessagePrinter.print(searchResponse);
+          logger.warn(
+              "Large search response for index {}: {} bytes. Request: {}, Response: {}",
+              searchContext.getIndexState().getName(),
+              responseSize,
+              requestJson,
+              responseJson);
+        } catch (InvalidProtocolBufferException e) {
+          logger.warn("Unable to log large search response", e);
+        }
+      }
+    }
     if (!warming) {
       SearchResponseCollector.updateSearchResponseMetrics(
           searchResponse,
