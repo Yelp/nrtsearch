@@ -113,6 +113,7 @@ public class NrtsearchConfig {
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
   private final boolean s3RefreshUpload;
+  private final boolean s3ReplicaRefreshDownload;
   private final IsolatedReplicaConfig isolatedReplicaConfig;
 
   @Inject
@@ -193,6 +194,7 @@ public class NrtsearchConfig {
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
     requireIdField = configReader.getBoolean("requireIdField", false);
     s3RefreshUpload = configReader.getBoolean("s3RefreshUpload", false);
+    s3ReplicaRefreshDownload = configReader.getBoolean("s3ReplicaRefreshDownload", false);
     isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
@@ -393,6 +395,10 @@ public class NrtsearchConfig {
 
   public boolean getS3RefreshUpload() {
     return s3RefreshUpload;
+  }
+
+  public boolean getS3ReplicaRefreshDownload() {
+    return s3ReplicaRefreshDownload;
   }
 
   public IsolatedReplicaConfig getIsolatedReplicaConfig() {

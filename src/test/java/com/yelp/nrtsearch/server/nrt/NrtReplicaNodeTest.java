@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
+import com.yelp.nrtsearch.server.nrt.jobs.NrtPushRemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -97,7 +98,8 @@ public class NrtReplicaNodeTest {
         false,
         false,
         true,
-        0);
+        0,
+        false);
   }
 
   private NRTReplicaNode getNrtReplicaNodeWithIRConfig(
@@ -116,7 +118,8 @@ public class NrtReplicaNodeTest {
         false,
         false,
         true,
-        0);
+        0,
+        false);
   }
 
   @Test
@@ -136,7 +139,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             true,
-            0);
+            0,
+            false);
     assertTrue(replicaNode.hasPrimaryConnection());
   }
 
@@ -194,6 +198,50 @@ public class NrtReplicaNodeTest {
     }
   }
 
+  @Test
+  public void testS3ReplicaRefreshDownload_enabled() throws IOException {
+    NRTReplicaNode replicaNode =
+        new NRTReplicaNode(
+            "test_index",
+            "id",
+            mock(ReplicationServerClient.class),
+            new HostPort("host", 0),
+            "testNode",
+            mock(Directory.class),
+            null,
+            new IsolatedReplicaConfig(false, 1, 0, 0),
+            null,
+            null,
+            false,
+            false,
+            true,
+            0,
+            true);
+    assertTrue(replicaNode.getCopyJobManager() instanceof NrtPushRemoteCopyJobManager);
+  }
+
+  @Test
+  public void testS3ReplicaRefreshDownload_disabled() throws IOException {
+    NRTReplicaNode replicaNode =
+        new NRTReplicaNode(
+            "test_index",
+            "id",
+            mock(ReplicationServerClient.class),
+            new HostPort("host", 0),
+            "testNode",
+            mock(Directory.class),
+            null,
+            new IsolatedReplicaConfig(false, 1, 0, 0),
+            null,
+            null,
+            false,
+            false,
+            true,
+            0,
+            false);
+    assertTrue(replicaNode.getCopyJobManager() instanceof GrpcCopyJobManager);
+  }
+
   /**
    * Test that NrtMetrics.indexTimestampSec gets set correctly when finishNRTCopy is called with a
    * successful SimpleCopyJob that has a timestamp.
@@ -229,7 +277,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             false,
-            0);
+            0,
+            false);
 
     // Create a spy to skip the parent finishNRTCopy call
     NRTReplicaNode spyReplicaNode = spy(replicaNode);
@@ -291,7 +340,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             false,
-            0);
+            0,
+            false);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
@@ -349,7 +399,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             false,
-            0);
+            0,
+            false);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
@@ -413,7 +464,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             false,
-            0);
+            0,
+            false);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
