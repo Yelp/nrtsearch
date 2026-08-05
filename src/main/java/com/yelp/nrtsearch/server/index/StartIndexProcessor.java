@@ -41,6 +41,7 @@ public class StartIndexProcessor {
   private final RemoteBackend remoteBackend;
   private final IndexStateManager indexStateManager;
   private final boolean remoteCommit;
+  private final boolean s3RefreshUpload;
   private final int discoveryFileUpdateIntervalMs;
   private final boolean requireIdField;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
@@ -53,6 +54,7 @@ public class StartIndexProcessor {
    * @param remoteBackend remote state backend
    * @param indexStateManager index state manager
    * @param remoteCommit whether to commit to remote state
+   * @param s3RefreshUpload whether to upload index data to S3 on every refresh
    * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
    * @param requireIdField whether the index must have an _ID field defined
    */
@@ -62,6 +64,7 @@ public class StartIndexProcessor {
       RemoteBackend remoteBackend,
       IndexStateManager indexStateManager,
       boolean remoteCommit,
+      boolean s3RefreshUpload,
       int discoveryFileUpdateIntervalMs,
       boolean requireIdField) {
     this.serviceName = serviceName;
@@ -69,6 +72,7 @@ public class StartIndexProcessor {
     this.remoteBackend = remoteBackend;
     this.indexStateManager = indexStateManager;
     this.remoteCommit = remoteCommit;
+    this.s3RefreshUpload = s3RefreshUpload;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
     this.requireIdField = requireIdField;
   }
@@ -122,7 +126,8 @@ public class StartIndexProcessor {
             ephemeralId,
             remoteBackend,
             restoreIndex,
-            remoteCommit);
+            remoteCommit,
+            s3RefreshUpload);
     if (mode.equals(Mode.PRIMARY)) {
       primaryGen = startIndexRequest.getPrimaryGen();
       primaryClient = null;

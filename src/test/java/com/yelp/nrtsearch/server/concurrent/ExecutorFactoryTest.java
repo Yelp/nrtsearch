@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Test;
 
@@ -350,5 +351,18 @@ public class ExecutorFactoryTest {
     init(String.join("\n", "threadPoolConfiguration:", "  search:", "    useVirtualThreads: true"));
     ExecutorService executor = executorFactory.getExecutor(ExecutorFactory.ExecutorType.SEARCH);
     assertTrue(executor instanceof ExecutorServiceStatsWrapper);
+  }
+
+  @Test
+  public void testThreadsHaveLoggingUncaughtExceptionHandler() throws InterruptedException {
+    init();
+    ThreadPoolExecutor executor =
+        (ThreadPoolExecutor) executorFactory.getExecutor(ExecutorFactory.ExecutorType.SEARCH);
+    AtomicReference<Thread.UncaughtExceptionHandler> capturedHandler = new AtomicReference<>();
+    executor.execute(
+        () -> capturedHandler.set(Thread.currentThread().getUncaughtExceptionHandler()));
+    executor.shutdown();
+    executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertSame(LoggingUncaughtExceptionHandler.getInstance(), capturedHandler.get());
   }
 }

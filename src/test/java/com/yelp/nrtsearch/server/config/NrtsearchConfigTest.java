@@ -234,6 +234,20 @@ public class NrtsearchConfigTest {
   }
 
   @Test
+  public void testS3RefreshUpload_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getS3RefreshUpload());
+  }
+
+  @Test
+  public void testS3RefreshUpload_set() {
+    String config = "s3RefreshUpload: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getS3RefreshUpload());
+  }
+
+  @Test
   public void testGetIngestionPluginConfigs() {
     String config =
         String.join(

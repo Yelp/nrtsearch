@@ -208,11 +208,13 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           searchContext
               .getResponseBuilder()
               .putAllCollectorResults(searcherResult.getCollectorResults());
+          hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         } else if (searchRequest.getCollectorsCount() > 0) {
           SearcherResult searcherResult = executeSearch(s.searcher(), searchContext);
           searchContext
               .getResponseBuilder()
               .putAllCollectorResults(searcherResult.getCollectorResults());
+          hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         }
 
         searchContext
@@ -560,6 +562,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
                   long rescoreStart = System.nanoTime();
                   topDocs = retrieverContext.getRescoreTask().rescore(topDocs, searchContext);
                   rescoreTimeMs = (System.nanoTime() - rescoreStart) / 1_000_000.0;
+                  topDocs = getHitsFromOffset(topDocs, 0, retrieverContext.getTopHits());
                 }
                 return new RetrieverResult(
                     topDocs,

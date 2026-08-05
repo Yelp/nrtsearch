@@ -304,8 +304,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       boolean uploadQueued = false;
       try {
         if (primary.flushAndRefresh()) {
-          if (!watchers.isEmpty()) {
-            // queue the index upload if there are watchers waiting for a durable refresh
+          if (!watchers.isEmpty() || primary.getNrtDataManager().doS3RefreshUpload()) {
             queueIndexUpload(watchers);
             uploadQueued = true;
           }

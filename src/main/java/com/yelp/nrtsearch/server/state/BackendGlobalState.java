@@ -453,6 +453,7 @@ public class BackendGlobalState extends GlobalState {
                 .getIndexStartConfig()
                 .getDataLocationType()
                 .equals(IndexDataLocationType.REMOTE),
+            getConfiguration().getS3RefreshUpload(),
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
             getConfiguration().getRequireIdField());
     try {

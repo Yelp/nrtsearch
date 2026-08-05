@@ -34,6 +34,7 @@ public class RetrieverContext {
   private final Query query;
   private final DocCollector docCollector;
   private final RescoreTask rescoreTask;
+  private final int topHits;
 
   private RetrieverContext(Builder builder) {
     this.name = builder.name;
@@ -42,6 +43,7 @@ public class RetrieverContext {
     this.query = builder.query;
     this.docCollector = builder.docCollector;
     this.rescoreTask = builder.rescoreTask;
+    this.topHits = builder.topHits;
   }
 
   public static Builder newBuilder(String name) {
@@ -56,6 +58,7 @@ public class RetrieverContext {
     private Query query;
     private DocCollector docCollector;
     private RescoreTask rescoreTask;
+    private int topHits;
 
     private Builder(String name) {
       this.name = name;
@@ -86,6 +89,11 @@ public class RetrieverContext {
       return this;
     }
 
+    public Builder topHits(int topHits) {
+      this.topHits = topHits;
+      return this;
+    }
+
     public RetrieverContext build() {
       return new RetrieverContext(this);
     }
@@ -113,5 +121,9 @@ public class RetrieverContext {
 
   public RescoreTask getRescoreTask() {
     return rescoreTask;
+  }
+
+  public int getTopHits() {
+    return topHits;
   }
 }

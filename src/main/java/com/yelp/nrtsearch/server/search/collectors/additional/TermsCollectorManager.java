@@ -796,18 +796,18 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
-   * @param ordinalLookup global ordinal lookup object
+   * @param termLookup per-request term lookup for resolving global ordinals to strings
    * @param nestedCollectors collectors for nested aggregations
    */
   void fillBucketResult(
       BucketResult.Builder bucketBuilder,
       Long2IntMap counts,
-      GlobalOrdinalLookup ordinalLookup,
+      GlobalOrdinalLookup.TermLookup termLookup,
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     switch (bucketOrder.getValueType()) {
       case COUNT:
-        fillBucketResultByCount(bucketBuilder, counts, ordinalLookup, nestedCollectors);
+        fillBucketResultByCount(bucketBuilder, counts, termLookup, nestedCollectors);
         return;
       case NESTED_COLLECTOR:
         fillBucketResultByNestedOrder(
@@ -815,7 +815,7 @@ public abstract class TermsCollectorManager
             counts,
             o -> {
               try {
-                return ordinalLookup.lookupGlobalOrdinal(o);
+                return termLookup.lookupGlobalOrdinal(o);
               } catch (IOException e) {
                 throw new RuntimeException(e);
               }
@@ -833,13 +833,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
-   * @param ordinalLookup global ordinal lookup object
+   * @param termLookup per-request term lookup for resolving global ordinals to strings
    * @param nestedCollectors collectors for nested aggregations
    */
   void fillBucketResultByCount(
       BucketResult.Builder bucketBuilder,
       Long2IntMap counts,
-      GlobalOrdinalLookup ordinalLookup,
+      GlobalOrdinalLookup.TermLookup termLookup,
       Collection<NestedCollectorManagers.NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
@@ -878,7 +878,7 @@ public abstract class TermsCollectorManager
         LongBucketEntry entry = priorityQueue.poll();
         Bucket.Builder builder =
             Bucket.newBuilder()
-                .setKey(ordinalLookup.lookupGlobalOrdinal(entry.key))
+                .setKey(termLookup.lookupGlobalOrdinal(entry.key))
                 .setCount(entry.count);
         if (nestedCollectorManagers != null) {
           builder.putAllNestedCollectorResults(

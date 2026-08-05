@@ -82,7 +82,12 @@ public class ExecutorFactory implements Closeable {
         threadPoolConfiguration.getThreadPoolSettings(executorType);
     if (threadPoolSettings.useVirtualThreads()) {
       logger.info("Creating virtual thread executor for {}", threadPoolSettings.threadNamePrefix());
-      ExecutorService virtualThreadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+      ExecutorService virtualThreadExecutor =
+          Executors.newThreadPerTaskExecutor(
+              new LoggingThreadFactory(
+                  Thread.ofVirtual()
+                      .name(threadPoolSettings.threadNamePrefix() + "-", 0)
+                      .factory()));
       ExecutorServiceStatsWrapper executorServiceStatsWrapper =
           new ExecutorServiceStatsWrapper(virtualThreadExecutor);
       ThreadPoolCollector.addVirtualPool(executorType.name(), executorServiceStatsWrapper);
@@ -101,7 +106,8 @@ public class ExecutorFactory implements Closeable {
               0L,
               TimeUnit.SECONDS,
               queue,
-              new NamedThreadFactory(threadPoolSettings.threadNamePrefix()));
+              new LoggingThreadFactory(
+                  new NamedThreadFactory(threadPoolSettings.threadNamePrefix())));
       ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
       return threadPoolExecutor;
     }

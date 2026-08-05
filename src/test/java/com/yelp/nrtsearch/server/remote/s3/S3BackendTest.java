@@ -1173,6 +1173,38 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testCreateConcurrencyLimiterStatic() {
+    // adaptiveConcurrency=false → StaticConcurrencyLimiter capped at maxConcurrency
+    try (S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 30, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
+      ConcurrencyLimiter limiter = backend.createConcurrencyLimiter(30);
+      assertTrue(limiter instanceof StaticConcurrencyLimiter);
+      assertEquals(30, limiter.getLimit());
+    }
+  }
+
+  @Test
+  public void testCreateConcurrencyLimiterAdaptive() {
+    // enabled=true → AdaptiveConcurrencyLimiter using maxLimit from config regardless of
+    // maxConcurrency argument (which comes from downloadBatchSize or defaultParallelism).
+    S3Backend.AdaptiveConcurrencyConfig adaptive =
+        new S3Backend.AdaptiveConcurrencyConfig(true, 16, 1, 50, 0.3, 0.1, 0.85, 0.75, 2000, 3);
+    S3Backend.S3BackendConfig config =
+        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false, adaptive);
+    try (S3Backend backend =
+        new S3Backend(
+            BUCKET_NAME, false, config, new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
+      ConcurrencyLimiter limiter = backend.createConcurrencyLimiter(20);
+      assertTrue(limiter instanceof AdaptiveConcurrencyLimiter);
+      assertEquals(50, ((AdaptiveConcurrencyLimiter) limiter).getMaxLimit());
+    }
+  }
+
+  @Test
   public void testS3BackendConfigUploadBatchSize() {
     S3Backend.S3BackendConfig config =
         new S3Backend.S3BackendConfig(false, 0, 1, 0, 10, 1, 0, 0, false);

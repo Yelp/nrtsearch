@@ -47,6 +47,7 @@ import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
+import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.grpc.WeightedScoreOrderBlender;
 import io.grpc.StatusRuntimeException;
@@ -270,6 +271,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
     assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
     assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -292,6 +295,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .get("category_terms")
             .getBucketResult()
             .getBucketsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -319,6 +324,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
             .get("category_terms")
             .getBucketResult()
             .getBucketsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(TotalHits.Relation.EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -364,6 +371,19 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertEquals(1, singleSampleResponse.getFacetResultCount());
     assertEquals("category_facet", singleSampleResponse.getFacetResult(0).getName());
     assertEquals(1, singleSampleResponse.getFacetResult(0).getLabelValuesCount());
+  }
+
+  @Test
+  public void testTotalHitsWithoutAggregation() {
+    // Without facets or collectors, totalHits should come from the blender recall window
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(baseRequest().setMultiRetriever(twoRetrieverRrf()).build());
+
+    assertEquals(10, response.getTotalHits().getValue());
+    assertEquals(
+        TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, response.getTotalHits().getRelation());
   }
 
   @Test
@@ -691,6 +711,55 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         profile.getMultiRetrieverProfileResult().getRetrieverProfileResultsOrThrow("text");
     assertFalse(textProfile.getParsedQuery().isEmpty());
     assertFalse(textProfile.getRewrittenQuery().isEmpty());
+  }
+
+  @Test
+  public void testComputeRetrieverNumHitsToCollect() {
+    Retriever noRescorer = textRetriever(500);
+    assertEquals(500, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, noRescorer));
+
+    // Rescorer windowSize > topHits: numHitsToCollect = windowSize
+    Retriever withLargeWindow =
+        textRetriever(500).toBuilder().setRescorer(constantScoreRescorer(7.0, 15000, "l1")).build();
+    assertEquals(
+        15000, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, withLargeWindow));
+
+    // Rescorer windowSize <= topHits: numHitsToCollect = topHits
+    Retriever withSmallWindow =
+        textRetriever(500).toBuilder().setRescorer(constantScoreRescorer(7.0, 100, "l1")).build();
+    assertEquals(
+        500, SearchRequestProcessor.computeRetrieverNumHitsToCollect(500, withSmallWindow));
+  }
+
+  @Test
+  public void testL1RescorerTruncatesToTopHitsBeforeBlend() {
+    // topHits=3, rescorer windowSize=10
+    // truncate to topHits=3 before blending
+    Retriever textWithLargeWindow =
+        textRetriever(3).toBuilder()
+            .setRescorer(constantScoreRescorer(7.0, 10, "l1_large_window"))
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(textWithLargeWindow)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(3, response.getHitsCount());
   }
 
   @Test

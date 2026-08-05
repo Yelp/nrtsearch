@@ -69,7 +69,8 @@ public class NrtDataManagerTest {
   public void testHasRestoreData_noRestoreIndex() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
     assertFalse(nrtDataManager.hasRestoreData());
   }
 
@@ -83,7 +84,7 @@ public class NrtDataManagerTest {
         RestoreIndex.newBuilder().setServiceName(SERVICE_NAME).setResourceName(INDEX_NAME).build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false, false);
     assertFalse(nrtDataManager.hasRestoreData());
   }
 
@@ -97,7 +98,7 @@ public class NrtDataManagerTest {
         RestoreIndex.newBuilder().setServiceName(SERVICE_NAME).setResourceName(INDEX_NAME).build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, false, false);
     assertTrue(nrtDataManager.hasRestoreData());
   }
 
@@ -105,7 +106,8 @@ public class NrtDataManagerTest {
   public void testDoRemoteCommit_true() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     assertTrue(nrtDataManager.doRemoteCommit());
   }
 
@@ -113,7 +115,8 @@ public class NrtDataManagerTest {
   public void testDoRemoteCommit_false() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
     assertFalse(nrtDataManager.doRemoteCommit());
   }
 
@@ -121,7 +124,8 @@ public class NrtDataManagerTest {
   public void testAlreadyStarted() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     nrtDataManager.startUploadManager(mock(NRTPrimaryNode.class), folder.getRoot().toPath());
 
     try {
@@ -136,7 +140,8 @@ public class NrtDataManagerTest {
   public void testRestoreIfNeeded_noRestoreIndex() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     folder.newFile("test_file");
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
     assertArrayEquals(new String[] {"test_file"}, folder.getRoot().list());
@@ -157,7 +162,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
     folder.newFile("test_file");
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
     assertArrayEquals(new String[0], folder.getRoot().list());
@@ -178,7 +183,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
     folder.newFile("test_file");
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
     assertArrayEquals(new String[] {"test_file"}, folder.getRoot().list());
@@ -220,7 +225,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
     folder.newFile("test_file");
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
     assertArrayEquals(new String[] {"segments_6"}, folder.getRoot().list());
@@ -268,7 +273,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
     folder.newFile("test_file");
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
     Set<String> expectedFiles = Set.of("test_file", "segments_6");
@@ -295,7 +300,8 @@ public class NrtDataManagerTest {
   public void testEnqueueUpload_closed() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     nrtDataManager.close();
 
     try {
@@ -310,7 +316,8 @@ public class NrtDataManagerTest {
   public void testEnqueueUpload_noCurrentTask() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     CopyState mockCopyState = mock(CopyState.class);
     List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
     nrtDataManager.enqueueUpload(mockCopyState, refreshUploadFutures);
@@ -324,7 +331,8 @@ public class NrtDataManagerTest {
   public void testEnqueueUpload_noNextTask() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     CopyState mockCopyState = mock(CopyState.class);
     List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
     nrtDataManager.enqueueUpload(mockCopyState, refreshUploadFutures);
@@ -343,7 +351,8 @@ public class NrtDataManagerTest {
   public void testEnqueueUpload_mergeTasks() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startWithoutThread(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -445,7 +454,8 @@ public class NrtDataManagerTest {
   public void testClose_noThread() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startWithoutThread(mockPrimaryNode, folder.getRoot().toPath());
     nrtDataManager.close();
@@ -457,7 +467,8 @@ public class NrtDataManagerTest {
   public void testClose_withThread() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
     nrtDataManager.close();
@@ -469,7 +480,8 @@ public class NrtDataManagerTest {
   public void testClose_cleansUpTasks() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startWithoutThread(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -497,7 +509,8 @@ public class NrtDataManagerTest {
       throws ExecutionException, InterruptedException, TimeoutException, IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -553,7 +566,8 @@ public class NrtDataManagerTest {
       throws ExecutionException, InterruptedException, TimeoutException, IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -637,7 +651,8 @@ public class NrtDataManagerTest {
       throws ExecutionException, InterruptedException, TimeoutException, IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -696,7 +711,8 @@ public class NrtDataManagerTest {
       throws ExecutionException, InterruptedException, TimeoutException, IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -771,7 +787,8 @@ public class NrtDataManagerTest {
         .uploadPointState(
             eq(SERVICE_NAME), eq(INDEX_NAME), any(NrtPointState.class), any(byte[].class));
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
     nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
 
@@ -842,10 +859,41 @@ public class NrtDataManagerTest {
   }
 
   @Test
+  public void testDoS3RefreshUpload_true() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, true);
+    assertTrue(nrtDataManager.doS3RefreshUpload());
+  }
+
+  @Test
+  public void testDoS3RefreshUpload_false() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
+    assertFalse(nrtDataManager.doS3RefreshUpload());
+  }
+
+  @Test
+  public void testS3RefreshUpload_requiresRemoteCommit() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    try {
+      new NrtDataManager(
+          SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, true);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("s3RefreshUpload requires remoteCommit to be enabled", e.getMessage());
+    }
+  }
+
+  @Test
   public void testEnqueueNoRemoteCommit() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
     try {
       nrtDataManager.enqueueUpload(mock(CopyState.class), List.of());
       fail();
@@ -963,7 +1011,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
     folder.newFile("test_file");
     IsolatedReplicaConfig config = new IsolatedReplicaConfig(true, 60, 120, 0);
     nrtDataManager.restoreIfNeeded(folder.getRoot().toPath(), config);
@@ -1037,7 +1085,8 @@ public class NrtDataManagerTest {
                 new ByteArrayInputStream(pointStateBytes), testTimestamp));
 
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Test the method
     NrtDataManager.PointStateWithTimestamp result = nrtDataManager.getTargetPointState(null);
@@ -1058,7 +1107,8 @@ public class NrtDataManagerTest {
         .thenThrow(new IOException("Download failed"));
 
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     try {
       nrtDataManager.getTargetPointState(null);
@@ -1074,7 +1124,8 @@ public class NrtDataManagerTest {
   public void testSetLastPointState_newPointState() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create test data
     FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1107,7 +1158,8 @@ public class NrtDataManagerTest {
   public void testSetLastPointState_higherVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create initial point state with version 1
     FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1156,7 +1208,8 @@ public class NrtDataManagerTest {
   public void testSetLastPointState_lowerVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create initial point state with version 2
     FileMetaData fileMetaData2 = new FileMetaData(new byte[] {5, 6}, new byte[] {7, 8}, 200, 67890);
@@ -1206,7 +1259,8 @@ public class NrtDataManagerTest {
   public void testSetLastPointState_sameVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create first point state with version 1
     FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1257,7 +1311,8 @@ public class NrtDataManagerTest {
     // Create mock RemoteBackend
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false);
 
     // Create test data
     String fileName = "test_file.dat";
@@ -1289,7 +1344,8 @@ public class NrtDataManagerTest {
     // Create mock RemoteBackend
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create initial point state
     FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1343,7 +1399,8 @@ public class NrtDataManagerTest {
   public void testGetLastPointTimestamp_initiallyNull() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Initially should be null
     assertNull(nrtDataManager.getLastPointTimestamp());
@@ -1385,7 +1442,7 @@ public class NrtDataManagerTest {
             .build();
     NrtDataManager nrtDataManager =
         new NrtDataManager(
-            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true);
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, restoreIndex, true, false);
 
     // Initially should be null
     assertNull(nrtDataManager.getLastPointTimestamp());
@@ -1400,7 +1457,8 @@ public class NrtDataManagerTest {
   public void testGetLastPointTimestamp_afterSetLastPointState() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create test data
     FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1433,7 +1491,8 @@ public class NrtDataManagerTest {
   public void testGetLastPointTimestamp_multipleSetLastPointState_higherVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create initial point state with version 1
     FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
@@ -1482,7 +1541,8 @@ public class NrtDataManagerTest {
   public void testGetLastPointTimestamp_multipleSetLastPointState_lowerVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create initial point state with version 2
     FileMetaData fileMetaData2 = new FileMetaData(new byte[] {5, 6}, new byte[] {7, 8}, 200, 67890);
@@ -1532,7 +1592,8 @@ public class NrtDataManagerTest {
   public void testGetLastPointTimestamp_multipleSetLastPointState_sameVersion() {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =
-        new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false);
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, false, false);
 
     // Create first point state with version 1
     FileMetaData fileMetaData1 = new FileMetaData(new byte[] {1, 2}, new byte[] {3, 4}, 100, 12345);
