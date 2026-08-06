@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -34,6 +35,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -162,6 +164,67 @@ public class RawVectorStubDirectoryTest {
       fail("Expected NoSuchFileException");
     } catch (NoSuchFileException e) {
       // expected
+    }
+    stubDir.close();
+  }
+
+  @Test
+  public void testOpenChecksumInputMissingVemfReturnsStub() throws IOException {
+    ByteBuffersDirectory empty = new ByteBuffersDirectory();
+    SegmentInfo segInfo =
+        new SegmentInfo(
+            empty,
+            Version.LATEST,
+            Version.LATEST,
+            "test_seg",
+            0,
+            false,
+            false,
+            Codec.getDefault(),
+            Collections.emptyMap(),
+            StringHelper.randomId(),
+            Collections.emptyMap(),
+            null);
+    SegmentReadState readState =
+        new SegmentReadState(empty, segInfo, new FieldInfos(new FieldInfo[0]), IOContext.DEFAULT);
+    Lucene99FlatVectorsFormat flatFormat =
+        new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+    RawVectorStubDirectory stubDir = new RawVectorStubDirectory(empty, readState, flatFormat);
+    String vemfName = IndexFileNames.segmentFileName(segInfo.name, readState.segmentSuffix, "vemf");
+    ChecksumIndexInput in = stubDir.openChecksumInput(vemfName);
+    assertNotNull(in);
+    assertTrue("stub must have at least a codec header+footer", in.length() > 0);
+    in.close();
+    stubDir.close();
+  }
+
+  @Test
+  public void testStubIsStructurallyValidForFieldsReader() throws IOException {
+    ByteBuffersDirectory empty = new ByteBuffersDirectory();
+    SegmentInfo segInfo =
+        new SegmentInfo(
+            empty,
+            Version.LATEST,
+            Version.LATEST,
+            "test_seg",
+            0,
+            false,
+            false,
+            Codec.getDefault(),
+            Collections.emptyMap(),
+            StringHelper.randomId(),
+            Collections.emptyMap(),
+            null);
+    SegmentReadState readState =
+        new SegmentReadState(empty, segInfo, new FieldInfos(new FieldInfo[0]), IOContext.DEFAULT);
+    Lucene99FlatVectorsFormat flatFormat =
+        new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+    RawVectorStubDirectory stubDir = new RawVectorStubDirectory(empty, readState, flatFormat);
+    // Re-create readState pointing at the stub directory so the reader can open the stub files
+    SegmentReadState stubReadState =
+        new SegmentReadState(stubDir, segInfo, new FieldInfos(new FieldInfo[0]), IOContext.DEFAULT);
+    try (FlatVectorsReader reader = flatFormat.fieldsReader(stubReadState)) {
+      assertNotNull(reader);
     }
     stubDir.close();
   }

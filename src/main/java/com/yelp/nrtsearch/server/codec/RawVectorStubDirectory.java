@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.codec;
 import com.yelp.nrtsearch.server.nrt.VectorFileFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,13 +82,11 @@ public class RawVectorStubDirectory extends FilterDirectory {
     return super.openChecksumInput(name);
   }
 
-  private boolean fileExistsInDelegate(String name) {
+  private boolean fileExistsInDelegate(String name) throws IOException {
     try {
-      for (String f : in.listAll()) {
-        if (f.equals(name)) return true;
-      }
-      return false;
-    } catch (IOException e) {
+      in.fileLength(name);
+      return true;
+    } catch (NoSuchFileException e) {
       return false;
     }
   }
@@ -116,9 +115,9 @@ public class RawVectorStubDirectory extends FilterDirectory {
             null,
             readState.context,
             readState.segmentSuffix);
-    FlatVectorsWriter writer = flatVectorsFormat.fieldsWriter(writeState);
-    writer.finish();
-    writer.close();
+    try (FlatVectorsWriter writer = flatVectorsFormat.fieldsWriter(writeState)) {
+      writer.finish();
+    }
     for (String file : stubDir.listAll()) {
       try (IndexInput fileIn = stubDir.openInput(file, IOContext.DEFAULT)) {
         byte[] bytes = new byte[(int) fileIn.length()];
