@@ -115,6 +115,7 @@ public class RawVectorStubDirectory extends FilterDirectory {
             null,
             readState.context,
             readState.segmentSuffix);
+    Map<String, byte[]> generated = new HashMap<>();
     try (FlatVectorsWriter writer = flatVectorsFormat.fieldsWriter(writeState)) {
       writer.finish();
     }
@@ -122,9 +123,15 @@ public class RawVectorStubDirectory extends FilterDirectory {
       try (IndexInput fileIn = stubDir.openInput(file, IOContext.DEFAULT)) {
         byte[] bytes = new byte[(int) fileIn.length()];
         fileIn.readBytes(bytes, 0, bytes.length);
-        stubCache.put(file, bytes);
+        generated.put(file, bytes);
       }
     }
     stubDir.close();
+    stubCache.putAll(generated);
+  }
+
+  @Override
+  public void close() throws IOException {
+    // Does not own the delegate directory — closed by SegmentCoreReaders.
   }
 }
