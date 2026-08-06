@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -66,6 +67,11 @@ public class NrtDataManager implements Closeable {
   private final RestoreIndex restoreIndex;
   private final boolean remoteCommit;
   private final boolean s3RefreshUpload;
+
+  // Files uploaded during merge precopy, keyed by file name. Consumed by uploadDiff to avoid
+  // re-uploading.
+  private final ConcurrentHashMap<String, NrtFileMetaData> mergePreCopyUploadedFiles =
+      new ConcurrentHashMap<>();
 
   // Set during startUploadManager
   private NRTPrimaryNode primaryNode;
@@ -356,6 +362,38 @@ public class NrtDataManager implements Closeable {
   }
 
   /**
+   * Upload merged segment files to the remote backend. This is called by the primary during merge
+   * precopy to ensure the files are available on S3 before notifying replicas.
+   *
+   * @param files map of file names to FileMetaData for the merged segment
+   * @return the time string used for the upload, needed by replicas to locate files on S3
+   * @throws IOException on error uploading files
+   */
+  public String uploadMergedFiles(Map<String, FileMetaData> files) throws IOException {
+    Map<String, NrtFileMetaData> filesToUpload = new HashMap<>();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    for (Map.Entry<String, FileMetaData> entry : files.entrySet()) {
+      String fileName = entry.getKey();
+      FileMetaData fileMetaData = entry.getValue();
+      NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
+      filesToUpload.put(fileName, nrtFileMetaData);
+    }
+    logger.info("Uploading merged segment files: {}", filesToUpload.keySet());
+    remoteBackend.uploadIndexFiles(serviceName, indexIdentifier, shardDataDir, filesToUpload);
+    mergePreCopyUploadedFiles.putAll(filesToUpload);
+    return timeString;
+  }
+
+  /**
+   * Get the ephemeral id for this node.
+   *
+   * @return ephemeral id
+   */
+  public String getEphemeralId() {
+    return ephemeralId;
+  }
+
+  /**
    * Enqueue an upload task to be processed by the UploadManagerThread.
    *
    * @param copyState CopyState of data to upload
@@ -541,11 +579,16 @@ public class NrtDataManager implements Closeable {
         if (lastFileMetaData != null && isSameFile(fileMetaData, lastFileMetaData)) {
           currentPointFiles.put(fileName, lastFileMetaData);
         } else {
-          String timeString = TimeStringUtils.generateTimeStringSec();
-          NrtFileMetaData nrtFileMetaData =
-              new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
-          currentPointFiles.put(fileName, nrtFileMetaData);
-          filesToUpload.put(fileName, nrtFileMetaData);
+          NrtFileMetaData mergeUploaded = mergePreCopyUploadedFiles.remove(fileName);
+          if (mergeUploaded != null && isSameFile(fileMetaData, mergeUploaded)) {
+            currentPointFiles.put(fileName, mergeUploaded);
+          } else {
+            String timeString = TimeStringUtils.generateTimeStringSec();
+            NrtFileMetaData nrtFileMetaData =
+                new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
+            currentPointFiles.put(fileName, nrtFileMetaData);
+            filesToUpload.put(fileName, nrtFileMetaData);
+          }
         }
       }
       logger.info("Uploading index files: {}", filesToUpload.keySet());

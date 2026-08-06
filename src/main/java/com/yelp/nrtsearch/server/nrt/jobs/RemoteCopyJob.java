@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.nrt.jobs;
 
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.InputStreamDataInput;
 import java.io.IOException;
@@ -48,10 +49,11 @@ public class RemoteCopyJob extends VisitableCopyJob {
   private final Instant pointStateTimestamp;
   private final NrtDataManager dataManager;
   private final CopyState copyState;
+  private final Map<String, NrtFileMetaData> nrtFiles;
   private Iterator<Map.Entry<String, FileMetaData>> iter;
 
   /**
-   * Constructor.
+   * Constructor for NRT point copy.
    *
    * @param reason the reason for the copy
    * @param pointState the state for the nrt point index version
@@ -75,11 +77,52 @@ public class RemoteCopyJob extends VisitableCopyJob {
       boolean highPriority,
       OnceDone onceDone)
       throws IOException {
+    this(
+        reason,
+        pointState,
+        pointStateTimestamp,
+        copyState,
+        dataManager,
+        dest,
+        files,
+        pointState.files,
+        highPriority,
+        onceDone);
+  }
+
+  /**
+   * Constructor with explicit NRT file metadata map.
+   *
+   * @param reason the reason for the copy
+   * @param pointState the state for the nrt point index version, or null for merge precopy
+   * @param pointStateTimestamp timestamp of the point state, or null for merge precopy
+   * @param copyState the copy state, or null for merge precopy
+   * @param dataManager to download files from remote storage
+   * @param dest the destination replica node
+   * @param files the files to copy
+   * @param nrtFiles map of file names to NrtFileMetaData for S3 download
+   * @param highPriority if this is a high priority copy
+   * @param onceDone callback when done
+   * @throws IOException on I/O error
+   */
+  public RemoteCopyJob(
+      String reason,
+      NrtPointState pointState,
+      Instant pointStateTimestamp,
+      CopyState copyState,
+      NrtDataManager dataManager,
+      ReplicaNode dest,
+      Map<String, FileMetaData> files,
+      Map<String, NrtFileMetaData> nrtFiles,
+      boolean highPriority,
+      OnceDone onceDone)
+      throws IOException {
     super(reason, files, dest, highPriority, onceDone);
     this.pointState = pointState;
     this.pointStateTimestamp = pointStateTimestamp;
     this.copyState = copyState;
     this.dataManager = dataManager;
+    this.nrtFiles = nrtFiles;
   }
 
   /**
@@ -255,7 +298,7 @@ public class RemoteCopyJob extends VisitableCopyJob {
       FileMetaData metaData = next.getValue();
       String fileName = next.getKey();
       InputStream remoteFileInputStream =
-          dataManager.downloadIndexFile(fileName, pointState.files.get(fileName));
+          dataManager.downloadIndexFile(fileName, nrtFiles.get(fileName));
       current =
           new StreamCopyOneFile(
               new InputStreamDataInput(remoteFileInputStream),

@@ -17,9 +17,11 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
@@ -38,9 +40,18 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
   private final NrtDataManager dataManager;
   private final NRTReplicaNode replicaNode;
 
+  private volatile String mergePrimaryId;
+  private volatile String mergeTimeString;
+
   public NrtPushRemoteCopyJobManager(NrtDataManager dataManager, NRTReplicaNode replicaNode) {
     this.dataManager = dataManager;
     this.replicaNode = replicaNode;
+  }
+
+  @Override
+  public void setMergePreCopyMetadata(String primaryId, String timeString) {
+    this.mergePrimaryId = primaryId;
+    this.mergeTimeString = timeString;
   }
 
   @Override
@@ -55,8 +66,7 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
       CopyJob.OnceDone onceDone)
       throws IOException {
     if (files != null) {
-      throw new IllegalArgumentException(
-          "NrtPushRemoteCopyJobManager does not support merge precopy");
+      return newMergePreCopyJob(reason, files, highPriority, onceDone);
     }
 
     NrtDataManager.PointStateWithTimestamp targetPointStateWithTimestamp =
@@ -75,6 +85,39 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
         dataManager,
         replicaNode,
         copyState.files(),
+        highPriority,
+        onceDone);
+  }
+
+  private CopyJob newMergePreCopyJob(
+      String reason,
+      Map<String, FileMetaData> files,
+      boolean highPriority,
+      CopyJob.OnceDone onceDone)
+      throws IOException {
+    String primaryId = mergePrimaryId;
+    String timeString = mergeTimeString;
+    if (primaryId == null || timeString == null) {
+      throw new IOException(
+          "Missing S3 metadata for merge precopy (primaryId="
+              + primaryId
+              + ", timeString="
+              + timeString
+              + ")");
+    }
+    Map<String, NrtFileMetaData> nrtFiles = new HashMap<>();
+    for (Map.Entry<String, FileMetaData> entry : files.entrySet()) {
+      nrtFiles.put(entry.getKey(), new NrtFileMetaData(entry.getValue(), primaryId, timeString));
+    }
+    return new RemoteCopyJob(
+        reason,
+        null,
+        null,
+        null,
+        dataManager,
+        replicaNode,
+        files,
+        nrtFiles,
         highPriority,
         onceDone);
   }

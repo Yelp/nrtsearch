@@ -1241,6 +1241,10 @@ message CopyFiles {
     FilesMetadata filesMetadata = 4;
     // Index id
     string indexId = 5;
+    // Primary node id used to locate files on remote storage
+    string primaryId = 6;
+    // Time string used to locate files on remote storage
+    string timeString = 7;
 }
 
 // Replica invokes this on a primary to let primary know it needs the CopyState

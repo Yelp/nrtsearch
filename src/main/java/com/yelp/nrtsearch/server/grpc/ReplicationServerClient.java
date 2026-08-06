@@ -256,16 +256,23 @@ public class ReplicationServerClient implements Closeable {
       String indexId,
       long primaryGen,
       FilesMetadata filesMetadata,
-      Deadline deadline) {
+      Deadline deadline,
+      String primaryId,
+      String timeString) {
     CopyFiles.Builder copyFilesBuilder = CopyFiles.newBuilder();
-    CopyFiles copyFiles =
-        copyFilesBuilder
-            .setMagicNumber(BINARY_MAGIC)
-            .setIndexName(indexName)
-            .setIndexId(indexId)
-            .setPrimaryGen(primaryGen)
-            .setFilesMetadata(filesMetadata)
-            .build();
+    copyFilesBuilder
+        .setMagicNumber(BINARY_MAGIC)
+        .setIndexName(indexName)
+        .setIndexId(indexId)
+        .setPrimaryGen(primaryGen)
+        .setFilesMetadata(filesMetadata);
+    if (primaryId != null) {
+      copyFilesBuilder.setPrimaryId(primaryId);
+    }
+    if (timeString != null) {
+      copyFilesBuilder.setTimeString(timeString);
+    }
+    CopyFiles copyFiles = copyFilesBuilder.build();
     ReplicationServerBlockingStub blockingStub = this.blockingStub;
     if (deadline != null) {
       blockingStub = blockingStub.withDeadline(deadline);

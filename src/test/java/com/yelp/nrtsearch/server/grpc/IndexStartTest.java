@@ -1041,7 +1041,8 @@ public class IndexStartTest {
       Iterator<TransferStatus> iterator =
           replica
               .getReplicationClient()
-              .copyFiles("test_index", indexId, -1, FilesMetadata.newBuilder().build(), null);
+              .copyFiles(
+                  "test_index", indexId, -1, FilesMetadata.newBuilder().build(), null, null, null);
       iterator.next();
       fail();
     } catch (StatusRuntimeException e) {

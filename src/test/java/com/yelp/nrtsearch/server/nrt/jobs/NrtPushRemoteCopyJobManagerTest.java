@@ -57,16 +57,29 @@ public class NrtPushRemoteCopyJobManagerTest {
   }
 
   @Test
-  public void testNewCopyJob_withFiles() throws IOException {
+  public void testNewCopyJob_withFiles_noMetadata() throws IOException {
     Map<String, FileMetaData> files =
         Map.of("file1", new FileMetaData(new byte[0], new byte[0], 1, 0));
 
     try {
       copyJobManager.newCopyJob("test", files, null, false, mockOnceDone);
-      fail("Expected IllegalArgumentException when files is not null");
-    } catch (IllegalArgumentException e) {
-      assertEquals("NrtPushRemoteCopyJobManager does not support merge precopy", e.getMessage());
+      fail("Expected IOException when merge metadata is not set");
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains("Missing S3 metadata for merge precopy"));
     }
+  }
+
+  @Test
+  public void testNewCopyJob_withFiles_success() throws IOException {
+    Map<String, FileMetaData> files =
+        Map.of("file1", new FileMetaData(new byte[0], new byte[0], 1, 0));
+
+    copyJobManager.setMergePreCopyMetadata("testPrimaryId", "20260805120000");
+
+    CopyJob copyJob = copyJobManager.newCopyJob("test", files, null, false, mockOnceDone);
+
+    assertNotNull(copyJob);
+    assertTrue(copyJob instanceof RemoteCopyJob);
   }
 
   @Test
