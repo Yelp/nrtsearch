@@ -21,6 +21,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
+import com.yelp.nrtsearch.server.nrt.VectorFileFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -43,6 +44,7 @@ public class GrpcCopyJobManager implements CopyJobManager {
   private final boolean ackedCopy;
   private final NRTReplicaNode replicaNode;
   private final int replicaId;
+  private final boolean skipRawVectorData;
 
   public GrpcCopyJobManager(
       String indexName,
@@ -51,12 +53,24 @@ public class GrpcCopyJobManager implements CopyJobManager {
       boolean ackedCopy,
       NRTReplicaNode replicaNode,
       int replicaId) {
+    this(indexName, indexId, primaryAddress, ackedCopy, replicaNode, replicaId, false);
+  }
+
+  public GrpcCopyJobManager(
+      String indexName,
+      String indexId,
+      ReplicationServerClient primaryAddress,
+      boolean ackedCopy,
+      NRTReplicaNode replicaNode,
+      int replicaId,
+      boolean skipRawVectorData) {
     this.indexName = indexName;
     this.indexId = indexId;
     this.primaryAddress = primaryAddress;
     this.ackedCopy = ackedCopy;
     this.replicaNode = replicaNode;
     this.replicaId = replicaId;
+    this.skipRawVectorData = skipRawVectorData;
   }
 
   @Override
@@ -87,9 +101,10 @@ public class GrpcCopyJobManager implements CopyJobManager {
       } catch (Throwable t) {
         throw new NodeCommunicationException("exc while reading files to copy", t);
       }
-      files = copyStateAndTimestamp.copyState().files();
+      files = filterFilesIfNeeded(copyStateAndTimestamp.copyState().files(), skipRawVectorData);
     } else {
       copyStateAndTimestamp = null;
+      files = filterFilesIfNeeded(files, skipRawVectorData);
     }
     return new SimpleCopyJob(
         reason,
@@ -102,6 +117,15 @@ public class GrpcCopyJobManager implements CopyJobManager {
         indexName,
         indexId,
         ackedCopy);
+  }
+
+  @VisibleForTesting
+  static Map<String, FileMetaData> filterFilesIfNeeded(
+      Map<String, FileMetaData> files, boolean skipRawVectorData) {
+    if (!skipRawVectorData) {
+      return files;
+    }
+    return VectorFileFilter.filterRawVectorFiles(files);
   }
 
   @Override

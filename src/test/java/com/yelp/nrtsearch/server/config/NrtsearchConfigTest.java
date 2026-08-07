@@ -281,6 +281,20 @@ public class NrtsearchConfigTest {
     assertTrue(ingestionConfigs.isEmpty());
   }
 
+  @Test
+  public void testSkipRawVectorData_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getSkipRawVectorData());
+  }
+
+  @Test
+  public void testSkipRawVectorData_set() {
+    String config = "skipRawVectorData: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getSkipRawVectorData());
+  }
+
   @Test(expected = IllegalArgumentException.class)
   public void testInvalidIngestionConfigThrows() {
     String config =

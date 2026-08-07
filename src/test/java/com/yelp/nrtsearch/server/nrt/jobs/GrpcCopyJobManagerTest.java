@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.nrt.jobs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -374,5 +375,35 @@ public class GrpcCopyJobManagerTest {
       assertEquals(1000L + i, fileData.length());
       assertEquals(10000L + i, fileData.checksum());
     }
+  }
+
+  @Test
+  public void testFilterRawVectorFilesFromCopyState() throws IOException {
+    // Verify that GrpcCopyJobManager correctly filters raw vector files when skipRawVectorData=true
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0);
+    Map<String, FileMetaData> allFiles =
+        Map.of(
+            "_0.vec", fileMetaData,
+            "_0.vemf", fileMetaData,
+            "_0.veq", fileMetaData,
+            "_0.si", fileMetaData);
+
+    Map<String, FileMetaData> filtered = GrpcCopyJobManager.filterFilesIfNeeded(allFiles, true);
+
+    assertFalse("Raw .vec file should be filtered", filtered.containsKey("_0.vec"));
+    assertFalse("Raw .vemf file should be filtered", filtered.containsKey("_0.vemf"));
+    assertTrue("Quantized .veq file should be present", filtered.containsKey("_0.veq"));
+    assertTrue("Segment info file should be present", filtered.containsKey("_0.si"));
+  }
+
+  @Test
+  public void testFilterRawVectorFilesFromCopyState_noFilter() throws IOException {
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0);
+    Map<String, FileMetaData> allFiles = Map.of("_0.vec", fileMetaData, "_0.veq", fileMetaData);
+
+    Map<String, FileMetaData> result = GrpcCopyJobManager.filterFilesIfNeeded(allFiles, false);
+
+    // Should be same reference when no filtering
+    assertEquals(allFiles, result);
   }
 }

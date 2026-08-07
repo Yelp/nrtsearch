@@ -968,7 +968,8 @@ public class ShardState implements Closeable {
               configuration.getFileCopyConfig().getAckedCopy(),
               configuration.getDecInitialCommit(),
               configuration.getFilterIncompatibleSegmentReaders(),
-              configuration.getLowPriorityCopyPercentage());
+              configuration.getLowPriorityCopyPercentage(),
+              configuration.getSkipRawVectorData());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

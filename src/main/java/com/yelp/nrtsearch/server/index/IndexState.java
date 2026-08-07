@@ -562,6 +562,13 @@ public abstract class IndexState implements Closeable {
   /** Get if additional index metrics should be collected and published. */
   public abstract boolean getVerboseMetrics();
 
+  /**
+   * Ratio controlling when segments use compound files. A segment uses compound format if its size
+   * is less than this ratio multiplied by the total index size. Range [0.0, 1.0]: 0.0 = never, 1.0
+   * = always. Default: 0.1 (TieredMergePolicy default).
+   */
+  public abstract double getNoCFSRatio();
+
   /** Maximum time in milliseconds to wait for merges when doing a full flush. */
   public abstract long getMaxFullFlushMergeWaitMillis();
 

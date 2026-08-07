@@ -121,6 +121,7 @@ public class ImmutableIndexState extends IndexState {
   public static final int DEFAULT_SEGMENTS_PER_TIER = 10;
   public static final double DEFAULT_DELETE_PCT_ALLOWED = 20.0;
   public static final int DEFAULT_MAX_MERGED_SEGMENT_MB = 5 * 1024;
+  public static final double DEFAULT_NO_CFS_RATIO = 0.1;
   public static final int DEFAULT_PARALLEL_FETCH_CHUNK_SIZE = 50;
 
   // default live settings as message, so they can be merged with saved settings
@@ -151,6 +152,7 @@ public class ImmutableIndexState extends IndexState {
           .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
           .setParallelFetchChunkSize(
               Int32Value.newBuilder().setValue(DEFAULT_PARALLEL_FETCH_CHUNK_SIZE).build())
+          .setNoCFSRatio(DoubleValue.newBuilder().setValue(DEFAULT_NO_CFS_RATIO).build())
           .build();
 
   // Live Settings
@@ -172,6 +174,7 @@ public class ImmutableIndexState extends IndexState {
   private final long maxMergePreCopyDurationSec;
   private final boolean verboseMetrics;
   private final ParallelFetchConfig parallelFetchConfig;
+  private final double noCFSRatio;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
@@ -271,6 +274,7 @@ public class ImmutableIndexState extends IndexState {
     maxMergePreCopyDurationSec =
         mergedLiveSettingsWithLocal.getMaxMergePreCopyDurationSec().getValue();
     verboseMetrics = mergedLiveSettingsWithLocal.getVerboseMetrics().getValue();
+    noCFSRatio = mergedLiveSettingsWithLocal.getNoCFSRatio().getValue();
     // Parallel fetch config
     int maxParallelism =
         globalState
@@ -614,6 +618,10 @@ public class ImmutableIndexState extends IndexState {
     mergePolicy.setMaxMergedSegmentMB(maxMergedSegmentMB);
     mergePolicy.setSegmentsPerTier(segmentsPerTier);
     mergePolicy.setDeletesPctAllowed(deletePctAllowed);
+    mergePolicy.setNoCFSRatio(noCFSRatio);
+    if (noCFSRatio == 0.0) {
+      iwc.setUseCompoundFile(false);
+    }
     iwc.setMergePolicy(mergePolicy);
 
     return iwc;
@@ -754,6 +762,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public double getNoCFSRatio() {
+    return noCFSRatio;
+  }
+
+  @Override
   public long getMaxFullFlushMergeWaitMillis() {
     return maxFullFlushMergeWaitMillis;
   }
@@ -849,6 +862,10 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getParallelFetchChunkSize().getValue() <= 0) {
       throw new IllegalArgumentException("parallelFetchChunkSize must be > 0");
+    }
+    double noCFSRatioValue = liveSettings.getNoCFSRatio().getValue();
+    if (noCFSRatioValue < 0.0 || noCFSRatioValue > 1.0) {
+      throw new IllegalArgumentException("noCFSRatio must be between 0.0 and 1.0");
     }
   }
 

@@ -1479,6 +1479,12 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
     // Controls the maximum percentage of deleted documents that is tolerated in the index, default: 20
     google.protobuf.DoubleValue deletePctAllowed = 19;
+    // Ratio controlling when segments use compound files (.cfs/.cfe). A segment is written as a
+    // compound file if its size is less than this ratio multiplied by the total index size.
+    // Range [0.0, 1.0]: 0.0 = never use compound files, 1.0 = always use compound files.
+    // Default: 0.1 (Lucene's TieredMergePolicy default). Set to 0.0 when using skipRawVectorData
+    // to ensure vector files are always written as separate files.
+    google.protobuf.DoubleValue noCFSRatio = 20;
 }
 
 // Index state
