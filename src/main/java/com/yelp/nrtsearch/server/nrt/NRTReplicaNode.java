@@ -76,6 +76,41 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean filterIncompatibleSegmentReaders,
       int lowPriorityCopyPercentage)
       throws IOException {
+    this(
+        indexName,
+        indexId,
+        primaryAddress,
+        hostPort,
+        nodeName,
+        indexDir,
+        searcherFactory,
+        isolatedReplicaConfig,
+        nrtDataManager,
+        printStream,
+        ackedCopy,
+        decInitialCommit,
+        filterIncompatibleSegmentReaders,
+        lowPriorityCopyPercentage,
+        false);
+  }
+
+  public NRTReplicaNode(
+      String indexName,
+      String indexId,
+      ReplicationServerClient primaryAddress,
+      HostPort hostPort,
+      String nodeName,
+      Directory indexDir,
+      SearcherFactory searcherFactory,
+      IsolatedReplicaConfig isolatedReplicaConfig,
+      NrtDataManager nrtDataManager,
+      PrintStream printStream,
+      boolean ackedCopy,
+      boolean decInitialCommit,
+      boolean filterIncompatibleSegmentReaders,
+      int lowPriorityCopyPercentage,
+      boolean skipRawVectorData)
+      throws IOException {
     // the id is always 0, the nodeName is the identifier
     super(0, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
@@ -98,10 +133,12 @@ public class NRTReplicaNode extends ReplicaNode {
               isolatedReplicaConfig.getPollingIntervalSeconds(),
               nrtDataManager,
               this,
-              isolatedReplicaConfig);
+              isolatedReplicaConfig,
+              skipRawVectorData);
     } else {
       copyJobManager =
-          new GrpcCopyJobManager(indexName, indexId, primaryAddress, ackedCopy, this, id);
+          new GrpcCopyJobManager(
+              indexName, indexId, primaryAddress, ackedCopy, this, id, skipRawVectorData);
     }
     // Handles fetching files from primary, on a new thread which receives files from primary
     nrtCopyThread = getNrtCopyThread(this, lowPriorityCopyPercentage);

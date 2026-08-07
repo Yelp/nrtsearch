@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.nrt.jobs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -280,6 +281,42 @@ public class RemoteCopyJobManagerTest {
   }
 
   /** Create a test NrtPointState for testing purposes. */
+  @Test
+  public void testNewCopyJob_skipRawVectorData_filtersVecAndVemf() throws IOException {
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0);
+    NrtFileMetaData nrtVecFile =
+        new NrtFileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0, "pid", "t1");
+    NrtFileMetaData nrtVemfFile =
+        new NrtFileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0, "pid", "t2");
+    NrtFileMetaData nrtVeqFile =
+        new NrtFileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 10, 0, "pid", "t3");
+
+    Map<String, NrtFileMetaData> allNrtFiles =
+        Map.of("_0.vec", nrtVecFile, "_0.vemf", nrtVemfFile, "_0.veq", nrtVeqFile);
+    Map<String, FileMetaData> allFiles =
+        Map.of("_0.vec", fileMetaData, "_0.vemf", fileMetaData, "_0.veq", fileMetaData);
+
+    CopyState copyState = new CopyState(allFiles, 1, 2, new byte[] {1}, Set.of(), 3, null);
+    NrtPointState pointState = new NrtPointState(copyState, allNrtFiles, "primaryId");
+    NrtDataManager.PointStateWithTimestamp pointStateWithTimestamp =
+        new NrtDataManager.PointStateWithTimestamp(pointState, Instant.now());
+
+    RemoteCopyJobManager skipManager =
+        new RemoteCopyJobManager(POLLING_INTERVAL, mockDataManager, mockReplicaNode, null, true);
+    when(mockDataManager.getTargetPointState(null)).thenReturn(pointStateWithTimestamp);
+
+    CopyJob copyJob = skipManager.newCopyJob("test", null, null, true, mockOnceDone);
+
+    assertNotNull(copyJob);
+    // Only non-raw-vector files should be in the copy job
+    Set<String> fileNames = copyJob.getFileNames();
+    assertFalse("Raw .vec file should be filtered out", fileNames.contains("_0.vec"));
+    assertFalse("Raw .vemf file should be filtered out", fileNames.contains("_0.vemf"));
+    assertTrue("Quantized .veq file should be present", fileNames.contains("_0.veq"));
+
+    skipManager.close();
+  }
+
   private NrtPointState createTestPointState() {
     long version = 1;
     long gen = 3;

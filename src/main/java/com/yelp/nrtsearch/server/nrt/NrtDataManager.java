@@ -103,6 +103,8 @@ public class NrtDataManager implements Closeable {
    * @param remoteCommit Whether to commit to the remote backend
    * @param s3RefreshUpload Whether to upload index data to S3 on every refresh
    */
+  private final boolean skipRawVectorData;
+
   public NrtDataManager(
       String serviceName,
       String indexIdentifier,
@@ -111,6 +113,26 @@ public class NrtDataManager implements Closeable {
       RestoreIndex restoreIndex,
       boolean remoteCommit,
       boolean s3RefreshUpload) {
+    this(
+        serviceName,
+        indexIdentifier,
+        ephemeralId,
+        remoteBackend,
+        restoreIndex,
+        remoteCommit,
+        s3RefreshUpload,
+        false);
+  }
+
+  public NrtDataManager(
+      String serviceName,
+      String indexIdentifier,
+      String ephemeralId,
+      RemoteBackend remoteBackend,
+      RestoreIndex restoreIndex,
+      boolean remoteCommit,
+      boolean s3RefreshUpload,
+      boolean skipRawVectorData) {
     if (s3RefreshUpload && !remoteCommit) {
       throw new IllegalArgumentException("s3RefreshUpload requires remoteCommit to be enabled");
     }
@@ -121,6 +143,7 @@ public class NrtDataManager implements Closeable {
     this.restoreIndex = restoreIndex;
     this.remoteCommit = remoteCommit;
     this.s3RefreshUpload = s3RefreshUpload;
+    this.skipRawVectorData = skipRawVectorData;
   }
 
   /**
@@ -257,8 +280,12 @@ public class NrtDataManager implements Closeable {
 
       long start = System.nanoTime();
       try {
+        Map<String, NrtFileMetaData> filesToDownload =
+            skipRawVectorData
+                ? VectorFileFilter.filterRawVectorFiles(pointState.files)
+                : pointState.files;
         remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
+            serviceName, indexIdentifier, shardDataDir, filesToDownload);
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;

@@ -18,7 +18,9 @@ package com.yelp.nrtsearch.server.field;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.yelp.nrtsearch.server.codec.RawVectorStubDirectory;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
@@ -45,8 +47,10 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.lucene104.Lucene104HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -201,6 +205,16 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                   tinySegmentsThreshold);
         };
 
+    NrtsearchConfig config = fieldDefCreatorContext.config();
+    boolean skipRawVectors =
+        config != null
+            && config.getSkipRawVectorData()
+            && vectorSearchType == VectorSearchType.HNSW_SCALAR_QUANTIZED;
+    Lucene99FlatVectorsFormat flatVectorsFormat =
+        skipRawVectors
+            ? new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+            : null;
+
     return new KnnVectorsFormat(vectorsFormat.getName()) {
       @Override
       public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
@@ -209,6 +223,16 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
       @Override
       public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        if (skipRawVectors) {
+          SegmentReadState wrappedState =
+              new SegmentReadState(
+                  new RawVectorStubDirectory(state.directory, state, flatVectorsFormat),
+                  state.segmentInfo,
+                  state.fieldInfos,
+                  state.context,
+                  state.segmentSuffix);
+          return vectorsFormat.fieldsReader(wrappedState);
+        }
         return vectorsFormat.fieldsReader(state);
       }
 

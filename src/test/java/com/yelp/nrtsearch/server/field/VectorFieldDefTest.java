@@ -23,11 +23,14 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.common.primitives.Floats;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -2913,5 +2916,67 @@ public class VectorFieldDefTest extends ServerTestCase {
       assertTrue(
           "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
     }
+  }
+
+  @Test
+  public void testSkipRawVectorData_quantizedFieldFormatUnchanged() {
+    // When skipRawVectorData=true, the format's toString() (which reflects write config) is
+    // unchanged. Only the fieldsReader() path is different — it wraps the directory with a
+    // RawVectorStubDirectory to synthesise empty stubs for absent .vec/.vemf files.
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder().setType("hnsw_scalar_quantized").build())
+            .build();
+
+    NrtsearchConfig configWithSkip = mock(NrtsearchConfig.class);
+    when(configWithSkip.getSkipRawVectorData()).thenReturn(true);
+    FieldDefCreator.FieldDefCreatorContext contextWithSkip =
+        new FieldDefCreator.FieldDefCreatorContext(configWithSkip, mock(ExecutorFactory.class));
+
+    NrtsearchConfig configNoSkip = mock(NrtsearchConfig.class);
+    when(configNoSkip.getSkipRawVectorData()).thenReturn(false);
+    FieldDefCreator.FieldDefCreatorContext contextNoSkip =
+        new FieldDefCreator.FieldDefCreatorContext(configNoSkip, mock(ExecutorFactory.class));
+
+    VectorFieldDef<?> fieldWithSkip = VectorFieldDef.createField("vector", field, contextWithSkip);
+    VectorFieldDef<?> fieldNoSkip = VectorFieldDef.createField("vector", field, contextNoSkip);
+
+    // Both have the same format spec (write path is identical)
+    assertEquals(
+        "Format toString should be the same regardless of skipRawVectorData",
+        fieldNoSkip.getVectorsFormat().toString(),
+        fieldWithSkip.getVectorsFormat().toString());
+  }
+
+  @Test
+  public void testSkipRawVectorData_nonQuantizedFieldUnaffected() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(VectorIndexingOptions.newBuilder().setType("hnsw").build())
+            .build();
+
+    NrtsearchConfig config = mock(NrtsearchConfig.class);
+    when(config.getSkipRawVectorData()).thenReturn(true);
+    FieldDefCreator.FieldDefCreatorContext context =
+        new FieldDefCreator.FieldDefCreatorContext(config, mock(ExecutorFactory.class));
+
+    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field, context);
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertNotNull(format);
+    // Plain HNSW format is unchanged
+    assertEquals(
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, tinySegmentsThreshold=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        format.toString());
   }
 }

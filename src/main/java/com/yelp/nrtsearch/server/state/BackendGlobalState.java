@@ -455,7 +455,8 @@ public class BackendGlobalState extends GlobalState {
                 .equals(IndexDataLocationType.REMOTE),
             getConfiguration().getS3RefreshUpload(),
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
-            getConfiguration().getRequireIdField());
+            getConfiguration().getRequireIdField(),
+            getConfiguration().getSkipRawVectorData());
     try {
       return startIndexHandler.process(indexStateManager.getCurrent(), startIndexRequest);
     } catch (StartIndexProcessorException e) {

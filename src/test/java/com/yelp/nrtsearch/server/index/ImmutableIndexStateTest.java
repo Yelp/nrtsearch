@@ -73,6 +73,7 @@ import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -754,6 +755,82 @@ public class ImmutableIndexStateTest {
   public void testDeletePctAllowed_invalid() throws IOException {
     String expectedMsg = "deletePctAllowed must be between 5.0 and 50.0";
     assertLiveSettingException(expectedMsg, b -> b.setDeletePctAllowed(wrap(1.0)));
+  }
+
+  @Test
+  public void testNoCFSRatio_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_NO_CFS_RATIO,
+        getIndexState(getEmptyState()).getNoCFSRatio(),
+        0.0);
+  }
+
+  @Test
+  public void testNoCFSRatio_setZero() throws IOException {
+    verifyDoubleLiveSetting(
+        0.0,
+        ImmutableIndexState::getNoCFSRatio,
+        b -> b.setNoCFSRatio(DoubleValue.newBuilder().setValue(0.0).build()));
+  }
+
+  @Test
+  public void testNoCFSRatio_setOne() throws IOException {
+    verifyDoubleLiveSetting(
+        1.0,
+        ImmutableIndexState::getNoCFSRatio,
+        b -> b.setNoCFSRatio(DoubleValue.newBuilder().setValue(1.0).build()));
+  }
+
+  @Test
+  public void testNoCFSRatio_setMidpoint() throws IOException {
+    verifyDoubleLiveSetting(
+        0.5,
+        ImmutableIndexState::getNoCFSRatio,
+        b -> b.setNoCFSRatio(DoubleValue.newBuilder().setValue(0.5).build()));
+  }
+
+  @Test
+  public void testNoCFSRatio_invalid_negative() throws IOException {
+    assertLiveSettingException(
+        "noCFSRatio must be between 0.0 and 1.0",
+        b -> b.setNoCFSRatio(DoubleValue.newBuilder().setValue(-0.1).build()));
+  }
+
+  @Test
+  public void testNoCFSRatio_invalid_greaterThanOne() throws IOException {
+    assertLiveSettingException(
+        "noCFSRatio must be between 0.0 and 1.0",
+        b -> b.setNoCFSRatio(DoubleValue.newBuilder().setValue(1.1).build()));
+  }
+
+  @Test
+  public void testNoCFSRatio_zeroDisablesCompoundFileInWriterConfig() throws IOException {
+    ImmutableIndexState indexState =
+        getIndexState(
+            getStateWithLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setNoCFSRatio(DoubleValue.newBuilder().setValue(0.0).build())
+                    .build()));
+    Directory mockDirectory = mock(Directory.class);
+    when(mockDirectory.listAll()).thenReturn(new String[0]);
+    IndexWriterConfig writerConfig =
+        indexState.getIndexWriterConfig(OpenMode.CREATE_OR_APPEND, mockDirectory, 0);
+    assertFalse(
+        "useCompoundFile should be false when noCFSRatio=0.0", writerConfig.getUseCompoundFile());
+    TieredMergePolicy mergePolicy = (TieredMergePolicy) writerConfig.getMergePolicy();
+    assertEquals(0.0, mergePolicy.getNoCFSRatio(), 0.0);
+  }
+
+  @Test
+  public void testNoCFSRatio_defaultUsesLuceneDefault() throws IOException {
+    ImmutableIndexState indexState = getIndexState(getEmptyState());
+    Directory mockDirectory = mock(Directory.class);
+    when(mockDirectory.listAll()).thenReturn(new String[0]);
+    IndexWriterConfig writerConfig =
+        indexState.getIndexWriterConfig(OpenMode.CREATE_OR_APPEND, mockDirectory, 0);
+    assertTrue("useCompoundFile should be true by default", writerConfig.getUseCompoundFile());
+    TieredMergePolicy mergePolicy = (TieredMergePolicy) writerConfig.getMergePolicy();
+    assertEquals(ImmutableIndexState.DEFAULT_NO_CFS_RATIO, mergePolicy.getNoCFSRatio(), 0.0);
   }
 
   @Test

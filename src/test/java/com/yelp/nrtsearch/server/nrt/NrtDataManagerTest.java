@@ -1638,4 +1638,115 @@ public class NrtDataManagerTest {
     assertEquals(
         timestamp1, nrtDataManager.getLastPointTimestamp()); // Should still be the first timestamp
   }
+
+  @Test
+  public void testRestoreIfNeeded_skipRawVectorData_filtersVecAndVemf() throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 0);
+    NrtFileMetaData nrtVecFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t1");
+    NrtFileMetaData nrtVemfFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t2");
+    NrtFileMetaData nrtVeqFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t3");
+    NrtFileMetaData nrtSiFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t4");
+    Map<String, NrtFileMetaData> allFiles =
+        Map.of(
+            "_0.vec", nrtVecFile,
+            "_0.vemf", nrtVemfFile,
+            "_0.veq", nrtVeqFile,
+            "_0.si", nrtSiFile);
+
+    FileMetaData vecMetaData = fileMetaData;
+    CopyState copyState =
+        new CopyState(
+            Map.of("_0.vec", vecMetaData, "_0.veq", vecMetaData, "_0.si", vecMetaData),
+            5,
+            6,
+            new byte[] {1, 2, 3},
+            Set.of(),
+            7,
+            null);
+    NrtPointState nrtPointState = new NrtPointState(copyState, allFiles, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), Instant.now()));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder()
+            .setServiceName(SERVICE_NAME)
+            .setResourceName(INDEX_NAME)
+            .setDeleteExistingData(false)
+            .build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME,
+            INDEX_NAME,
+            PRIMARY_ID,
+            mockRemoteBackend,
+            restoreIndex,
+            true,
+            false,
+            true);
+    nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
+
+    // Only non-raw-vector files should be downloaded
+    Map<String, NrtFileMetaData> expectedFiles = Map.of("_0.veq", nrtVeqFile, "_0.si", nrtSiFile);
+    verify(mockRemoteBackend, times(1))
+        .downloadIndexFiles(SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), expectedFiles);
+  }
+
+  @Test
+  public void testRestoreIfNeeded_skipRawVectorDataFalse_downloadsAllFiles() throws IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            SERVICE_NAME, INDEX_NAME, RemoteBackend.IndexResourceType.POINT_STATE))
+        .thenReturn(true);
+
+    FileMetaData fileMetaData = new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 0);
+    NrtFileMetaData nrtVecFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t1");
+    NrtFileMetaData nrtVeqFile = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "t2");
+    Map<String, NrtFileMetaData> allFiles = Map.of("_0.vec", nrtVecFile, "_0.veq", nrtVeqFile);
+
+    CopyState copyState =
+        new CopyState(
+            Map.of("_0.vec", fileMetaData, "_0.veq", fileMetaData),
+            5,
+            6,
+            new byte[] {1, 2, 3},
+            Set.of(),
+            7,
+            null);
+    NrtPointState nrtPointState = new NrtPointState(copyState, allFiles, PRIMARY_ID);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME, null))
+        .thenReturn(
+            new RemoteBackend.InputStreamWithTimestamp(
+                new ByteArrayInputStream(pointStateBytes), Instant.now()));
+
+    RestoreIndex restoreIndex =
+        RestoreIndex.newBuilder()
+            .setServiceName(SERVICE_NAME)
+            .setResourceName(INDEX_NAME)
+            .setDeleteExistingData(false)
+            .build();
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME,
+            INDEX_NAME,
+            PRIMARY_ID,
+            mockRemoteBackend,
+            restoreIndex,
+            true,
+            false,
+            false);
+    nrtDataManager.restoreIfNeeded(folder.getRoot().toPath());
+
+    // All files should be downloaded (no filtering)
+    verify(mockRemoteBackend, times(1))
+        .downloadIndexFiles(SERVICE_NAME, INDEX_NAME, folder.getRoot().toPath(), allFiles);
+  }
 }

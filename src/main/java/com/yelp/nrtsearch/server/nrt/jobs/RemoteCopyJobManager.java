@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.VectorFileFilter;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
 import java.time.Instant;
@@ -45,16 +46,27 @@ public class RemoteCopyJobManager implements CopyJobManager {
   private final NRTReplicaNode replicaNode;
   private final Thread updateThread;
   private final UpdateTask updateTask;
+  private final boolean skipRawVectorData;
 
   public RemoteCopyJobManager(
       int pollingIntervalSecond,
       NrtDataManager dataManager,
       NRTReplicaNode replicaNode,
       IsolatedReplicaConfig isolatedReplicaConfig) {
+    this(pollingIntervalSecond, dataManager, replicaNode, isolatedReplicaConfig, false);
+  }
+
+  public RemoteCopyJobManager(
+      int pollingIntervalSecond,
+      NrtDataManager dataManager,
+      NRTReplicaNode replicaNode,
+      IsolatedReplicaConfig isolatedReplicaConfig,
+      boolean skipRawVectorData) {
     this.pollingIntervalSecond = pollingIntervalSecond;
     this.isolatedReplicaConfig = isolatedReplicaConfig;
     this.dataManager = dataManager;
     this.replicaNode = replicaNode;
+    this.skipRawVectorData = skipRawVectorData;
     logger.info(
         "Starting RemoteCopyJobManager with polling interval of {}s", pollingIntervalSecond);
     updateTask = new UpdateTask();
@@ -83,6 +95,10 @@ public class RemoteCopyJobManager implements CopyJobManager {
         dataManager.getTargetPointState(isolatedReplicaConfig);
 
     CopyState copyState = targetPointStateWithTimestamp.pointState().toCopyState();
+    Map<String, FileMetaData> filesToCopy =
+        skipRawVectorData
+            ? VectorFileFilter.filterRawVectorFiles(copyState.files())
+            : copyState.files();
     return new RemoteCopyJob(
         reason,
         targetPointStateWithTimestamp.pointState(),
@@ -90,7 +106,7 @@ public class RemoteCopyJobManager implements CopyJobManager {
         copyState,
         dataManager,
         replicaNode,
-        copyState.files(),
+        filesToCopy,
         highPriority,
         onceDone);
   }

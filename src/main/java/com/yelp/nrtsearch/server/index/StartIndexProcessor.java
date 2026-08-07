@@ -37,6 +37,7 @@ public class StartIndexProcessor {
   private static final Set<String> startingIndices = new HashSet<>();
 
   private final String serviceName;
+  private final boolean skipRawVectorData;
   private final String ephemeralId;
   private final RemoteBackend remoteBackend;
   private final IndexStateManager indexStateManager;
@@ -67,6 +68,28 @@ public class StartIndexProcessor {
       boolean s3RefreshUpload,
       int discoveryFileUpdateIntervalMs,
       boolean requireIdField) {
+    this(
+        serviceName,
+        ephemeralId,
+        remoteBackend,
+        indexStateManager,
+        remoteCommit,
+        s3RefreshUpload,
+        discoveryFileUpdateIntervalMs,
+        requireIdField,
+        false);
+  }
+
+  public StartIndexProcessor(
+      String serviceName,
+      String ephemeralId,
+      RemoteBackend remoteBackend,
+      IndexStateManager indexStateManager,
+      boolean remoteCommit,
+      boolean s3RefreshUpload,
+      int discoveryFileUpdateIntervalMs,
+      boolean requireIdField,
+      boolean skipRawVectorData) {
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.remoteBackend = remoteBackend;
@@ -75,6 +98,7 @@ public class StartIndexProcessor {
     this.s3RefreshUpload = s3RefreshUpload;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
     this.requireIdField = requireIdField;
+    this.skipRawVectorData = skipRawVectorData;
   }
 
   public StartIndexResponse process(IndexState indexState, StartIndexRequest startIndexRequest)
@@ -127,7 +151,8 @@ public class StartIndexProcessor {
             remoteBackend,
             restoreIndex,
             remoteCommit,
-            s3RefreshUpload);
+            s3RefreshUpload,
+            skipRawVectorData);
     if (mode.equals(Mode.PRIMARY)) {
       primaryGen = startIndexRequest.getPrimaryGen();
       primaryClient = null;
