@@ -1,7 +1,10 @@
 Geo-Bounding Box Query
 ==========================
 
-A query that matches documents with a geopoint within the geo box defined by topLeft and bottomRight latitude-longitude coordinates.
+A query that matches documents within the geo box defined by topLeft and bottomRight latitude-longitude coordinates. The behavior depends on the field type:
+
+- **LAT_LON**: matches documents whose indexed *point* falls within the box.
+- **POLYGON**: matches documents whose indexed *polygon* intersects the box.
 
 Proto definition:
 
@@ -12,3 +15,5 @@ Proto definition:
        google.type.LatLng topLeft = 2; // top left corner of the geo box
        google.type.LatLng bottomRight = 3; // bottom right corner of the geo box
    }
+
+Supported field types: ``LAT_LON``, ``POLYGON``
