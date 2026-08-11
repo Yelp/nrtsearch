@@ -1088,14 +1088,46 @@ public class S3Backend implements RemoteBackend {
                     (result, t) -> {
                       if (t != null) {
                         limiter.onError();
+                        logger.warn(
+                            "Failed to download file: {}, error: {}",
+                            pair.fileName(),
+                            t.getMessage());
                         failures.add(new FailedDownload(pair, t));
                       } else {
-                        limiter.onSuccess();
+                        try {
+                          long actualSize = Files.size(localFile);
+                          if (actualSize != pair.length()) {
+                            limiter.onError();
+                            IOException sizeError =
+                                new IOException(
+                                    "Downloaded file size mismatch for "
+                                        + pair.fileName()
+                                        + ": expected "
+                                        + pair.length()
+                                        + " bytes, got "
+                                        + actualSize);
+                            logger.warn(
+                                "Failed to download file: {}, error: {}",
+                                pair.fileName(),
+                                sizeError.getMessage());
+                            failures.add(new FailedDownload(pair, sizeError));
+                          } else {
+                            limiter.onSuccess();
+                          }
+                        } catch (IOException e) {
+                          limiter.onError();
+                          logger.warn(
+                              "Failed to download file: {}, error: {}",
+                              pair.fileName(),
+                              e.getMessage());
+                          failures.add(new FailedDownload(pair, e));
+                        }
                       }
                     });
         futures.add(future);
       } catch (Throwable t) {
         limiter.onError();
+        logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
         failures.add(new FailedDownload(pair, t));
       }
     }

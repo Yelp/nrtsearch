@@ -1002,9 +1002,9 @@ public class S3BackendTest {
     File indexDir = folder.newFolder("index_dir");
 
     NrtFileMetaData fileMetaData1 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+        new NrtFileMetaData(new byte[0], new byte[0], 10, 0, "pid1", "time_string_1");
     NrtFileMetaData fileMetaData2 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+        new NrtFileMetaData(new byte[0], new byte[0], 10, 0, "pid2", "time_string_2");
 
     String keyPrefix = S3Backend.getIndexDataPrefix("download_index_service", "download_index");
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
@@ -1034,9 +1034,9 @@ public class S3BackendTest {
     File indexDir = folder.newFolder("index_dir");
 
     NrtFileMetaData fileMetaData1 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+        new NrtFileMetaData(new byte[0], new byte[0], 10, 0, "pid1", "time_string_1");
     NrtFileMetaData fileMetaData2 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+        new NrtFileMetaData(new byte[0], new byte[0], 10, 0, "pid2", "time_string_2");
     NrtFileMetaData fileMetaDataNotExist =
         new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "time_string_3");
 
@@ -1074,11 +1074,11 @@ public class S3BackendTest {
   public void testDownloadIndexFiles_batched() throws IOException {
     File indexDir = folder.newFolder("index_dir_batched");
 
-    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts1");
-    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts2");
-    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "ts3");
-    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid4", "ts4");
-    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid5", "ts5");
+    NrtFileMetaData meta1 = new NrtFileMetaData(new byte[0], new byte[0], 5, 0, "pid1", "ts1");
+    NrtFileMetaData meta2 = new NrtFileMetaData(new byte[0], new byte[0], 5, 0, "pid2", "ts2");
+    NrtFileMetaData meta3 = new NrtFileMetaData(new byte[0], new byte[0], 5, 0, "pid3", "ts3");
+    NrtFileMetaData meta4 = new NrtFileMetaData(new byte[0], new byte[0], 5, 0, "pid4", "ts4");
+    NrtFileMetaData meta5 = new NrtFileMetaData(new byte[0], new byte[0], 5, 0, "pid5", "ts5");
 
     String keyPrefix = S3Backend.getIndexDataPrefix("batch_service", "batch_index");
     s3.putObject(
@@ -1657,9 +1657,9 @@ public class S3BackendTest {
     File indexDir = folder.newFolder("index_dir_retry_success");
 
     NrtFileMetaData fileMetaData1 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "ts_retry1");
+        new NrtFileMetaData(new byte[0], new byte[0], 11, 0, "pid1", "ts_retry1");
     NrtFileMetaData fileMetaData2 =
-        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "ts_retry2");
+        new NrtFileMetaData(new byte[0], new byte[0], 11, 0, "pid2", "ts_retry2");
 
     String keyPrefix = S3Backend.getIndexDataPrefix("retry_service", "retry_index");
     String filename1 = S3Backend.getIndexBackendFileName("rf1", fileMetaData1);
@@ -1753,6 +1753,45 @@ public class S3BackendTest {
           "Expected error about downloading index files",
           e.getMessage().contains("Error while downloading index files from s3"));
     }
+  }
+
+  @Test
+  public void testDownloadIndexFiles_sizeMismatchDetectedAndRetried() throws IOException {
+    // Verify that a file downloaded successfully by the SDK but with a size mismatch is treated
+    // as a failure and retried. We upload a file that has fewer bytes than the expected length
+    // declared in NrtFileMetaData, so the first attempt "succeeds" but the size check fails.
+    // On the second attempt the correct-size file is uploaded, so the retry succeeds.
+    File indexDir = folder.newFolder("index_dir_size_mismatch");
+
+    // Expected length is 9 bytes ("file_data" length), but we first upload only 4 bytes.
+    NrtFileMetaData fileMetaData =
+        new NrtFileMetaData(new byte[0], new byte[0], 9, 0, "pid_sm", "ts_sm");
+
+    String keyPrefix = S3Backend.getIndexDataPrefix("sm_service", "sm_index");
+    String backendFileName = S3Backend.getIndexBackendFileName("sm_file", fileMetaData);
+
+    // Upload a truncated version first — SDK will complete normally but file size won't match.
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + backendFileName).build(),
+        RequestBody.fromString("shor"));
+
+    S3Backend retryBackend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 2, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
+
+    // Replace the S3 object with the correct-size content before the retry fires.
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(keyPrefix + backendFileName).build(),
+        RequestBody.fromString("file_data"));
+
+    retryBackend.downloadIndexFiles(
+        "sm_service", "sm_index", indexDir.toPath(), Map.of("sm_file", fileMetaData));
+
+    assertEquals(
+        "file_data", convertToString(Files.newInputStream(indexDir.toPath().resolve("sm_file"))));
   }
 
   @Test
