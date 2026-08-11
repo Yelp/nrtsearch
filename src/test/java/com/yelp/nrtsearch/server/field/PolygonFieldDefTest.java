@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 import com.google.gson.Gson;
@@ -29,6 +30,7 @@ import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Polygon;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.*;
@@ -39,6 +41,8 @@ import org.junit.Test;
 public class PolygonFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  private static final Gson GSON = new Gson();
 
   private PolygonfieldDef createFieldDef(Field field) {
     return new PolygonfieldDef(
@@ -55,7 +59,6 @@ public class PolygonFieldDefTest extends ServerTestCase {
 
   protected void initIndex(String name) throws Exception {
     List<AddDocumentRequest> docs = new ArrayList<>();
-    Gson gson = new Gson();
 
     // Doc "1": polygon at lat 0-1, lon 100-101 (with a hole), used by existing tests
     Map<String, Object> doc1 = new HashMap<>();
@@ -77,9 +80,9 @@ public class PolygonFieldDefTest extends ServerTestCase {
         AddDocumentRequest.newBuilder()
             .setIndexName(name)
             .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-            .putFields("polygon", MultiValuedField.newBuilder().addValue(gson.toJson(doc1)).build())
+            .putFields("polygon", MultiValuedField.newBuilder().addValue(GSON.toJson(doc1)).build())
             .putFields(
-                "single_stored", MultiValuedField.newBuilder().addValue(gson.toJson(doc1)).build())
+                "single_stored", MultiValuedField.newBuilder().addValue(GSON.toJson(doc1)).build())
             .build());
 
     // Doc "2": polygon at lat 40-41, lon -75 to -74 (roughly New Jersey), used by geo query tests
@@ -99,24 +102,15 @@ public class PolygonFieldDefTest extends ServerTestCase {
                     .setTopHits(3)
                     .addRetrieveFields("single_stored")
                     .addRetrieveFields("single_none_stored")
-                    .setQuery(Query.newBuilder().build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder().setField("doc_id").setTextValue("1").build())
+                            .build())
                     .build());
-    assertEquals(2, response.getHitsCount());
+    assertEquals(1, response.getHitsCount());
 
-    // Find the hit for doc "1" which has the stored polygon
-    SearchResponse.Hit doc1Hit =
-        response.getHitsList().stream()
-            .filter(
-                h ->
-                    h.getFieldsOrThrow("single_stored").getFieldValueCount() > 0
-                        && h.getFieldsOrThrow("single_stored")
-                            .getFieldValue(0)
-                            .getStructValue()
-                            .getFieldsOrThrow("type")
-                            .getStringValue()
-                            .equals("Polygon"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No hit with single_stored polygon found"));
+    SearchResponse.Hit doc1Hit = response.getHits(0);
 
     Struct expectedStruct =
         Struct.newBuilder()
@@ -368,7 +362,7 @@ public class PolygonFieldDefTest extends ServerTestCase {
     ring.add(List.of(lon1, lat2));
     ring.add(List.of(lon1, lat1));
     doc.put("coordinates", List.of(ring));
-    return new Gson().toJson(doc);
+    return GSON.toJson(doc);
   }
 
   private AddDocumentRequest buildPolygonDoc(String name, String id, String polygonJson) {
@@ -454,8 +448,8 @@ public class PolygonFieldDefTest extends ServerTestCase {
   @Test
   public void testGeoPolygonQueryOnPolygon() {
     // Query polygon that intersects doc "1"
-    com.yelp.nrtsearch.server.grpc.Polygon queryPolygon =
-        com.yelp.nrtsearch.server.grpc.Polygon.newBuilder()
+    Polygon queryPolygon =
+        Polygon.newBuilder()
             .addPoints(LatLng.newBuilder().setLatitude(2.0).setLongitude(99.0).build())
             .addPoints(LatLng.newBuilder().setLatitude(2.0).setLongitude(102.0).build())
             .addPoints(LatLng.newBuilder().setLatitude(-1.0).setLongitude(102.0).build())
@@ -480,7 +474,7 @@ public class PolygonFieldDefTest extends ServerTestCase {
             .build();
     try {
       doQuery(Query.newBuilder().setGeoRadiusQuery(query).build(), "doc_id");
-      org.junit.Assert.fail("Expected exception");
+      fail("Expected exception");
     } catch (io.grpc.StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("does not support GeoRadiusQuery"));
     }
