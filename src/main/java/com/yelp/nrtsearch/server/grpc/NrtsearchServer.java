@@ -116,6 +116,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
+import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.protobuf.services.ProtoReflectionServiceV1;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
@@ -158,6 +159,7 @@ public class NrtsearchServer {
   }
 
   @VisibleForTesting
+  @SuppressWarnings("deprecation")
   public void start() throws IOException {
     long startNs = System.nanoTime();
     List<Plugin> plugins = pluginsService.loadPlugins();
@@ -217,6 +219,7 @@ public class NrtsearchServer {
                 ServerInterceptors.intercept(
                     serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
             .addService(ProtoReflectionServiceV1.newInstance())
+            .addService(ProtoReflectionService.newInstance())
             // Set executor supplier to use different thread pool for metrics method
             .callExecutor(executorSupplier)
             // We still need this executor to run tasks before the point when executorSupplier can
