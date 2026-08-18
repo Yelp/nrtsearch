@@ -18,13 +18,10 @@ package com.yelp.nrtsearch.server.nrt.jobs;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
-import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.CopyJob;
-import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,23 +65,11 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
     if (files != null) {
       return newMergePreCopyJob(reason, files, highPriority, onceDone);
     }
-
-    NrtDataManager.PointStateWithTimestamp targetPointStateWithTimestamp =
-        dataManager.getTargetPointState(null);
-    NrtPointState pointState = targetPointStateWithTimestamp.pointState();
-    if (pointState == null) {
-      throw new IOException("No point state available from S3");
-    }
-
-    CopyState copyState = pointState.toCopyState();
-    return new RemoteCopyJob(
+    return RemoteCopyJob.forNrtPoint(
         reason,
-        pointState,
-        targetPointStateWithTimestamp.timestamp(),
-        copyState,
+        dataManager.getTargetPointState(null),
         dataManager,
         replicaNode,
-        copyState.files(),
         highPriority,
         onceDone);
   }
@@ -124,19 +109,7 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
 
   @Override
   public void finishNRTCopy(CopyJob copyJob) throws IOException {
-    if (copyJob.getFailed()) {
-      return;
-    }
-    if (copyJob instanceof RemoteCopyJob remoteCopyJob) {
-      NrtPointState pointState = remoteCopyJob.getPointState();
-      Instant pointStateTimestamp = remoteCopyJob.getPointStateTimestamp();
-      dataManager.setLastPointState(pointState, pointStateTimestamp);
-    } else {
-      throw new IllegalArgumentException(
-          String.format(
-              "Expected copyJob to be instance of RemoteCopyJob, got %s",
-              copyJob.getClass().getName()));
-    }
+    RemoteCopyJob.commitPointState(copyJob, dataManager);
   }
 
   @Override

@@ -210,7 +210,7 @@ public class NRTReplicaNode extends ReplicaNode {
     }
   }
 
-  public CopyJob launchPreCopyFiles(
+  public synchronized CopyJob launchPreCopyFiles(
       AtomicBoolean finished,
       long curPrimaryGen,
       Map<String, FileMetaData> files,
@@ -218,7 +218,11 @@ public class NRTReplicaNode extends ReplicaNode {
       String timeString)
       throws IOException {
     copyJobManager.setMergePreCopyMetadata(primaryId, timeString);
-    return launchPreCopyMerge(finished, curPrimaryGen, files);
+    try {
+      return launchPreCopyMerge(finished, curPrimaryGen, files);
+    } finally {
+      copyJobManager.setMergePreCopyMetadata(null, null);
+    }
   }
 
   @Override

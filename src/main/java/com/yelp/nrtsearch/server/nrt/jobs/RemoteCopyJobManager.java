@@ -20,10 +20,8 @@ import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.CopyJob;
-import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,39 +76,18 @@ public class RemoteCopyJobManager implements CopyJobManager {
     if (files != null) {
       throw new IllegalArgumentException("RemoteCopyJobManager does not support merge precopy");
     }
-
-    NrtDataManager.PointStateWithTimestamp targetPointStateWithTimestamp =
-        dataManager.getTargetPointState(isolatedReplicaConfig);
-
-    CopyState copyState = targetPointStateWithTimestamp.pointState().toCopyState();
-    return new RemoteCopyJob(
+    return RemoteCopyJob.forNrtPoint(
         reason,
-        targetPointStateWithTimestamp.pointState(),
-        targetPointStateWithTimestamp.timestamp(),
-        copyState,
+        dataManager.getTargetPointState(isolatedReplicaConfig),
         dataManager,
         replicaNode,
-        copyState.files(),
         highPriority,
         onceDone);
   }
 
   @Override
   public void finishNRTCopy(CopyJob copyJob) throws IOException {
-    // If the copy job failed, we do not update the last known point state
-    if (copyJob.getFailed()) {
-      return;
-    }
-    if (copyJob instanceof RemoteCopyJob remoteCopyJob) {
-      NrtPointState pointState = remoteCopyJob.getPointState();
-      Instant pointStateTimestamp = remoteCopyJob.getPointStateTimestamp();
-      dataManager.setLastPointState(pointState, pointStateTimestamp);
-    } else {
-      throw new IllegalArgumentException(
-          String.format(
-              "Expected copyJob to be instance of RemoteCopyJob, got %s",
-              copyJob.getClass().getName()));
-    }
+    RemoteCopyJob.commitPointState(copyJob, dataManager);
   }
 
   @Override

@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.nrt;
 import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
@@ -40,7 +42,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -69,9 +70,10 @@ public class NrtDataManager implements Closeable {
   private final boolean s3RefreshUpload;
 
   // Files uploaded during merge precopy, keyed by file name. Consumed by uploadDiff to avoid
-  // re-uploading.
-  private final ConcurrentHashMap<String, NrtFileMetaData> mergePreCopyUploadedFiles =
-      new ConcurrentHashMap<>();
+  // re-uploading. Size-bounded to handle cases where merged segments are re-merged before
+  // appearing in a refresh (stale entries evicted by LRU).
+  private final Cache<String, NrtFileMetaData> mergePreCopyUploadedFiles =
+      CacheBuilder.newBuilder().maximumSize(1000).build();
 
   // Set during startUploadManager
   private NRTPrimaryNode primaryNode;
@@ -380,7 +382,7 @@ public class NrtDataManager implements Closeable {
     }
     logger.info("Uploading merged segment files: {}", filesToUpload.keySet());
     remoteBackend.uploadIndexFiles(serviceName, indexIdentifier, shardDataDir, filesToUpload);
-    mergePreCopyUploadedFiles.putAll(filesToUpload);
+    filesToUpload.forEach(mergePreCopyUploadedFiles::put);
     return timeString;
   }
 
@@ -579,8 +581,9 @@ public class NrtDataManager implements Closeable {
         if (lastFileMetaData != null && isSameFile(fileMetaData, lastFileMetaData)) {
           currentPointFiles.put(fileName, lastFileMetaData);
         } else {
-          NrtFileMetaData mergeUploaded = mergePreCopyUploadedFiles.remove(fileName);
+          NrtFileMetaData mergeUploaded = mergePreCopyUploadedFiles.getIfPresent(fileName);
           if (mergeUploaded != null && isSameFile(fileMetaData, mergeUploaded)) {
+            mergePreCopyUploadedFiles.invalidate(fileName);
             currentPointFiles.put(fileName, mergeUploaded);
           } else {
             String timeString = TimeStringUtils.generateTimeStringSec();
