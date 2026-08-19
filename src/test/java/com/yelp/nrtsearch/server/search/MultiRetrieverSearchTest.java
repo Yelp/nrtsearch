@@ -48,6 +48,7 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
+import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.grpc.WeightedScoreOrderBlender;
 import io.grpc.StatusRuntimeException;
@@ -92,6 +93,8 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                       .build())
               .putFields(
                   "category", MultiValuedField.newBuilder().addValue(i <= 5 ? "a" : "b").build())
+              .putFields(
+                  "int_field", MultiValuedField.newBuilder().addValue(String.valueOf(i)).build())
               .build());
     }
     addDocuments(docs.stream());
@@ -780,5 +783,173 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     }
     for (int i = 0; i < 5; i++) assertTrue(hits.get(i).getScore() > RRF_RANK1_K60);
     for (int i = 5; i < 10; i++) assertTrue(hits.get(i).getScore() <= RRF_RANK1_K60);
+  }
+
+  @Test
+  public void testSortedFieldsRetriever() {
+    Retriever sortedTextRetriever =
+        Retriever.newBuilder()
+            .setName("sorted_text")
+            .setTextRetriever(
+                TextRetriever.newBuilder()
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMatchQuery(
+                                MatchQuery.newBuilder()
+                                    .setField("text_field")
+                                    .setQuery("test")
+                                    .build())
+                            .build())
+                    .setTopHits(5)
+                    .build())
+            .setSortedFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("doc_id").build())
+                    .build())
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .addRetrieveFields("doc_id")
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(sortedTextRetriever)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedRrf(
+                                        WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                                    .build())
+                            .build())
+                    .build());
+
+    // top-5 by doc_id lexicographic ascending: "1","10","2","3","4"
+    assertEquals(5, response.getHitsCount());
+    List<String> hitDocIds = new ArrayList<>();
+    for (Hit hit : response.getHitsList()) {
+      hitDocIds.add(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
+    }
+    assertEquals(List.of("1", "10", "2", "3", "4"), hitDocIds);
+    // sortedFields should NOT be populated on the response (sort is retrieval-only)
+    for (Hit hit : response.getHitsList()) {
+      assertTrue(hit.getSortedFieldsMap().isEmpty());
+    }
+  }
+
+  @Test
+  public void testSortedFieldsRetrieverWithVirtualField() {
+    // Virtual field: (int_field * 7) % 11 produces a pseudo-random permutation:
+    // int_field: 1→7, 2→3, 3→10, 4→6, 5→2, 6→9, 7→5, 8→1, 9→8, 10→4
+    // Ascending sort top-5: doc8(1), doc5(2), doc2(3), doc10(4), doc7(5)
+    Retriever sortedRetriever =
+        Retriever.newBuilder()
+            .setName("sorted_text")
+            .setTextRetriever(
+                TextRetriever.newBuilder()
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMatchQuery(
+                                MatchQuery.newBuilder()
+                                    .setField("text_field")
+                                    .setQuery("test")
+                                    .build())
+                            .build())
+                    .setTopHits(5)
+                    .build())
+            .setSortedFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("virtual_sort").build())
+                    .build())
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .addRetrieveFields("doc_id")
+                    .addVirtualFields(
+                        VirtualField.newBuilder()
+                            .setName("virtual_sort")
+                            .setScript(
+                                Script.newBuilder()
+                                    .setLang("js")
+                                    .setSource("(int_field * 7) % 11")
+                                    .build())
+                            .build())
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(sortedRetriever)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedRrf(
+                                        WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(5, response.getHitsCount());
+    List<String> hitDocIds = new ArrayList<>();
+    for (Hit hit : response.getHitsList()) {
+      hitDocIds.add(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
+    }
+    assertEquals(List.of("8", "5", "2", "10", "7"), hitDocIds);
+  }
+
+  @Test
+  public void testSortedFieldsRetrieverWithTieBreaker() {
+    // Primary sort: category ascending ("a" < "b")
+    // Tie-breaker: int_field descending (reverse=true)
+    // category "a" docs: int_field 1,2,3,4,5 → descending: 5,4,3,2,1
+    // category "b" docs: int_field 6,7,8,9,10 → descending: 10,9,8,7,6
+    // Top-5: doc5, doc4, doc3, doc2, doc1 (all in category "a", sorted by int_field desc)
+    Retriever sortedRetriever =
+        Retriever.newBuilder()
+            .setName("sorted_text")
+            .setTextRetriever(
+                TextRetriever.newBuilder()
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMatchQuery(
+                                MatchQuery.newBuilder()
+                                    .setField("text_field")
+                                    .setQuery("test")
+                                    .build())
+                            .build())
+                    .setTopHits(5)
+                    .build())
+            .setSortedFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("category").build())
+                    .addSortedFields(
+                        SortType.newBuilder().setFieldName("int_field").setReverse(true).build())
+                    .build())
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .addRetrieveFields("doc_id")
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(sortedRetriever)
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedRrf(
+                                        WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(5, response.getHitsCount());
+    List<String> hitDocIds = new ArrayList<>();
+    for (Hit hit : response.getHitsList()) {
+      hitDocIds.add(hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
+    }
+    assertEquals(List.of("5", "4", "3", "2", "1"), hitDocIds);
   }
 }
