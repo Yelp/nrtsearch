@@ -248,6 +248,20 @@ public class NrtsearchConfigTest {
   }
 
   @Test
+  public void testS3ReplicaRefreshDownload_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertFalse(luceneConfig.getS3ReplicaRefreshDownload());
+  }
+
+  @Test
+  public void testS3ReplicaRefreshDownload_set() {
+    String config = "s3ReplicaRefreshDownload: true";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertTrue(luceneConfig.getS3ReplicaRefreshDownload());
+  }
+
+  @Test
   public void testGetIngestionPluginConfigs() {
     String config =
         String.join(

@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.jobs.CopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
+import com.yelp.nrtsearch.server.nrt.jobs.NrtPushRemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -74,7 +75,8 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean ackedCopy,
       boolean decInitialCommit,
       boolean filterIncompatibleSegmentReaders,
-      int lowPriorityCopyPercentage)
+      int lowPriorityCopyPercentage,
+      boolean s3ReplicaRefreshDownload)
       throws IOException {
     // the id is always 0, the nodeName is the identifier
     super(0, indexDir, searcherFactory, printStream);
@@ -99,6 +101,8 @@ public class NRTReplicaNode extends ReplicaNode {
               nrtDataManager,
               this,
               isolatedReplicaConfig);
+    } else if (s3ReplicaRefreshDownload) {
+      copyJobManager = new NrtPushRemoteCopyJobManager(nrtDataManager, this);
     } else {
       copyJobManager =
           new GrpcCopyJobManager(indexName, indexId, primaryAddress, ackedCopy, this, id);
@@ -206,10 +210,19 @@ public class NRTReplicaNode extends ReplicaNode {
     }
   }
 
-  public CopyJob launchPreCopyFiles(
-      AtomicBoolean finished, long curPrimaryGen, Map<String, FileMetaData> files)
+  public synchronized CopyJob launchPreCopyFiles(
+      AtomicBoolean finished,
+      long curPrimaryGen,
+      Map<String, FileMetaData> files,
+      String primaryId,
+      String timeString)
       throws IOException {
-    return launchPreCopyMerge(finished, curPrimaryGen, files);
+    copyJobManager.setMergePreCopyMetadata(primaryId, timeString);
+    try {
+      return launchPreCopyMerge(finished, curPrimaryGen, files);
+    } finally {
+      copyJobManager.setMergePreCopyMetadata(null, null);
+    }
   }
 
   @Override

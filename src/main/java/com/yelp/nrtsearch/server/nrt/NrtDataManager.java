@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.nrt;
 import static com.yelp.nrtsearch.server.state.BackendGlobalState.getBaseIndexName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
@@ -66,6 +68,12 @@ public class NrtDataManager implements Closeable {
   private final RestoreIndex restoreIndex;
   private final boolean remoteCommit;
   private final boolean s3RefreshUpload;
+
+  // Files uploaded during merge precopy, keyed by file name. Consumed by uploadDiff to avoid
+  // re-uploading. Size-bounded to handle cases where merged segments are re-merged before
+  // appearing in a refresh (stale entries evicted by LRU).
+  private final Cache<String, NrtFileMetaData> mergePreCopyUploadedFiles =
+      CacheBuilder.newBuilder().maximumSize(1000).build();
 
   // Set during startUploadManager
   private NRTPrimaryNode primaryNode;
@@ -356,6 +364,38 @@ public class NrtDataManager implements Closeable {
   }
 
   /**
+   * Upload merged segment files to the remote backend. This is called by the primary during merge
+   * precopy to ensure the files are available on S3 before notifying replicas.
+   *
+   * @param files map of file names to FileMetaData for the merged segment
+   * @return the time string used for the upload, needed by replicas to locate files on S3
+   * @throws IOException on error uploading files
+   */
+  public String uploadMergedFiles(Map<String, FileMetaData> files) throws IOException {
+    Map<String, NrtFileMetaData> filesToUpload = new HashMap<>();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    for (Map.Entry<String, FileMetaData> entry : files.entrySet()) {
+      String fileName = entry.getKey();
+      FileMetaData fileMetaData = entry.getValue();
+      NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
+      filesToUpload.put(fileName, nrtFileMetaData);
+    }
+    logger.info("Uploading merged segment files: {}", filesToUpload.keySet());
+    remoteBackend.uploadIndexFiles(serviceName, indexIdentifier, shardDataDir, filesToUpload);
+    filesToUpload.forEach(mergePreCopyUploadedFiles::put);
+    return timeString;
+  }
+
+  /**
+   * Get the ephemeral id for this node.
+   *
+   * @return ephemeral id
+   */
+  public String getEphemeralId() {
+    return ephemeralId;
+  }
+
+  /**
    * Enqueue an upload task to be processed by the UploadManagerThread.
    *
    * @param copyState CopyState of data to upload
@@ -541,11 +581,17 @@ public class NrtDataManager implements Closeable {
         if (lastFileMetaData != null && isSameFile(fileMetaData, lastFileMetaData)) {
           currentPointFiles.put(fileName, lastFileMetaData);
         } else {
-          String timeString = TimeStringUtils.generateTimeStringSec();
-          NrtFileMetaData nrtFileMetaData =
-              new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
-          currentPointFiles.put(fileName, nrtFileMetaData);
-          filesToUpload.put(fileName, nrtFileMetaData);
+          NrtFileMetaData mergeUploaded = mergePreCopyUploadedFiles.getIfPresent(fileName);
+          if (mergeUploaded != null && isSameFile(fileMetaData, mergeUploaded)) {
+            mergePreCopyUploadedFiles.invalidate(fileName);
+            currentPointFiles.put(fileName, mergeUploaded);
+          } else {
+            String timeString = TimeStringUtils.generateTimeStringSec();
+            NrtFileMetaData nrtFileMetaData =
+                new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
+            currentPointFiles.put(fileName, nrtFileMetaData);
+            filesToUpload.put(fileName, nrtFileMetaData);
+          }
         }
       }
       logger.info("Uploading index files: {}", filesToUpload.keySet());

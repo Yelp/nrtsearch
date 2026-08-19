@@ -108,12 +108,18 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
     long primaryGen = copyFilesRequest.getPrimaryGen();
     // these are the files that the remote (primary) wants us to copy
     Map<String, FileMetaData> files = readFilesMetaData(copyFilesRequest.getFilesMetadata());
+    String primaryId =
+        copyFilesRequest.getPrimaryId().isEmpty() ? null : copyFilesRequest.getPrimaryId();
+    String timeString =
+        copyFilesRequest.getTimeString().isEmpty() ? null : copyFilesRequest.getTimeString();
 
     AtomicBoolean finished = new AtomicBoolean();
     CopyJob job;
     long startNS = System.nanoTime();
     try {
-      job = shardState.nrtReplicaNode.launchPreCopyFiles(finished, primaryGen, files);
+      job =
+          shardState.nrtReplicaNode.launchPreCopyFiles(
+              finished, primaryGen, files, primaryId, timeString);
     } catch (IOException e) {
       responseObserver.onNext(
           TransferStatus.newBuilder()

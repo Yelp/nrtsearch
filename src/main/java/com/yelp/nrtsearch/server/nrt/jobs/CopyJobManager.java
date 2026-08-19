@@ -59,4 +59,13 @@ public interface CopyJobManager extends Closeable {
    * @throws IOException on error
    */
   void finishNRTCopy(CopyJob copyJob) throws IOException;
+
+  /**
+   * Set the S3 metadata for the next merge precopy job. Called before launchPreCopyMerge so the
+   * metadata is available when newCopyJob is invoked with files != null.
+   *
+   * @param primaryId primary node id used to locate files on remote storage
+   * @param timeString time string used to locate files on remote storage
+   */
+  default void setMergePreCopyMetadata(String primaryId, String timeString) {}
 }

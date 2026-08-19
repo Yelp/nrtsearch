@@ -158,17 +158,23 @@ public class NRTPrimaryNode extends PrimaryNode {
     final Set<ReplicationServerClient> connections = Collections.synchronizedSet(new HashSet<>());
     final Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator;
     final Map<String, FileMetaData> files;
+    final String primaryId;
+    final String timeString;
     private final Deadline deadline;
     private boolean finished;
 
     public MergePreCopy(
         Map<String, FileMetaData> files,
         Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator,
-        Deadline deadline) {
+        Deadline deadline,
+        String primaryId,
+        String timeString) {
       this.files = files;
       this.clientToTransferStatusIterator = new ConcurrentHashMap<>(clientToTransferStatusIterator);
       this.connections.addAll(clientToTransferStatusIterator.keySet());
       this.deadline = deadline;
+      this.primaryId = primaryId;
+      this.timeString = timeString;
     }
 
     public synchronized boolean tryAddConnection(
@@ -179,7 +185,8 @@ public class NRTPrimaryNode extends PrimaryNode {
         FilesMetadata filesMetadata) {
       if (!finished && (deadline == null || !deadline.isExpired())) {
         Iterator<TransferStatus> transferStatusIterator =
-            c.copyFiles(indexName, indexId, primaryGen, filesMetadata, deadline);
+            c.copyFiles(
+                indexName, indexId, primaryGen, filesMetadata, deadline, primaryId, timeString);
         clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
         return true;
@@ -358,6 +365,16 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
+    String mergeTimeString = null;
+    if (nrtDataManager.doS3RefreshUpload()) {
+      try {
+        mergeTimeString = nrtDataManager.uploadMergedFiles(files);
+      } catch (IOException e) {
+        logMessage("Failed to upload merged files to S3: " + e.getMessage());
+        logger.warn("Failed to upload merged files to S3 for segment {}", info, e);
+      }
+    }
+
     NrtMetrics.nrtMergeCopyStartCount.labelValues(indexName).inc();
 
     long maxMergePreCopyDurationSec = getCurrentMaxMergePreCopyDurationSec();
@@ -374,9 +391,11 @@ public class NRTPrimaryNode extends PrimaryNode {
               "Start merge precopy %s to %d replicas; localAddress=%s: files=%s",
               info, replicasInfos.size(), hostPort, files.keySet()));
 
+      String mergePrimaryId =
+          nrtDataManager.doS3RefreshUpload() ? nrtDataManager.getEphemeralId() : null;
       Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
-          callCopyFilesForPreCopy(files, deadline);
-      preCopy = new MergePreCopy(files, allCopyStatus, deadline);
+          callCopyFilesForPreCopy(files, deadline, mergePrimaryId, mergeTimeString);
+      preCopy = new MergePreCopy(files, allCopyStatus, deadline, mergePrimaryId, mergeTimeString);
       warmingSegments.add(preCopy);
     }
 
@@ -451,7 +470,10 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   private Map<ReplicationServerClient, Iterator<TransferStatus>> callCopyFilesForPreCopy(
-      Map<String, FileMetaData> files, Deadline deadline) {
+      Map<String, FileMetaData> files,
+      Deadline deadline,
+      String primaryId,
+      String mergeTimeString) {
     // Ask all currently known replicas to pre-copy this newly merged segment's files:
     Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
     ReplicaDetails replicaDetails = null;
@@ -463,7 +485,13 @@ public class NRTPrimaryNode extends PrimaryNode {
         replicaDetails = replicaInfos.next();
         Iterator<TransferStatus> copyStatus =
             replicaDetails.replicationServerClient.copyFiles(
-                indexName, indexStateManager.getIndexId(), primaryGen, filesMetadata, deadline);
+                indexName,
+                indexStateManager.getIndexId(),
+                primaryGen,
+                filesMetadata,
+                deadline,
+                primaryId,
+                mergeTimeString);
         allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
         logMessage(
             String.format(
