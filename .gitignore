@@ -52,3 +52,6 @@ boto.cfg
 
 #vscode
 .vscode
+
+# ML models (downloaded by Gradle tasks)
+models/

@@ -679,6 +679,12 @@ message Field {
     // Normalizer for ATOM field types. Applies text normalization (e.g. lowercase) consistently
     // at both index time and query time. Predefined options: "lowercase".
     Normalizer normalizer = 38;
+  // Name of a configured embedding provider. When set on a VECTOR field, text strings sent
+  // during indexing are automatically converted to vectors using this provider.
+  // For float vector fields, the provider's embed() method is used.
+  // For byte vector fields, the provider's embedBytes() method is used.
+  // Note: values starting with '[' are always parsed as JSON vector arrays, not as text to embed.
+  string embeddingProvider = 39;
 }
 
 // Options for including IndexPrefixes for field

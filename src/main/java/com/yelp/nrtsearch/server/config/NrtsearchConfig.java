@@ -466,4 +466,18 @@ public class NrtsearchConfig {
       return Collections.emptyMap();
     }
   }
+
+  /**
+   * Get embedding provider configurations from the {@code embeddingProviders} config section.
+   *
+   * @return map of provider name to provider-specific config map, or empty map if not configured
+   */
+  @SuppressWarnings("unchecked")
+  public Map<String, Map<String, Object>> getEmbeddingProviderConfigs() {
+    try {
+      return configReader.get("embeddingProviders", obj -> (Map<String, Map<String, Object>>) obj);
+    } catch (ConfigKeyNotFoundException e) {
+      return Collections.emptyMap();
+    }
+  }
 }

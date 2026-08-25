@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.concurrent.LoggingUncaughtExceptionHandler;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.custom.request.CustomRequestProcessor;
+import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.handler.AddDocumentHandler;
 import com.yelp.nrtsearch.server.handler.AddReplicaHandler;
@@ -477,6 +478,7 @@ public class NrtsearchServer {
       BlenderCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
+      EmbeddingCreator.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
