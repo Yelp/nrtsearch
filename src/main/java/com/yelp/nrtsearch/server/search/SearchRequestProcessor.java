@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.NestedRetrieveFieldDef;
 import com.yelp.nrtsearch.server.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
@@ -213,7 +214,8 @@ public class SearchRequestProcessor {
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
     Map<String, FieldDef> retrieveFields =
-        getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
+        getRetrieveFields(
+            searchRequest.getRetrieveFieldsList(), queryFields, indexState.hasNestedChildFields());
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     DocLookup docLookup =
@@ -432,16 +434,21 @@ public class SearchRequestProcessor {
     return runtimeFields;
   }
 
+  private static final String CHILDREN_RETRIEVE_PREFIX = "_CHILDREN.";
+  private static final String PARENT_RETRIEVE_PREFIX = "_PARENT.";
+
   /**
-   * Get map of fields that need to be retrieved for the given request.
+   * Get map of fields that need to be retrieved for the given request. Supports {@code _CHILDREN.}
+   * and {@code _PARENT.} prefixed fields for cross-document retrieval in nested indexes.
    *
    * @param fieldList fields to retrieve
    * @param queryFields all valid fields for this query
+   * @param hasNestedChildFields whether the index has nested child fields
    * @return map of all fields to retrieve
    * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
   private static Map<String, FieldDef> getRetrieveFields(
-      List<String> fieldList, Map<String, FieldDef> queryFields) {
+      List<String> fieldList, Map<String, FieldDef> queryFields, boolean hasNestedChildFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
     if (fieldList.size() == 1 && fieldList.get(0).equals(WILDCARD)) {
       for (Entry<String, FieldDef> entry : queryFields.entrySet()) {
@@ -452,20 +459,83 @@ public class SearchRequestProcessor {
       return retrieveFields;
     }
     for (String field : fieldList) {
-      FieldDef fieldDef = queryFields.get(field);
-      if (fieldDef == null) {
-        throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
+      if (field.startsWith(CHILDREN_RETRIEVE_PREFIX)) {
+        retrieveFields.put(
+            field,
+            resolveNestedRetrieveField(
+                field,
+                CHILDREN_RETRIEVE_PREFIX,
+                NestedRetrieveFieldDef.Direction.CHILDREN,
+                queryFields,
+                hasNestedChildFields));
+      } else if (field.startsWith(PARENT_RETRIEVE_PREFIX)) {
+        retrieveFields.put(
+            field,
+            resolveNestedRetrieveField(
+                field,
+                PARENT_RETRIEVE_PREFIX,
+                NestedRetrieveFieldDef.Direction.PARENT,
+                queryFields,
+                hasNestedChildFields));
+      } else {
+        FieldDef fieldDef = queryFields.get(field);
+        if (fieldDef == null) {
+          throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
+        }
+        if (!isRetrievable(fieldDef)) {
+          throw new IllegalArgumentException(
+              "RetrieveFields: "
+                  + field
+                  + " is not retrievable, must be stored"
+                  + " or have doc values enabled");
+        }
+        retrieveFields.put(field, fieldDef);
       }
-      if (!isRetrievable(fieldDef)) {
-        throw new IllegalArgumentException(
-            "RetrieveFields: "
-                + field
-                + " is not retrievable, must be stored"
-                + " or have doc values enabled");
-      }
-      retrieveFields.put(field, fieldDef);
     }
     return retrieveFields;
+  }
+
+  /**
+   * Resolve a _CHILDREN. or _PARENT. prefixed field for nested retrieval.
+   *
+   * @param prefixedField the full field name with prefix
+   * @param prefix the prefix to strip
+   * @param direction the navigation direction
+   * @param queryFields all valid fields for this query
+   * @param hasNestedChildFields whether the index has nested child fields
+   * @return a NestedRetrieveFieldDef wrapping the underlying field
+   */
+  private static NestedRetrieveFieldDef resolveNestedRetrieveField(
+      String prefixedField,
+      String prefix,
+      NestedRetrieveFieldDef.Direction direction,
+      Map<String, FieldDef> queryFields,
+      boolean hasNestedChildFields) {
+    if (!hasNestedChildFields) {
+      throw new IllegalArgumentException(
+          "RetrieveFields: "
+              + prefixedField
+              + " cannot use nested field access: index has no nested documents");
+    }
+    String actualFieldName = prefixedField.substring(prefix.length());
+    FieldDef fieldDef = queryFields.get(actualFieldName);
+    if (fieldDef == null) {
+      throw new IllegalArgumentException(
+          "RetrieveFields: "
+              + prefixedField
+              + " - underlying field "
+              + actualFieldName
+              + " does not exist");
+    }
+    if (!(fieldDef instanceof IndexableFieldDef<?> indexableFieldDef)) {
+      throw new IllegalArgumentException(
+          "RetrieveFields: " + prefixedField + " - field must be an indexable field");
+    }
+    if (!indexableFieldDef.hasDocValues()) {
+      throw new IllegalArgumentException(
+          "RetrieveFields: " + prefixedField + " - field must have doc values enabled");
+    }
+    return new NestedRetrieveFieldDef(prefixedField, direction, indexableFieldDef, actualFieldName);
   }
 
   /**
@@ -712,7 +782,9 @@ public class SearchRequestProcessor {
         .withIndexState(indexState)
         .withShardState(shardState)
         .withSearcherAndTaxonomy(searcherAndTaxonomy)
-        .withRetrieveFields(getRetrieveFields(innerHit.getRetrieveFieldsList(), queryFields))
+        .withRetrieveFields(
+            getRetrieveFields(
+                innerHit.getRetrieveFieldsList(), queryFields, indexState.hasNestedChildFields()))
         .withQueryFields(queryFields)
         .withQuerySort(innerHit.hasQuerySort() ? innerHit.getQuerySort() : null)
         .withHighlightFetchTask(

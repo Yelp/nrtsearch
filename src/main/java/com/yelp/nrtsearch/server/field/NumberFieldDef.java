@@ -170,6 +170,16 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
   protected abstract SortField.Type getSortFieldType();
 
   /**
+   * Get the {@link SortField.Type} for use with nested sort (ToParentBlockJoinSortField). This is a
+   * public accessor for the protected {@link #getSortFieldType()} method.
+   *
+   * @return sort field type for nested sort
+   */
+  public SortField.Type getNestedSortFieldType() {
+    return getSortFieldType();
+  }
+
+  /**
    * Get the value to use for missing data when sorting.
    *
    * @param missingLast if missing data should sort to last

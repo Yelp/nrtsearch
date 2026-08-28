@@ -88,6 +88,16 @@ public class DocLookup {
   }
 
   /**
+   * Get the child path filter lookup function. Given a child field name, returns a BitSetProducer
+   * that identifies child documents at that field's nested path.
+   *
+   * @return child path filter lookup, or null if not available
+   */
+  public Function<String, BitSetProducer> getChildPathFilterLookup() {
+    return childPathFilterLookup;
+  }
+
+  /**
    * Get the field definition for the given field name.
    *
    * @param fieldName field name

@@ -120,7 +120,11 @@ public class TopHitsCollectorManager
     this.retrievalContext = new RetrievalContext(context);
 
     if (grpcTopHitsCollector.hasQuerySort()) {
-      sortContext = new SortContext(grpcTopHitsCollector.getQuerySort(), context.getQueryFields());
+      sortContext =
+          new SortContext(
+              grpcTopHitsCollector.getQuerySort(),
+              context.getQueryFields(),
+              context.getIndexState());
       collectorManager =
           new TopFieldCollectorManager(
               sortContext.getSort(), grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);

@@ -1078,6 +1078,21 @@ message SortType {
     bool reverse = 5;
     // The unit used for the distance sort. Supported options are m, km and mi, default is m
     string unit = 6;
+    // Nested sort context. When present, sorts parent documents by a child field value
+    // using ToParentBlockJoinSortField. The selector determines how to pick from multiple
+    // children (MIN selects the minimum child value, MAX selects the maximum).
+    NestedSortContext nested = 7;
+}
+
+// Context for sorting parent documents by nested (child) field values.
+// When specified on a SortType, Lucene's ToParentBlockJoinSortField is used to sort parent
+// documents based on values from their child documents.
+message NestedSortContext {
+    // Path to the nested object (e.g., "emails"). Must be a registered nested field.
+    string nested_path = 1;
+    // Optional filter query to restrict which child documents participate in sort value selection.
+    // If not specified, all children at the nested_path are considered.
+    Query filter = 2;
 }
 
 // For multi valued fields, how to select which value is used for sorting

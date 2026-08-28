@@ -15,14 +15,20 @@
  */
 package com.yelp.nrtsearch.server.search.sort;
 
+import com.yelp.nrtsearch.server.field.AtomFieldDef;
+import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.NumberFieldDef;
 import com.yelp.nrtsearch.server.field.properties.Sortable;
 import com.yelp.nrtsearch.server.grpc.LastHitInfo;
+import com.yelp.nrtsearch.server.grpc.NestedSortContext;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
+import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
+import com.yelp.nrtsearch.server.index.IndexState;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +37,8 @@ import java.util.function.BiFunction;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ToParentBlockJoinSortField;
 import org.apache.lucene.util.BytesRef;
 
 /**
@@ -52,6 +60,21 @@ public class SortParser {
    * @param queryFields collection of all possible fields which may be used to sort
    */
   public static Sort parseSort(List<SortType> fields, Map<String, FieldDef> queryFields)
+      throws SearchHandler.SearchHandlerException {
+    return parseSort(fields, queryFields, null);
+  }
+
+  /**
+   * Decodes a list of request {@link SortType} into the corresponding {@link Sort}. When an {@link
+   * IndexState} is provided, nested sort (sorting parents by child field values) is supported via
+   * the {@code nested} field on {@link SortType}.
+   *
+   * @param fields list of {@link SortType} from grpc request
+   * @param queryFields collection of all possible fields which may be used to sort
+   * @param indexState index state for nested sort support, or null if not available
+   */
+  public static Sort parseSort(
+      List<SortType> fields, Map<String, FieldDef> queryFields, IndexState indexState)
       throws SearchHandler.SearchHandlerException {
     List<SortField> sortFields = new ArrayList<>();
     for (SortType sub : fields) {
@@ -83,12 +106,78 @@ public class SortParser {
               String.format("field: %s does not support sorting", fieldName));
         }
 
-        sf = ((Sortable) fd).getSortField(sub);
+        if (sub.hasNested()) {
+          sf = createNestedSortField(fieldName, fd, sub, indexState);
+        } else {
+          sf = ((Sortable) fd).getSortField(sub);
+        }
       }
       sortFields.add(sf);
     }
 
     return new Sort(sortFields.toArray(new SortField[0]));
+  }
+
+  /**
+   * Create a ToParentBlockJoinSortField for sorting parent documents by child field values.
+   *
+   * @param fieldName the child field name to sort by
+   * @param fd the field definition
+   * @param sortType the sort configuration
+   * @param indexState index state providing BitSetProducers
+   * @return a ToParentBlockJoinSortField
+   */
+  private static SortField createNestedSortField(
+      String fieldName, FieldDef fd, SortType sortType, IndexState indexState) {
+    if (indexState == null) {
+      throw new IllegalArgumentException(
+          "Nested sort requires IndexState but it is not available in this context");
+    }
+    if (!indexState.hasNestedChildFields()) {
+      throw new IllegalArgumentException("Nested sort requires an index with nested child fields");
+    }
+
+    NestedSortContext nestedCtx = sortType.getNested();
+    String nestedPath = nestedCtx.getNestedPath();
+    if (nestedPath.isEmpty()) {
+      throw new IllegalArgumentException("Nested sort requires a non-empty nested_path");
+    }
+
+    // Validate the nested path is a registered nested object field
+    IndexState.resolveQueryNestedPath(
+        nestedPath,
+        new com.yelp.nrtsearch.server.doc.DocLookup(
+            indexState::getField, () -> indexState.getAllFields().keySet(), null));
+
+    SortField.Type sortFieldType = getNestedSortFieldType(fd);
+
+    // order: false = min child value, true = max child value
+    boolean order = (sortType.getSelector() == Selector.MAX);
+
+    BitSetProducer parentFilter = indexState.getParentBitSetProducer();
+    BitSetProducer childFilter = indexState.getPathBitSetProducer(nestedPath);
+
+    return new ToParentBlockJoinSortField(
+        fieldName, sortFieldType, sortType.getReverse(), order, parentFilter, childFilter);
+  }
+
+  /**
+   * Determine the Lucene SortField.Type for a field definition, for use with nested sort.
+   *
+   * @param fd the field definition
+   * @return the corresponding SortField.Type
+   */
+  private static SortField.Type getNestedSortFieldType(FieldDef fd) {
+    if (fd instanceof NumberFieldDef<?> numField) {
+      return numField.getNestedSortFieldType();
+    }
+    if (fd instanceof DateTimeFieldDef) {
+      return SortField.Type.LONG;
+    }
+    if (fd instanceof AtomFieldDef) {
+      return SortField.Type.STRING;
+    }
+    throw new IllegalArgumentException("field: " + fd.getName() + " does not support nested sort");
   }
 
   /**

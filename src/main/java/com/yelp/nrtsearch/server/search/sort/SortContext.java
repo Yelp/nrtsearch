@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
+import com.yelp.nrtsearch.server.index.IndexState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +51,15 @@ public class SortContext {
   }
 
   public SortContext(QuerySortField querySortField, Map<String, FieldDef> queryFields) {
+    this(querySortField, queryFields, null);
+  }
+
+  public SortContext(
+      QuerySortField querySortField, Map<String, FieldDef> queryFields, IndexState indexState) {
     try {
       this.sort =
-          SortParser.parseSort(querySortField.getFields().getSortedFieldsList(), queryFields);
+          SortParser.parseSort(
+              querySortField.getFields().getSortedFieldsList(), queryFields, indexState);
     } catch (SearchHandler.SearchHandlerException e) {
       throw new IllegalArgumentException(e);
     }

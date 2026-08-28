@@ -67,7 +67,8 @@ public class SortFieldCollector extends DocCollector {
       totalHitsThreshold = context.getTotalHitsThreshold();
     }
 
-    sortContext = new SortContext(context.getQuerySort(), context.getQueryFields());
+    sortContext =
+        new SortContext(context.getQuerySort(), context.getQueryFields(), context.getIndexState());
     manager =
         new TopFieldCollectorManager(
             sortContext.getSort(), topHits, searchAfter, totalHitsThreshold);

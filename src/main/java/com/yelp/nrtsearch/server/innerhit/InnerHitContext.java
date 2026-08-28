@@ -95,7 +95,7 @@ public class InnerHitContext implements FieldFetchContext {
           new TopScoreDocCollectorManager(topHits, null, Integer.MAX_VALUE);
     } else {
       // sortedField collector
-      this.sortContext = new SortContext(builder.querySort, queryFields);
+      this.sortContext = new SortContext(builder.querySort, queryFields, builder.indexState);
       this.topDocsCollectorManager =
           new TopFieldCollectorManager(sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
     }

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +46,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
   private final LoadedDocValues<?> childFieldDocValues;
   private int lastParentDocId = -1;
   private List<Object> values = Collections.emptyList();
+  private List<FieldValue> fieldValues = Collections.emptyList();
 
   /**
    * Constructor.
@@ -85,6 +87,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     }
     lastParentDocId = parentDocId;
     values = new ArrayList<>();
+    fieldValues = new ArrayList<>();
 
     if (parentBitSet == null || parentDocId <= 0) {
       return;
@@ -119,6 +122,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       childFieldDocValues.setDocId(childDocId);
       for (int i = 0; i < childFieldDocValues.size(); i++) {
         values.add(childFieldDocValues.get(i));
+        fieldValues.add(childFieldDocValues.toFieldValue(i));
       }
     }
   }
@@ -134,12 +138,11 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
   }
 
   /**
-   * Convert a value at the given index to a FieldValue proto for response serialization. Delegates
-   * to the underlying field definition's conversion.
+   * Convert a value at the given index to a FieldValue proto for response serialization. Returns
+   * the FieldValue captured from the child document's doc values during setDocId().
    */
   @Override
-  public com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue toFieldValue(int index) {
-    throw new UnsupportedOperationException(
-        "ChildAggregatedDocValues is intended for script access, not direct field retrieval");
+  public FieldValue toFieldValue(int index) {
+    return fieldValues.get(index);
   }
 }

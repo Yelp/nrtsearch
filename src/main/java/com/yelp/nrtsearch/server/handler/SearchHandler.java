@@ -19,13 +19,16 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat.Printer;
+import com.yelp.nrtsearch.server.doc.ChildAggregatedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.doc.ParentDocValues;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.NestedRetrieveFieldDef;
 import com.yelp.nrtsearch.server.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
@@ -1223,6 +1226,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         throws IOException {
       for (Map.Entry<String, FieldDef> fieldDefEntry : context.getRetrieveFields().entrySet()) {
         switch (fieldDefEntry.getValue()) {
+          case NestedRetrieveFieldDef nestedFieldDef ->
+              fetchFromNestedDocValues(
+                  context, sliceHits, sliceSegment, fieldDefEntry.getKey(), nestedFieldDef);
           case VirtualFieldDef virtualFieldDef ->
               fetchFromValueSource(
                   sliceHits, sliceSegment, fieldDefEntry.getKey(), virtualFieldDef);
@@ -1337,6 +1343,93 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
             SearchResponse.Hit.CompositeFieldValue.newBuilder();
         for (int i = 0; i < docValues.size(); ++i) {
           compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /**
+     * Fetch field values from nested documents using _CHILDREN. or _PARENT. navigation.
+     *
+     * <p>For CHILDREN direction: aggregates values from all child documents belonging to the parent
+     * hit. For PARENT direction: navigates from the child hit to its parent document.
+     */
+    private static void fetchFromNestedDocValues(
+        FieldFetchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        NestedRetrieveFieldDef nestedFieldDef)
+        throws IOException {
+      if (nestedFieldDef.getDirection() == NestedRetrieveFieldDef.Direction.CHILDREN) {
+        fetchFromChildDocValues(context, sliceHits, sliceSegment, name, nestedFieldDef);
+      } else {
+        fetchFromParentDocValues(context, sliceHits, sliceSegment, name, nestedFieldDef);
+      }
+    }
+
+    /** Fetch aggregated values from child documents for a parent hit. */
+    private static void fetchFromChildDocValues(
+        FieldFetchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        NestedRetrieveFieldDef nestedFieldDef)
+        throws IOException {
+      var docLookup = context.getSearchContext().getDocLookup();
+      var parentBSP = docLookup.getParentBitSetProducer();
+      if (parentBSP == null) {
+        return;
+      }
+
+      var childPathFilterLookup = docLookup.getChildPathFilterLookup();
+      var childPathFilter =
+          childPathFilterLookup != null
+              ? childPathFilterLookup.apply(nestedFieldDef.getActualFieldName())
+              : null;
+
+      ChildAggregatedDocValues childDocValues =
+          new ChildAggregatedDocValues(
+              nestedFieldDef.getUnderlyingField(), sliceSegment, parentBSP, childPathFilter);
+
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        childDocValues.setDocId(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (int i = 0; i < childDocValues.size(); i++) {
+          compositeFieldValue.addFieldValue(childDocValues.toFieldValue(i));
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch values from the parent document for a child hit. */
+    private static void fetchFromParentDocValues(
+        FieldFetchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        NestedRetrieveFieldDef nestedFieldDef)
+        throws IOException {
+      var docLookup = context.getSearchContext().getDocLookup();
+      var parentBSP = docLookup.getParentBitSetProducer();
+      if (parentBSP == null) {
+        return;
+      }
+
+      ParentDocValues parentDocValues =
+          new ParentDocValues(nestedFieldDef.getUnderlyingField(), sliceSegment, parentBSP);
+
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        parentDocValues.setDocId(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (int i = 0; i < parentDocValues.size(); i++) {
+          compositeFieldValue.addFieldValue(parentDocValues.toFieldValue(i));
         }
         hit.putFields(name, compositeFieldValue.build());
       }
