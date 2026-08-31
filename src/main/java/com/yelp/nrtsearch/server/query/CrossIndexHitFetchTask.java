@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.query;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.grpc.HitsResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
@@ -30,7 +31,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -60,6 +64,7 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
   private final String indexName;
   private final String primaryField;
   private final String secondaryField;
+  private final FieldDef secondaryFieldDef;
   private final Query innerQuery;
   private final SearcherAndTaxonomy secondarySearcher;
   private final ShardState secondaryShard;
@@ -70,6 +75,7 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
    * @param indexName name of the secondary index (used as inner_hits key)
    * @param primaryField field name in the primary index containing the join key
    * @param secondaryField field name in the secondary index containing the join key
+   * @param secondaryFieldDef field definition for the secondary join field
    * @param innerQuery the query executed against the secondary index
    * @param secondarySearcher the searcher snapshot (same one used for the join filter)
    * @param secondaryShard shard state for releasing the searcher
@@ -80,6 +86,7 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
       String indexName,
       String primaryField,
       String secondaryField,
+      FieldDef secondaryFieldDef,
       Query innerQuery,
       SearcherAndTaxonomy secondarySearcher,
       ShardState secondaryShard,
@@ -88,6 +95,7 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
     this.indexName = indexName;
     this.primaryField = primaryField;
     this.secondaryField = secondaryField;
+    this.secondaryFieldDef = secondaryFieldDef;
     this.innerQuery = innerQuery;
     this.secondarySearcher = secondarySearcher;
     this.secondaryShard = secondaryShard;
@@ -106,10 +114,11 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
     }
 
     // Query secondary index: innerQuery AND secondaryField = joinKeyValue
+    Query joinKeyQuery = buildJoinKeyQuery(joinKeyValue);
     BooleanQuery secondaryQuery =
         new BooleanQuery.Builder()
             .add(innerQuery, BooleanClause.Occur.MUST)
-            .add(new TermQuery(new Term(secondaryField, joinKeyValue)), BooleanClause.Occur.FILTER)
+            .add(joinKeyQuery, BooleanClause.Occur.FILTER)
             .build();
 
     IndexSearcher searcher = secondarySearcher.searcher();
@@ -170,6 +179,27 @@ public class CrossIndexHitFetchTask implements FetchTask, AutoCloseable {
     }
 
     return null;
+  }
+
+  /**
+   * Build the appropriate query to match the join key value against the secondary field, handling
+   * both text (Term) and numeric (IntPoint/LongPoint) field types.
+   */
+  private Query buildJoinKeyQuery(String joinKeyValue) {
+    if (secondaryFieldDef instanceof IndexableFieldDef<?> indexable) {
+      DocValuesType dvType = indexable.getDocValuesType();
+      if (dvType == DocValuesType.NUMERIC || dvType == DocValuesType.SORTED_NUMERIC) {
+        long numericValue = Long.parseLong(joinKeyValue);
+        // Use IntPoint for INT fields (value fits in int range), LongPoint otherwise
+        if (numericValue >= Integer.MIN_VALUE && numericValue <= Integer.MAX_VALUE) {
+          return IntPoint.newExactQuery(secondaryField, (int) numericValue);
+        } else {
+          return LongPoint.newExactQuery(secondaryField, numericValue);
+        }
+      }
+    }
+    // Default: text term query
+    return new TermQuery(new Term(secondaryField, joinKeyValue));
   }
 
   @Override

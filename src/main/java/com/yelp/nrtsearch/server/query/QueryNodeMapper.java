@@ -908,14 +908,71 @@ public class QueryNodeMapper {
 
       ScoreMode scoreMode = mapJoinScoreMode(crossIndexQuery.getScoreMode());
 
-      Query joinQuery =
-          JoinUtil.createJoinQuery(
-              secondaryField,
-              multipleValuesPerDocument,
-              primaryField,
-              innerQuery,
-              secondarySearcher.searcher(),
-              scoreMode);
+      // Determine doc values types for the join fields
+      IndexableFieldDef<?> secondaryIndexable =
+          (secondaryFieldDef instanceof IndexableFieldDef<?> si) ? si : null;
+      IndexableFieldDef<?> primaryIndexable =
+          (primaryFieldDef instanceof IndexableFieldDef<?> pi) ? pi : null;
+
+      boolean secondaryIsNumeric =
+          secondaryIndexable != null
+              && (secondaryIndexable.getDocValuesType()
+                      == org.apache.lucene.index.DocValuesType.SORTED_NUMERIC
+                  || secondaryIndexable.getDocValuesType()
+                      == org.apache.lucene.index.DocValuesType.NUMERIC);
+      boolean primaryIsSorted =
+          primaryIndexable != null
+              && primaryIndexable.getDocValuesType()
+                  == org.apache.lucene.index.DocValuesType.SORTED;
+
+      Query joinQuery;
+      if (secondaryIsNumeric && primaryIsSorted) {
+        // Numeric-to-string cross-type join: collect numeric values from secondary,
+        // convert to strings, and create a TermInSetQuery on the primary
+        java.util.Set<String> joinValues = new java.util.HashSet<>();
+        org.apache.lucene.search.IndexSearcher secSearcher = secondarySearcher.searcher();
+        org.apache.lucene.search.Weight weight =
+            secSearcher.createWeight(
+                secSearcher.rewrite(innerQuery), org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (org.apache.lucene.index.LeafReaderContext leaf : secSearcher.getIndexReader().leaves()) {
+          org.apache.lucene.search.Scorer scorer = weight.scorer(leaf);
+          if (scorer == null) continue;
+          // Try SortedNumericDocValues first (multi-valued), fall back to NumericDocValues (single)
+          org.apache.lucene.index.SortedNumericDocValues sortedNumDV =
+              leaf.reader().getSortedNumericDocValues(secondaryField);
+          org.apache.lucene.index.NumericDocValues numDV =
+              sortedNumDV == null ? leaf.reader().getNumericDocValues(secondaryField) : null;
+          if (sortedNumDV == null && numDV == null) continue;
+          org.apache.lucene.search.DocIdSetIterator it = scorer.iterator();
+          int doc;
+          while ((doc = it.nextDoc()) != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS) {
+            if (sortedNumDV != null) {
+              if (sortedNumDV.advanceExact(doc)) {
+                for (int i = 0; i < sortedNumDV.docValueCount(); i++) {
+                  joinValues.add(Long.toString(sortedNumDV.nextValue()));
+                }
+              }
+            } else if (numDV.advanceExact(doc)) {
+              joinValues.add(Long.toString(numDV.longValue()));
+            }
+          }
+        }
+        // Build TermInSetQuery with BytesRef terms
+        java.util.List<org.apache.lucene.util.BytesRef> terms = new java.util.ArrayList<>(joinValues.size());
+        for (String v : joinValues) {
+          terms.add(new org.apache.lucene.util.BytesRef(v));
+        }
+        joinQuery = new org.apache.lucene.search.TermInSetQuery(primaryField, terms);
+      } else {
+        joinQuery =
+            JoinUtil.createJoinQuery(
+                secondaryField,
+                multipleValuesPerDocument,
+                primaryField,
+                innerQuery,
+                secondarySearcher.searcher(),
+                scoreMode);
+      }
 
       // If retrieve_fields is specified, keep the searcher open for the fetch phase
       if (!crossIndexQuery.getRetrieveFieldsList().isEmpty()) {
@@ -928,6 +985,7 @@ public class QueryNodeMapper {
                 index,
                 primaryField,
                 secondaryField,
+                secondaryFieldDef,
                 innerQuery,
                 secondarySearcher,
                 secondaryShard,

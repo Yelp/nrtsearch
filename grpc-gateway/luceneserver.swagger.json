@@ -3072,6 +3072,18 @@
           "type": "integer",
           "format": "int64",
           "description": "Maximum number of matching secondary documents allowed (default: 0 = unlimited).\nIf the inner query matches more documents than this limit, an error is returned.\nUse this to guard against excessive memory usage from large secondary result sets.\nNote: this counts matching documents, not unique join-key values."
+        },
+        "retrieveFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to retrieve from matched secondary documents. When non-empty, matched secondary\ndocuments are returned as inner hits on each primary hit (keyed by \"cross:\u003cindex\u003e\").\nThe same searcher snapshot used for filtering is reused for retrieval, ensuring consistency."
+        },
+        "topHits": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum number of secondary hits to return per primary hit (default: 3)."
         }
       },
       "description": "Filters the primary index to documents whose join key matches documents\nin a secondary index. The query runs on the secondary index; matching\nvalues of secondary_field are collected and used to build a TermsQuery on\nthe primary_field in the primary index."
