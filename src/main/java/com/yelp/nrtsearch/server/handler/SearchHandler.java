@@ -96,8 +96,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private final boolean warming;
 
   /** Return value of {@link #executeMultiRetriever}. */
-  private record MultiRetrieverResult(
-      TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly) {}
+  record MultiRetrieverResult(TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly) {}
 
   public SearchHandler(GlobalState globalState) {
     super(globalState);
@@ -394,7 +393,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @throws ExecutionException on error when performing parallel fetch
    * @throws InterruptedException if parallel fetch is interrupted
    */
-  private void fetchFields(SearchContext searchContext)
+  void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
       // call log even when there is no hits.
@@ -525,7 +524,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * Execute per-retriever searches in parallel, apply optional per-retriever L1 rescoring, then
    * blend the results into a single ranked TopDocs.
    */
-  private MultiRetrieverResult executeMultiRetriever(
+  MultiRetrieverResult executeMultiRetriever(
       SearchContext searchContext,
       IndexSearcher searcher,
       SearchResponse.Diagnostics.Builder diagnostics,
@@ -730,7 +729,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @param context search context
    * @param hits hits from query
    */
-  private static void setResponseHits(SearchContext context, TopDocs hits) {
+  static void setResponseHits(SearchContext context, TopDocs hits) {
     TotalHits totalHits =
         TotalHits.newBuilder()
             .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation().name()))
@@ -1405,7 +1404,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * Runs {@link org.apache.lucene.search.IndexSearcher#search} against the search context query and
    * collector, unwrapping any {@link CollectionTimeoutException} from the call stack.
    */
-  private static SearcherResult executeSearch(
+  static SearcherResult executeSearch(
       org.apache.lucene.search.IndexSearcher searcher, SearchContext searchContext)
       throws IOException {
     try {
@@ -1428,7 +1427,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    *     pre-blended hits for multi-retriever queries (where ranking is already determined), or
    *     {@code null} to use the top docs produced by this search (single-retriever path).
    */
-  private SearcherResult runDrillSidewaysSearch(
+  SearcherResult runDrillSidewaysSearch(
       SearcherTaxonomyManager.SearcherAndTaxonomy s,
       IndexState indexState,
       ShardState shardState,

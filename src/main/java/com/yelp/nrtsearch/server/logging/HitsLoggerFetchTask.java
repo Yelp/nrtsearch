@@ -64,6 +64,27 @@ public class HitsLoggerFetchTask implements FetchTask {
   }
 
   /**
+   * Log exactly the given hits, in the given order, bypassing the {@link #hitsToLog} truncation
+   * applied by {@link #processAllHits(SearchContext, List)}.
+   *
+   * <p>Used by the query-then-fetch streaming search flow, where a coordinator has already merged
+   * the results of every shard and selected the exact set of documents this shard should log.
+   * Truncating that set here would drop documents based on this shard's local ranking, which the
+   * coordinator has already superseded.
+   *
+   * @param searchContext search context
+   * @param hits hits to log
+   */
+  public void logHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
+    if (searchContext.isWarming()) {
+      return;
+    }
+    long startTime = System.nanoTime();
+    hitsLogger.log(searchContext, hits);
+    timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+  }
+
+  /**
    * Get the total time taken so far to logging hits.
    *
    * @return Total time taken to logging hits in ms.
