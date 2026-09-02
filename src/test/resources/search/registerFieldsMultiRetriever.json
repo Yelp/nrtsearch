@@ -28,6 +28,12 @@
       "search": true,
       "storeDocValues": true,
       "facet": "SORTED_SET_DOC_VALUES"
+    },
+    {
+      "name": "int_field",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
     }
   ]
 }
