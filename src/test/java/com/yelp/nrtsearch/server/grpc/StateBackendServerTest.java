@@ -31,402 +31,97 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
-import com.yelp.nrtsearch.server.grpc.NrtsearchServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
-import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
-import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import software.amazon.awssdk.services.s3.S3Client;
 
 public class StateBackendServerTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
-  private Server primaryServer;
-  private Server primaryReplicationServer;
-  private NrtsearchClient primaryClient;
-  private ExecutorFactory primaryExecutorFactory;
-
-  private Server replicaServer;
-  private Server replicaReplicationServer;
-  private NrtsearchClient replicaClient;
-  private ExecutorFactory replicaExecutorFactory;
-
-  private static final String TEST_BUCKET = "state-backend-server-test";
-  private static final String TEST_SERVICE_NAME = "state-backend-test-service";
-  private RemoteBackend remoteBackendPrimary;
-  private RemoteBackend remoteBackendReplica;
+  private TestServer primaryServer;
+  private TestServer replicaServer;
 
   @After
-  public void cleanup() throws InterruptedException {
-    cleanupPrimary();
-    cleanupReplica();
-    remoteBackendPrimary = null;
-    remoteBackendReplica = null;
+  public void cleanup() {
+    TestServer.cleanupAll();
   }
 
-  private void cleanupPrimary() {
-    if (primaryClient != null) {
-      try {
-        primaryClient.shutdown();
-      } catch (InterruptedException ignore) {
-      }
-      primaryClient = null;
+  private TestServer buildLocalPrimary() throws IOException {
+    return TestServer.builder(folder).build();
+  }
+
+  private TestServer buildRemotePrimary() throws IOException {
+    return TestServer.builder(folder)
+        .withRemoteStateBackend(false)
+        .withAutoStartConfig(false, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+        .build();
+  }
+
+  private TestServer buildLocalReplica() throws IOException {
+    return TestServer.builder(folder).build();
+  }
+
+  private TestServer buildRemoteReplica() throws IOException {
+    return TestServer.builder(folder)
+        .withRemoteStateBackend(true)
+        .withSyncInitialNrtPoint(false)
+        .withAutoStartConfig(false, Mode.REPLICA, 0, IndexDataLocationType.REMOTE)
+        .build();
+  }
+
+  private StartIndexResponse startIndexOnServer(TestServer server, Mode mode) {
+    return startIndexOnServer(server, mode, 0);
+  }
+
+  private StartIndexResponse startIndexOnServer(TestServer server, Mode mode, long primaryGen) {
+    StartIndexRequest.Builder builder =
+        StartIndexRequest.newBuilder().setIndexName("test_index").setMode(mode);
+    if (mode == Mode.REPLICA) {
+      builder
+          .setPrimaryAddress("localhost")
+          .setPort(primaryServer.getReplicationPort())
+          .setPrimaryGen(primaryGen);
+    } else {
+      builder.setPrimaryGen(primaryGen);
     }
-    if (primaryServer != null) {
-      primaryServer.shutdown();
-      try {
-        if (!primaryServer.awaitTermination(10, TimeUnit.SECONDS)) {
-          primaryServer.shutdownNow();
-        }
-      } catch (InterruptedException ignore) {
-        primaryServer.shutdownNow();
-      }
-      primaryServer = null;
+    return server.startIndex(builder.build());
+  }
+
+  private StartIndexResponse startIndexWithRestore(
+      TestServer server, Mode mode, boolean deleteExistingData) {
+    StartIndexRequest.Builder builder =
+        StartIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setMode(mode)
+            .setRestore(
+                RestoreIndex.newBuilder()
+                    .setServiceName(TestServer.SERVICE_NAME)
+                    .setResourceName("test_index")
+                    .setDeleteExistingData(deleteExistingData)
+                    .build());
+    if (mode == Mode.REPLICA) {
+      builder.setPrimaryAddress("localhost").setPort(primaryServer.getReplicationPort());
     }
-    if (primaryReplicationServer != null) {
-      primaryReplicationServer.shutdown();
-      try {
-        if (!primaryReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
-          primaryReplicationServer.shutdownNow();
-        }
-      } catch (InterruptedException ignore) {
-        primaryReplicationServer.shutdownNow();
-      }
-      primaryReplicationServer = null;
-    }
-    if (primaryExecutorFactory != null) {
-      try {
-        primaryExecutorFactory.close();
-      } catch (IOException ignore) {
-      }
-      primaryExecutorFactory = null;
-    }
-  }
-
-  private void cleanupReplica() {
-    if (replicaClient != null) {
-      try {
-        replicaClient.shutdown();
-      } catch (InterruptedException ignore) {
-      }
-      replicaClient = null;
-    }
-    if (replicaServer != null) {
-      replicaServer.shutdown();
-      try {
-        if (!replicaServer.awaitTermination(10, TimeUnit.SECONDS)) {
-          replicaServer.shutdownNow();
-        }
-      } catch (InterruptedException ignore) {
-        replicaServer.shutdownNow();
-      }
-      replicaServer = null;
-    }
-    if (replicaReplicationServer != null) {
-      replicaReplicationServer.shutdown();
-      try {
-        if (!replicaReplicationServer.awaitTermination(10, TimeUnit.SECONDS)) {
-          replicaReplicationServer.shutdownNow();
-        }
-      } catch (InterruptedException ignore) {
-        replicaReplicationServer.shutdownNow();
-      }
-      replicaReplicationServer = null;
-    }
-    if (replicaExecutorFactory != null) {
-      try {
-        replicaExecutorFactory.close();
-      } catch (IOException ignore) {
-      }
-      replicaExecutorFactory = null;
-    }
-  }
-
-  private void initRemote() throws IOException {
-    Files.createDirectories(getReplicaIndexDir());
-
-    S3Client s3 = s3Provider.getAmazonS3();
-    remoteBackendPrimary =
-        new S3Backend(
-            TEST_BUCKET,
-            false,
-            S3Backend.DEFAULT_CONFIG,
-            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
-    remoteBackendReplica =
-        new S3Backend(
-            TEST_BUCKET,
-            false,
-            S3Backend.DEFAULT_CONFIG,
-            new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
-  }
-
-  private NrtsearchConfig getPrimaryConfig() {
-    String configStr =
-        String.join(
-            "\n",
-            "nodeName: 'test_node'",
-            "serviceName: " + TEST_SERVICE_NAME,
-            "stateDir: " + getStateDir(),
-            "indexDir: " + getPrimaryIndexDir(),
-            "stateConfig:",
-            "  backendType: LOCAL");
-    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-  }
-
-  private NrtsearchConfig getPrimaryRemoteConfig() {
-    String configStr =
-        String.join(
-            "\n",
-            "nodeName: 'test_node'",
-            "serviceName: " + TEST_SERVICE_NAME,
-            "stateDir: " + getStateDir(),
-            "indexDir: " + getPrimaryIndexDir(),
-            "stateConfig:",
-            "  backendType: REMOTE",
-            "  remote:",
-            "    readOnly: false",
-            "indexStartConfig:",
-            "  mode: PRIMARY",
-            "  dataLocationType: REMOTE");
-    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-  }
-
-  private NrtsearchConfig getReplicaConfig() {
-    String configStr =
-        String.join(
-            "\n",
-            "nodeName: 'test_node_replica'",
-            "serviceName: " + TEST_SERVICE_NAME,
-            "stateDir: " + getStateDir(),
-            "indexDir: " + getReplicaIndexDir(),
-            "syncInitialNrtPoint: true",
-            "stateConfig:",
-            "  backendType: LOCAL");
-    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-  }
-
-  private NrtsearchConfig getReplicaRemoteConfig() {
-    String configStr =
-        String.join(
-            "\n",
-            "nodeName: 'test_node_replica'",
-            "serviceName: " + TEST_SERVICE_NAME,
-            "stateDir: " + getStateDir(),
-            "indexDir: " + getReplicaIndexDir(),
-            // don't sync on start to make restore testing easier
-            "syncInitialNrtPoint: false",
-            "stateConfig:",
-            "  backendType: REMOTE",
-            "indexStartConfig:",
-            "  mode: REPLICA",
-            "  dataLocationType: REMOTE");
-    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
-  }
-
-  private void restartPrimary() throws IOException {
-    cleanupPrimary();
-    NrtsearchConfig config = getPrimaryConfig();
-    primaryExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    LuceneServerImpl serverImpl =
-        new LuceneServerImpl(
-            config,
-            null,
-            new PrometheusRegistry(),
-            primaryExecutorFactory,
-            Collections.emptyList());
-
-    primaryReplicationServer =
-        ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
-            .build()
-            .start();
-    primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    primaryClient = new NrtsearchClient("localhost", primaryServer.getPort());
-  }
-
-  private void restartPrimaryWithRemote() throws IOException {
-    cleanupPrimary();
-    NrtsearchConfig config = getPrimaryRemoteConfig();
-    primaryExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    LuceneServerImpl serverImpl =
-        new LuceneServerImpl(
-            config,
-            remoteBackendPrimary,
-            new PrometheusRegistry(),
-            primaryExecutorFactory,
-            Collections.emptyList());
-
-    primaryReplicationServer =
-        ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
-            .build()
-            .start();
-    primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    primaryClient = new NrtsearchClient("localhost", primaryServer.getPort());
-  }
-
-  private void restartReplica() throws IOException {
-    cleanupReplica();
-    NrtsearchConfig config = getReplicaConfig();
-    replicaExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    LuceneServerImpl serverImpl =
-        new LuceneServerImpl(
-            config,
-            null,
-            new PrometheusRegistry(),
-            replicaExecutorFactory,
-            Collections.emptyList());
-
-    replicaReplicationServer =
-        ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
-            .build()
-            .start();
-    replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    replicaClient = new NrtsearchClient("localhost", replicaServer.getPort());
-  }
-
-  private void restartReplicaWithRemote() throws IOException {
-    cleanupReplica();
-    NrtsearchConfig config = getReplicaRemoteConfig();
-    replicaExecutorFactory = new ExecutorFactory(config.getThreadPoolConfiguration());
-    LuceneServerImpl serverImpl =
-        new LuceneServerImpl(
-            config,
-            remoteBackendReplica,
-            new PrometheusRegistry(),
-            replicaExecutorFactory,
-            Collections.emptyList());
-
-    replicaReplicationServer =
-        ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
-            .build()
-            .start();
-    replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    replicaClient = new NrtsearchClient("localhost", replicaServer.getPort());
-  }
-
-  private Path getStateDir() {
-    return Paths.get(folder.getRoot().toString(), "state_dir");
-  }
-
-  private Path getPrimaryIndexDir() {
-    return Paths.get(folder.getRoot().toString(), "primary_index_dir");
-  }
-
-  private Path getReplicaIndexDir() {
-    return Paths.get(folder.getRoot().toString(), "replica_index_dir");
-  }
-
-  private void initPrimary() throws IOException {
-    restartPrimary();
-    IndicesResponse response =
-        primaryClient.getBlockingStub().indices(IndicesRequest.newBuilder().build());
-    assertTrue(response.getIndicesResponseList().isEmpty());
-  }
-
-  private void initPrimaryWithRemote() throws IOException {
-    restartPrimaryWithRemote();
-    IndicesResponse response =
-        primaryClient.getBlockingStub().indices(IndicesRequest.newBuilder().build());
-    assertTrue(response.getIndicesResponseList().isEmpty());
-  }
-
-  private void createIndices() {
-    CreateIndexResponse response =
-        primaryClient
-            .getBlockingStub()
-            .createIndex(CreateIndexRequest.newBuilder().setIndexName("test_index").build());
-    assertEquals("Created Index name: test_index", response.getResponse());
-    response =
-        primaryClient
-            .getBlockingStub()
-            .createIndex(CreateIndexRequest.newBuilder().setIndexName("test_index_2").build());
-    assertEquals("Created Index name: test_index_2", response.getResponse());
-    response =
-        primaryClient
-            .getBlockingStub()
-            .createIndex(CreateIndexRequest.newBuilder().setIndexName("test_index_3").build());
-    assertEquals("Created Index name: test_index_3", response.getResponse());
-  }
-
-  private void createIndex() {
-    CreateIndexResponse response =
-        primaryClient
-            .getBlockingStub()
-            .createIndex(CreateIndexRequest.newBuilder().setIndexName("test_index").build());
-    assertEquals("Created Index name: test_index", response.getResponse());
-  }
-
-  private void createIndexWithFields() {
-    createIndex();
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
-  }
-
-  private IndexStateInfo getIndexState(String indexName, NrtsearchClient client)
-      throws IOException {
-    StateResponse response =
-        client.getBlockingStub().state(StateRequest.newBuilder().setIndexName(indexName).build());
-    JsonObject root = JsonParser.parseString(response.getResponse()).getAsJsonObject();
-    String indexStateJson = root.get("state").toString();
-    IndexStateInfo.Builder builder = IndexStateInfo.newBuilder();
-    JsonFormat.parser().merge(indexStateJson, builder);
-    return builder.build();
-  }
-
-  private Map<String, Field> getFieldMap(String jsonFieldMap) throws IOException {
-    JsonObject root = JsonParser.parseString(jsonFieldMap).getAsJsonObject();
-    Map<String, Field> resultsMap = new HashMap<>();
-    for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
-      Field.Builder builder = Field.newBuilder();
-      JsonFormat.parser().merge(entry.getValue().toString(), builder);
-      resultsMap.put(entry.getKey(), builder.build());
-    }
-    return resultsMap;
+    return server.startIndex(builder.build());
   }
 
   private final List<Field> fields1 =
@@ -499,9 +194,10 @@ public class StateBackendServerTest {
   private final List<String> fieldList = List.of("id", "field1", "field2", "field3", "field4");
   private final List<String> subFieldList = List.of("id", "field1", "field2");
 
-  private void verifyDocs(int expectedCount, NrtsearchClient client) {
+  private void verifyDocs(int expectedCount, TestServer server) {
     SearchResponse response =
-        client
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
@@ -542,9 +238,10 @@ public class StateBackendServerTest {
     }
   }
 
-  private void verifySubFieldDocs(int expectedCount, NrtsearchClient client) {
+  private void verifySubFieldDocs(int expectedCount, TestServer server) {
     SearchResponse response =
-        client
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
@@ -574,185 +271,105 @@ public class StateBackendServerTest {
     }
   }
 
-  private AddDocumentResponse addDocs(Stream<AddDocumentRequest> requestStream) throws Exception {
-    CountDownLatch finishLatch = new CountDownLatch(1);
-    // observers responses from Server(should get one onNext and oneCompleted)
-    final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
-    final AtomicReference<Exception> exception = new AtomicReference<>();
-    StreamObserver<AddDocumentResponse> responseStreamObserver =
-        new StreamObserver<>() {
-          @Override
-          public void onNext(AddDocumentResponse value) {
-            response.set(value);
-          }
-
-          @Override
-          public void onError(Throwable t) {
-            exception.set(new RuntimeException(t));
-            finishLatch.countDown();
-          }
-
-          @Override
-          public void onCompleted() {
-            finishLatch.countDown();
-          }
-        };
-    // requestObserver sends requests to Server (one onNext per AddDocumentRequest and one
-    // onCompleted)
-    StreamObserver<AddDocumentRequest> requestObserver =
-        primaryClient.getAsyncStub().addDocuments(responseStreamObserver);
-    // parse CSV into a stream of AddDocumentRequest
-    try {
-      requestStream.forEach(requestObserver::onNext);
-    } catch (RuntimeException e) {
-      // Cancel RPC
-      requestObserver.onError(e);
-      throw e;
-    }
-    // Mark the end of requests
-    requestObserver.onCompleted();
-    // Receiving happens asynchronously, so block here 20 seconds
-    if (!finishLatch.await(20, TimeUnit.SECONDS)) {
-      throw new RuntimeException("addDocuments can not finish within 20 seconds");
-    }
-    // Re-throw exception
-    if (exception.get() != null) {
-      throw exception.get();
-    }
-    return response.get();
-  }
-
-  private StartIndexResponse startIndex(NrtsearchClient client, Mode mode) {
-    return startIndex(client, mode, 0);
-  }
-
-  private StartIndexResponse startIndex(NrtsearchClient client, Mode mode, long primaryGen) {
-    if (mode.equals(Mode.REPLICA)) {
-      return client
-          .getBlockingStub()
-          .startIndex(
-              StartIndexRequest.newBuilder()
-                  .setIndexName("test_index")
-                  .setMode(Mode.REPLICA)
-                  .setPrimaryAddress("localhost")
-                  .setPort(primaryReplicationServer.getPort())
-                  .setPrimaryGen(primaryGen)
-                  .build());
-    } else {
-      return client
-          .getBlockingStub()
-          .startIndex(
-              StartIndexRequest.newBuilder().setIndexName("test_index").setMode(mode).build());
-    }
-  }
-
-  private StartIndexResponse startIndexWithRestore(
-      NrtsearchClient client, Mode mode, boolean deleteExistingData) {
-    if (mode.equals(Mode.REPLICA)) {
-      return client
-          .getBlockingStub()
-          .startIndex(
-              StartIndexRequest.newBuilder()
-                  .setIndexName("test_index")
-                  .setMode(Mode.REPLICA)
-                  .setPrimaryAddress("localhost")
-                  .setPort(primaryReplicationServer.getPort())
-                  .setRestore(
-                      RestoreIndex.newBuilder()
-                          .setServiceName(TEST_SERVICE_NAME)
-                          .setResourceName("test_index")
-                          .setDeleteExistingData(deleteExistingData)
-                          .build())
-                  .build());
-    } else {
-      return client
-          .getBlockingStub()
-          .startIndex(
-              StartIndexRequest.newBuilder()
-                  .setIndexName("test_index")
-                  .setMode(mode)
-                  .setRestore(
-                      RestoreIndex.newBuilder()
-                          .setServiceName(TEST_SERVICE_NAME)
-                          .setResourceName("test_index")
-                          .setDeleteExistingData(deleteExistingData)
-                          .build())
-                  .build());
-    }
-  }
-
-  private DummyResponse stopIndex(NrtsearchClient client) {
-    DummyResponse response =
-        client
+  private IndexStateInfo getIndexState(String indexName, TestServer server) throws IOException {
+    StateResponse response =
+        server
+            .getClient()
             .getBlockingStub()
-            .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
-    assertEquals("ok", response.getOk());
-    return response;
+            .state(StateRequest.newBuilder().setIndexName(indexName).build());
+    JsonObject root = JsonParser.parseString(response.getResponse()).getAsJsonObject();
+    String indexStateJson = root.get("state").toString();
+    IndexStateInfo.Builder builder = IndexStateInfo.newBuilder();
+    JsonFormat.parser().merge(indexStateJson, builder);
+    return builder.build();
   }
 
-  private CommitResponse commitIndex(NrtsearchClient client) {
-    return client
-        .getBlockingStub()
-        .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+  private Map<String, Field> getFieldMap(String jsonFieldMap) throws IOException {
+    JsonObject root = JsonParser.parseString(jsonFieldMap).getAsJsonObject();
+    Map<String, Field> resultsMap = new HashMap<>();
+    for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+      Field.Builder builder = Field.newBuilder();
+      JsonFormat.parser().merge(entry.getValue().toString(), builder);
+      resultsMap.put(entry.getKey(), builder.build());
+    }
+    return resultsMap;
   }
 
-  private RefreshResponse refreshIndex(NrtsearchClient client) {
-    return client
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName("test_index").build());
+  private void createIndices() {
+    assertEquals(
+        "Created Index name: test_index", primaryServer.createIndex("test_index").getResponse());
+    assertEquals(
+        "Created Index name: test_index_2",
+        primaryServer.createIndex("test_index_2").getResponse());
+    assertEquals(
+        "Created Index name: test_index_3",
+        primaryServer.createIndex("test_index_3").getResponse());
+  }
+
+  private void createIndex() {
+    assertEquals(
+        "Created Index name: test_index", primaryServer.createIndex("test_index").getResponse());
+  }
+
+  private void createIndexWithFields() {
+    createIndex();
+    primaryServer.registerFields("test_index", fields1);
+    primaryServer.registerFields("test_index", fields2);
+  }
+
+  private void writeNodeFile(List<Node> nodes, String filePath) throws IOException {
+    String fileStr = new ObjectMapper().writeValueAsString(nodes);
+    try (FileOutputStream outputStream = new FileOutputStream(filePath)) {
+      outputStream.write(fileStr.getBytes());
+    }
   }
 
   @Test
   public void testStartServer() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
   }
 
   @Test
   public void testRestartServer() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
   }
 
   @Test
   public void testCreateIndices() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndices();
 
-    IndicesResponse response =
-        primaryClient.getBlockingStub().indices(IndicesRequest.newBuilder().build());
-    Set<String> indices = new HashSet<>();
-    for (IndexStatsResponse statsResponse : response.getIndicesResponseList()) {
-      indices.add(statsResponse.getIndexName());
-    }
-    assertEquals(Set.of("test_index", "test_index_2", "test_index_3"), indices);
+    assertEquals(Set.of("test_index", "test_index_2", "test_index_3"), primaryServer.indices());
   }
 
   @Test
   public void testIndicesPersistRestart() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndices();
-    restartPrimary();
+    primaryServer.restart();
 
-    IndicesResponse response =
-        primaryClient.getBlockingStub().indices(IndicesRequest.newBuilder().build());
-    Set<String> indices = new HashSet<>();
-    for (IndexStatsResponse statsResponse : response.getIndicesResponseList()) {
-      indices.add(statsResponse.getIndexName());
-    }
-    assertEquals(Set.of("test_index", "test_index_2", "test_index_3"), indices);
+    assertEquals(Set.of("test_index", "test_index_2", "test_index_3"), primaryServer.indices());
   }
 
   @Test
   public void testSetIndexSettings() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     SettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .settingsV2(SettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_SETTINGS, response.getSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .settingsV2(
                 SettingsV2Request.newBuilder()
@@ -778,36 +395,37 @@ public class StateBackendServerTest {
 
   @Test
   public void testIndexSettingsPersistRestart() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    SettingsV2Response response =
-        primaryClient
-            .getBlockingStub()
-            .settingsV2(
-                SettingsV2Request.newBuilder()
-                    .setIndexName("test_index")
-                    .setSettings(
-                        IndexSettings.newBuilder()
-                            .setNrtCachingDirectoryMaxSizeMB(
-                                DoubleValue.newBuilder().setValue(120.0).build())
-                            .setNrtCachingDirectoryMaxMergeSizeMB(
-                                DoubleValue.newBuilder().setValue(60.0).build())
-                            .setIndexMergeSchedulerAutoThrottle(
-                                BoolValue.newBuilder().setValue(true).build())
-                            .build())
-                    .build());
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .settingsV2(
+            SettingsV2Request.newBuilder()
+                .setIndexName("test_index")
+                .setSettings(
+                    IndexSettings.newBuilder()
+                        .setNrtCachingDirectoryMaxSizeMB(
+                            DoubleValue.newBuilder().setValue(120.0).build())
+                        .setNrtCachingDirectoryMaxMergeSizeMB(
+                            DoubleValue.newBuilder().setValue(60.0).build())
+                        .setIndexMergeSchedulerAutoThrottle(
+                            BoolValue.newBuilder().setValue(true).build())
+                        .build())
+                .build());
     IndexSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(120.0).build())
             .setNrtCachingDirectoryMaxMergeSizeMB(DoubleValue.newBuilder().setValue(60.0).build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .build();
-    assertEquals(expectedSettings, response.getSettings());
 
-    restartPrimary();
-    response =
-        primaryClient
+    primaryServer.restart();
+    SettingsV2Response response =
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .settingsV2(SettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(expectedSettings, response.getSettings());
@@ -815,16 +433,19 @@ public class StateBackendServerTest {
 
   @Test
   public void testSetIndexLiveSettings() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     LiveSettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -854,25 +475,24 @@ public class StateBackendServerTest {
 
   @Test
   public void testIndexLiveSettingsPersistRestart() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    LiveSettingsV2Response response =
-        primaryClient
-            .getBlockingStub()
-            .liveSettingsV2(
-                LiveSettingsV2Request.newBuilder()
-                    .setIndexName("test_index")
-                    .setLiveSettings(
-                        IndexLiveSettings.newBuilder()
-                            .setDefaultTerminateAfter(
-                                Int32Value.newBuilder().setValue(1000).build())
-                            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
-                            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
-                            .setDefaultSearchTimeoutSec(
-                                DoubleValue.newBuilder().setValue(5.1).build())
-                            .build())
-                    .build());
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .liveSettingsV2(
+            LiveSettingsV2Request.newBuilder()
+                .setIndexName("test_index")
+                .setLiveSettings(
+                    IndexLiveSettings.newBuilder()
+                        .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+                        .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+                        .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+                        .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+                        .build())
+                .build());
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
@@ -880,11 +500,11 @@ public class StateBackendServerTest {
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
             .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
             .build();
-    assertEquals(expectedSettings, response.getLiveSettings());
 
-    restartPrimary();
-    response =
-        primaryClient
+    primaryServer.restart();
+    LiveSettingsV2Response response =
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(expectedSettings, response.getLiveSettings());
@@ -892,16 +512,19 @@ public class StateBackendServerTest {
 
   @Test
   public void testSetLocalIndexLiveSettings() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     LiveSettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -917,7 +540,6 @@ public class StateBackendServerTest {
                             .build())
                     .setLocal(true)
                     .build());
-    // live settings with local
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
@@ -927,7 +549,8 @@ public class StateBackendServerTest {
             .build();
     assertEquals(expectedSettings, response.getLiveSettings());
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -938,7 +561,8 @@ public class StateBackendServerTest {
 
     // live settings without local
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
@@ -946,16 +570,19 @@ public class StateBackendServerTest {
 
   @Test
   public void testUpdateLocalIndexLiveSettings() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     LiveSettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -971,7 +598,6 @@ public class StateBackendServerTest {
                             .build())
                     .setLocal(true)
                     .build());
-    // live settings with local
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
@@ -982,7 +608,8 @@ public class StateBackendServerTest {
     assertEquals(expectedSettings, response.getLiveSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -995,7 +622,6 @@ public class StateBackendServerTest {
                             .build())
                     .setLocal(true)
                     .build());
-    // live settings with local
     expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(2000).build())
@@ -1008,7 +634,8 @@ public class StateBackendServerTest {
 
     // live settings without local
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
@@ -1016,16 +643,19 @@ public class StateBackendServerTest {
 
   @Test
   public void testSetLocalIndexLiveSettingsEphemeral() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     LiveSettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -1041,7 +671,6 @@ public class StateBackendServerTest {
                             .build())
                     .setLocal(true)
                     .build());
-    // live settings with local
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
@@ -1053,20 +682,23 @@ public class StateBackendServerTest {
 
     // live settings without local
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
-    restartPrimary();
+    primaryServer.restart();
 
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -1078,27 +710,31 @@ public class StateBackendServerTest {
 
   @Test
   public void testSetLocalIndexLiveSettingsReplica() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndex(primaryClient, Mode.PRIMARY);
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
 
-    restartReplica();
-    startIndex(replicaClient, Mode.REPLICA);
+    replicaServer = buildLocalReplica();
+    startIndexOnServer(replicaServer, Mode.REPLICA);
 
     LiveSettingsV2Response response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        replicaClient
+        replicaServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     response =
-        replicaClient
+        replicaServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -1114,7 +750,6 @@ public class StateBackendServerTest {
                             .build())
                     .setLocal(true)
                     .build());
-    // live settings with local
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
@@ -1126,19 +761,22 @@ public class StateBackendServerTest {
 
     // live settings without local
     response =
-        replicaClient
+        replicaServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
 
     // primary unaffected
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
     response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .liveSettingsV2(
                 LiveSettingsV2Request.newBuilder()
@@ -1150,18 +788,12 @@ public class StateBackendServerTest {
 
   @Test
   public void testSetIndexFields() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    FieldDefResponse response =
-        primaryClient
-            .getBlockingStub()
-            .registerFields(
-                FieldDefRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .addAllField(fields1)
-                    .build());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    FieldDefResponse response = primaryServer.registerFields("test_index", fields1);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     Map<String, Field> fieldMap = getFieldMap(response.getResponse());
 
     assertEquals(3, indexStateInfo.getFieldsCount());
@@ -1170,15 +802,8 @@ public class StateBackendServerTest {
     assertEquals(fields1.get(2), indexStateInfo.getFieldsMap().get("field2"));
     assertEquals(fieldMap, indexStateInfo.getFieldsMap());
 
-    response =
-        primaryClient
-            .getBlockingStub()
-            .registerFields(
-                FieldDefRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .addAllField(fields2)
-                    .build());
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    response = primaryServer.registerFields("test_index", fields2);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     fieldMap = getFieldMap(response.getResponse());
 
     assertEquals(5, indexStateInfo.getFieldsCount());
@@ -1192,21 +817,15 @@ public class StateBackendServerTest {
 
   @Test
   public void testIndexFieldsPersistRestart() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    FieldDefResponse response =
-        primaryClient
-            .getBlockingStub()
-            .registerFields(
-                FieldDefRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .addAllField(fields1)
-                    .build());
+    FieldDefResponse response = primaryServer.registerFields("test_index", fields1);
 
-    restartPrimary();
+    primaryServer.restart();
 
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     Map<String, Field> fieldMap = getFieldMap(response.getResponse());
 
     assertEquals(3, indexStateInfo.getFieldsCount());
@@ -1215,18 +834,11 @@ public class StateBackendServerTest {
     assertEquals(fields1.get(2), indexStateInfo.getFieldsMap().get("field2"));
     assertEquals(fieldMap, indexStateInfo.getFieldsMap());
 
-    response =
-        primaryClient
-            .getBlockingStub()
-            .registerFields(
-                FieldDefRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .addAllField(fields2)
-                    .build());
+    response = primaryServer.registerFields("test_index", fields2);
 
-    restartPrimary();
+    primaryServer.restart();
 
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     fieldMap = getFieldMap(response.getResponse());
 
     assertEquals(5, indexStateInfo.getFieldsCount());
@@ -1240,7 +852,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testCompleteState() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
     IndexLiveSettings liveSettings =
@@ -1257,22 +870,18 @@ public class StateBackendServerTest {
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .build();
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
-    primaryClient
+    primaryServer.registerFields("test_index", fields1);
+    primaryServer.registerFields("test_index", fields2);
+    primaryServer
+        .getClient()
         .getBlockingStub()
         .liveSettingsV2(
             LiveSettingsV2Request.newBuilder()
                 .setIndexName("test_index")
                 .setLiveSettings(liveSettings)
                 .build());
-    primaryClient
+    primaryServer
+        .getClient()
         .getBlockingStub()
         .settingsV2(
             SettingsV2Request.newBuilder()
@@ -1280,7 +889,7 @@ public class StateBackendServerTest {
                 .setSettings(settings)
                 .build());
 
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(5, indexStateInfo.getFieldsCount());
     assertEquals(fields1.get(0), indexStateInfo.getFieldsMap().get("id"));
     assertEquals(fields1.get(1), indexStateInfo.getFieldsMap().get("field1"));
@@ -1290,9 +899,9 @@ public class StateBackendServerTest {
     assertEquals(liveSettings, indexStateInfo.getLiveSettings());
     assertEquals(settings, indexStateInfo.getSettings());
 
-    restartPrimary();
+    primaryServer.restart();
 
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(5, indexStateInfo.getFieldsCount());
     assertEquals(fields1.get(0), indexStateInfo.getFieldsMap().get("id"));
     assertEquals(fields1.get(1), indexStateInfo.getFieldsMap().get("field1"));
@@ -1305,7 +914,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testIndexAlreadyExists() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
     try {
       createIndex();
@@ -1318,23 +928,22 @@ public class StateBackendServerTest {
 
   @Test
   public void testRecreateIndex() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields1);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(3, indexStateInfo.getFieldsCount());
-    Path dataDir = getPrimaryIndexDir();
+    Path dataDir = primaryServer.getGlobalState().getIndexDirBase();
     File[] indexFolders = dataDir.toFile().listFiles();
     assertEquals(1, indexFolders.length);
     String indexUniqueName = indexFolders[0].getName();
     assertTrue(indexUniqueName.startsWith("test_index"));
 
     DeleteIndexResponse response =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .deleteIndex(DeleteIndexRequest.newBuilder().setIndexName("test_index").build());
     assertEquals("ok", response.getOk());
@@ -1342,7 +951,7 @@ public class StateBackendServerTest {
     assertEquals(0, indexFolders.length);
 
     createIndex();
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(1, indexStateInfo.getGen());
     assertTrue(indexStateInfo.getFieldsMap().isEmpty());
 
@@ -1352,162 +961,168 @@ public class StateBackendServerTest {
     assertTrue(newIndexUniqueName.startsWith("test_index"));
     assertNotEquals(newIndexUniqueName, indexUniqueName);
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields1);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(3, indexStateInfo.getFieldsCount());
   }
 
   @Test
   public void testStartIndexPrimary() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertTrue(indexStateInfo.getCommitted());
   }
 
   @Test
   public void testStartIndexStandalone() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.STANDALONE);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.STANDALONE);
     assertEquals(0, response.getNumDocs());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertTrue(indexStateInfo.getCommitted());
   }
 
   @Test
   public void testStartIndexReplica() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertTrue(indexStateInfo.getCommitted());
 
-    restartReplica();
-    response = startIndex(replicaClient, Mode.REPLICA);
+    replicaServer = buildLocalReplica();
+    response = startIndexOnServer(replicaServer, Mode.REPLICA);
     assertEquals(0, response.getNumDocs());
-    indexStateInfo = getIndexState("test_index", replicaClient);
+    indexStateInfo = getIndexState("test_index", replicaServer);
     assertTrue(indexStateInfo.getCommitted());
     assertEquals(5, indexStateInfo.getFieldsMap().size());
   }
 
   @Test
   public void testInitialNrtPointSync() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    restartReplica();
-    response = startIndex(replicaClient, Mode.REPLICA);
+    replicaServer = buildLocalReplica();
+    response = startIndexOnServer(replicaServer, Mode.REPLICA);
     assertEquals(1, response.getNumDocs());
-    verifyDocs(1, replicaClient);
+    verifyDocs(1, replicaServer);
   }
 
   @Test
   public void testIndexStopStart() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    response = startIndex(primaryClient, Mode.PRIMARY);
+    response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
   }
 
   @Test
   public void testIndexStopStartExistingDoc() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    response = startIndex(primaryClient, Mode.PRIMARY);
+    response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(1, response.getNumDocs());
 
-    addDocs(docs2.stream());
-    refreshIndex(primaryClient);
-    verifyDocs(2, primaryClient);
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.refresh("test_index");
+    verifyDocs(2, primaryServer);
   }
 
   @Test
   public void testIndexStopStartExistingDocStandalone() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.STANDALONE);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.STANDALONE);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    response = startIndex(primaryClient, Mode.STANDALONE);
+    response = startIndexOnServer(primaryServer, Mode.STANDALONE);
     assertEquals(1, response.getNumDocs());
 
-    addDocs(docs2.stream());
-    refreshIndex(primaryClient);
-    verifyDocs(2, primaryClient);
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.refresh("test_index");
+    verifyDocs(2, primaryServer);
   }
 
   @Test
   public void testIndexStopStartReplica() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    restartReplica();
-    response = startIndex(replicaClient, Mode.REPLICA);
+    replicaServer = buildLocalReplica();
+    response = startIndexOnServer(replicaServer, Mode.REPLICA);
     assertEquals(1, response.getNumDocs());
-    verifyDocs(1, replicaClient);
+    verifyDocs(1, replicaServer);
 
-    stopIndex(replicaClient);
+    replicaServer.stopIndex("test_index");
 
-    response = startIndex(replicaClient, Mode.REPLICA);
+    response = startIndexOnServer(replicaServer, Mode.REPLICA);
     assertEquals(1, response.getNumDocs());
-    verifyDocs(1, replicaClient);
+    verifyDocs(1, replicaServer);
   }
 
   @Test
   public void testIndexAlreadyStarted() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
     try {
-      startIndex(primaryClient, Mode.PRIMARY);
+      startIndexOnServer(primaryServer, Mode.PRIMARY);
       fail();
     } catch (StatusRuntimeException e) {
       assertEquals(
@@ -1518,26 +1133,28 @@ public class StateBackendServerTest {
 
   @Test
   public void testRecreateStartedIndex() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
 
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(5, indexStateInfo.getFieldsCount());
-    Path dataDir = getPrimaryIndexDir();
+    Path dataDir = primaryServer.getGlobalState().getIndexDirBase();
     File[] indexFolders = dataDir.toFile().listFiles();
     assertEquals(1, indexFolders.length);
     String indexUniqueName = indexFolders[0].getName();
     assertTrue(indexUniqueName.startsWith("test_index"));
 
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
     DeleteIndexResponse delResponse =
-        primaryClient
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .deleteIndex(DeleteIndexRequest.newBuilder().setIndexName("test_index").build());
     assertEquals("ok", delResponse.getOk());
@@ -1545,7 +1162,7 @@ public class StateBackendServerTest {
     assertEquals(0, indexFolders.length);
 
     createIndex();
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(1, indexStateInfo.getGen());
     assertTrue(indexStateInfo.getFieldsMap().isEmpty());
 
@@ -1555,63 +1172,53 @@ public class StateBackendServerTest {
     assertTrue(newIndexUniqueName.startsWith("test_index"));
     assertNotEquals(newIndexUniqueName, indexUniqueName);
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields1);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(3, indexStateInfo.getFieldsCount());
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields2);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(5, indexStateInfo.getFieldsCount());
 
-    response = startIndex(primaryClient, Mode.PRIMARY);
+    response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
-    addDocs(docs1.stream());
-    addDocs(docs2.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(2, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(2, primaryServer);
   }
 
   @Test
   public void testSchemaChangeWithIndexing() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
 
-    startIndex(primaryClient, Mode.PRIMARY);
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
-    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields1);
+    IndexStateInfo indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(3, indexStateInfo.getFieldsCount());
 
-    addDocs(docs3.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
+    primaryServer.addDocs(docs3.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
-    indexStateInfo = getIndexState("test_index", primaryClient);
+    primaryServer.registerFields("test_index", fields2);
+    indexStateInfo = getIndexState("test_index", primaryServer);
     assertEquals(5, indexStateInfo.getFieldsCount());
 
-    addDocs(docs1.stream());
-    addDocs(docs2.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(3, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(3, primaryServer);
   }
 
   @Test
   public void testSettingsV1All() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
 
     SettingsRequest request =
@@ -1630,7 +1237,7 @@ public class StateBackendServerTest {
             .setDirectory("MMapDirectory")
             .build();
 
-    SettingsResponse response = primaryClient.getBlockingStub().settings(request);
+    SettingsResponse response = primaryServer.getClient().getBlockingStub().settings(request);
     IndexSettings expectedSettings =
         IndexSettings.newBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(101.0).build())
@@ -1654,7 +1261,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testSettingsV1Partial() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
 
     SettingsRequest request =
@@ -1670,7 +1278,7 @@ public class StateBackendServerTest {
             .setIndexMergeSchedulerAutoThrottle(true)
             .build();
 
-    SettingsResponse response = primaryClient.getBlockingStub().settings(request);
+    SettingsResponse response = primaryServer.getClient().getBlockingStub().settings(request);
     IndexSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(101.0).build())
@@ -1690,7 +1298,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testLiveSettingsV1All() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
 
     LiveSettingsRequest request =
@@ -1713,7 +1322,8 @@ public class StateBackendServerTest {
             .setDeletePctAllowed(20.0)
             .build();
 
-    LiveSettingsResponse response = primaryClient.getBlockingStub().liveSettings(request);
+    LiveSettingsResponse response =
+        primaryServer.getClient().getBlockingStub().liveSettings(request);
     IndexLiveSettings expectedSettings =
         IndexLiveSettings.newBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(30.0).build())
@@ -1744,7 +1354,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testLiveSettingsV1Partial() throws IOException {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
 
     LiveSettingsRequest request =
@@ -1760,7 +1371,8 @@ public class StateBackendServerTest {
             .setDefaultTerminateAfter(5000)
             .build();
 
-    LiveSettingsResponse response = primaryClient.getBlockingStub().liveSettings(request);
+    LiveSettingsResponse response =
+        primaryServer.getClient().getBlockingStub().liveSettings(request);
     IndexLiveSettings expectedSettings =
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(30.0).build())
@@ -1780,129 +1392,122 @@ public class StateBackendServerTest {
 
   @Test
   public void testStartServerWithRemote() throws IOException {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
   }
 
   @Test
   public void testStartWithRestore() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndex(primaryClient, Mode.PRIMARY);
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    restartPrimaryWithRemote();
-    startIndexWithRestore(primaryClient, Mode.PRIMARY, true);
-    verifyDocs(1, primaryClient);
+    primaryServer.restart();
+    startIndexWithRestore(primaryServer, Mode.PRIMARY, true);
+    verifyDocs(1, primaryServer);
   }
 
   @Test
   public void testStartRestoreNoCommit() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndexWithRestore(primaryClient, Mode.PRIMARY, false);
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    startIndexWithRestore(primaryServer, Mode.PRIMARY, false);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    restartPrimaryWithRemote();
-    startIndexWithRestore(primaryClient, Mode.PRIMARY, true);
-    verifyDocs(1, primaryClient);
+    primaryServer.restart();
+    startIndexWithRestore(primaryServer, Mode.PRIMARY, true);
+    verifyDocs(1, primaryServer);
   }
 
   @Test
   public void testReplicaRestore() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndex(primaryClient, Mode.PRIMARY);
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    stopIndex(primaryClient);
+    primaryServer.stopIndex("test_index");
 
-    restartReplicaWithRemote();
-    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
-    verifyDocs(1, replicaClient);
+    replicaServer = buildRemoteReplica();
+    startIndexWithRestore(replicaServer, Mode.REPLICA, true);
+    verifyDocs(1, replicaServer);
   }
 
   @Test
   public void testReplicaReDownloadsIndexData() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndex(primaryClient, Mode.PRIMARY);
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    restartReplicaWithRemote();
-    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
-    verifyDocs(1, replicaClient);
-    stopIndex(replicaClient);
+    replicaServer = buildRemoteReplica();
+    startIndexWithRestore(replicaServer, Mode.REPLICA, true);
+    verifyDocs(1, replicaServer);
+    replicaServer.stopIndex("test_index");
 
     // commit more docs on primary
-    addDocs(docs2.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(2, primaryClient);
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(2, primaryServer);
 
     // start index and pull latest restore
-    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
-    verifyDocs(2, replicaClient);
+    startIndexWithRestore(replicaServer, Mode.REPLICA, true);
+    verifyDocs(2, replicaServer);
   }
 
   @Test
   public void testReplicaRestoreSchemaChange() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndex();
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
+    primaryServer.registerFields("test_index", fields1);
 
-    restartReplicaWithRemote();
+    replicaServer = buildRemoteReplica();
 
-    primaryClient
-        .getBlockingStub()
-        .registerFields(
-            FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
-    startIndexWithRestore(primaryClient, Mode.PRIMARY, true);
-    addDocs(docs1.stream());
-    addDocs(docs2.stream());
-    addDocs(docs3.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(3, primaryClient);
+    primaryServer.registerFields("test_index", fields2);
+    startIndexWithRestore(primaryServer, Mode.PRIMARY, true);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.addDocs(docs3.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(3, primaryServer);
 
-    startIndexWithRestore(replicaClient, Mode.REPLICA, false);
-    verifySubFieldDocs(3, replicaClient);
+    startIndexWithRestore(replicaServer, Mode.REPLICA, false);
+    verifySubFieldDocs(3, replicaServer);
 
-    stopIndex(replicaClient);
-    restartReplicaWithRemote();
-    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
-    verifyDocs(3, replicaClient);
+    replicaServer.stopIndex("test_index");
+    replicaServer.restart();
+    startIndexWithRestore(replicaServer, Mode.REPLICA, true);
+    verifyDocs(3, replicaServer);
   }
 
   @Test
   public void testStartReplicaNoGlobalState() throws IOException {
-    initRemote();
     try {
-      restartReplicaWithRemote();
+      replicaServer = buildRemoteReplica();
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
@@ -1911,148 +1516,131 @@ public class StateBackendServerTest {
 
   @Test
   public void testAutoPrimaryGeneration() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    startIndex(primaryClient, Mode.PRIMARY, -1);
-    addDocs(docs1.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
-    stopIndex(primaryClient);
-    cleanupPrimary();
+    startIndexOnServer(primaryServer, Mode.PRIMARY, -1);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
+    primaryServer.stopIndex("test_index");
+    primaryServer.stop();
 
-    restartReplicaWithRemote();
-    replicaClient
-        .getBlockingStub()
-        .startIndex(
-            StartIndexRequest.newBuilder()
-                .setIndexName("test_index")
-                .setMode(Mode.REPLICA)
-                .setPrimaryAddress("localhost")
-                .setPort(0)
-                .setPrimaryGen(-1)
-                .setRestore(
-                    RestoreIndex.newBuilder()
-                        .setServiceName(TEST_SERVICE_NAME)
-                        .setResourceName("test_index")
-                        .setDeleteExistingData(true)
-                        .build())
-                .build());
+    replicaServer = buildRemoteReplica();
+    replicaServer.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setMode(Mode.REPLICA)
+            .setPrimaryAddress("localhost")
+            .setPort(0)
+            .setPrimaryGen(-1)
+            .setRestore(
+                RestoreIndex.newBuilder()
+                    .setServiceName(TestServer.SERVICE_NAME)
+                    .setResourceName("test_index")
+                    .setDeleteExistingData(true)
+                    .build())
+            .build());
 
-    verifyDocs(1, replicaClient);
+    verifyDocs(1, replicaServer);
 
-    restartPrimaryWithRemote();
-    startIndex(primaryClient, Mode.PRIMARY, -1);
-    addDocs(docs2.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(2, primaryClient);
-    stopIndex(primaryClient);
-    cleanupPrimary();
-    stopIndex(replicaClient);
+    primaryServer.restart();
+    startIndexOnServer(primaryServer, Mode.PRIMARY, -1);
+    primaryServer.addDocs(docs2.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(2, primaryServer);
+    primaryServer.stopIndex("test_index");
+    primaryServer.stop();
+    replicaServer.stopIndex("test_index");
 
-    restartReplicaWithRemote();
-    replicaClient
-        .getBlockingStub()
-        .startIndex(
-            StartIndexRequest.newBuilder()
-                .setIndexName("test_index")
-                .setMode(Mode.REPLICA)
-                .setPrimaryAddress("localhost")
-                .setPrimaryGen(-1)
-                .setRestore(
-                    RestoreIndex.newBuilder()
-                        .setServiceName(TEST_SERVICE_NAME)
-                        .setResourceName("test_index")
-                        .setDeleteExistingData(true)
-                        .build())
-                .build());
-    verifyDocs(2, replicaClient);
-    stopIndex(replicaClient);
+    replicaServer.restart();
+    replicaServer.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setMode(Mode.REPLICA)
+            .setPrimaryAddress("localhost")
+            .setPrimaryGen(-1)
+            .setRestore(
+                RestoreIndex.newBuilder()
+                    .setServiceName(TestServer.SERVICE_NAME)
+                    .setResourceName("test_index")
+                    .setDeleteExistingData(true)
+                    .build())
+            .build());
+    verifyDocs(2, replicaServer);
+    replicaServer.stopIndex("test_index");
 
-    restartPrimaryWithRemote();
-    startIndex(primaryClient, Mode.PRIMARY, -1);
-    addDocs(docs3.stream());
-    commitIndex(primaryClient);
-    refreshIndex(primaryClient);
-    verifyDocs(3, primaryClient);
+    primaryServer.restart();
+    startIndexOnServer(primaryServer, Mode.PRIMARY, -1);
+    primaryServer.addDocs(docs3.stream());
+    primaryServer.commit("test_index");
+    primaryServer.refresh("test_index");
+    verifyDocs(3, primaryServer);
 
-    restartReplicaWithRemote();
-    replicaClient
-        .getBlockingStub()
-        .startIndex(
-            StartIndexRequest.newBuilder()
-                .setIndexName("test_index")
-                .setMode(Mode.REPLICA)
-                .setPrimaryAddress("localhost")
-                .setPrimaryGen(-1)
-                .setRestore(
-                    RestoreIndex.newBuilder()
-                        .setServiceName(TEST_SERVICE_NAME)
-                        .setResourceName("test_index")
-                        .setDeleteExistingData(true)
-                        .build())
-                .build());
-    verifyDocs(3, replicaClient);
+    replicaServer.restart();
+    replicaServer.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setMode(Mode.REPLICA)
+            .setPrimaryAddress("localhost")
+            .setPrimaryGen(-1)
+            .setRestore(
+                RestoreIndex.newBuilder()
+                    .setServiceName(TestServer.SERVICE_NAME)
+                    .setResourceName("test_index")
+                    .setDeleteExistingData(true)
+                    .build())
+            .build());
+    verifyDocs(3, replicaServer);
   }
 
   @Test
   public void testStartIndexFromDiscoveryFile() throws Exception {
-    initPrimary();
+    primaryServer = buildLocalPrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    addDocs(docs1.stream());
-    refreshIndex(primaryClient);
-    verifyDocs(1, primaryClient);
+    primaryServer.addDocs(docs1.stream());
+    primaryServer.refresh("test_index");
+    verifyDocs(1, primaryServer);
 
-    restartReplica();
+    replicaServer = buildLocalReplica();
     String discoveryFilePath =
         Paths.get(folder.getRoot().toString(), "test_discovery_file.json").toString();
     writeNodeFile(
-        Collections.singletonList(new Node("localhost", primaryReplicationServer.getPort())),
+        Collections.singletonList(new Node("localhost", primaryServer.getReplicationPort())),
         discoveryFilePath);
     response =
-        replicaClient
-            .getBlockingStub()
-            .startIndex(
-                StartIndexRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setMode(Mode.REPLICA)
-                    .setPrimaryDiscoveryFile(discoveryFilePath)
-                    .setPrimaryGen(0)
-                    .build());
+        replicaServer.startIndex(
+            StartIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setMode(Mode.REPLICA)
+                .setPrimaryDiscoveryFile(discoveryFilePath)
+                .setPrimaryGen(0)
+                .build());
     assertEquals(1, response.getNumDocs());
-    verifyDocs(1, replicaClient);
-  }
-
-  private void writeNodeFile(List<Node> nodes, String filePath) throws IOException {
-    String filePathStr = filePath;
-    String fileStr = new ObjectMapper().writeValueAsString(nodes);
-    try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
-      outputStream.write(fileStr.getBytes());
-    }
+    verifyDocs(1, replicaServer);
   }
 
   @Test
   public void testStartIndexNoDiscovery() throws Exception {
-    initRemote();
-    initPrimaryWithRemote();
+    primaryServer = buildRemotePrimary();
+    assertTrue(primaryServer.indices().isEmpty());
     createIndexWithFields();
-    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    StartIndexResponse response = startIndexOnServer(primaryServer, Mode.PRIMARY);
     assertEquals(0, response.getNumDocs());
 
-    restartReplicaWithRemote();
-    replicaClient
-        .getBlockingStub()
-        .startIndex(
-            StartIndexRequest.newBuilder()
-                .setIndexName("test_index")
-                .setMode(Mode.REPLICA)
-                .setPrimaryGen(0)
-                .build());
-    assertEquals(List.of("test_index"), replicaClient.getIndices());
+    replicaServer = buildRemoteReplica();
+    replicaServer.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setMode(Mode.REPLICA)
+            .setPrimaryGen(0)
+            .build());
+    assertEquals(Set.of("test_index"), replicaServer.indices());
   }
 }
