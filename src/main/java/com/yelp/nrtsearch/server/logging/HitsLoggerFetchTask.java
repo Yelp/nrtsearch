@@ -67,10 +67,10 @@ public class HitsLoggerFetchTask implements FetchTask {
    * Log exactly the given hits, in the given order, bypassing the {@link #hitsToLog} truncation
    * applied by {@link #processAllHits(SearchContext, List)}.
    *
-   * <p>Used by the query-then-fetch streaming search flow, where a coordinator has already merged
-   * the results of every shard and selected the exact set of documents this shard should log.
-   * Truncating that set here would drop documents based on this shard's local ranking, which the
-   * coordinator has already superseded.
+   * <p>Used by the query-then-fetch streaming search flow, where the client has already merged the
+   * results of every shard and selected the exact set of documents this shard should log.
+   * Truncating that set here would drop documents based on this shard's local ranking, which that
+   * global merge has already superseded.
    *
    * <p>The {@code hitsToLog > 0} disable switch honored by {@link #processAllHits(SearchContext,
    * List)} still applies: only the per-shard truncation is bypassed, not logging itself. {@link

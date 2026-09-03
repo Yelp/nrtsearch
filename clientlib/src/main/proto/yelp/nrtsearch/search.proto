@@ -1735,21 +1735,22 @@ message StreamSearchRequest {
         // Initial request: execute search and rescore, pause before fetch.
         // The server holds the searcher open and returns scored hit IDs.
         SearchRequest searchRequest = 1;
-        // Continue with a reduced hit list after coordinator merge/dedup.
-        // The server fetches and logs only the specified documents.
+        // Continue with a reduced hit list, after the client has merged and deduplicated the
+        // responses of every shard. The server fetches and logs only the specified documents.
         ReducedHitList reducedHitList = 2;
     }
 }
 
-// Coordinator-provided lists of document IDs for selective fetch and logging. Sent after the
-// coordinator has merged the RESCORE phase responses of all shards into a single global ranking.
+// Client-provided lists of document IDs for selective fetch and logging. Sent after the client
+// has merged the RESCORE phase responses of all shards into a single global ranking.
 //
 // All ids must be lucene doc ids that this shard returned in its own RESCORE phase response;
 // ids the shard did not return are rejected with INVALID_ARGUMENT rather than silently ignored,
-// so that a coordinator bug surfaces as an error instead of as missing log records.
+// so that a client bug surfaces as an error instead of as missing log records. Repeated ids are
+// rejected for the same reason.
 //
-// luceneDocIdsToLog is expected to be a superset of luceneDocIdsToReturn: the coordinator decides
-// globally which documents to log, and returns a (usually smaller) page of them to the caller.
+// luceneDocIdsToLog is expected to be a superset of luceneDocIdsToReturn: the client decides
+// globally which documents to log, and returns a (usually smaller) page of them to its caller.
 // Ids in luceneDocIdsToReturn that are absent from luceneDocIdsToLog are still fetched and
 // returned, they are simply not logged.
 message ReducedHitList {
@@ -1757,9 +1758,9 @@ message ReducedHitList {
     // they should appear in the response hits.
     repeated int32 luceneDocIdsToReturn = 1;
     // Lucene doc IDs that should be logged (e.g. easy negative via HitsLogger). The server logs
-    // exactly these documents, in exactly this order, so the coordinator's globally merged
-    // ordering is what reaches the HitsLogger. Unlike the unary search RPC, this list is not
-    // truncated to LoggingHits.hitsToLog; the coordinator is responsible for sizing it.
+    // exactly these documents, in exactly this order, so the client's globally merged ordering is
+    // what reaches the HitsLogger. Unlike the unary search RPC, this list is not truncated to
+    // LoggingHits.hitsToLog; the client is responsible for sizing it.
     repeated int32 luceneDocIdsToLog = 2;
 }
 
@@ -1783,7 +1784,7 @@ message StreamSearchResponse {
         // (score or sorted field values) but no hit fields, along with the aggregations for this
         // shard: facet results, collector results and search state. After the FETCH phase it
         // contains fully populated hit fields for the requested documents only; aggregations are
-        // not repeated, since the coordinator already received them in the RESCORE response.
+        // not repeated, since the client already received them in the RESCORE response.
         SearchResponse searchResponse = 2;
     }
 }

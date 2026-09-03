@@ -243,7 +243,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
     List<Integer> allDocIds = docIds(recall);
     List<Integer> toReturn = allDocIds.subList(0, 3);
-    // The coordinator logs more documents than it returns.
+    // The client logs more documents than it returns.
     List<Integer> toLog = allDocIds.subList(0, 5);
     stream.onNext(reducedMessage(toReturn, toLog));
 
@@ -252,9 +252,9 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     assertEquals(StreamSearchResponse.Phase.FETCH, fetchResponse.getPhase());
     SearchResponse fetch = fetchResponse.getSearchResponse();
 
-    // Only the requested documents come back, in the order the coordinator listed them.
+    // Only the requested documents come back, in the order the client listed them.
     assertEquals(toReturn, docIds(fetch));
-    // The shard's own total hits are preserved for the coordinator to merge.
+    // The shard's own total hits are preserved for the client to merge.
     assertEquals(NUM_DOCS, fetch.getTotalHits().getValue());
     for (SearchResponse.Hit hit : fetch.getHitsList()) {
       assertTrue(hit.containsFields("doc_id"));
@@ -270,14 +270,14 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     stream.onNext(searchMessage(basicRequest(NUM_DOCS).build()));
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
 
-    // The point of splitting the phases: no field data is read before the coordinator has decided
+    // The point of splitting the phases: no field data is read before the client has decided
     // which documents matter. Requested retrieveFields are deliberately not populated yet.
     for (SearchResponse.Hit hit : recall.getHitsList()) {
       assertTrue(hit.getLuceneDocId() >= 0);
       assertTrue(hit.getScore() > 0);
       assertTrue("Recall phase should not fetch fields", hit.getFieldsMap().isEmpty());
     }
-    // Search state is returned so the coordinator can see which commit answered the request.
+    // Search state is returned so the client can see which commit answered the request.
     assertTrue(recall.getSearchState().getSearcherVersion() > 0);
 
     stream.onCompleted();
@@ -285,7 +285,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testHitsLoggerReceivesOnlyCoordinatorSelectedDocs() throws Exception {
+  public void testHitsLoggerReceivesOnlyClientSelectedDocs() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
@@ -293,7 +293,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
     assertEquals(NUM_DOCS, recall.getHitsCount());
 
-    // Nothing may be logged before the coordinator has merged all shards.
+    // Nothing may be logged before the client has merged all shards.
     assertTrue("Recall phase must not log hits", logCalls.isEmpty());
 
     List<Integer> allDocIds = docIds(recall);
@@ -307,7 +307,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     recorder.awaitClose();
 
     assertEquals(1, logCalls.size());
-    // Exactly the coordinator's documents, in exactly the coordinator's order.
+    // Exactly the client's documents, in exactly the client's order.
     assertEquals(List.of("5", "1", "8", "3"), logCalls.get(0));
     assertEquals(List.of("5", "1"), docIdFields(fetch));
     assertTrue(fetch.getDiagnostics().getLoggingHitsTimeMs() >= 0);
@@ -318,7 +318,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    // The unary search would log at most 2 hits. Here the coordinator has already decided which
+    // The unary search would log at most 2 hits. Here the client has already decided which
     // documents to log, so its list wins.
     stream.onNext(searchMessage(loggingRequest(NUM_DOCS, 2).build()));
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
@@ -341,7 +341,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
 
     List<Integer> allDocIds = docIds(recall);
-    // Disjoint lists: documents to return that the coordinator did not ask to have logged are
+    // Disjoint lists: documents to return that the client did not ask to have logged are
     // fetched and returned, but stay out of the logger.
     stream.onNext(reducedMessage(allDocIds.subList(0, 2), allDocIds.subList(5, 7)));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
@@ -412,7 +412,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
             .build();
     stream.onNext(searchMessage(request));
 
-    // Aggregations are computed during the first pass and returned with it, so the coordinator can
+    // Aggregations are computed during the first pass and returned with it, so the client can
     // merge them without waiting for the fetch phase.
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
     assertEquals(1, recall.getFacetResultCount());
@@ -422,7 +422,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     assertEquals(2, fetch.getHitsCount());
-    // Not repeated in the fetch response, the coordinator already has them.
+    // Not repeated in the fetch response, the client already has them.
     assertEquals(0, fetch.getFacetResultCount());
   }
 
@@ -434,7 +434,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     stream.onNext(searchMessage(basicRequest(NUM_DOCS).build()));
     assertEquals(NUM_DOCS, recorder.awaitResponse().getSearchResponse().getHitsCount());
 
-    // Re-query on the same stream, e.g. after the coordinator widens the request.
+    // Re-query on the same stream, e.g. after the client widens the request.
     stream.onNext(searchMessage(basicRequest(3).build()));
     SearchResponse secondRecall = recorder.awaitResponse().getSearchResponse();
     assertEquals(3, secondRecall.getHitsCount());
@@ -464,7 +464,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     stream.onNext(searchMessage(basicRequest(2).build()));
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
 
-    // A doc id this shard never returned points at a coordinator bug, so it must not be quietly
+    // A doc id this shard never returned points at a client bug, so it must not be quietly
     // dropped.
     stream.onNext(reducedMessage(List.of(docIds(recall).get(0), 9999), List.of()));
 
@@ -482,7 +482,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     SearchResponse recall = recorder.awaitResponse().getSearchResponse();
     int docId = docIds(recall).get(0);
 
-    // Deduplicating would return fewer documents than the coordinator asked for with nothing to
+    // Deduplicating would return fewer documents than the client asked for with nothing to
     // indicate any were dropped, so a repeated id is an error like an unknown one.
     stream.onNext(reducedMessage(List.of(docId, docId), List.of()));
 
@@ -513,7 +513,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    // Paging belongs to the coordinator: a per shard offset would drop each shard's own leading
+    // Paging belongs to the client: a per shard offset would drop each shard's own leading
     // hits before the global merge, so the merged page would not be the true global page.
     stream.onNext(searchMessage(basicRequest(3).setStartHit(2).build()));
 

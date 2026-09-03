@@ -69,11 +69,10 @@ import org.slf4j.LoggerFactory;
  * query-then-fetch (QTF) search.
  *
  * <p>The client sends a {@link SearchRequest}; the server executes recall and rescoring, then
- * responds with hit ids and ranking info but no hit fields. The client (a coordinator) merges those
- * responses across all shards into a single global ranking and sends back a {@link ReducedHitList}
- * naming the documents this shard should fetch and log. Only then does the server fetch fields and
- * invoke the {@link HitsLoggerFetchTask}, so a document is logged once globally rather than once
- * per shard.
+ * responds with hit ids and ranking info but no hit fields. The client merges those responses
+ * across all shards into a single global ranking and sends back a {@link ReducedHitList} naming the
+ * documents this shard should fetch and log. Only then does the server fetch fields and invoke the
+ * {@link HitsLoggerFetchTask}, so a document is logged once globally rather than once per shard.
  *
  * <p>The Lucene searcher acquired for the first message is held open until the stream ends, so both
  * phases see the same index commit and lucene doc ids remain valid as document references.
@@ -240,9 +239,9 @@ public class SearchStreamHandler {
       // this request may have been waiting in the grpc queue too long
       DeadlineUtils.checkDeadline("SearchStreamHandler: start", "SEARCH");
 
-      // Paging is the coordinator's job in query-then-fetch: it applies the offset to the merged
-      // global ranking. Honoring startHit here would make each shard discard its own leading hits
-      // before the merge, so the merged page would not be the true global page.
+      // Paging is the client's job in query-then-fetch: it applies the offset to the merged global
+      // ranking. Honoring startHit here would make each shard discard its own leading hits before
+      // the merge, so the merged page would not be the true global page.
       if (searchRequest.getStartHit() != 0) {
         throw Status.INVALID_ARGUMENT
             .withDescription(
@@ -398,7 +397,7 @@ public class SearchStreamHandler {
       currentHits = hits;
 
       // Populate hit ids and ranking info (score, or sorted field values for a sorted query) so
-      // the coordinator has what it needs to merge. Hit fields are left for the fetch phase.
+      // the client has what it needs to merge. Hit fields are left for the fetch phase.
       SearchHandler.setResponseHits(searchContext, hits);
 
       SearchState.Builder searchState = SearchState.newBuilder();
@@ -430,8 +429,8 @@ public class SearchStreamHandler {
     }
 
     /**
-     * Fetch fields for, and log, exactly the documents the coordinator selected after its global
-     * merge, then respond with the documents it asked to have returned.
+     * Fetch fields for, and log, exactly the documents the client selected after its global merge,
+     * then respond with the documents it asked to have returned.
      */
     private void handleReducedHitList(ReducedHitList reducedHitList) throws Exception {
       if (searchContext == null || currentHits == null) {
@@ -456,8 +455,8 @@ public class SearchStreamHandler {
       verifyNoDuplicates(returnIds, "luceneDocIdsToReturn");
       verifyKnownDocIds(firstPassHits.keySet(), logIds, returnIds);
 
-      // Fetch the union of both lists, ordered by the log list, which carries the coordinator's
-      // globally merged ordering. Return-only ids are appended.
+      // Fetch the union of both lists, ordered by the log list, which carries the client's globally
+      // merged ordering. Return-only ids are appended.
       LinkedHashSet<Integer> fetchIds = new LinkedHashSet<>(logIds);
       fetchIds.addAll(returnIds);
       ScoreDoc[] fetchScoreDocs =
@@ -475,8 +474,8 @@ public class SearchStreamHandler {
           searchContext, new TopDocs(currentHits.totalHits, fetchScoreDocs));
 
       // Suppress the fetch task's own logging. It would log the first hitsToLog documents of the
-      // fetched set, ordered by this shard's local ranking, which the coordinator's global
-      // ordering has already superseded. The logger is invoked explicitly below instead.
+      // fetched set, ordered by this shard's local ranking, which the client's global ordering has
+      // already superseded. The logger is invoked explicitly below instead.
       //
       // Suppressed rather than detached: SearchContext.getHitsToLog() is derived from the attached
       // task, so clearing it would make every other FetchTask plugin in this fetch pass see a
@@ -516,8 +515,8 @@ public class SearchStreamHandler {
                         InnerHitFetchTask::getDiagnostic)));
       }
 
-      // Only the documents the coordinator asked to have returned go over the wire, in the order
-      // it listed them. Documents that were fetched solely to be logged are dropped here.
+      // Only the documents the client asked to have returned go over the wire, in the order it
+      // listed them. Documents that were fetched solely to be logged are dropped here.
       List<SearchResponse.Hit> hitsToReturn = new ArrayList<>(returnIds.size());
       for (int docId : returnIds) {
         hitsToReturn.add(fetchedHits.get(docId).build());
@@ -542,8 +541,8 @@ public class SearchStreamHandler {
     }
 
     /**
-     * Reject any doc id this shard did not return during the recall phase, so that a coordinator
-     * bug surfaces as an error rather than as silently missing hits or log records.
+     * Reject any doc id this shard did not return during the recall phase, so that a client bug
+     * surfaces as an error rather than as silently missing hits or log records.
      */
     private void verifyKnownDocIds(
         Set<Integer> knownDocIds, List<Integer> logIds, List<Integer> returnIds) {
@@ -675,8 +674,8 @@ public class SearchStreamHandler {
         return;
       }
       closed = true;
-      // A stream that recalled but never fetched (idle timeout, client cancel, or a coordinator
-      // that dropped this shard) still did the search work, and those are exactly the cases worth
+      // A stream that recalled but never fetched (idle timeout, client cancel, or a client that
+      // dropped this shard) still did the search work, and those are exactly the cases worth
       // seeing on a dashboard. Report what the recall phase produced.
       if (!metricsRecorded && searchContext != null) {
         recordMetrics(searchContext.getResponseBuilder().build());
