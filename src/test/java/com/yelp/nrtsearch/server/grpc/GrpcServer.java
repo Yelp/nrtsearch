@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import com.yelp.nrtsearch.test_utils.TestFileUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
@@ -36,7 +37,6 @@ import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -295,22 +295,7 @@ public class GrpcServer {
 
   // TODO fix server to not need to use specific named directories?
   public static void rmDir(Path dir) throws IOException {
-    if (Files.exists(dir)) {
-      if (Files.isRegularFile(dir)) {
-        Files.delete(dir);
-      } else {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-          for (Path path : stream) {
-            if (Files.isDirectory(path)) {
-              rmDir(path);
-            } else {
-              Files.delete(path);
-            }
-          }
-        }
-        Files.delete(dir);
-      }
-    }
+    TestFileUtils.rmDir(dir);
   }
 
   public static class TestServer {
