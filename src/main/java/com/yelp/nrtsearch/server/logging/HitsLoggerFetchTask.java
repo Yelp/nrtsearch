@@ -72,11 +72,17 @@ public class HitsLoggerFetchTask implements FetchTask {
    * Truncating that set here would drop documents based on this shard's local ranking, which the
    * coordinator has already superseded.
    *
+   * <p>The {@code hitsToLog > 0} disable switch honored by {@link #processAllHits(SearchContext,
+   * List)} still applies: only the per-shard truncation is bypassed, not logging itself. {@link
+   * #hitsToLog} is read directly rather than through {@link SearchContext#getHitsToLog()} so the
+   * result does not depend on whether this task is currently attached to the context's {@link
+   * com.yelp.nrtsearch.server.search.FetchTasks}.
+   *
    * @param searchContext search context
    * @param hits hits to log
    */
   public void logHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
-    if (searchContext.isWarming()) {
+    if (searchContext.isWarming() || hitsToLog <= 0) {
       return;
     }
     long startTime = System.nanoTime();

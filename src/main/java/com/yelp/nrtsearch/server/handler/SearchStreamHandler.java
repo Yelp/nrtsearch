@@ -42,6 +42,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
@@ -135,7 +137,16 @@ public class SearchStreamHandler {
     // Start the idle timer as soon as the permit is taken, so that a client which opens a stream
     // and then goes silent cannot hold the permit forever. Safe to do here since grpc cannot
     // deliver a message until this observer is returned.
-    session.startIdleTimeout();
+    try {
+      session.startIdleTimeout();
+    } catch (RejectedExecutionException e) {
+      // The scheduler is shut down, so this stream would have no idle timeout at all. Hand the
+      // permit back rather than leaking it, since no further callback will run for this session.
+      session.releaseResources();
+      responseObserver.onError(
+          Status.UNAVAILABLE.withDescription("Server is shutting down").asRuntimeException());
+      return new NoOpStreamObserver<>();
+    }
     return session;
   }
 
@@ -161,6 +172,10 @@ public class SearchStreamHandler {
     private SearchResponse.Diagnostics.Builder diagnostics;
     private TopDocs currentHits;
     private ScheduledFuture<?> idleTimeoutFuture;
+    // Incremented on every schedule and cancel, so a timeout task that has already started running
+    // can tell that it has been superseded. Only touched under the session monitor.
+    private long idleGeneration = 0;
+    private boolean metricsRecorded = false;
     private boolean closed = false;
 
     SearchStreamSession(StreamObserver<StreamSearchResponse> responseObserver) {
@@ -224,6 +239,17 @@ public class SearchStreamHandler {
     private void handleSearchRequest(SearchRequest searchRequest) throws Exception {
       // this request may have been waiting in the grpc queue too long
       DeadlineUtils.checkDeadline("SearchStreamHandler: start", "SEARCH");
+
+      // Paging is the coordinator's job in query-then-fetch: it applies the offset to the merged
+      // global ranking. Honoring startHit here would make each shard discard its own leading hits
+      // before the merge, so the merged page would not be the true global page.
+      if (searchRequest.getStartHit() != 0) {
+        throw Status.INVALID_ARGUMENT
+            .withDescription(
+                "startHit must be 0 for searchStream; apply the offset to the merged ranking "
+                    + "instead, since a per shard offset does not compose across shards")
+            .asRuntimeException();
+      }
 
       // A second search request on the same stream replaces the first, e.g. to re-query with
       // different parameters. Drop the previous searcher and its state first.
@@ -424,8 +450,10 @@ public class SearchStreamHandler {
         firstPassHits.put(scoreDoc.doc, scoreDoc);
       }
 
-      List<Integer> logIds = distinctIds(reducedHitList.getLuceneDocIdsToLogList());
-      List<Integer> returnIds = distinctIds(reducedHitList.getLuceneDocIdsToReturnList());
+      List<Integer> logIds = reducedHitList.getLuceneDocIdsToLogList();
+      List<Integer> returnIds = reducedHitList.getLuceneDocIdsToReturnList();
+      verifyNoDuplicates(logIds, "luceneDocIdsToLog");
+      verifyNoDuplicates(returnIds, "luceneDocIdsToReturn");
       verifyKnownDocIds(firstPassHits.keySet(), logIds, returnIds);
 
       // Fetch the union of both lists, ordered by the log list, which carries the coordinator's
@@ -449,13 +477,17 @@ public class SearchStreamHandler {
       // Suppress the fetch task's own logging. It would log the first hitsToLog documents of the
       // fetched set, ordered by this shard's local ranking, which the coordinator's global
       // ordering has already superseded. The logger is invoked explicitly below instead.
+      //
+      // Suppressed rather than detached: SearchContext.getHitsToLog() is derived from the attached
+      // task, so clearing it would make every other FetchTask plugin in this fetch pass see a
+      // hitsToLog of 0 instead of the configured value.
       FetchTasks fetchTasks = searchContext.getFetchTasks();
       HitsLoggerFetchTask hitsLoggerFetchTask = fetchTasks.getHitsLoggerFetchTask();
-      fetchTasks.setHitsLoggerFetchTask(null);
+      fetchTasks.setHitsLoggerSuppressed(true);
       try {
         searchHandler.fetchFields(searchContext);
       } finally {
-        fetchTasks.setHitsLoggerFetchTask(hitsLoggerFetchTask);
+        fetchTasks.setHitsLoggerSuppressed(false);
       }
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - fetchStartTime) / 1000000.0));
 
@@ -497,16 +529,16 @@ public class SearchStreamHandler {
       DeadlineUtils.checkDeadline("SearchStreamHandler: fetch response", diagnostics, "SEARCH");
 
       SearchResponse searchResponse = responseBuilder.build();
-      SearchResponseCollector.updateSearchResponseMetrics(
-          searchResponse, indexState.getName(), indexState.getVerboseMetrics());
+      recordMetrics(searchResponse);
 
       responseObserver.onNext(
           StreamSearchResponse.newBuilder()
               .setPhase(StreamSearchResponse.Phase.FETCH)
               .setSearchResponse(searchResponse)
               .build());
-      responseObserver.onCompleted();
+      // Release before closing the stream, for the same reason as closeWithError.
       releaseResources();
+      responseObserver.onCompleted();
     }
 
     /**
@@ -553,18 +585,27 @@ public class SearchStreamHandler {
     }
 
     private void scheduleIdleTimeout() {
+      final long generation = ++idleGeneration;
       idleTimeoutFuture =
           timeoutScheduler.schedule(
               () -> {
                 synchronized (SearchStreamSession.this) {
-                  if (!closed) {
-                    logger.info("Search stream idle timeout reached, closing session");
-                    closeWithError(
-                        Status.DEADLINE_EXCEEDED
-                            .withDescription(
-                                "Search stream idle for more than " + idleTimeoutMs + "ms")
-                            .asRuntimeException());
+                  // Future.cancel cannot stop a task that has already begun running, and this task
+                  // begins by blocking on the session monitor that onNext holds. Without the
+                  // generation check, a timeout that fired while onNext was producing a perfectly
+                  // good response would acquire the monitor afterwards and close the stream with
+                  // DEADLINE_EXCEEDED, so the client would see a valid response followed by a
+                  // spurious error. Every cancel or reschedule bumps the generation, which makes
+                  // any such stale task a no-op.
+                  if (closed || generation != idleGeneration) {
+                    return;
                   }
+                  logger.info("Search stream idle timeout reached, closing session");
+                  closeWithError(
+                      Status.DEADLINE_EXCEEDED
+                          .withDescription(
+                              "Search stream idle for more than " + idleTimeoutMs + "ms")
+                          .asRuntimeException());
                 }
               },
               idleTimeoutMs,
@@ -572,6 +613,9 @@ public class SearchStreamHandler {
     }
 
     private void cancelIdleTimeout() {
+      // Bump the generation even when there is no future to cancel, so that a task which has
+      // already started running and is waiting on the monitor is invalidated too.
+      idleGeneration++;
       if (idleTimeoutFuture != null) {
         idleTimeoutFuture.cancel(false);
         idleTimeoutFuture = null;
@@ -582,12 +626,15 @@ public class SearchStreamHandler {
       if (closed) {
         return;
       }
+      // Release before telling the client, so that the moment a client observes the end of this
+      // stream the searcher and the concurrency permit are already back. Otherwise a client that
+      // immediately retries could be rejected with RESOURCE_EXHAUSTED by a session that is done.
+      releaseResources();
       try {
         responseObserver.onError(error);
       } catch (Exception e) {
         logger.debug("Failed to send error to search stream client", e);
       }
-      releaseResources();
     }
 
     private void releaseSearcher() {
@@ -602,14 +649,38 @@ public class SearchStreamHandler {
     }
 
     /**
+     * Record response metrics for this stream, at most once. Called on the fetch response, which
+     * carries the richest diagnostics, and again from {@link #releaseResources()} so that a stream
+     * which ran a search but never reached fetch is still counted.
+     */
+    private void recordMetrics(SearchResponse searchResponse) {
+      if (metricsRecorded || indexState == null) {
+        return;
+      }
+      metricsRecorded = true;
+      try {
+        SearchResponseCollector.updateSearchResponseMetrics(
+            searchResponse, indexState.getName(), indexState.getVerboseMetrics());
+      } catch (Exception e) {
+        logger.warn("Failed to record search stream response metrics", e);
+      }
+    }
+
+    /**
      * Release everything this session holds. Idempotent, and called from every terminal path:
      * normal completion, client error or cancellation, server error, and idle timeout.
      */
-    private void releaseResources() {
+    private synchronized void releaseResources() {
       if (closed) {
         return;
       }
       closed = true;
+      // A stream that recalled but never fetched (idle timeout, client cancel, or a coordinator
+      // that dropped this shard) still did the search work, and those are exactly the cases worth
+      // seeing on a dashboard. Report what the recall phase produced.
+      if (!metricsRecorded && searchContext != null) {
+        recordMetrics(searchContext.getResponseBuilder().build());
+      }
       cancelIdleTimeout();
       releaseSearcher();
       searchContext = null;
@@ -618,8 +689,20 @@ public class SearchStreamHandler {
     }
   }
 
-  private static List<Integer> distinctIds(List<Integer> docIds) {
-    return docIds.stream().distinct().collect(Collectors.toList());
+  /**
+   * Reject a doc id list that repeats an id. Silently deduplicating would return or log fewer
+   * documents than the client asked for with no indication that anything was dropped, which is the
+   * same failure mode {@code verifyKnownDocIds} exists to prevent.
+   */
+  private static void verifyNoDuplicates(List<Integer> docIds, String fieldName) {
+    Set<Integer> seen = new HashSet<>(docIds.size());
+    for (int docId : docIds) {
+      if (!seen.add(docId)) {
+        throw Status.INVALID_ARGUMENT
+            .withDescription(fieldName + " contains duplicate lucene doc id " + docId)
+            .asRuntimeException();
+      }
+    }
   }
 
   /**

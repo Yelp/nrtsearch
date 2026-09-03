@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.handler;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -470,6 +471,102 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     StatusRuntimeException error = recorder.awaitError();
     assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
     assertTrue(error.getStatus().getDescription().contains("9999"));
+  }
+
+  @Test
+  public void testDuplicateDocIdsAreRejected() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    stream.onNext(searchMessage(basicRequest(3).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    int docId = docIds(recall).get(0);
+
+    // Deduplicating would return fewer documents than the coordinator asked for with nothing to
+    // indicate any were dropped, so a repeated id is an error like an unknown one.
+    stream.onNext(reducedMessage(List.of(docId, docId), List.of()));
+
+    StatusRuntimeException error = recorder.awaitError();
+    assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
+    assertTrue(error.getStatus().getDescription().contains("luceneDocIdsToReturn"));
+  }
+
+  @Test
+  public void testDuplicateLogDocIdsAreRejected() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    stream.onNext(searchMessage(loggingRequest(3, 3).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    int docId = docIds(recall).get(0);
+
+    stream.onNext(reducedMessage(List.of(docId), List.of(docId, docId)));
+
+    StatusRuntimeException error = recorder.awaitError();
+    assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
+    assertTrue(error.getStatus().getDescription().contains("luceneDocIdsToLog"));
+    assertTrue(logCalls.isEmpty());
+  }
+
+  @Test
+  public void testStartHitIsRejected() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    // Paging belongs to the coordinator: a per shard offset would drop each shard's own leading
+    // hits before the global merge, so the merged page would not be the true global page.
+    stream.onNext(searchMessage(basicRequest(3).setStartHit(2).build()));
+
+    StatusRuntimeException error = recorder.awaitError();
+    assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
+    assertTrue(error.getStatus().getDescription().contains("startHit"));
+    assertEquals(0, recorder.responseCount());
+  }
+
+  @Test
+  public void testHitsToLogZeroLogsNothing() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    // hitsToLog = 0 is the disable switch on the unary path, so bypassing truncation on the
+    // streaming path must not turn logging back on.
+    stream.onNext(searchMessage(loggingRequest(NUM_DOCS, 0).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+
+    List<Integer> ids = docIds(recall).subList(0, 3);
+    stream.onNext(reducedMessage(ids, ids));
+    SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+    recorder.awaitClose();
+
+    assertEquals(3, fetch.getHitsCount());
+    assertTrue(logCalls.isEmpty());
+  }
+
+  @Test
+  public void testIdleTimeoutIsResetByEachMessage() throws Exception {
+    long idleTimeoutMs = 500;
+    SearchStreamHandler handler = newHandler(4, idleTimeoutMs);
+    try {
+      ResponseRecorder recorder = new ResponseRecorder();
+      StreamObserver<StreamSearchRequest> stream = handler.handle(recorder);
+
+      // Each phase waits less than the timeout, but the two together exceed it. The stream must
+      // survive, and a timeout that already fired must not close a stream that just responded.
+      Thread.sleep(idleTimeoutMs / 2);
+      stream.onNext(searchMessage(basicRequest(3).build()));
+      SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+
+      Thread.sleep(idleTimeoutMs / 2);
+      stream.onNext(reducedMessage(docIds(recall), List.of()));
+      SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+      recorder.awaitClose();
+
+      assertEquals(3, fetch.getHitsCount());
+      assertNull("Stream should have completed, not timed out", recorder.error.get());
+      assertEquals(0, handler.getActiveStreams());
+    } finally {
+      handler.shutdown();
+    }
   }
 
   @Test

@@ -244,9 +244,10 @@ public class NrtsearchServer {
     if (replicationServer != null) {
       replicationServer.shutdown();
     }
-    if (serverImpl != null) {
-      serverImpl.shutdown();
-    }
+    // Note: handler resources are released in blockUntilShutdown, not here. Server.shutdown() is a
+    // graceful, non-blocking shutdown that waits for in flight RPCs, and a searchStream RPC is only
+    // guaranteed to end because of its idle timeout. Stopping the timeout scheduler now would leave
+    // a stalled stream open forever and awaitTermination below would never return.
     pluginsService.shutdown();
   }
 
@@ -257,6 +258,9 @@ public class NrtsearchServer {
     }
     if (replicationServer != null) {
       replicationServer.awaitTermination();
+    }
+    if (serverImpl != null) {
+      serverImpl.shutdown();
     }
   }
 

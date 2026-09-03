@@ -80,6 +80,7 @@ public class FetchTasks {
   private HighlightFetchTask highlightFetchTask;
   private List<InnerHitFetchTask> innerHitFetchTaskList;
   private HitsLoggerFetchTask hitsLoggerFetchTask;
+  private boolean hitsLoggerSuppressed = false;
 
   public HighlightFetchTask getHighlightFetchTask() {
     return highlightFetchTask;
@@ -103,6 +104,20 @@ public class FetchTasks {
 
   public void setHitsLoggerFetchTask(HitsLoggerFetchTask hitsLoggerFetchTask) {
     this.hitsLoggerFetchTask = hitsLoggerFetchTask;
+  }
+
+  /**
+   * Suppress the {@link HitsLoggerFetchTask} in {@link #processAllHits(SearchContext, List)} while
+   * leaving it attached, so that {@link SearchContext#getHitsToLog()} and any other {@link
+   * FetchTask} still observe the configured logging settings.
+   *
+   * <p>Used by the query-then-fetch streaming search flow, which logs an explicit, externally
+   * ordered set of hits itself rather than letting the fetch pass log whatever it fetched.
+   *
+   * @param hitsLoggerSuppressed whether to skip the hits logger during a fetch pass
+   */
+  public void setHitsLoggerSuppressed(boolean hitsLoggerSuppressed) {
+    this.hitsLoggerSuppressed = hitsLoggerSuppressed;
   }
 
   /**
@@ -153,7 +168,7 @@ public class FetchTasks {
     // hitsLogger should be the last fetch task to run because it might need shared data from other
     // plugins, including
     // other fetch task plugins
-    if (hitsLoggerFetchTask != null) {
+    if (hitsLoggerFetchTask != null && !hitsLoggerSuppressed) {
       hitsLoggerFetchTask.processAllHits(searchContext, hits);
     }
   }
