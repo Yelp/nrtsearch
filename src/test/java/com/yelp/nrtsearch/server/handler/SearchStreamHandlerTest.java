@@ -26,21 +26,28 @@ import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.LuceneDocIdSet;
 import com.yelp.nrtsearch.server.grpc.MatchAllQuery;
+import com.yelp.nrtsearch.server.grpc.MatchQuery;
+import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.RecallRequest;
 import com.yelp.nrtsearch.server.grpc.ReducedHitList;
+import com.yelp.nrtsearch.server.grpc.RefreshRequest;
+import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.StreamSearchRequest;
 import com.yelp.nrtsearch.server.grpc.StreamSearchResponse;
+import com.yelp.nrtsearch.server.grpc.TextRetriever;
+import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.logging.HitsLogger;
 import com.yelp.nrtsearch.server.logging.HitsLoggerProvider;
@@ -94,8 +101,19 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
   @Override
   protected void initIndex(String name) throws Exception {
+    // Two batches with a refresh between them, so the index spans more than one lucene segment.
+    // Field data is read a segment at a time, so a single segment index would not exercise the
+    // doc id ordering that FillDocsTask requires of the hits it is given.
+    addDocumentBatch(name, 1, NUM_DOCS / 2);
+    getGrpcServer()
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(name).build());
+    addDocumentBatch(name, NUM_DOCS / 2 + 1, NUM_DOCS);
+  }
+
+  private void addDocumentBatch(String name, int firstId, int lastId) throws Exception {
     List<AddDocumentRequest> docs = new ArrayList<>();
-    for (int i = 1; i <= NUM_DOCS; i++) {
+    for (int i = firstId; i <= lastId; i++) {
       AddDocumentRequest.Builder doc = AddDocumentRequest.newBuilder().setIndexName(name);
       if (FACET_INDEX.equals(name)) {
         doc.putFields(
@@ -566,6 +584,110 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
+  public void testEmptyLogSetLogsNothing() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, 5).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+
+    // An explicitly empty log set means log nothing, even though logging is configured and this
+    // shard did recall hits it could have logged. Only an absent set falls back to its own ranking.
+    stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+    SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+    recorder.awaitClose();
+
+    assertEquals(2, fetch.getHitsCount());
+    assertTrue(logCalls.isEmpty());
+  }
+
+  @Test
+  public void testNoMatchingHitsLogsAnEmptyHitList() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    SearchRequest request =
+        loggingRequest(NUM_DOCS, 5)
+            .setQuery(
+                Query.newBuilder()
+                    .setMatchQuery(
+                        MatchQuery.newBuilder().setField("vendor_name").setQuery("nonexistent")))
+            .build();
+    stream.onNext(recallMessage(request));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    assertEquals(0, recall.getHitsCount());
+
+    stream.onNext(reducedMessage(ReducedHitList.newBuilder()));
+    SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+    recorder.awaitClose();
+
+    assertEquals(0, fetch.getHitsCount());
+    // The unary flow hands the logger an empty list when a search matched nothing, and a plugin may
+    // want to record that, so the streaming flow keeps doing it. This is the one case where an
+    // empty
+    // set still reaches the logger; see testEmptyLogSetLogsNothing for the other.
+    assertEquals(1, logCalls.size());
+    assertTrue(logCalls.get(0).isEmpty());
+  }
+
+  @Test
+  public void testRecallWindowCoversHitsToLog() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    // hitsToLog is larger than topHits, so the recall window has to widen to cover the documents
+    // the client may pick out to log. Sized from the request value, since the context is built with
+    // an unbounded logging limit.
+    stream.onNext(recallMessage(loggingRequest(3, 6).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    assertEquals(6, recall.getHitsCount());
+
+    // A document past topHits can therefore still be logged, which is the reason for the window.
+    List<Integer> ids = docIds(recall);
+    stream.onNext(reducedMessage(ids.subList(0, 3), ids.subList(3, 6)));
+    SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+    recorder.awaitClose();
+
+    assertEquals(List.of("1", "2", "3"), docIdFields(fetch));
+    assertEquals(1, logCalls.size());
+    assertEquals(List.of("4", "5", "6"), logCalls.get(0));
+  }
+
+  @Test
+  public void testMultiRetrieverRecallAndFetch() throws Exception {
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    stream.onNext(recallMessage(multiRetrieverRequest(4, 6).build()));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+
+    // Blended ranking, trimmed to the same window a single retriever request would use: the blend
+    // window is sized from the request's hitsToLog, not from the context's unbounded logging limit.
+    assertEquals(6, recall.getHitsCount());
+    for (SearchResponse.Hit hit : recall.getHitsList()) {
+      assertTrue("Blended score should be populated on the recall response", hit.getScore() > 0);
+      assertTrue("Recall phase should not fetch fields", hit.getFieldsMap().isEmpty());
+    }
+    assertTrue(
+        recall
+            .getDiagnostics()
+            .getMultiRetrieverDiagnostics()
+            .containsRetrieverDiagnostics("vendor"));
+
+    List<Integer> ids = docIds(recall);
+    stream.onNext(reducedMessage(ids.subList(0, 2), ids.subList(0, 3)));
+    SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
+    recorder.awaitClose();
+
+    assertEquals(2, fetch.getHitsCount());
+    for (SearchResponse.Hit hit : fetch.getHitsList()) {
+      assertTrue(hit.containsFields("doc_id"));
+    }
+    assertEquals(1, logCalls.size());
+    assertEquals(3, logCalls.get(0).size());
+  }
+
+  @Test
   public void testIdleTimeoutIsResetByEachMessage() throws Exception {
     long idleTimeoutMs = 500;
     SearchStreamHandler handler = newHandler(4, idleTimeoutMs);
@@ -729,6 +851,37 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     for (SearchResponse.Hit hit : fetch.getHitsList()) {
       assertEquals(Set.of("doc_id", "vendor_name"), hit.getFieldsMap().keySet());
     }
+  }
+
+  @Test
+  public void testIntermediateFieldsAreFilledAcrossSegments() throws Exception {
+    assertTrue(
+        "This test needs an index with more than one segment",
+        segmentCount(DEFAULT_TEST_INDEX) > 1);
+    ResponseRecorder recorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> stream = openStream(recorder);
+
+    // Descending sort, so the hits arrive in the reverse of lucene doc id order and span both
+    // segments. Field data is read a segment at a time, so filling the intermediate fields has to
+    // reorder the hits first or it would read them against the wrong segment.
+    SearchRequest request =
+        basicRequest(NUM_DOCS)
+            .setQuerySort(
+                QuerySortField.newBuilder()
+                    .setFields(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder().setFieldName("long_field").setReverse(true)))
+                    .build())
+            .build();
+    stream.onNext(recallMessage(request, List.of("doc_id")));
+    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+
+    // Each hit must carry its own doc_id, in the requested sort order.
+    assertEquals(List.of("10", "9", "8", "7", "6", "5", "4", "3", "2", "1"), docIdFields(recall));
+
+    stream.onCompleted();
+    recorder.awaitClose();
   }
 
   @Test
@@ -907,5 +1060,45 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     return basicRequest(topHits)
         .setLoggingHits(
             LoggingHits.newBuilder().setName("test_stream_logger").setHitsToLog(hitsToLog).build());
+  }
+
+  /**
+   * Logging request whose recall runs through the multi-retriever path instead of a plain query.
+   */
+  private static SearchRequest.Builder multiRetrieverRequest(int topHits, int hitsToLog) {
+    return SearchRequest.newBuilder()
+        .setIndexName(DEFAULT_TEST_INDEX)
+        .setTopHits(topHits)
+        .addRetrieveFields("doc_id")
+        .setLoggingHits(
+            LoggingHits.newBuilder().setName("test_stream_logger").setHitsToLog(hitsToLog).build())
+        .setMultiRetriever(
+            MultiRetrieverRequest.newBuilder()
+                .addRetrievers(
+                    Retriever.newBuilder()
+                        .setName("vendor")
+                        .setTextRetriever(
+                            TextRetriever.newBuilder()
+                                .setQuery(
+                                    Query.newBuilder()
+                                        .setMatchQuery(
+                                            MatchQuery.newBuilder()
+                                                .setField("vendor_name")
+                                                .setQuery("vendor")))
+                                .setTopHits(NUM_DOCS)))
+                .setBlender(
+                    Blender.newBuilder()
+                        .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60))));
+  }
+
+  /** Number of lucene segments backing an index, so a test can assert it spans more than one. */
+  private int segmentCount(String indexName) throws IOException {
+    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcher = shardState.acquire();
+    try {
+      return searcher.searcher().getIndexReader().leaves().size();
+    } finally {
+      shardState.release(searcher);
+    }
   }
 }
