@@ -128,6 +128,48 @@ public class SearchRequestProcessor {
       ProfileResult.Builder profileResult,
       boolean warming)
       throws IOException {
+    return buildContextForRequest(
+        searchRequest,
+        indexState,
+        shardState,
+        searcherAndTaxonomy,
+        diagnostics,
+        profileResult,
+        warming,
+        false);
+  }
+
+  /**
+   * Create a {@link SearchContext} representing the given {@link SearchRequest} and index/searcher
+   * state.
+   *
+   * @param searchRequest grpc request message
+   * @param indexState index state
+   * @param shardState shard state
+   * @param searcherAndTaxonomy index searcher
+   * @param profileResult container message for returned debug info
+   * @param warming set to true if the index is being warmed
+   * @param logAllFetchedHits if true, and the request enables logging, the {@link
+   *     HitsLoggerFetchTask} is built with a hits to log limit of {@link Integer#MAX_VALUE} so that
+   *     it logs every hit it is given instead of the top {@link
+   *     com.yelp.nrtsearch.server.grpc.LoggingHits#getHitsToLog()} of them. Used by the
+   *     query-then-fetch streaming search flow, which selects the documents to log from a ranking
+   *     merged across all shards, one this shard's local hits to log limit would cut arbitrarily.
+   *     The limit still applies to the number of hits collected, and a limit of 0 still disables
+   *     logging.
+   * @return context info needed to execute the search query
+   * @throws IOException if query rewrite fails
+   */
+  public static SearchContext buildContextForRequest(
+      SearchRequest searchRequest,
+      IndexState indexState,
+      ShardState shardState,
+      SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ProfileResult.Builder profileResult,
+      boolean warming,
+      boolean logAllFetchedHits)
+      throws IOException {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
     SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
@@ -327,7 +369,11 @@ public class SearchRequestProcessor {
 
     HitsLoggerFetchTask hitsLoggerFetchTask = null;
     if (searchRequest.hasLoggingHits()) {
-      hitsLoggerFetchTask = new HitsLoggerFetchTask(searchRequest.getLoggingHits());
+      LoggingHits loggingHits = searchRequest.getLoggingHits();
+      if (logAllFetchedHits && loggingHits.getHitsToLog() > 0) {
+        loggingHits = loggingHits.toBuilder().setHitsToLog(Integer.MAX_VALUE).build();
+      }
+      hitsLoggerFetchTask = new HitsLoggerFetchTask(loggingHits);
     }
 
     List<InnerHitFetchTask> innerHitFetchTasks = null;
@@ -433,14 +479,16 @@ public class SearchRequestProcessor {
   }
 
   /**
-   * Get map of fields that need to be retrieved for the given request.
+   * Get map of fields that need to be retrieved for the given request. Also used to resolve the
+   * intermediate field list of a query-then-fetch stream, which is filled on the recall response
+   * instead of the final one.
    *
    * @param fieldList fields to retrieve
    * @param queryFields all valid fields for this query
    * @return map of all fields to retrieve
    * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
-  private static Map<String, FieldDef> getRetrieveFields(
+  public static Map<String, FieldDef> getRetrieveFields(
       List<String> fieldList, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
     if (fieldList.size() == 1 && fieldList.get(0).equals(WILDCARD)) {

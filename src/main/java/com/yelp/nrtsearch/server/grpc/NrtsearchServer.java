@@ -439,7 +439,7 @@ public class NrtsearchServer {
       releaseSnapshotHandler = new ReleaseSnapshotHandler(globalState);
       reloadStateHandler = new ReloadStateHandler(globalState);
       searchHandler = new SearchHandler(globalState);
-      searchStreamHandler = new SearchStreamHandler(globalState, searchHandler);
+      searchStreamHandler = new SearchStreamHandler(globalState);
       searchV2Handler = new SearchV2Handler(globalState, searchHandler);
       settingsHandler = new SettingsHandler(globalState);
       settingsV2Handler = new SettingsV2Handler(globalState);
