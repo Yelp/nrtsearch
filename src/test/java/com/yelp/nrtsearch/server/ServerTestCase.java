@@ -15,11 +15,9 @@
  */
 package com.yelp.nrtsearch.server;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
+import static com.yelp.nrtsearch.test_utils.TestFileUtils.rmDir;
 
 import com.google.gson.Gson;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
@@ -37,24 +35,17 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
-import io.grpc.stub.StreamObserver;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -100,87 +91,21 @@ public class ServerTestCase {
 
   public static FieldDefRequest getFieldsFromResourceFile(String resourceFileName)
       throws IOException {
-    InputStream fileStream = ServerTestCase.class.getResourceAsStream(resourceFileName);
-    String jsonText =
-        new BufferedReader(new InputStreamReader(fileStream, StandardCharsets.UTF_8))
-            .lines()
-            .collect(Collectors.joining(System.lineSeparator()));
-    return getFieldsFromJson(jsonText);
+    return TestResourceHelper.getFieldsFromResourceFile(resourceFileName);
   }
 
   public static FieldDefRequest getFieldsFromJson(String jsonStr) {
-    FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
-    try {
-      JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
-    } catch (InvalidProtocolBufferException e) {
-      throw new RuntimeException(e);
-    }
-    return fieldDefRequestBuilder.build();
+    return TestResourceHelper.getFieldsFromJson(jsonStr);
   }
 
   public static SearchRequest getSearchRequestFromResourceFile(String resourceFileName)
       throws IOException {
-    InputStream fileStream = ServerTestCase.class.getResourceAsStream(resourceFileName);
-    String jsonText =
-        new BufferedReader(new InputStreamReader(fileStream, StandardCharsets.UTF_8))
-            .lines()
-            .collect(Collectors.joining(System.lineSeparator()));
-    SearchRequest.Builder builder = SearchRequest.newBuilder();
-    try {
-      JsonFormat.parser().merge(jsonText, builder);
-    } catch (InvalidProtocolBufferException e) {
-      throw new RuntimeException(e);
-    }
-    return builder.build();
+    return TestResourceHelper.getSearchRequestFromResourceFile(resourceFileName);
   }
 
   public static AddDocumentResponse addDocuments(Stream<AddDocumentRequest> requestStream)
       throws Exception {
-    CountDownLatch finishLatch = new CountDownLatch(1);
-    // observers responses from Server(should get one onNext and oneCompleted)
-    final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
-    final AtomicReference<Exception> exception = new AtomicReference<>();
-    StreamObserver<AddDocumentResponse> responseStreamObserver =
-        new StreamObserver<>() {
-          @Override
-          public void onNext(AddDocumentResponse value) {
-            response.set(value);
-          }
-
-          @Override
-          public void onError(Throwable t) {
-            exception.set(new RuntimeException(t));
-            finishLatch.countDown();
-          }
-
-          @Override
-          public void onCompleted() {
-            finishLatch.countDown();
-          }
-        };
-    // requestObserver sends requests to Server (one onNext per AddDocumentRequest and one
-    // onCompleted)
-    StreamObserver<AddDocumentRequest> requestObserver =
-        grpcServer.getStub().addDocuments(responseStreamObserver);
-    // parse CSV into a stream of AddDocumentRequest
-    try {
-      requestStream.forEach(requestObserver::onNext);
-    } catch (RuntimeException e) {
-      // Cancel RPC
-      requestObserver.onError(e);
-      throw e;
-    }
-    // Mark the end of requests
-    requestObserver.onCompleted();
-    // Receiving happens asynchronously, so block here 20 seconds
-    if (!finishLatch.await(20, TimeUnit.SECONDS)) {
-      throw new RuntimeException("addDocuments can not finish within 20 seconds");
-    }
-    // Re-throw exception
-    if (exception.get() != null) {
-      throw exception.get();
-    }
-    return response.get();
+    return TestDocumentHelper.addDocuments(grpcServer.getStub(), requestStream);
   }
 
   public static void addDocsFromResourceFile(String index, String resourceFile) throws Exception {

@@ -41,12 +41,12 @@ import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
@@ -59,9 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
@@ -406,55 +404,7 @@ public class TestServer {
   }
 
   public AddDocumentResponse addDocs(Stream<AddDocumentRequest> requestStream) {
-    CountDownLatch finishLatch = new CountDownLatch(1);
-    // observers responses from Server(should get one onNext and oneCompleted)
-    final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
-    final AtomicReference<Exception> exception = new AtomicReference<>();
-    StreamObserver<AddDocumentResponse> responseStreamObserver =
-        new StreamObserver<>() {
-          @Override
-          public void onNext(AddDocumentResponse value) {
-            response.set(value);
-          }
-
-          @Override
-          public void onError(Throwable t) {
-            exception.set(new RuntimeException(t));
-            finishLatch.countDown();
-          }
-
-          @Override
-          public void onCompleted() {
-            finishLatch.countDown();
-          }
-        };
-    // requestObserver sends requests to Server (one onNext per AddDocumentRequest and one
-    // onCompleted)
-    StreamObserver<AddDocumentRequest> requestObserver =
-        client.getAsyncStub().addDocuments(responseStreamObserver);
-    // parse CSV into a stream of AddDocumentRequest
-    try {
-      requestStream.forEach(requestObserver::onNext);
-    } catch (RuntimeException e) {
-      // Cancel RPC
-      requestObserver.onError(e);
-      throw e;
-    }
-    // Mark the end of requests
-    requestObserver.onCompleted();
-    // Receiving happens asynchronously, so block here 20 seconds
-    try {
-      if (!finishLatch.await(20, TimeUnit.SECONDS)) {
-        throw new RuntimeException("addDocuments can not finish within 20 seconds");
-      }
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-    // Re-throw exception
-    if (exception.get() != null) {
-      throw new RuntimeException(exception.get());
-    }
-    return response.get();
+    return TestDocumentHelper.addDocuments(client.getAsyncStub(), requestStream);
   }
 
   public void addSimpleDocs(String indexName, int... ids) {

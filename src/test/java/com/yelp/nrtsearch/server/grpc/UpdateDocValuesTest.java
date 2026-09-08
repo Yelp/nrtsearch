@@ -117,7 +117,7 @@ public class UpdateDocValuesTest {
     try {
       primaryServer.addDocs(buildInvalidUpdateRequest(2).stream());
     } catch (Throwable t) {
-      throw t.getCause().getCause();
+      throw t.getCause();
     }
   }
 
@@ -237,7 +237,7 @@ public class UpdateDocValuesTest {
     try {
       primaryServer.addDocs(buildUpdateRequestwithPkeysEmpty(3).stream());
     } catch (Throwable t) {
-      throw t.getCause().getCause();
+      throw t.getCause();
     }
     primaryServer.commit(testPartialUpdateIndex);
     primaryServer.refresh(testPartialUpdateIndex);
