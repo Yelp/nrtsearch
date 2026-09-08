@@ -657,34 +657,40 @@ public class SearchStreamHandler {
     }
 
     private void scheduleIdleTimeout() {
-      // The timeout task needs to recognize its own future, so that a task which has already begun
-      // running can tell whether it is still the current timer. Future.cancel cannot stop such a
-      // task, and it begins by blocking on the session monitor that onNext holds: without the
-      // check, a timeout that fired while onNext was producing a perfectly good response would
-      // acquire the monitor afterwards and close the stream with DEADLINE_EXCEEDED, so the client
-      // would see a valid response followed by a spurious error.
-      AtomicReference<ScheduledFuture<?>> self = new AtomicReference<>();
-      ScheduledFuture<?> future =
-          timeoutScheduler.schedule(
-              () -> {
-                synchronized (SearchStreamSession.this) {
-                  if (closed || idleTimer.get() != self.get()) {
-                    return;
-                  }
-                  logger.info("Search stream idle timeout reached, closing session");
-                  closeWithError(
-                      Status.DEADLINE_EXCEEDED
-                          .withDescription(
-                              "Search stream idle for more than " + idleTimeoutMs + "ms")
-                          .asRuntimeException());
-                }
-              },
-              idleTimeoutMs,
-              TimeUnit.MILLISECONDS);
-      // Safe to publish after scheduling: every call site holds the session monitor, which the
-      // task body must acquire before it reads either reference.
-      self.set(future);
-      idleTimer.set(future);
+      IdleTimeoutTask task = new IdleTimeoutTask();
+      // Assigning the field after scheduling is safe because every caller holds the session
+      // monitor, and the task body must acquire that monitor before it reads the field.
+      task.future = timeoutScheduler.schedule(task, idleTimeoutMs, TimeUnit.MILLISECONDS);
+      idleTimer.set(task.future);
+    }
+
+    /**
+     * Closes the session once it has been idle for {@code idleTimeoutMs}, unless it is no longer
+     * the current timer.
+     *
+     * <p>The task compares {@link #idleTimer} against its own future because {@link
+     * ScheduledFuture#cancel(boolean)} cannot stop a task that has already started, and this one
+     * starts by blocking on the session monitor that {@code onNext} holds. Without the check, a
+     * timeout that fired while {@code onNext} was producing a perfectly good response would acquire
+     * the monitor afterwards and close the stream, so the client would see a valid response
+     * followed by a spurious DEADLINE_EXCEEDED.
+     */
+    private final class IdleTimeoutTask implements Runnable {
+      private ScheduledFuture<?> future;
+
+      @Override
+      public void run() {
+        synchronized (SearchStreamSession.this) {
+          if (closed || idleTimer.get() != future) {
+            return;
+          }
+          logger.info("Search stream idle timeout reached, closing session");
+          closeWithError(
+              Status.DEADLINE_EXCEEDED
+                  .withDescription("Search stream idle for more than " + idleTimeoutMs + "ms")
+                  .asRuntimeException());
+        }
+      }
     }
 
     private void cancelIdleTimeout() {
