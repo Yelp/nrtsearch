@@ -35,6 +35,9 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
+import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
@@ -102,6 +105,7 @@ public class TestServer {
   private final NrtsearchConfig configuration;
   private final boolean writeDiscoveryFile;
   private final Path discoveryFilePath;
+  private final List<Plugin> plugins;
   private Server server;
   private Server replicationServer;
   private NrtsearchClient client;
@@ -140,11 +144,25 @@ public class TestServer {
   public TestServer(
       NrtsearchConfig configuration, boolean writeDiscoveryFile, Path discoveryFilePath)
       throws IOException {
+    this(configuration, writeDiscoveryFile, discoveryFilePath, Collections.emptyList());
+  }
+
+  public TestServer(
+      NrtsearchConfig configuration,
+      boolean writeDiscoveryFile,
+      Path discoveryFilePath,
+      List<Plugin> plugins)
+      throws IOException {
     this.configuration = configuration;
     this.writeDiscoveryFile = writeDiscoveryFile;
     this.discoveryFilePath = discoveryFilePath;
+    this.plugins = plugins;
     createdServers.add(this);
     restart();
+  }
+
+  public NrtsearchConfig getConfiguration() {
+    return configuration;
   }
 
   private RemoteBackend createRemoteBackend() {
@@ -167,13 +185,10 @@ public class TestServer {
       executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
     }
     remoteBackend = createRemoteBackend();
+    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
     serverImpl =
         new LuceneServerImpl(
-            configuration,
-            remoteBackend,
-            new PrometheusRegistry(),
-            executorFactory,
-            Collections.emptyList());
+            configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
 
     replicationServer =
         ServerBuilder.forPort(0)
@@ -188,9 +203,14 @@ public class TestServer {
       writeDiscoveryFile(replicationServer.getPort());
     }
 
+    NrtsearchMonitoringServerInterceptor monitoringInterceptor =
+        NrtsearchMonitoringServerInterceptor.create(
+            Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
     server =
         ServerBuilder.forPort(0)
-            .addService(ServerInterceptors.intercept(serverImpl, new NrtsearchHeaderInterceptor()))
+            .addService(
+                ServerInterceptors.intercept(
+                    serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
             .build()
             .start();
     client = new NrtsearchClient("localhost", server.getPort());
@@ -594,6 +614,7 @@ public class TestServer {
     private boolean writeDiscoveryFile = false;
 
     private String additionalConfig = "";
+    private List<Plugin> plugins = Collections.emptyList();
 
     Builder(TemporaryFolder folder) {
       this.folder = folder;
@@ -654,6 +675,11 @@ public class TestServer {
       return this;
     }
 
+    public Builder withPlugins(List<Plugin> plugins) {
+      this.plugins = plugins;
+      return this;
+    }
+
     public Builder withWriteDiscoveryFile(boolean writeDiscoveryFile) {
       this.writeDiscoveryFile = writeDiscoveryFile;
       return this;
@@ -673,7 +699,8 @@ public class TestServer {
       return new TestServer(
           new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes())),
           writeDiscoveryFile,
-          Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
+          Paths.get(folder.getRoot().toString(), DISCOVERY_FILE),
+          plugins);
     }
 
     private String backendConfig() {

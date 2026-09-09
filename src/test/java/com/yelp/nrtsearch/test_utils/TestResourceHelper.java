@@ -17,14 +17,24 @@ package com.yelp.nrtsearch.test_utils;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 
 public class TestResourceHelper {
 
@@ -49,6 +59,17 @@ public class TestResourceHelper {
       throw new RuntimeException(e);
     }
     return fieldDefRequestBuilder.build();
+  }
+
+  public static Stream<AddDocumentRequest> getCsvDocumentStream(
+      String indexName, String resourceFileName) throws IOException, URISyntaxException {
+    Path filePath = Paths.get(TestResourceHelper.class.getResource(resourceFileName).toURI());
+    Reader reader = Files.newBufferedReader(filePath);
+    CSVParser csvParser =
+        new CSVParser(
+            reader, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build());
+    return new NrtsearchClientBuilder.AddDocumentsClientBuilder(indexName, csvParser)
+        .buildRequest(filePath);
   }
 
   public static SearchRequest getSearchRequestFromResourceFile(String resourceFileName)

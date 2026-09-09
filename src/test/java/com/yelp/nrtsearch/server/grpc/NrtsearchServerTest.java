@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -25,7 +24,6 @@ import static org.junit.Assert.fail;
 
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
-import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -34,18 +32,15 @@ import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.state.StateUtils;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -69,7 +64,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 
 @RunWith(JUnit4.class)
 public class NrtsearchServerTest {
@@ -99,81 +94,52 @@ public class NrtsearchServerTest {
       Arrays.asList(
           "doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon", "lat_lon_multi");
 
-  private final String bucketName = "server-unittest";
+  private static final String TEST_INDEX = "test_index";
+  private static final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(bucketName);
-
-  private GrpcServer grpcServer;
-  private GrpcServer replicaGrpcServer;
-  private PrometheusRegistry prometheusRegistry;
-  private ExecutorFactory executorFactory;
+  private TestServer primaryServer;
+  private TestServer replicaServer;
   private RemoteBackend remoteBackend;
-  private S3Client s3;
-  private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-    tearDownReplicaGrpcServer();
-    executorFactory.close();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
-  }
-
-  private void tearDownReplicaGrpcServer() throws IOException {
-    replicaGrpcServer.getGlobalState().close();
-    replicaGrpcServer.shutdown();
-    rmDir(Paths.get(replicaGrpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
-  public void setUp() throws IOException {
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(
-            Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
-
-    prometheusRegistry = new PrometheusRegistry();
-    executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
-    remoteBackend = setUpRemoteBackend(configuration, executorFactory);
-    grpcServer = setUpGrpcServer(configuration, prometheusRegistry);
-    replicaGrpcServer = setUpReplicaGrpcServer(prometheusRegistry);
+  public void setUp() throws Exception {
+    primaryServer = TestServer.builder(folder).build();
+    replicaServer =
+        TestServer.builder(folder)
+            .withServiceName(TEST_SERVICE_NAME)
+            .withWarming(10, 1, true)
+            .withAdditionalConfig("syncInitialNrtPoint: false")
+            .build();
+    remoteBackend = createRemoteBackend(replicaServer.getConfiguration());
     setUpWarmer();
   }
 
-  private RemoteBackend setUpRemoteBackend(
-      NrtsearchConfig configuration, ExecutorFactory executorFactory) throws IOException {
-    s3 = s3Provider.getAmazonS3();
+  private RemoteBackend createRemoteBackend(NrtsearchConfig config) {
+    S3AsyncClient s3Async = AmazonS3Provider.createTestS3AsyncClient(TestServer.S3_ENDPOINT);
     return new S3Backend(
-        configuration, new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
+        config,
+        new S3Util.S3ClientBundle(
+            AmazonS3Provider.createTestS3Client(TestServer.S3_ENDPOINT), s3Async));
   }
 
-  private void setUpWarmer() throws IOException {
+  private void setUpWarmer() throws Exception {
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     try (OutputStreamWriter writer =
         new OutputStreamWriter(byteArrayOutputStream, StateUtils.getValidatingUTF8Encoder())) {
-      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
-      for (String line : testSearchRequestsJson) {
+      for (String line : getTestSearchRequestsAsJsonStrings()) {
         writer.write(line);
         writer.write("\n");
       }
     }
-    byte[] warmingQueriesBytes = byteArrayOutputStream.toByteArray();
-    remoteBackend.uploadWarmingQueries(TEST_SERVICE_NAME, "test_index", warmingQueriesBytes);
+    remoteBackend.uploadWarmingQueries(
+        TEST_SERVICE_NAME, TEST_INDEX, byteArrayOutputStream.toByteArray());
   }
 
   private List<String> getTestSearchRequestsAsJsonStrings() {
@@ -182,49 +148,49 @@ public class NrtsearchServerTest {
         "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field1\"}}}");
   }
 
-  private GrpcServer setUpGrpcServer(
-      NrtsearchConfig configuration, PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-
-    return new GrpcServer(
-        prometheusRegistry,
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort(),
-        remoteBackend,
-        Collections.emptyList());
+  private void setupIndex(String registerFieldsFile, String addDocsFile) throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = primaryServer.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/" + registerFieldsFile).toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/" + addDocsFile));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
   }
 
-  private GrpcServer setUpReplicaGrpcServer(PrometheusRegistry prometheusRegistry)
-      throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig replicaConfiguration =
-        NrtsearchTestConfigurationFactory.getConfig(
-            Mode.REPLICA, folder.getRoot(), getExtraConfig());
-
-    return new GrpcServer(
-        grpcCleanup,
-        replicaConfiguration,
-        folder,
-        null,
-        replicaConfiguration.getIndexDir(),
-        testIndex,
-        replicaConfiguration.getPort(),
-        remoteBackend);
+  private FieldDefResponse setupIndexNoDocuments(String registerFieldsFile) throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = primaryServer.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    return stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/" + registerFieldsFile).toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
   }
 
-  private String getExtraConfig() {
-    return String.join(
-        "\n",
-        "warmer:",
-        "  maxWarmingQueries: 10",
-        "  warmOnStartup: true",
-        "  warmingParallelism: 1",
-        "syncInitialNrtPoint: false");
+  private void setupIndexPrimary() throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = primaryServer.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setMode(Mode.PRIMARY)
+            .setPrimaryGen(0)
+            .build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasic.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    // Add and commit an initial set of documents so the Lucene gen is at 1 before the
+    // test's own commit calls; the test expects its first explicit commit to produce gen=2.
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
   }
 
   @Test
@@ -233,13 +199,16 @@ public class NrtsearchServerTest {
         List.of("idx", "idx1", "idx_1", "idx-3", "123", "IDX123", "iD1x23", "_");
     List<String> invalidIndexNames = List.of("id@x", "idx,1", "#", "", "(idx)");
 
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub =
+        primaryServer.getClient().getBlockingStub();
 
     for (String indexName : validIndexNames) {
       CreateIndexRequest request = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
       CreateIndexResponse reply = blockingStub.createIndex(request);
       assertEquals(
-          String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
+          String.format(
+              "Created Index name: %s",
+              indexName, primaryServer.getGlobalState().getIndexDirBase().toString()),
           reply.getResponse());
     }
 
@@ -259,9 +228,10 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testStartShard() throws IOException {
-    String testIndex = grpcServer.getTestIndex();
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+  public void testStartShard() throws Exception {
+    String testIndex = TEST_INDEX;
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub =
+        primaryServer.getClient().getBlockingStub();
     // create the index
     blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
     // start the index
@@ -274,7 +244,8 @@ public class NrtsearchServerTest {
 
   @Test
   public void testStartIndexWithEmptyString() {
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub =
+        primaryServer.getClient().getBlockingStub();
     try {
       // start the index
       String emptyTestIndex = "";
@@ -300,9 +271,7 @@ public class NrtsearchServerTest {
 
   @Test
   public void testRegisterFieldsBasic() throws Exception {
-    FieldDefResponse reply =
-        new GrpcServer.IndexAndRoleManager(grpcServer)
-            .createStartIndexAndRegisterFields(Mode.STANDALONE);
+    FieldDefResponse reply = setupIndexNoDocuments("registerFieldsBasic.json");
     assertTrue(reply.getResponse().contains("vendor_name"));
     assertTrue(reply.getResponse().contains("vendor_name_atom"));
     assertTrue(reply.getResponse().contains("license_no"));
@@ -310,14 +279,13 @@ public class NrtsearchServerTest {
 
   @Test
   public void testUpdateFieldsBasic() throws Exception {
-    FieldDefResponse reply =
-        new GrpcServer.IndexAndRoleManager(grpcServer)
-            .createStartIndexAndRegisterFields(Mode.STANDALONE);
+    FieldDefResponse reply = setupIndexNoDocuments("registerFieldsBasic.json");
     assertTrue(reply.getResponse().contains("vendor_name"));
     assertTrue(reply.getResponse().contains("vendor_name_atom"));
     assertTrue(reply.getResponse().contains("license_no"));
     reply =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .updateFields(
                 FieldDefRequest.newBuilder()
@@ -336,14 +304,13 @@ public class NrtsearchServerTest {
 
   @Test
   public void testRegisterVirtualFields() throws Exception {
-    FieldDefResponse reply =
-        new GrpcServer.IndexAndRoleManager(grpcServer)
-            .createStartIndexAndRegisterFields(Mode.STANDALONE);
+    FieldDefResponse reply = setupIndexNoDocuments("registerFieldsBasic.json");
     assertTrue(reply.getResponse().contains("vendor_name"));
     assertTrue(reply.getResponse().contains("vendor_name_atom"));
     assertTrue(reply.getResponse().contains("license_no"));
     reply =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .updateFields(
                 FieldDefRequest.newBuilder()
@@ -364,14 +331,13 @@ public class NrtsearchServerTest {
 
   @Test
   public void testRegisterVirtualAndNonVirtualFields() throws Exception {
-    FieldDefResponse reply =
-        new GrpcServer.IndexAndRoleManager(grpcServer)
-            .createStartIndexAndRegisterFields(Mode.STANDALONE);
+    FieldDefResponse reply = setupIndexNoDocuments("registerFieldsBasic.json");
     assertTrue(reply.getResponse().contains("vendor_name"));
     assertTrue(reply.getResponse().contains("vendor_name_atom"));
     assertTrue(reply.getResponse().contains("license_no"));
     reply =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .updateFields(
                 FieldDefRequest.newBuilder()
@@ -401,14 +367,13 @@ public class NrtsearchServerTest {
 
   @Test
   public void testRegisterVirtualWithDependentField() throws Exception {
-    FieldDefResponse reply =
-        new GrpcServer.IndexAndRoleManager(grpcServer)
-            .createStartIndexAndRegisterFields(Mode.STANDALONE);
+    FieldDefResponse reply = setupIndexNoDocuments("registerFieldsBasic.json");
     assertTrue(reply.getResponse().contains("vendor_name"));
     assertTrue(reply.getResponse().contains("vendor_name_atom"));
     assertTrue(reply.getResponse().contains("license_no"));
     reply =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .updateFields(
                 FieldDefRequest.newBuilder()
@@ -436,14 +401,12 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchPostUpdate() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
+  public void testSearchPostUpdate() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     // update schema: add a new field
-    grpcServer
+    primaryServer
+        .getClient()
         .getBlockingStub()
         .updateFields(
             FieldDefRequest.newBuilder()
@@ -459,9 +422,13 @@ public class NrtsearchServerTest {
                 .build());
 
     // 2 docs addDocuments
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsUpdated.csv");
-    assertEquals(false, testAddDocs.error);
-    assertEquals(true, testAddDocs.completed);
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocsUpdated.csv"));
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
     List<String> RETRIEVE = Arrays.asList("doc_id", "new_text_field");
 
     Query query =
@@ -470,11 +437,12 @@ public class NrtsearchServerTest {
             .build();
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .setQuery(query)
@@ -500,12 +468,8 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testAddDocumentsBasic() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    testAddDocs.addDocuments();
-    assertEquals(false, testAddDocs.error);
-    assertEquals(true, testAddDocs.completed);
+  public void testAddDocumentsBasic() throws Exception {
+    setupIndexNoDocuments("registerFieldsBasic.json");
 
     /* Tricky to check genId for exact match on a standalone node (one that does both indexing and real-time searching.
      *  The ControlledRealTimeReopenThread is running in the background which refreshes the searcher and updates the sequence_number
@@ -516,55 +480,56 @@ public class NrtsearchServerTest {
      *  - once for each invocation of SearcherTaxonomyManager as explained above
      *  - once per commit
      */
-    assert 3 <= Integer.parseInt(testAddDocs.addDocumentResponse.getGenId());
-    testAddDocs.addDocuments();
-    assert 4 <= Integer.parseInt(testAddDocs.addDocumentResponse.getGenId());
+    AddDocumentResponse resp1 =
+        TestDocumentHelper.addDocuments(
+            primaryServer.getClient().getAsyncStub(),
+            TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    assert 3 <= Integer.parseInt(resp1.getGenId());
+    AddDocumentResponse resp2 =
+        TestDocumentHelper.addDocuments(
+            primaryServer.getClient().getAsyncStub(),
+            TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    assert 4 <= Integer.parseInt(resp2.getGenId());
   }
 
   @Test
-  public void testAddDocumentsLatLon() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
-    assertEquals(false, testAddDocs.error);
-    assertEquals(true, testAddDocs.completed);
+  public void testAddDocumentsLatLon() throws Exception {
+    setupIndex("registerFieldsLatLon.json", "addDocsLatLon.csv");
   }
 
   @Test
-  public void testAddNoDocuments() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
-
-    testAddDocs.addDocumentsFromStream(Stream.empty());
-    assertFalse(testAddDocs.error);
-    assertTrue(testAddDocs.completed);
+  public void testAddNoDocuments() throws Exception {
+    setupIndexNoDocuments("registerFieldsLatLon.json");
+    // Adding an empty stream should succeed without error
+    TestDocumentHelper.addDocuments(primaryServer.getClient().getAsyncStub(), Stream.empty());
   }
 
   @Test
-  public void testStats() throws IOException, InterruptedException {
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE);
+  public void testStats() throws Exception {
+    setupIndexNoDocuments("registerFieldsBasic.json");
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(0, statsResponse.getNumDocs());
     assertEquals(0, statsResponse.getMaxDoc());
     assertEquals(0, statsResponse.getOrd());
     assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
     assertTrue(statsResponse.getDirSize() > 0);
     assertEquals("started", statsResponse.getState());
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    testAddDocs.addDocuments();
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
     statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
     assertEquals(0, statsResponse.getOrd());
@@ -575,35 +540,35 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testRefresh() throws IOException, InterruptedException {
-    new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE).addDocuments();
+  public void testRefresh() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
     assertEquals(0, statsResponse.getOrd());
     assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
     // check status on currentSearchAgain
     statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
   }
 
   @Test
-  public void testDelete() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // add 2 docs
-    testAddDocs.addDocuments();
+  public void testDelete() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     // check stats numDocs for 2 docs
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
@@ -614,35 +579,35 @@ public class NrtsearchServerTest {
         AddDocumentRequest.MultiValuedField.newBuilder();
     addDocumentRequestBuilder.putFields("doc_id", multiValuedFieldsBuilder.addValue("1").build());
     AddDocumentResponse addDocumentResponse =
-        grpcServer.getBlockingStub().delete(addDocumentRequestBuilder.build());
+        primaryServer.getClient().getBlockingStub().delete(addDocumentRequestBuilder.build());
     assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
-    grpcServer
+    primaryServer
+        .getClient()
         .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     // check stats numDocs for 1 docs
     statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(1, statsResponse.getNumDocs());
     // the refresh triggers a merge, so there is only one doc in the segment
     assertEquals(1, statsResponse.getMaxDoc());
   }
 
   @Test
-  public void testDeleteByQuery() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // add 2 docs
-    testAddDocs.addDocuments();
+  public void testDeleteByQuery() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     // check stats numDocs for 2 docs
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
@@ -652,13 +617,14 @@ public class NrtsearchServerTest {
             .build();
     SearchRequest searchRequest =
         SearchRequest.newBuilder()
-            .setIndexName(grpcServer.getTestIndex())
+            .setIndexName(TEST_INDEX)
             .setStartHit(0)
             .setTopHits(10)
             .addAllRetrieveFields(RETRIEVED_VALUES)
             .setQuery(query)
             .build();
-    SearchResponse searchResponse = grpcServer.getBlockingStub().search(searchRequest);
+    SearchResponse searchResponse =
+        primaryServer.getClient().getBlockingStub().search(searchRequest);
     assertEquals(searchResponse.getHitsCount(), 1);
 
     // delete 1 doc
@@ -666,38 +632,38 @@ public class NrtsearchServerTest {
     DeleteByQueryRequest deleteByQueryRequest =
         DeleteByQueryRequest.newBuilder().setIndexName("test_index").addQuery(query).build();
     AddDocumentResponse addDocumentResponse =
-        grpcServer.getBlockingStub().deleteByQuery(deleteByQueryRequest);
+        primaryServer.getClient().getBlockingStub().deleteByQuery(deleteByQueryRequest);
     assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
-    grpcServer
+    primaryServer
+        .getClient()
         .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     // check stats numDocs for 1 docs
     statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(1, statsResponse.getNumDocs());
     // the refresh triggers a merge, so there is only one doc in the segment
     assertEquals(1, statsResponse.getMaxDoc());
     // deleted document does not show up in search response now
-    searchResponse = grpcServer.getBlockingStub().search(searchRequest);
+    searchResponse = primaryServer.getClient().getBlockingStub().search(searchRequest);
     assertEquals(searchResponse.getHitsCount(), 0);
   }
 
   @Test
-  public void testDeleteAllDocuments() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // add 2 docs
-    testAddDocs.addDocuments();
+  public void testDeleteAllDocuments() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     // check stats numDocs for 2 docs
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
@@ -706,28 +672,27 @@ public class NrtsearchServerTest {
         DeleteAllDocumentsRequest.newBuilder();
     DeleteAllDocumentsRequest deleteAllDocumentsRequest =
         deleteAllDocumentsBuilder.setIndexName("test_index").build();
-    grpcServer.getBlockingStub().deleteAll(deleteAllDocumentsRequest);
+    primaryServer.getClient().getBlockingStub().deleteAll(deleteAllDocumentsRequest);
 
     // check stats numDocs for 1 docs
     statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(0, statsResponse.getNumDocs());
     assertEquals(0, statsResponse.getMaxDoc());
   }
 
   @Test
-  public void testDeleteIndex() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // add 2 docs
-    testAddDocs.addDocuments();
+  public void testDeleteIndex() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     // check stats numDocs for 2 docs
     StatsResponse statsResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
@@ -736,31 +701,30 @@ public class NrtsearchServerTest {
     DeleteIndexRequest deleteIndexRequest =
         DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
     DeleteIndexResponse deleteIndexResponse =
-        grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
+        primaryServer.getClient().getBlockingStub().deleteIndex(deleteIndexRequest);
 
-    Path indexRootDir = Paths.get(grpcServer.getIndexDir(), indexName);
+    Path indexRootDir = primaryServer.getGlobalState().getIndexDirBase().resolve(indexName);
     assertEquals(false, Files.exists(indexRootDir));
 
     assertEquals("ok", deleteIndexResponse.getOk());
   }
 
   @Test
-  public void testSearchBasic() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
+  public void testSearchBasic() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     // manual refresh
-    grpcServer
+    primaryServer
+        .getClient()
         .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(RETRIEVED_VALUES)
@@ -775,23 +739,21 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchFetchingAllFieldsWithWildcard() throws IOException, InterruptedException {
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsWildcardRetrieval.json");
-    new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE)
-        .addDocuments("addDocsWildcardRetrieval.csv");
+  public void testSearchFetchingAllFieldsWithWildcard() throws Exception {
+    setupIndex("registerFieldsWildcardRetrieval.json", "addDocsWildcardRetrieval.csv");
 
-    grpcServer
+    primaryServer
+        .getClient()
         .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     SearchResponse searchResponseWithWildcard =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addRetrieveFields("*")
@@ -804,23 +766,16 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchLatLong() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+  public void testSearchLatLong() throws Exception {
+    setupIndex("registerFieldsLatLon.json", "addDocsLatLon.csv");
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(LAT_LON_VALUES)
@@ -835,26 +790,19 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchIndexVirtualFields() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsVirtual.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+  public void testSearchIndexVirtualFields() throws Exception {
+    setupIndex("registerFieldsVirtual.json", "addDocs.csv");
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
     queryFields.addAll(INDEX_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(queryFields)
@@ -870,26 +818,19 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchQueryVirtualFields() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsBasic.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+  public void testSearchQueryVirtualFields() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
     queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(queryFields)
@@ -906,27 +847,20 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testSearchBothVirtualFields() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsVirtual.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+  public void testSearchBothVirtualFields() throws Exception {
+    setupIndex("registerFieldsVirtual.json", "addDocs.csv");
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
     queryFields.addAll(INDEX_VIRTUAL_FIELDS);
     queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(queryFields)
@@ -943,36 +877,31 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testBackupWarmingQueries() throws IOException, InterruptedException {
-    GrpcServer.TestServer testServerReplica =
-        new GrpcServer.TestServer(replicaGrpcServer, true, Mode.REPLICA);
-    replicaGrpcServer
-        .getGlobalState()
-        .getIndexOrThrow(replicaGrpcServer.getTestIndex())
-        .initWarmer(remoteBackend);
-    assertNotNull(
-        replicaGrpcServer
-            .getGlobalState()
-            .getIndexOrThrow(replicaGrpcServer.getTestIndex())
-            .getWarmer());
+  public void testBackupWarmingQueries() throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub replicaStub =
+        replicaServer.getClient().getBlockingStub();
+    replicaStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    replicaStub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    replicaStub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasic.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    replicaServer.getGlobalState().getIndexOrThrow(TEST_INDEX).initWarmer(remoteBackend);
+    assertNotNull(replicaServer.getGlobalState().getIndexOrThrow(TEST_INDEX).getWarmer());
     // Average case should pass
-    replicaGrpcServer
-        .getBlockingStub()
-        .backupWarmingQueries(
-            BackupWarmingQueriesRequest.newBuilder()
-                .setIndex(replicaGrpcServer.getTestIndex())
-                .setServiceName(TEST_SERVICE_NAME)
-                .build());
+    replicaStub.backupWarmingQueries(
+        BackupWarmingQueriesRequest.newBuilder()
+            .setIndex(TEST_INDEX)
+            .setServiceName(TEST_SERVICE_NAME)
+            .build());
     // Should fail; does not meet UptimeMinutesThreshold
     try {
-      replicaGrpcServer
-          .getBlockingStub()
-          .backupWarmingQueries(
-              BackupWarmingQueriesRequest.newBuilder()
-                  .setIndex(replicaGrpcServer.getTestIndex())
-                  .setServiceName(TEST_SERVICE_NAME)
-                  .setUptimeMinutesThreshold(1000)
-                  .build());
+      replicaStub.backupWarmingQueries(
+          BackupWarmingQueriesRequest.newBuilder()
+              .setIndex(TEST_INDEX)
+              .setServiceName(TEST_SERVICE_NAME)
+              .setUptimeMinutesThreshold(1000)
+              .build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
       Pattern pattern =
@@ -984,14 +913,12 @@ public class NrtsearchServerTest {
 
     // Should fail; does not meet NumQueriesThreshold
     try {
-      replicaGrpcServer
-          .getBlockingStub()
-          .backupWarmingQueries(
-              BackupWarmingQueriesRequest.newBuilder()
-                  .setIndex(replicaGrpcServer.getTestIndex())
-                  .setServiceName(TEST_SERVICE_NAME)
-                  .setNumQueriesThreshold(1000)
-                  .build());
+      replicaStub.backupWarmingQueries(
+          BackupWarmingQueriesRequest.newBuilder()
+              .setIndex(TEST_INDEX)
+              .setServiceName(TEST_SERVICE_NAME)
+              .setNumQueriesThreshold(1000)
+              .build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
       assertEquals(
@@ -1003,9 +930,10 @@ public class NrtsearchServerTest {
   @Test
   public void testMetrics() {
     // make rpc calls to populate some metrics
-    grpcServer.getBlockingStub().status(HealthCheckRequest.newBuilder().build());
+    primaryServer.getClient().getBlockingStub().status(HealthCheckRequest.newBuilder().build());
 
-    HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
+    HttpBody response =
+        primaryServer.getClient().getBlockingStub().metrics(Empty.newBuilder().build());
     HashSet expectedSampleNames =
         new HashSet(
             Arrays.asList(
@@ -1030,166 +958,182 @@ public class NrtsearchServerTest {
   }
 
   @Test
-  public void testIndexState() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    testAddDocs.addDocuments();
+  public void testIndexState() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
     IndexStateResponse indexStateResponse =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .indexState(
-                IndexStateRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .indexState(IndexStateRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(
-        grpcServer.getGlobalState().getIndex(grpcServer.getTestIndex()).getIndexStateInfo(),
+        primaryServer.getGlobalState().getIndex(TEST_INDEX).getIndexStateInfo(),
         indexStateResponse.getIndexState());
   }
 
   @Test
-  public void testForceMerge() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // add more documents to different segment
-    testAddDocs.addDocuments();
+  public void testForceMerge() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
+    // add more documents to a different segment
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     StatsResponse stats =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(4, stats.getNumDocs());
     assertEquals(2, stats.getCurrentSearcher().getNumSegments());
 
     ForceMergeResponse response =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
             .forceMerge(
                 ForceMergeRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setMaxNumSegments(1)
                     .setDoWait(true)
                     .build());
     assertEquals(ForceMergeResponse.Status.FORCE_MERGE_COMPLETED, response.getStatus());
 
-    testAddDocs.refresh();
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     stats =
-        grpcServer
+        primaryServer
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(4, stats.getNumDocs());
     assertEquals(1, stats.getCurrentSearcher().getNumSegments());
   }
 
   @Test
-  public void testReleaseSnapshotOnPrimary() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    CommitRequest commitRequest =
-        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
-    grpcServer.getBlockingStub().commit(commitRequest);
+  public void testReleaseSnapshotOnPrimary() throws Exception {
+    setupIndexPrimary();
+    CommitRequest commitRequest = CommitRequest.newBuilder().setIndexName(TEST_INDEX).build();
+    primaryServer.getClient().getBlockingStub().commit(commitRequest);
 
     // create a snapshot
     CreateSnapshotRequest createSnapshotRequest =
-        CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+        CreateSnapshotRequest.newBuilder().setIndexName(TEST_INDEX).build();
     CreateSnapshotResponse createSnapshotResponse =
-        grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+        primaryServer.getClient().getBlockingStub().createSnapshot(createSnapshotRequest);
     assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
     assertEquals(-1, createSnapshotResponse.getSnapshotId().getStateGen());
 
     // add more documents and another commit to create another index gen
-    testAddDocs.addDocuments();
-    grpcServer.getBlockingStub().commit(commitRequest);
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    primaryServer.getClient().getBlockingStub().commit(commitRequest);
 
     // create another snapshot
-    createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    createSnapshotResponse =
+        primaryServer.getClient().getBlockingStub().createSnapshot(createSnapshotRequest);
     assertEquals(3, createSnapshotResponse.getSnapshotId().getIndexGen());
     assertEquals(-1, createSnapshotResponse.getSnapshotId().getStateGen());
 
     // Release the first snapshot with index and state gen
     ReleaseSnapshotRequest releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
-            .setIndexName(grpcServer.getTestIndex())
+            .setIndexName(TEST_INDEX)
             .setSnapshotId(SnapshotId.newBuilder().setIndexGen(2).setStateGen(-1))
             .build();
     ReleaseSnapshotResponse releaseSnapshotResponse =
-        grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
+        primaryServer.getClient().getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
     assertTrue(releaseSnapshotResponse.getSuccess());
 
     // Release the second snapshot's index gen and already released state gen
     releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
-            .setIndexName(grpcServer.getTestIndex())
+            .setIndexName(TEST_INDEX)
             .setSnapshotId(SnapshotId.newBuilder().setIndexGen(3).setStateGen(-1))
             .build();
-    releaseSnapshotResponse = grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
+    releaseSnapshotResponse =
+        primaryServer.getClient().getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
     assertTrue(releaseSnapshotResponse.getSuccess());
 
     // Verify both index gens released
     GetAllSnapshotGenRequest getAllSnapshotGenRequest =
-        GetAllSnapshotGenRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+        GetAllSnapshotGenRequest.newBuilder().setIndexName(TEST_INDEX).build();
     GetAllSnapshotGenResponse getAllSnapshotGenResponse =
-        grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
+        primaryServer
+            .getClient()
+            .getBlockingStub()
+            .getAllSnapshotIndexGen(getAllSnapshotGenRequest);
     assertEquals(0, getAllSnapshotGenResponse.getIndexGensCount());
   }
 
   @Test
-  public void testGetAllSnapshotIndexGen() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    CommitRequest commitRequest =
-        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
-    grpcServer.getBlockingStub().commit(commitRequest);
+  public void testGetAllSnapshotIndexGen() throws Exception {
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
+    CommitRequest commitRequest = CommitRequest.newBuilder().setIndexName(TEST_INDEX).build();
+    primaryServer.getClient().getBlockingStub().commit(commitRequest);
 
     // create a snapshot
     CreateSnapshotRequest createSnapshotRequest =
-        CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+        CreateSnapshotRequest.newBuilder().setIndexName(TEST_INDEX).build();
     CreateSnapshotResponse createSnapshotResponse =
-        grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+        primaryServer.getClient().getBlockingStub().createSnapshot(createSnapshotRequest);
     assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
 
     // add more documents and another commit to create another index gen
-    testAddDocs.addDocuments();
-    grpcServer.getBlockingStub().commit(commitRequest);
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    primaryServer.getClient().getBlockingStub().commit(commitRequest);
 
     // create another snapshot
-    createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    createSnapshotResponse =
+        primaryServer.getClient().getBlockingStub().createSnapshot(createSnapshotRequest);
     assertEquals(3, createSnapshotResponse.getSnapshotId().getIndexGen());
 
     GetAllSnapshotGenRequest getAllSnapshotGenRequest =
-        GetAllSnapshotGenRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+        GetAllSnapshotGenRequest.newBuilder().setIndexName(TEST_INDEX).build();
     GetAllSnapshotGenResponse getAllSnapshotGenResponse =
-        grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
+        primaryServer
+            .getClient()
+            .getBlockingStub()
+            .getAllSnapshotIndexGen(getAllSnapshotGenRequest);
 
     assertTrue(getAllSnapshotGenResponse.getIndexGensList().contains(2L));
     assertTrue(getAllSnapshotGenResponse.getIndexGensList().contains(3L));
   }
 
   @Test
-  public void testAddDocsHasPrimaryId() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
-    // 2 docs addDocuments
-    AddDocumentResponse response = testAddDocs.addDocuments();
+  public void testAddDocsHasPrimaryId() throws Exception {
+    setupIndexPrimary();
+    AddDocumentResponse response =
+        TestDocumentHelper.addDocuments(
+            primaryServer.getClient().getAsyncStub(),
+            TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
     assertFalse(response.getPrimaryId().isEmpty());
   }
 
   @Test
-  public void testCommitHasPrimaryId() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    CommitRequest commitRequest =
-        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
-    CommitResponse response = grpcServer.getBlockingStub().commit(commitRequest);
+  public void testCommitHasPrimaryId() throws Exception {
+    setupIndexPrimary();
+    TestDocumentHelper.addDocuments(
+        primaryServer.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    CommitRequest commitRequest = CommitRequest.newBuilder().setIndexName(TEST_INDEX).build();
+    CommitResponse response = primaryServer.getClient().getBlockingStub().commit(commitRequest);
     assertFalse(response.getPrimaryId().isEmpty());
   }
 
   @Test
-  public void testReady() throws IOException {
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+  public void testReady() throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub =
+        primaryServer.getClient().getBlockingStub();
     String index1 = "index1";
     String index2 = "index2";
     String index3 = "index3";
@@ -1199,7 +1143,9 @@ public class NrtsearchServerTest {
       CreateIndexResponse createIndexResponse =
           blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
       String expectedResponse =
-          String.format("Created Index name: %s", indexName, grpcServer.getIndexDir());
+          String.format(
+              "Created Index name: %s",
+              indexName, primaryServer.getGlobalState().getIndexDirBase().toString());
       assertEquals(expectedResponse, createIndexResponse.getResponse());
     }
 
@@ -1211,7 +1157,7 @@ public class NrtsearchServerTest {
       assertEquals(0, startIndexResponse.getNumDocs());
     }
 
-    grpcServer.getGlobalState().getIndexOrThrow(index3).getShard(0).writer.close();
+    primaryServer.getGlobalState().getIndexOrThrow(index3).getShard(0).writer.close();
 
     try {
       blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("").build());

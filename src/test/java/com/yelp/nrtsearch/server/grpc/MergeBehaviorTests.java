@@ -15,22 +15,17 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.NrtsearchServerTest.RETRIEVED_VALUES;
 import static org.junit.Assert.*;
 
 import com.google.common.collect.Sets;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.After;
@@ -49,78 +44,56 @@ import org.junit.rules.TemporaryFolder;
  * after the merge must be issued
  */
 public class MergeBehaviorTests {
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
+  private static final String TEST_INDEX = "test_index";
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
+  private TestServer server;
 
   private final int segmentsBeforeMerge = 2;
   private final int segmentsAfterMerge = 1;
   private final int numDocs = 4;
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
-  public void setUp() throws IOException {
-    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
-    grpcServer = setUpGrpcServer(prometheusRegistry);
-  }
-
-  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        prometheusRegistry,
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort(),
-        null,
-        Collections.emptyList());
+  public void setUp() throws Exception {
+    server = TestServer.builder(folder).build();
+    server.createIndex(TEST_INDEX);
+    server
+        .getClient()
+        .getBlockingStub()
+        .registerFields(
+            TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasic.json").toBuilder()
+                .setIndexName(TEST_INDEX)
+                .build());
+    server.startStandaloneIndex(TEST_INDEX, null);
   }
 
   @Test
-  public void testForceMergeBehaviorWithoutCommitOrSnapshot()
-      throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = addFourDocsInTwoSegments();
+  public void testForceMergeBehaviorWithoutCommitOrSnapshot() throws Exception {
+    addFourDocsInTwoSegments();
 
     // Correct number of segments and no searchers in the response other than currentSearcher
-    assertStats(segmentsBeforeMerge, List.of());
+    assertStats(segmentsBeforeMerge, java.util.List.of());
 
     doSearch();
 
     // Searcher present in the response after doing a search
-    assertStats(segmentsBeforeMerge, List.of(6L));
+    assertStats(segmentsBeforeMerge, java.util.List.of(6L));
 
     Set<String> segmentFilesBeforeMerge = getSegmentFiles();
 
     doForceMerge();
 
-    testAddDocs.refresh();
+    server.refresh(TEST_INDEX);
 
     // Only the previous searcher present
-    assertStats(segmentsAfterMerge, List.of(6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(6L));
 
     // After merge we have both pre-merge segments and the new merged segments
     Set<String> segmentFilesAfterMerge = getSegmentFiles();
@@ -130,13 +103,13 @@ public class MergeBehaviorTests {
     doSearch();
 
     // After doing another search both previous and current searchers show up under searchers
-    assertStats(segmentsAfterMerge, List.of(8L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(8L, 6L));
 
     // Wait for 40 seconds
     sleep(40);
 
     // We still have the previous searcher
-    assertStats(segmentsAfterMerge, List.of(8L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(8L, 6L));
     // No change in segment files since merge
     assertEquals(segmentFilesAfterMerge, getSegmentFiles());
 
@@ -145,7 +118,7 @@ public class MergeBehaviorTests {
 
     // After waiting for 62 seconds total, the previous searcher is pruned (time when cleanup begins
     // is 60 seconds)
-    assertStats(segmentsAfterMerge, List.of(8L));
+    assertStats(segmentsAfterMerge, java.util.List.of(8L));
 
     Set<String> segmentFilesAfterMergeAndSearcherPrune = getSegmentFiles();
 
@@ -163,26 +136,26 @@ public class MergeBehaviorTests {
   }
 
   @Test
-  public void testForceMergeBehaviorWithCommit() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = addFourDocsInTwoSegments();
+  public void testForceMergeBehaviorWithCommit() throws Exception {
+    addFourDocsInTwoSegments();
     commit();
 
     // Correct number of segments and no searchers in the response other than currentSearcher
-    assertStats(segmentsBeforeMerge, List.of());
+    assertStats(segmentsBeforeMerge, java.util.List.of());
 
     doSearch();
 
     // Searcher present in the response after doing a search
-    assertStats(segmentsBeforeMerge, List.of(6L));
+    assertStats(segmentsBeforeMerge, java.util.List.of(6L));
 
     Set<String> segmentFilesBeforeMerge = getSegmentFiles();
 
     doForceMerge();
 
-    testAddDocs.refresh();
+    server.refresh(TEST_INDEX);
 
     // Only the previous searcher present
-    assertStats(segmentsAfterMerge, List.of(6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(6L));
 
     // After merge we have both pre-merge segments and the new merged segments
     Set<String> segmentFilesAfterMerge = getSegmentFiles();
@@ -192,13 +165,13 @@ public class MergeBehaviorTests {
     doSearch();
 
     // After doing another search both previous and current searchers show up under searchers
-    assertStats(segmentsAfterMerge, List.of(9L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L, 6L));
 
     // Wait for 40 seconds
     sleep(40);
 
     // We still have the previous searcher
-    assertStats(segmentsAfterMerge, List.of(9L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L, 6L));
     // No change in segment files since merge
     assertEquals(segmentFilesAfterMerge, getSegmentFiles());
 
@@ -207,7 +180,7 @@ public class MergeBehaviorTests {
 
     // After waiting for 62 seconds total, the previous searcher is pruned (time when cleanup begins
     // is 60 seconds)
-    assertStats(segmentsAfterMerge, List.of(9L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L));
 
     // Previous segments not deleted yet
     assertEquals(segmentFilesAfterMerge, getSegmentFiles());
@@ -231,31 +204,31 @@ public class MergeBehaviorTests {
   }
 
   @Test
-  public void testForceMergeBehaviorWithSnapshot() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs = addFourDocsInTwoSegments();
+  public void testForceMergeBehaviorWithSnapshot() throws Exception {
+    addFourDocsInTwoSegments();
     commit();
 
     // Correct number of segments and no searchers in the response other than currentSearcher
-    assertStats(segmentsBeforeMerge, List.of());
+    assertStats(segmentsBeforeMerge, java.util.List.of());
 
     doSearch();
 
     // Searcher present in the response after doing a search
-    assertStats(segmentsBeforeMerge, List.of(6L));
+    assertStats(segmentsBeforeMerge, java.util.List.of(6L));
 
     SnapshotId snapshotId = createSnapshot();
 
     // Another searcher opened after the snapshot was created
-    assertStats(segmentsBeforeMerge, List.of(7L, 6L));
+    assertStats(segmentsBeforeMerge, java.util.List.of(7L, 6L));
 
     Set<String> segmentFilesBeforeMerge = getSegmentFiles();
 
     doForceMerge();
 
-    testAddDocs.refresh();
+    server.refresh(TEST_INDEX);
 
     // Only the previous searchers present
-    assertStats(segmentsAfterMerge, List.of(7L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(7L, 6L));
 
     // After merge we have both pre-merge segments and the new merged segments
     Set<String> segmentFilesAfterMerge = getSegmentFiles();
@@ -265,13 +238,13 @@ public class MergeBehaviorTests {
     doSearch();
 
     // After doing another search all previous and current searchers show up under searchers
-    assertStats(segmentsAfterMerge, List.of(9L, 7L, 6L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L, 7L, 6L));
 
     // Wait for 62 seconds
     sleep(62);
 
     // Searcher cleanup begins after 60 seconds but we still have the searcher opened with snapshot
-    assertStats(segmentsAfterMerge, List.of(9L, 7L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L, 7L));
     // Also no change in segment files since merge
     assertEquals(segmentFilesAfterMerge, getSegmentFiles());
 
@@ -282,7 +255,7 @@ public class MergeBehaviorTests {
 
     // After releasing the snapshot the snapshot searcher is pruned as the cleanup time has already
     // passed
-    assertStats(segmentsAfterMerge, List.of(9L));
+    assertStats(segmentsAfterMerge, java.util.List.of(9L));
 
     Set<String> segmentFilesAfterMergeAndSnapshotRelease = getSegmentFiles();
 
@@ -313,29 +286,30 @@ public class MergeBehaviorTests {
             .isEmpty());
   }
 
-  private GrpcServer.TestServer addFourDocsInTwoSegments()
-      throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+  private void addFourDocsInTwoSegments() throws Exception {
     // add 2 docs and create a segment
-    testAddDocs.addDocuments();
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    server.refresh(TEST_INDEX);
     // add 2 more docs in a different segment
-    testAddDocs.addDocuments();
-    return testAddDocs;
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    server.refresh(TEST_INDEX);
   }
 
   private void commit() {
-    CommitRequest commitRequest =
-        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
-    grpcServer.getBlockingStub().commit(commitRequest);
+    server.commit(TEST_INDEX);
   }
 
   /** Get and assert the stats. */
-  private void assertStats(int numSegments, List<Long> searcherVersions) {
+  private void assertStats(int numSegments, java.util.List<Long> searcherVersions) {
     StatsResponse stats =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+            .stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     assertEquals(4, stats.getNumDocs());
     assertEquals(numSegments, stats.getCurrentSearcher().getNumSegments());
     assertEquals(searcherVersions.size(), stats.getSearchersList().size());
@@ -355,11 +329,12 @@ public class MergeBehaviorTests {
 
   private void doSearch() {
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(numDocs + 1)
                     .addAllRetrieveFields(RETRIEVED_VALUES)
@@ -369,11 +344,12 @@ public class MergeBehaviorTests {
 
   private void doForceMerge() {
     ForceMergeResponse response =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .forceMerge(
                 ForceMergeRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setMaxNumSegments(segmentsAfterMerge)
                     .setDoWait(true)
                     .build());
@@ -382,13 +358,10 @@ public class MergeBehaviorTests {
 
   private Path getSegmentDirectory() throws IOException {
     return Paths.get(
-        grpcServer.getIndexDir(),
+        server.getGlobalState().getIndexDirBase().toString(),
         BackendGlobalState.getUniqueIndexName(
-            grpcServer.getTestIndex(),
-            grpcServer
-                .getGlobalState()
-                .getIndexStateManagerOrThrow(grpcServer.getTestIndex())
-                .getIndexId()),
+            TEST_INDEX,
+            server.getGlobalState().getIndexStateManagerOrThrow(TEST_INDEX).getIndexId()),
         "shard0",
         "index");
   }
@@ -399,19 +372,16 @@ public class MergeBehaviorTests {
 
   private SnapshotId createSnapshot() {
     CreateSnapshotRequest request =
-        CreateSnapshotRequest.newBuilder()
-            .setIndexName(grpcServer.getTestIndex())
-            .setOpenSearcher(true)
-            .build();
-    return grpcServer.getBlockingStub().createSnapshot(request).getSnapshotId();
+        CreateSnapshotRequest.newBuilder().setIndexName(TEST_INDEX).setOpenSearcher(true).build();
+    return server.getClient().getBlockingStub().createSnapshot(request).getSnapshotId();
   }
 
   private boolean releaseSnapshot(SnapshotId snapshotId) {
     ReleaseSnapshotRequest request =
         ReleaseSnapshotRequest.newBuilder()
-            .setIndexName(grpcServer.getTestIndex())
+            .setIndexName(TEST_INDEX)
             .setSnapshotId(snapshotId)
             .build();
-    return grpcServer.getBlockingStub().releaseSnapshot(request).getSuccess();
+    return server.getClient().getBlockingStub().releaseSnapshot(request).getSuccess();
   }
 }
