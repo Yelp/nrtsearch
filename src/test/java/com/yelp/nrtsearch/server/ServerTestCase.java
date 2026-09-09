@@ -15,29 +15,23 @@
  */
 package com.yelp.nrtsearch.server;
 
-import static com.yelp.nrtsearch.test_utils.TestFileUtils.rmDir;
-
 import com.google.gson.Gson;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
-import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
 import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import com.yelp.nrtsearch.test_utils.TestResourceHelper;
-import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.io.Reader;
@@ -62,31 +56,44 @@ public class ServerTestCase {
   public static final String DEFAULT_TEST_INDEX = "test_index";
 
   /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
+   * This rule ensures the temporary folder which maintains indexes is cleaned up after each test
    */
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
-  private static GrpcServer grpcServer;
-  private static PrometheusRegistry prometheusRegistry;
-  private static GlobalState globalState;
+  private static TestServer testServer;
   private static boolean initialized = false;
 
-  public static GrpcServer getGrpcServer() {
-    return grpcServer;
+  /** Adapter returned by {@link #getGrpcServer()} for backward compatibility with subclasses. */
+  public static class GrpcServerAdapter {
+    public LuceneServerGrpc.LuceneServerBlockingStub getBlockingStub() {
+      return testServer.getClient().getBlockingStub();
+    }
+
+    public GlobalState getGlobalState() {
+      return testServer.getGlobalState();
+    }
+  }
+
+  private static final GrpcServerAdapter GRPC_SERVER_ADAPTER = new GrpcServerAdapter();
+
+  /**
+   * @deprecated Use {@link #getBlockingStub()} or {@link #getGlobalState()} directly.
+   */
+  @Deprecated
+  public static GrpcServerAdapter getGrpcServer() {
+    return GRPC_SERVER_ADAPTER;
+  }
+
+  public static LuceneServerGrpc.LuceneServerBlockingStub getBlockingStub() {
+    return testServer.getClient().getBlockingStub();
   }
 
   public static PrometheusRegistry getPrometheusRegistry() {
-    return prometheusRegistry;
+    return testServer.getPrometheusRegistry();
   }
 
   public static GlobalState getGlobalState() {
-    return globalState;
+    return testServer.getGlobalState();
   }
 
   public static FieldDefRequest getFieldsFromResourceFile(String resourceFileName)
@@ -105,7 +112,7 @@ public class ServerTestCase {
 
   public static AddDocumentResponse addDocuments(Stream<AddDocumentRequest> requestStream)
       throws Exception {
-    return TestDocumentHelper.addDocuments(grpcServer.getStub(), requestStream);
+    return TestDocumentHelper.addDocuments(testServer.getClient().getAsyncStub(), requestStream);
   }
 
   public static void addDocsFromResourceFile(String index, String resourceFile) throws Exception {
@@ -132,15 +139,9 @@ public class ServerTestCase {
   }
 
   @AfterClass
-  public static void tearDownClass() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private static void tearDownGrpcServer() throws IOException {
+  public static void tearDownClass() {
     if (initialized) {
-      grpcServer.getGlobalState().close();
-      grpcServer.shutdown();
-      rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+      TestServer.cleanupAll();
       initialized = false;
     }
   }
@@ -154,35 +155,18 @@ public class ServerTestCase {
   }
 
   public void setUpClass() throws Exception {
-    prometheusRegistry = new PrometheusRegistry();
-    grpcServer = setUpGrpcServer(prometheusRegistry);
+    testServer =
+        TestServer.builder(folder)
+            .withPlugins(getPlugins(null))
+            .withAdditionalConfig(getExtraConfig())
+            .build();
     initIndices();
-  }
-
-  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(
-            Mode.STANDALONE, folder.getRoot(), getExtraConfig());
-    GrpcServer server =
-        new GrpcServer(
-            prometheusRegistry,
-            grpcCleanup,
-            configuration,
-            folder,
-            null,
-            configuration.getIndexDir(),
-            testIndex,
-            configuration.getPort(),
-            null,
-            getPlugins(configuration));
-    globalState = server.getGlobalState();
-    return server;
   }
 
   protected void initIndices() throws Exception {
     for (String indexName : getIndices()) {
-      LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+      LuceneServerGrpc.LuceneServerBlockingStub blockingStub =
+          testServer.getClient().getBlockingStub();
 
       // create the index
       blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
@@ -230,7 +214,8 @@ public class ServerTestCase {
 
   protected void initIndex(String name) throws Exception {}
 
-  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
+  protected List<Plugin> getPlugins(
+      com.yelp.nrtsearch.server.config.NrtsearchConfig configuration) {
     return Collections.emptyList();
   }
 
