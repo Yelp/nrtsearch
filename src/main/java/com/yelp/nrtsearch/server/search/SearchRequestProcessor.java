@@ -480,8 +480,8 @@ public class SearchRequestProcessor {
 
   /**
    * Get map of fields that need to be retrieved for the given request. Also used to resolve the
-   * intermediate field list of a query-then-fetch stream, which is filled on the recall response
-   * instead of the final one.
+   * intermediate field list of a query-then-fetch stream, which is filled on the ranking phase
+   * response instead of the final one.
    *
    * @param fieldList fields to retrieve
    * @param queryFields all valid fields for this query

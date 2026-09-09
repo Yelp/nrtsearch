@@ -13,20 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.handler;
+package com.yelp.nrtsearch.server.handler.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.LuceneDocIdSet;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
-import com.yelp.nrtsearch.server.grpc.RecallRequest;
+import com.yelp.nrtsearch.server.grpc.RankingRequest;
 import com.yelp.nrtsearch.server.grpc.ReducedHitList;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.grpc.StreamSearchRequest;
 import com.yelp.nrtsearch.server.grpc.StreamSearchResponse;
+import com.yelp.nrtsearch.server.handler.SearchExecutionUtils;
+import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
@@ -41,7 +44,6 @@ import com.yelp.nrtsearch.server.search.SearcherResult;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,14 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.DirectoryReader;
@@ -72,17 +66,19 @@ import org.slf4j.LoggerFactory;
  * Handler for the bidirectional streaming searchStream RPC, which implements the shard side of a
  * query-then-fetch (QTF) search.
  *
- * <p>The client sends a {@link RecallRequest}; the server executes recall and rescoring, then
- * responds with hit ids, ranking info and any intermediate fields the client asked for, but no
- * {@link SearchRequest#getRetrieveFieldsList() retrieveFields}. The client merges those responses
- * across all shards into a single global ranking and sends back a {@link ReducedHitList} naming the
- * documents this shard should fetch and log. Only then does the server fetch fields and invoke the
- * {@link HitsLoggerFetchTask}, so a document is logged once globally rather than once per shard.
+ * <p>The client sends a {@link RankingRequest}; the server executes the ranking phase, search and
+ * rescoring, then responds with hit ids, ranking info and any intermediate fields the client asked
+ * for, but no {@link SearchRequest#getRetrieveFieldsList() retrieveFields}. The client merges those
+ * responses across all shards into a single global ranking and sends back a {@link ReducedHitList}
+ * naming the documents this shard should fetch and log. Only then does the server fetch fields and
+ * invoke the {@link HitsLoggerFetchTask}, so a document is logged once globally rather than once
+ * per shard.
  *
  * <p>The Lucene searcher acquired for the first message is held open until the stream ends, so both
  * phases see the same index commit and lucene doc ids remain valid as document references.
  */
-public class SearchStreamHandler {
+public class SearchStreamHandler
+    extends BidiStreamHandler<StreamSearchRequest, StreamSearchResponse, SearchStreamState> {
   private static final Logger logger = LoggerFactory.getLogger(SearchStreamHandler.class);
 
   /** Maximum number of concurrent streams, each of which pins an index commit while open. */
@@ -91,11 +87,9 @@ public class SearchStreamHandler {
   /** How long a stream may sit idle, waiting on the client, before the server closes it. */
   static final long DEFAULT_IDLE_TIMEOUT_MS = 60_000;
 
+  private static final int TIMEOUT_THREADS = 2;
+
   private final GlobalState globalState;
-  private final int maxConcurrentStreams;
-  private final long idleTimeoutMs;
-  private final Semaphore concurrencyLimiter;
-  private final ScheduledExecutorService timeoutScheduler;
 
   public SearchStreamHandler(GlobalState globalState) {
     this(globalState, DEFAULT_MAX_CONCURRENT_STREAMS, DEFAULT_IDLE_TIMEOUT_MS);
@@ -103,98 +97,56 @@ public class SearchStreamHandler {
 
   @VisibleForTesting
   SearchStreamHandler(GlobalState globalState, int maxConcurrentStreams, long idleTimeoutMs) {
+    super("search-stream", maxConcurrentStreams, idleTimeoutMs, TIMEOUT_THREADS);
     this.globalState = globalState;
-    this.maxConcurrentStreams = maxConcurrentStreams;
-    this.idleTimeoutMs = idleTimeoutMs;
-    this.concurrencyLimiter = new Semaphore(maxConcurrentStreams);
-    AtomicInteger threadId = new AtomicInteger();
-    // Idle timeouts only need to release a searcher and write a status, so a small pool is
-    // enough. A slow release can still delay other sessions' timeouts, which delays cleanup but
-    // does not affect any in flight request.
-    this.timeoutScheduler =
-        Executors.newScheduledThreadPool(
-            2,
-            r -> {
-              Thread t = new Thread(r, "search-stream-timeout-" + threadId.getAndIncrement());
-              t.setDaemon(true);
-              return t;
-            });
   }
 
-  public StreamObserver<StreamSearchRequest> handle(
-      StreamObserver<StreamSearchResponse> responseObserver) {
-    if (!concurrencyLimiter.tryAcquire()) {
-      responseObserver.onError(
-          Status.RESOURCE_EXHAUSTED
-              .withDescription(
-                  "Maximum concurrent search streams exceeded (" + maxConcurrentStreams + ")")
-              .asRuntimeException());
-      return new NoOpStreamObserver<>();
-    }
-    SearchStreamSession session = new SearchStreamSession(responseObserver);
-    // Start the idle timer as soon as the permit is taken, so that a client which opens a stream
-    // and then goes silent cannot hold the permit forever. Safe to do here since grpc cannot
-    // deliver a message until this observer is returned.
-    try {
-      session.startIdleTimeout();
-    } catch (RejectedExecutionException e) {
-      // The scheduler is shut down, so this stream would have no idle timeout at all. Hand the
-      // permit back rather than leaking it, since no further callback will run for this session.
-      session.releaseResources();
-      responseObserver.onError(
-          Status.UNAVAILABLE.withDescription("Server is shutting down").asRuntimeException());
-      return new NoOpStreamObserver<>();
-    }
-    return session;
+  @Override
+  protected SearchStreamSession newSession(StreamObserver<StreamSearchResponse> responseObserver) {
+    return new SearchStreamSession(responseObserver);
   }
 
-  /** Number of streams currently holding a permit. */
-  @VisibleForTesting
-  int getActiveStreams() {
-    return maxConcurrentStreams - concurrencyLimiter.availablePermits();
+  @Override
+  protected SearchStreamState newSessionState() {
+    return new SearchStreamState();
   }
 
-  /** Stop the idle timeout scheduler. Any open sessions are left to be closed by grpc. */
-  public void shutdown() {
-    timeoutScheduler.shutdownNow();
-  }
-
-  /** The per-stream session, holding the searcher and search state across round-trips. */
-  private class SearchStreamSession implements StreamObserver<StreamSearchRequest> {
-    private final StreamObserver<StreamSearchResponse> responseObserver;
-
-    // Everything the fetch phase needs about the recall phase, other than its ranking, is reachable
-    // from the SearchContext: the index and shard state, the searcher, the response builder and its
-    // diagnostics, and the fetch tasks.
-    private SearchContext searchContext;
-    private TopDocs currentHits;
-    // Hits to log from the request, kept because the context is built with an unbounded logging
-    // limit, so SearchContext.getHitsToLog() no longer reports the configured value.
-    private int requestHitsToLog;
-    private final AtomicReference<ScheduledFuture<?>> idleTimer = new AtomicReference<>();
-    private boolean metricsRecorded = false;
-    private boolean closed = false;
-
+  /**
+   * The per-stream session. Holds no search state of its own: what the ranking phase leaves for the
+   * fetch phase lives in {@link SearchStreamState}, reached through {@link Session#sessionState()}.
+   */
+  private class SearchStreamSession extends Session {
     SearchStreamSession(StreamObserver<StreamSearchResponse> responseObserver) {
-      this.responseObserver = responseObserver;
+      super(responseObserver);
     }
 
     @Override
-    public synchronized void onNext(StreamSearchRequest request) {
+    protected synchronized void handleNext(StreamSearchRequest request) {
       if (closed) {
         return;
       }
       cancelIdleTimeout();
       try {
         switch (request.getStreamPhaseCase()) {
-          case RECALLREQUEST -> handleRecallRequest(request.getRecallRequest());
-          case REDUCEDHITLIST -> handleReducedHitList(request.getReducedHitList());
+          case RANKINGREQUEST -> {
+            handleRankingRequest(request.getRankingRequest());
+            // More messages are expected, so re-arm the timer. Doing it here rather than inside the
+            // phase keeps the wait for the client the only thing the timeout measures: the response
+            // is already on the wire, so the ranking phase's own duration is not charged to it.
+            scheduleIdleTimeout();
+          }
+          case REDUCEDHITLIST -> {
+            handleReducedHitList(request.getReducedHitList());
+            // The fetch phase is terminal, so there is nothing left to wait for. Release before
+            // closing, for the same reason as closeWithError.
+            releaseResources();
+            responseObserver.onCompleted();
+          }
           default ->
-              closeWithError(
-                  Status.INVALID_ARGUMENT
-                      .withDescription(
-                          "StreamSearchRequest must set either recallRequest or reducedHitList")
-                      .asRuntimeException());
+              throw Status.INVALID_ARGUMENT
+                  .withDescription(
+                      "StreamSearchRequest must set either rankingRequest or reducedHitList")
+                  .asRuntimeException();
         }
       } catch (StatusRuntimeException e) {
         logger.warn("Error processing search stream request", e);
@@ -210,7 +162,7 @@ public class SearchStreamHandler {
     }
 
     @Override
-    public synchronized void onError(Throwable t) {
+    protected synchronized void handleError(Throwable t) {
       if (closed) {
         return;
       }
@@ -219,7 +171,7 @@ public class SearchStreamHandler {
     }
 
     @Override
-    public synchronized void onCompleted() {
+    protected synchronized void handleCompleted() {
       if (closed) {
         return;
       }
@@ -228,17 +180,19 @@ public class SearchStreamHandler {
     }
 
     /**
-     * Execute recall and rescoring for the given request and respond with hit ids, ranking info and
-     * any {@link RecallRequest#getRetrieveFieldsList()}. Deliberately does not fetch the request
-     * {@link SearchRequest#getRetrieveFieldsList()}: this shard does not yet know which documents
-     * survive the global merge, so fetching them would do the work this RPC exists to avoid, and
-     * running the {@link HitsLoggerFetchTask} here would log each shard's local ranking.
+     * Execute the ranking phase, search and rescoring, for the given request and respond with hit
+     * ids, ranking info and any {@link RankingRequest#getIntermediateRetrieveFieldsList()}.
+     * Deliberately does not fetch the request {@link SearchRequest#getRetrieveFieldsList()}: this
+     * shard does not yet know which documents survive the global merge, so fetching them would do
+     * the work this RPC exists to avoid, and running the {@link HitsLoggerFetchTask} here would log
+     * each shard's local ranking.
      */
-    private void handleRecallRequest(RecallRequest recallRequest) throws Exception {
+    private void handleRankingRequest(RankingRequest rankingRequest) throws Exception {
+      SearchStreamState state = sessionState();
       // this request may have been waiting in the grpc queue too long
       DeadlineUtils.checkDeadline("SearchStreamHandler: start", "SEARCH");
 
-      SearchRequest searchRequest = recallRequest.getSearchRequest();
+      SearchRequest searchRequest = rankingRequest.getSearchRequest();
 
       // Paging is the client's job in query-then-fetch: it applies the offset to the merged global
       // ranking. Honoring startHit here would make each shard discard its own leading hits before
@@ -251,15 +205,15 @@ public class SearchStreamHandler {
             .asRuntimeException();
       }
 
-      // A second recall request on the same stream replaces the first, e.g. to re-query with
+      // A second ranking request on the same stream replaces the first, e.g. to re-query with
       // different parameters. Drop the previous searcher and its state first.
-      if (searchContext != null) {
+      if (state.searchContext != null) {
         releaseSearcher();
-        searchContext = null;
-        currentHits = null;
+        state.searchContext = null;
+        state.currentHits = null;
       }
 
-      setResponseCompression(searchRequest.getResponseCompression(), responseObserver);
+      setResponseCompression(searchRequest.getResponseCompression());
 
       IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
       if (indexState == null) {
@@ -268,7 +222,13 @@ public class SearchStreamHandler {
             .asRuntimeException();
       }
       ShardState shardState = indexState.getShard(0);
-      indexState.verifyStarted();
+      try {
+        indexState.verifyStarted();
+      } catch (IllegalStateException e) {
+        // Would otherwise reach the client as INTERNAL, which reads as a server bug rather than an
+        // index that has not been started.
+        throw Status.FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException();
+      }
 
       SearchResponse.Diagnostics.Builder diagnostics = SearchResponse.Diagnostics.newBuilder();
       diagnostics.setInitialDeadlineMs(DeadlineUtils.getDeadlineRemainingMs());
@@ -283,12 +243,12 @@ public class SearchStreamHandler {
         profileResultBuilder = ProfileResult.newBuilder();
       }
 
-      requestHitsToLog = searchRequest.getLoggingHits().getHitsToLog();
+      state.requestHitsToLog = searchRequest.getLoggingHits().getHitsToLog();
       try {
         // Build with an unbounded logging limit: the documents to log are chosen by the client's
         // global merge, so this shard's local hitsToLog must not truncate them. The window of hits
-        // this shard recalls and returns is still sized from the request value, below.
-        searchContext =
+        // this shard ranks and returns is still sized from the request value, below.
+        state.searchContext =
             SearchRequestProcessor.buildContextForRequest(
                 searchRequest,
                 indexState,
@@ -304,26 +264,26 @@ public class SearchStreamHandler {
         SearchStreamHandler.releaseSearcher(searcher, shardState);
         throw t;
       }
-      SearchResponse.Builder responseBuilder = searchContext.getResponseBuilder();
+      SearchResponse.Builder responseBuilder = state.searchContext.getResponseBuilder();
 
       long searchStartTime = System.nanoTime();
 
       TopDocs hits;
-      if (searchContext.getMultiRetrieverContext() != null) {
+      if (state.searchContext.getMultiRetrieverContext() != null) {
         SearchExecutionUtils.MultiRetrieverResult multiRetrieverResult =
             SearchExecutionUtils.executeMultiRetriever(
-                searchContext,
+                state.searchContext,
                 searcher.searcher(),
                 searchExecutor,
                 diagnostics,
                 profileResultBuilder,
-                requestHitsToLog);
+                state.requestHitsToLog);
         hits = multiRetrieverResult.topDocs();
 
         DeadlineUtils.checkDeadline(
-            "SearchStreamHandler: post multi-retriever recall", diagnostics, "SEARCH");
+            "SearchStreamHandler: post multi-retriever ranking", diagnostics, "SEARCH");
 
-        SearchHandler.populateRetrieverScores(hits, searchContext.getSharedDocContext());
+        SearchHandler.populateRetrieverScores(hits, state.searchContext.getSharedDocContext());
 
         if (!searchRequest.getFacetsList().isEmpty()) {
           SearcherResult searcherResult =
@@ -331,7 +291,7 @@ public class SearchStreamHandler {
                   searcher,
                   indexState,
                   shardState,
-                  searchContext,
+                  state.searchContext,
                   searchRequest,
                   diagnostics,
                   hits);
@@ -339,21 +299,22 @@ public class SearchStreamHandler {
           hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         } else if (searchRequest.getCollectorsCount() > 0) {
           SearcherResult searcherResult =
-              SearchExecutionUtils.executeSearch(searcher.searcher(), searchContext);
+              SearchExecutionUtils.executeSearch(searcher.searcher(), state.searchContext);
           responseBuilder.putAllCollectorResults(searcherResult.getCollectorResults());
           hits = new TopDocs(searcherResult.getTopDocs().totalHits, hits.scoreDocs);
         }
 
         responseBuilder.setHitTimeout(
-            multiRetrieverResult.hadTimeout() || searchContext.getCollector().hadTimeout());
+            multiRetrieverResult.hadTimeout() || state.searchContext.getCollector().hadTimeout());
         responseBuilder.setTerminatedEarly(
             multiRetrieverResult.terminatedEarly()
-                || searchContext.getCollector().terminatedEarly());
+                || state.searchContext.getCollector().terminatedEarly());
 
         if (profileResultBuilder != null
             && (!searchRequest.getFacetsList().isEmpty()
                 || searchRequest.getCollectorsCount() > 0)) {
-          searchContext
+          state
+              .searchContext
               .getCollector()
               .maybeAddProfiling(
                   profileResultBuilder
@@ -368,32 +329,33 @@ public class SearchStreamHandler {
                   searcher,
                   indexState,
                   shardState,
-                  searchContext,
+                  state.searchContext,
                   searchRequest,
                   diagnostics,
                   null);
         } else {
-          searcherResult = SearchExecutionUtils.executeSearch(searcher.searcher(), searchContext);
+          searcherResult =
+              SearchExecutionUtils.executeSearch(searcher.searcher(), state.searchContext);
         }
         hits = searcherResult.getTopDocs();
         responseBuilder.putAllCollectorResults(searcherResult.getCollectorResults());
-        responseBuilder.setHitTimeout(searchContext.getCollector().hadTimeout());
-        responseBuilder.setTerminatedEarly(searchContext.getCollector().terminatedEarly());
+        responseBuilder.setHitTimeout(state.searchContext.getCollector().hadTimeout());
+        responseBuilder.setTerminatedEarly(state.searchContext.getCollector().terminatedEarly());
       }
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
-      DeadlineUtils.checkDeadline("SearchStreamHandler: post recall", diagnostics, "SEARCH");
+      DeadlineUtils.checkDeadline("SearchStreamHandler: post ranking", diagnostics, "SEARCH");
 
-      if (profileResultBuilder != null && searchContext.getMultiRetrieverContext() == null) {
-        searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
+      if (profileResultBuilder != null && state.searchContext.getMultiRetrieverContext() == null) {
+        state.searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
       }
 
       long rescoreStartTime = System.nanoTime();
-      if (!searchContext.getRescorers().isEmpty()) {
-        for (RescoreTask rescorer : searchContext.getRescorers()) {
+      if (!state.searchContext.getRescorers().isEmpty()) {
+        for (RescoreTask rescorer : state.searchContext.getRescorers()) {
           long startNS = System.nanoTime();
-          hits = rescorer.rescore(hits, searchContext);
+          hits = rescorer.rescore(hits, state.searchContext);
           long endNS = System.nanoTime();
           diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
           DeadlineUtils.checkDeadline(
@@ -408,23 +370,25 @@ public class SearchStreamHandler {
       hits =
           SearchHandler.getHitsFromOffset(
               hits,
-              searchContext.getStartHit(),
-              Math.max(searchContext.getTopHits(), requestHitsToLog + searchContext.getStartHit()));
-      currentHits = hits;
+              state.searchContext.getStartHit(),
+              Math.max(
+                  state.searchContext.getTopHits(),
+                  state.requestHitsToLog + state.searchContext.getStartHit()));
+      state.currentHits = hits;
 
       // Populate hit ids and ranking info (score, or sorted field values for a sorted query) so
       // the client has what it needs to merge. Request retrieveFields are left for the fetch phase.
-      SearchExecutionUtils.setResponseHits(searchContext, hits);
-      fillIntermediateFields(recallRequest.getRetrieveFieldsList());
+      SearchExecutionUtils.setResponseHits(state.searchContext, hits);
+      fillIntermediateFields(rankingRequest.getIntermediateRetrieveFieldsList());
 
       SearchState.Builder searchState = SearchState.newBuilder();
-      searchState.setTimestamp(searchContext.getTimestampSec());
+      searchState.setTimestamp(state.searchContext.getTimestampSec());
       searchState.setSearcherVersion(
           ((DirectoryReader) searcher.searcher().getIndexReader()).getVersion());
       if (hits.scoreDocs.length != 0) {
         ScoreDoc lastHit = hits.scoreDocs[hits.scoreDocs.length - 1];
         searchState.setLastDocId(lastHit.doc);
-        searchContext.getCollector().fillLastHit(searchState, lastHit);
+        state.searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
       responseBuilder.setSearchState(searchState);
 
@@ -435,45 +399,45 @@ public class SearchStreamHandler {
 
       addToWarmer(searchRequest);
 
-      DeadlineUtils.checkDeadline("SearchStreamHandler: recall response", diagnostics, "SEARCH");
+      DeadlineUtils.checkDeadline("SearchStreamHandler: ranking response", diagnostics, "SEARCH");
 
       responseObserver.onNext(
           StreamSearchResponse.newBuilder()
               .setPhase(StreamSearchResponse.Phase.RESCORE)
               .setSearchResponse(responseBuilder)
               .build());
-      scheduleIdleTimeout();
     }
 
     /**
-     * Fill the fields the client needs on the recall response, typically just the primary key it
-     * deduplicates on. Uses a fetch context of its own so that only these fields are filled, and so
-     * that no query fetch task runs: those belong to the fetch phase, which sees the final field
-     * set and the globally selected documents.
+     * Fill the fields the client needs on the ranking phase response, typically just the primary
+     * key it deduplicates on. Uses a fetch context of its own so that only these fields are filled,
+     * and so that no query fetch task runs: those belong to the fetch phase, which sees the final
+     * field set and the globally selected documents.
      */
-    private void fillIntermediateFields(List<String> retrieveFields) {
-      if (retrieveFields.isEmpty()) {
+    private void fillIntermediateFields(List<String> intermediateRetrieveFields) {
+      SearchStreamState state = sessionState();
+      if (intermediateRetrieveFields.isEmpty()) {
         return;
       }
       Map<String, FieldDef> fields;
       try {
         fields =
             SearchRequestProcessor.getRetrieveFields(
-                retrieveFields, searchContext.getQueryFields());
+                intermediateRetrieveFields, state.searchContext.getQueryFields());
       } catch (IllegalArgumentException e) {
         throw Status.INVALID_ARGUMENT
-            .withDescription("RecallRequest retrieveFields: " + e.getMessage())
+            .withDescription("RankingRequest intermediateRetrieveFields: " + e.getMessage())
             .asRuntimeException();
       }
       List<SearchResponse.Hit.Builder> hitBuilders =
-          new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
+          new ArrayList<>(state.searchContext.getResponseBuilder().getHitsBuilderList());
       if (hitBuilders.isEmpty()) {
         return;
       }
       // FillDocsTask groups hits by lucene segment, so it needs them in doc id order
       hitBuilders.sort(Comparator.comparingInt(SearchResponse.Hit.Builder::getLuceneDocId));
       new SearchHandler.FillDocsTask(
-              new IntermediateFieldFetchContext(searchContext, fields), hitBuilders)
+              new IntermediateFieldFetchContext(state.searchContext, fields), hitBuilders)
           .run();
     }
 
@@ -482,29 +446,29 @@ public class SearchStreamHandler {
      * then respond with the documents it asked to have returned.
      */
     private void handleReducedHitList(ReducedHitList reducedHitList) throws Exception {
-      if (searchContext == null || currentHits == null) {
-        closeWithError(
-            Status.FAILED_PRECONDITION
-                .withDescription("Must send recallRequest before reducedHitList")
-                .asRuntimeException());
-        return;
+      SearchStreamState state = sessionState();
+      if (state.searchContext == null || state.currentHits == null) {
+        throw Status.FAILED_PRECONDITION
+            .withDescription("Must send rankingRequest before reducedHitList")
+            .asRuntimeException();
       }
 
-      SearchResponse.Builder responseBuilder = searchContext.getResponseBuilder();
+      SearchResponse.Builder responseBuilder = state.searchContext.getResponseBuilder();
       SearchResponse.Diagnostics.Builder diagnostics = responseBuilder.getDiagnosticsBuilder();
       DeadlineUtils.checkDeadline("SearchStreamHandler: reduced hit list", diagnostics, "SEARCH");
       long fetchStartTime = System.nanoTime();
 
-      Set<Integer> recalledDocIds = new LinkedHashSet<>(currentHits.scoreDocs.length);
-      for (ScoreDoc scoreDoc : currentHits.scoreDocs) {
-        recalledDocIds.add(scoreDoc.doc);
+      Set<Integer> rankedDocIds = new LinkedHashSet<>(state.currentHits.scoreDocs.length);
+      for (ScoreDoc scoreDoc : state.currentHits.scoreDocs) {
+        rankedDocIds.add(scoreDoc.doc);
       }
 
-      // An unset set keeps this shard's recall result as it is; an empty one selects nothing.
+      // An unset set keeps this shard's ranking phase result as it is; an empty one selects
+      // nothing.
       Set<Integer> returnIds =
           reducedHitList.hasLuceneDocIdsToReturn()
               ? toDocIdSet(reducedHitList.getLuceneDocIdsToReturn(), "luceneDocIdsToReturn")
-              : recalledDocIds;
+              : rankedDocIds;
       Set<Integer> logIds;
       if (reducedHitList.hasLuceneDocIdsToLog()) {
         logIds = toDocIdSet(reducedHitList.getLuceneDocIdsToLog(), "luceneDocIdsToLog");
@@ -512,50 +476,51 @@ public class SearchStreamHandler {
         // Fall back to what the unary search RPC would have logged: the top hitsToLog documents of
         // this shard's own ranking.
         logIds = new LinkedHashSet<>();
-        for (ScoreDoc scoreDoc : currentHits.scoreDocs) {
-          if (logIds.size() >= requestHitsToLog) {
+        for (ScoreDoc scoreDoc : state.currentHits.scoreDocs) {
+          if (logIds.size() >= state.requestHitsToLog) {
             break;
           }
           logIds.add(scoreDoc.doc);
         }
       }
-      verifyKnownDocIds(recalledDocIds, logIds, returnIds);
+      verifyKnownDocIds(rankedDocIds, logIds, returnIds);
 
       // Fetch the union of both sets. The client sends sets rather than lists, so order comes from
-      // this shard's own ranking, which a global merge preserves within a shard.
-      List<ScoreDoc> fetchScoreDocs = new ArrayList<>();
+      // this shard's own ranking, which a global merge preserves within a shard: walk the ranking
+      // and keep whatever the client selected, rather than iterating the union itself.
+      Set<Integer> fetchIds = Sets.union(logIds, returnIds);
+      List<ScoreDoc> fetchScoreDocs = new ArrayList<>(fetchIds.size());
       List<Integer> orderedLogIds = new ArrayList<>(logIds.size());
       List<Integer> orderedReturnIds = new ArrayList<>(returnIds.size());
-      for (ScoreDoc scoreDoc : currentHits.scoreDocs) {
-        boolean toLog = logIds.contains(scoreDoc.doc);
-        boolean toReturn = returnIds.contains(scoreDoc.doc);
-        if (toLog) {
+      for (ScoreDoc scoreDoc : state.currentHits.scoreDocs) {
+        if (!fetchIds.contains(scoreDoc.doc)) {
+          continue;
+        }
+        if (logIds.contains(scoreDoc.doc)) {
           orderedLogIds.add(scoreDoc.doc);
         }
-        if (toReturn) {
+        if (returnIds.contains(scoreDoc.doc)) {
           orderedReturnIds.add(scoreDoc.doc);
         }
-        if (toLog || toReturn) {
-          fetchScoreDocs.add(scoreDoc);
-        }
+        fetchScoreDocs.add(scoreDoc);
       }
 
-      // Reuse the recall phase SearchContext. Rebuilding it from the request would discard the
+      // Reuse the ranking phase SearchContext. Rebuilding it from the request would discard the
       // per-document data the rescorers wrote to the shared doc context (which the HitsLogger
       // reads), re-execute any knn query, and construct a second HitsLogger.
       responseBuilder.clearHits();
-      // Aggregations were already sent with the recall response; no need to repeat them.
+      // Aggregations were already sent with the ranking response; no need to repeat them.
       responseBuilder.clearFacetResult();
       responseBuilder.clearCollectorResults();
       SearchExecutionUtils.setResponseHits(
-          searchContext,
-          new TopDocs(currentHits.totalHits, fetchScoreDocs.toArray(new ScoreDoc[0])));
+          state.searchContext,
+          new TopDocs(state.currentHits.totalHits, fetchScoreDocs.toArray(new ScoreDoc[0])));
 
       // Fetch with the fetch task's own logging pass skipped: it would log the leading documents of
       // the whole fetched set, which also holds the documents fetched only to be logged. The logger
       // is invoked explicitly below, with exactly the set the client selected.
-      FetchTasks fetchTasks = searchContext.getFetchTasks();
-      SearchExecutionUtils.fetchFields(searchContext, true);
+      FetchTasks fetchTasks = state.searchContext.getFetchTasks();
+      SearchExecutionUtils.fetchFields(state.searchContext, true);
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - fetchStartTime) / 1000000.0));
 
       Map<Integer, SearchResponse.Hit.Builder> fetchedHits = new HashMap<>();
@@ -567,13 +532,13 @@ public class SearchStreamHandler {
       if (hitsLoggerFetchTask != null
           // Call the logger with an empty list only when the search had no hits at all, matching
           // the unary flow: a plugin may want to record that. A client that selects nothing out of
-          // a non empty recall result is asking for nothing to be logged.
-          && (!orderedLogIds.isEmpty() || currentHits.scoreDocs.length == 0)) {
+          // a non empty ranking result is asking for nothing to be logged.
+          && (!orderedLogIds.isEmpty() || state.currentHits.scoreDocs.length == 0)) {
         List<SearchResponse.Hit.Builder> hitsToLog = new ArrayList<>(orderedLogIds.size());
         for (int docId : orderedLogIds) {
           hitsToLog.add(fetchedHits.get(docId));
         }
-        hitsLoggerFetchTask.processAllHits(searchContext, hitsToLog);
+        hitsLoggerFetchTask.processAllHits(state.searchContext, hitsToLog);
         diagnostics.setLoggingHitsTimeMs(hitsLoggerFetchTask.getTimeTakenMs());
       }
       if (fetchTasks.getHighlightFetchTask() != null) {
@@ -607,30 +572,17 @@ public class SearchStreamHandler {
               .setPhase(StreamSearchResponse.Phase.FETCH_AND_LOG)
               .setSearchResponse(searchResponse)
               .build());
-      // Release before closing the stream, for the same reason as closeWithError.
-      releaseResources();
-      responseObserver.onCompleted();
     }
 
     /**
-     * Reject any doc id this shard did not return during the recall phase, so that a client bug
+     * Reject any doc id this shard did not return during the ranking phase, so that a client bug
      * surfaces as an error rather than as silently missing hits or log records.
      */
     private void verifyKnownDocIds(
         Set<Integer> knownDocIds, Set<Integer> logIds, Set<Integer> returnIds) {
-      List<Integer> unknown = new ArrayList<>();
-      for (int docId : logIds) {
-        if (!knownDocIds.contains(docId)) {
-          unknown.add(docId);
-        }
-      }
-      for (int docId : returnIds) {
-        if (!knownDocIds.contains(docId) && !unknown.contains(docId)) {
-          unknown.add(docId);
-        }
-      }
+      Set<Integer> unknown = Sets.difference(Sets.union(logIds, returnIds), knownDocIds);
       if (!unknown.isEmpty()) {
-        List<Integer> sample = unknown.subList(0, Math.min(10, unknown.size()));
+        List<Integer> sample = unknown.stream().limit(10).toList();
         throw Status.INVALID_ARGUMENT
             .withDescription(
                 "ReducedHitList contains "
@@ -642,8 +594,9 @@ public class SearchStreamHandler {
     }
 
     private void addToWarmer(SearchRequest searchRequest) {
+      SearchStreamState state = sessionState();
       try {
-        IndexState indexState = searchContext.getIndexState();
+        IndexState indexState = state.searchContext.getIndexState();
         if (indexState.getWarmer() != null) {
           indexState.getWarmer().addSearchRequest(searchRequest);
         }
@@ -652,75 +605,11 @@ public class SearchStreamHandler {
       }
     }
 
-    synchronized void startIdleTimeout() {
-      scheduleIdleTimeout();
-    }
-
-    private void scheduleIdleTimeout() {
-      IdleTimeoutTask task = new IdleTimeoutTask();
-      // Assigning the field after scheduling is safe because every caller holds the session
-      // monitor, and the task body must acquire that monitor before it reads the field.
-      task.future = timeoutScheduler.schedule(task, idleTimeoutMs, TimeUnit.MILLISECONDS);
-      idleTimer.set(task.future);
-    }
-
-    /**
-     * Closes the session once it has been idle for {@code idleTimeoutMs}, unless it is no longer
-     * the current timer.
-     *
-     * <p>The task compares {@link #idleTimer} against its own future because {@link
-     * ScheduledFuture#cancel(boolean)} cannot stop a task that has already started, and this one
-     * starts by blocking on the session monitor that {@code onNext} holds. Without the check, a
-     * timeout that fired while {@code onNext} was producing a perfectly good response would acquire
-     * the monitor afterwards and close the stream, so the client would see a valid response
-     * followed by a spurious DEADLINE_EXCEEDED.
-     */
-    private final class IdleTimeoutTask implements Runnable {
-      private ScheduledFuture<?> future;
-
-      @Override
-      public void run() {
-        synchronized (SearchStreamSession.this) {
-          if (closed || idleTimer.get() != future) {
-            return;
-          }
-          logger.info("Search stream idle timeout reached, closing session");
-          closeWithError(
-              Status.DEADLINE_EXCEEDED
-                  .withDescription("Search stream idle for more than " + idleTimeoutMs + "ms")
-                  .asRuntimeException());
-        }
-      }
-    }
-
-    private void cancelIdleTimeout() {
-      // Clearing the reference is what invalidates a task that has already started running and is
-      // waiting on the monitor; the cancel only saves the wakeup.
-      ScheduledFuture<?> future = idleTimer.getAndSet(null);
-      if (future != null) {
-        future.cancel(false);
-      }
-    }
-
-    private void closeWithError(Throwable error) {
-      if (closed) {
-        return;
-      }
-      // Release before telling the client, so that the moment a client observes the end of this
-      // stream the searcher and the concurrency permit are already back. Otherwise a client that
-      // immediately retries could be rejected with RESOURCE_EXHAUSTED by a session that is done.
-      releaseResources();
-      try {
-        responseObserver.onError(error);
-      } catch (Exception e) {
-        logger.debug("Failed to send error to search stream client", e);
-      }
-    }
-
     private void releaseSearcher() {
-      if (searchContext != null) {
+      SearchStreamState state = sessionState();
+      if (state.searchContext != null) {
         SearchStreamHandler.releaseSearcher(
-            searchContext.getSearcherAndTaxonomy(), searchContext.getShardState());
+            state.searchContext.getSearcherAndTaxonomy(), state.searchContext.getShardState());
       }
     }
 
@@ -730,11 +619,12 @@ public class SearchStreamHandler {
      * which ran a search but never reached fetch is still counted.
      */
     private void recordMetrics(SearchResponse searchResponse) {
-      if (metricsRecorded || searchContext == null) {
+      SearchStreamState state = sessionState();
+      if (state.metricsRecorded || state.searchContext == null) {
         return;
       }
-      metricsRecorded = true;
-      IndexState indexState = searchContext.getIndexState();
+      state.metricsRecorded = true;
+      IndexState indexState = state.searchContext.getIndexState();
       try {
         SearchResponseCollector.updateSearchResponseMetrics(
             searchResponse, indexState.getName(), indexState.getVerboseMetrics());
@@ -747,27 +637,29 @@ public class SearchStreamHandler {
      * Release everything this session holds. Idempotent, and called from every terminal path:
      * normal completion, client error or cancellation, server error, and idle timeout.
      */
-    private synchronized void releaseResources() {
+    @Override
+    protected synchronized void releaseResources() {
       if (closed) {
         return;
       }
       closed = true;
-      // A stream that recalled but never fetched (idle timeout, client cancel, or a client that
+      SearchStreamState state = sessionState();
+      // A stream that ranked but never fetched (idle timeout, client cancel, or a client that
       // dropped this shard) still did the search work, and those are exactly the cases worth
-      // seeing on a dashboard. Report what the recall phase produced.
-      if (!metricsRecorded && searchContext != null) {
-        recordMetrics(searchContext.getResponseBuilder().build());
+      // seeing on a dashboard. Report what the ranking phase produced.
+      if (!state.metricsRecorded && state.searchContext != null) {
+        recordMetrics(state.searchContext.getResponseBuilder().build());
       }
       cancelIdleTimeout();
       releaseSearcher();
-      searchContext = null;
-      currentHits = null;
-      concurrencyLimiter.release();
+      state.searchContext = null;
+      state.currentHits = null;
+      releasePermit();
     }
   }
 
   /**
-   * Fetch context used to fill the intermediate fields of a recall response. Carries its own field
+   * Fetch context used to fill the intermediate fields of a ranking response. Carries its own field
    * set and an empty {@link FetchTasks}, leaving the query fetch tasks for the fetch phase.
    */
   private record IntermediateFieldFetchContext(
@@ -828,31 +720,5 @@ public class SearchStreamHandler {
         logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
       }
     }
-  }
-
-  /**
-   * Set response compression on the stream. Mirrors {@link Handler#setResponseCompression(String,
-   * StreamObserver)}, which is not reachable from here since this handler is not a {@link Handler}.
-   */
-  private static void setResponseCompression(
-      String compressionType, StreamObserver<?> responseObserver) {
-    if (!compressionType.isEmpty()) {
-      try {
-        ((ServerCallStreamObserver<?>) responseObserver).setCompression(compressionType);
-      } catch (Exception e) {
-        logger.warn("Unable to set response compression to type '" + compressionType + "' : " + e);
-      }
-    }
-  }
-
-  private static class NoOpStreamObserver<T> implements StreamObserver<T> {
-    @Override
-    public void onNext(T value) {}
-
-    @Override
-    public void onError(Throwable t) {}
-
-    @Override
-    public void onCompleted() {}
   }
 }

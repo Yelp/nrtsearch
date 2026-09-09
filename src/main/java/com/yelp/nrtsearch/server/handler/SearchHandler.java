@@ -371,7 +371,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * JS scripts as {@code _shared_retriever_text} and in ScoreScript subclasses via {@code
    * getSharedDocContext().get("retriever_text")}.
    */
-  static void populateRetrieverScores(TopDocs hits, SharedDocContext sharedDocContext) {
+  public static void populateRetrieverScores(TopDocs hits, SharedDocContext sharedDocContext) {
     for (ScoreDoc scoreDoc : hits.scoreDocs) {
       if (scoreDoc instanceof BlendedScoreDoc blended) {
         Map<String, Object> ctx = sharedDocContext.getContext(scoreDoc.doc);

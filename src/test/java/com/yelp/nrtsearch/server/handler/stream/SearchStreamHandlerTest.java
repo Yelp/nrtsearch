@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.handler;
+package com.yelp.nrtsearch.server.handler.stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,7 +36,7 @@ import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
-import com.yelp.nrtsearch.server.grpc.RecallRequest;
+import com.yelp.nrtsearch.server.grpc.RankingRequest;
 import com.yelp.nrtsearch.server.grpc.ReducedHitList;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.Retriever;
@@ -213,18 +213,18 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     return getGrpcServer().getStub().searchStream(recorder);
   }
 
-  private static StreamSearchRequest recallMessage(SearchRequest request) {
-    return recallMessage(request, List.of());
+  private static StreamSearchRequest rankingMessage(SearchRequest request) {
+    return rankingMessage(request, List.of());
   }
 
-  /** Recall request that also asks for fields on the intermediate response. */
-  private static StreamSearchRequest recallMessage(
+  /** Ranking request that also asks for fields on the intermediate response. */
+  private static StreamSearchRequest rankingMessage(
       SearchRequest request, List<String> intermediateFields) {
     return StreamSearchRequest.newBuilder()
-        .setRecallRequest(
-            RecallRequest.newBuilder()
+        .setRankingRequest(
+            RankingRequest.newBuilder()
                 .setSearchRequest(request)
-                .addAllRetrieveFields(intermediateFields)
+                .addAllIntermediateRetrieveFields(intermediateFields)
                 .build())
         .build();
   }
@@ -271,16 +271,16 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(NUM_DOCS).build()));
+    stream.onNext(rankingMessage(basicRequest(NUM_DOCS).build()));
 
-    StreamSearchResponse recallResponse = recorder.awaitResponse();
-    assertEquals(StreamSearchResponse.Phase.RESCORE, recallResponse.getPhase());
-    assertTrue(recallResponse.hasSearchResponse());
-    SearchResponse recall = recallResponse.getSearchResponse();
-    assertEquals(NUM_DOCS, recall.getHitsCount());
-    assertEquals(NUM_DOCS, recall.getTotalHits().getValue());
+    StreamSearchResponse rankingResponse = recorder.awaitResponse();
+    assertEquals(StreamSearchResponse.Phase.RESCORE, rankingResponse.getPhase());
+    assertTrue(rankingResponse.hasSearchResponse());
+    SearchResponse ranking = rankingResponse.getSearchResponse();
+    assertEquals(NUM_DOCS, ranking.getHitsCount());
+    assertEquals(NUM_DOCS, ranking.getTotalHits().getValue());
 
-    List<Integer> allDocIds = docIds(recall);
+    List<Integer> allDocIds = docIds(ranking);
     List<Integer> toReturn = allDocIds.subList(0, 3);
     // The client logs more documents than it returns.
     List<Integer> toLog = allDocIds.subList(0, 5);
@@ -302,22 +302,22 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testRecallResponseHasRankingButNoFields() throws Exception {
+  public void testRankingResponseHasScoresButNoFields() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(NUM_DOCS).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(basicRequest(NUM_DOCS).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // The point of splitting the phases: no field data is read before the client has decided
     // which documents matter. Requested retrieveFields are deliberately not populated yet.
-    for (SearchResponse.Hit hit : recall.getHitsList()) {
+    for (SearchResponse.Hit hit : ranking.getHitsList()) {
       assertTrue(hit.getLuceneDocId() >= 0);
       assertTrue(hit.getScore() > 0);
-      assertTrue("Recall phase should not fetch fields", hit.getFieldsMap().isEmpty());
+      assertTrue("Ranking phase should not fetch fields", hit.getFieldsMap().isEmpty());
     }
     // Search state is returned so the client can see which commit answered the request.
-    assertTrue(recall.getSearchState().getSearcherVersion() > 0);
+    assertTrue(ranking.getSearchState().getSearcherVersion() > 0);
 
     stream.onCompleted();
     recorder.awaitClose();
@@ -328,14 +328,14 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(NUM_DOCS, recall.getHitsCount());
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(NUM_DOCS, ranking.getHitsCount());
 
     // Nothing may be logged before the client has merged all shards.
-    assertTrue("Recall phase must not log hits", logCalls.isEmpty());
+    assertTrue("Ranking phase must not log hits", logCalls.isEmpty());
 
-    List<Integer> allDocIds = docIds(recall);
+    List<Integer> allDocIds = docIds(ranking);
     // A selection that is neither this shard's leading hits nor listed in its order, sent in the
     // order a global merge happened to produce.
     List<Integer> toLog =
@@ -361,10 +361,10 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
     // The unary search would log at most 2 hits. Here the client has already decided which
     // documents to log, so its list wins.
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, 2).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, 2).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
-    List<Integer> allDocIds = docIds(recall);
+    List<Integer> allDocIds = docIds(ranking);
     stream.onNext(reducedMessage(allDocIds.subList(0, 2), allDocIds.subList(0, 5)));
     recorder.awaitResponse();
     recorder.awaitClose();
@@ -378,10 +378,10 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
-    List<Integer> allDocIds = docIds(recall);
+    List<Integer> allDocIds = docIds(ranking);
     // Disjoint lists: documents to return that the client did not ask to have logged are
     // fetched and returned, but stay out of the logger.
     stream.onNext(reducedMessage(allDocIds.subList(0, 2), allDocIds.subList(5, 7)));
@@ -398,7 +398,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, NUM_DOCS).build()));
     recorder.awaitResponse();
     stream.onCompleted();
     recorder.awaitClose();
@@ -421,25 +421,25 @@ public class SearchStreamHandlerTest extends ServerTestCase {
                                 SortType.newBuilder().setFieldName("long_field").setReverse(true)))
                     .build())
             .build();
-    stream.onNext(recallMessage(request));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(request));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // A sorted query has no score to merge on, so the sort values have to be on the wire.
-    assertEquals(NUM_DOCS, recall.getHitsCount());
+    assertEquals(NUM_DOCS, ranking.getHitsCount());
     List<Long> sortValues =
-        recall.getHitsList().stream()
+        ranking.getHitsList().stream()
             .map(h -> h.getSortedFieldsMap().get("long_field").getFieldValue(0).getLongValue())
             .collect(Collectors.toList());
     assertEquals(List.of(100L, 90L, 80L, 70L, 60L, 50L, 40L, 30L, 20L, 10L), sortValues);
 
-    stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+    stream.onNext(reducedMessage(docIds(ranking).subList(0, 2), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     assertEquals(List.of("10", "9"), docIdFields(fetch));
   }
 
   @Test
-  public void testFacetsReturnedWithRecallResponse() throws Exception {
+  public void testFacetsReturnedWithRankingResponse() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
@@ -451,15 +451,15 @@ public class SearchStreamHandlerTest extends ServerTestCase {
             .addRetrieveFields(FACET_FIELD)
             .addFacets(Facet.newBuilder().setDim(FACET_FIELD).setTopN(10).build())
             .build();
-    stream.onNext(recallMessage(request));
+    stream.onNext(rankingMessage(request));
 
     // Aggregations are computed during the first pass and returned with it, so the client can
     // merge them without waiting for the fetch phase.
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(1, recall.getFacetResultCount());
-    assertEquals(NUM_DOCS, (long) recall.getFacetResult(0).getValue());
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(1, ranking.getFacetResultCount());
+    assertEquals(NUM_DOCS, (long) ranking.getFacetResult(0).getValue());
 
-    stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+    stream.onNext(reducedMessage(docIds(ranking).subList(0, 2), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     assertEquals(2, fetch.getHitsCount());
@@ -472,15 +472,15 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(NUM_DOCS).build()));
+    stream.onNext(rankingMessage(basicRequest(NUM_DOCS).build()));
     assertEquals(NUM_DOCS, recorder.awaitResponse().getSearchResponse().getHitsCount());
 
     // Re-query on the same stream, e.g. after the client widens the request.
-    stream.onNext(recallMessage(basicRequest(3).build()));
-    SearchResponse secondRecall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(3, secondRecall.getHitsCount());
+    stream.onNext(rankingMessage(basicRequest(3).build()));
+    SearchResponse secondRanking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(3, secondRanking.getHitsCount());
 
-    stream.onNext(reducedMessage(docIds(secondRecall), List.of()));
+    stream.onNext(reducedMessage(docIds(secondRanking), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     assertEquals(3, fetch.getHitsCount());
@@ -502,12 +502,12 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(2).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(basicRequest(2).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // A doc id this shard never returned points at a client bug, so it must not be quietly
     // dropped.
-    stream.onNext(reducedMessage(List.of(docIds(recall).get(0), 9999), List.of()));
+    stream.onNext(reducedMessage(List.of(docIds(ranking).get(0), 9999), List.of()));
 
     StatusRuntimeException error = recorder.awaitError();
     assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
@@ -519,9 +519,9 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(3).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    int docId = docIds(recall).get(0);
+    stream.onNext(rankingMessage(basicRequest(3).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    int docId = docIds(ranking).get(0);
 
     // Deduplicating would return fewer documents than the client asked for with nothing to
     // indicate any were dropped, so a repeated id is an error like an unknown one.
@@ -537,9 +537,9 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(3, 3).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    int docId = docIds(recall).get(0);
+    stream.onNext(rankingMessage(loggingRequest(3, 3).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    int docId = docIds(ranking).get(0);
 
     stream.onNext(reducedMessage(List.of(docId), List.of(docId, docId)));
 
@@ -556,7 +556,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
     // Paging belongs to the client: a per shard offset would drop each shard's own leading
     // hits before the global merge, so the merged page would not be the true global page.
-    stream.onNext(recallMessage(basicRequest(3).setStartHit(2).build()));
+    stream.onNext(rankingMessage(basicRequest(3).setStartHit(2).build()));
 
     StatusRuntimeException error = recorder.awaitError();
     assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
@@ -571,10 +571,10 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
     // hitsToLog = 0 is the disable switch on the unary path, so bypassing truncation on the
     // streaming path must not turn logging back on.
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, 0).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, 0).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
-    List<Integer> ids = docIds(recall).subList(0, 3);
+    List<Integer> ids = docIds(ranking).subList(0, 3);
     stream.onNext(reducedMessage(ids, ids));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
@@ -588,12 +588,13 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, 5).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, 5).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // An explicitly empty log set means log nothing, even though logging is configured and this
-    // shard did recall hits it could have logged. Only an absent set falls back to its own ranking.
-    stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+    // shard did ranking hits it could have logged. Only an absent set falls back to its own
+    // ranking.
+    stream.onNext(reducedMessage(docIds(ranking).subList(0, 2), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
 
@@ -613,9 +614,9 @@ public class SearchStreamHandlerTest extends ServerTestCase {
                     .setMatchQuery(
                         MatchQuery.newBuilder().setField("vendor_name").setQuery("nonexistent")))
             .build();
-    stream.onNext(recallMessage(request));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(0, recall.getHitsCount());
+    stream.onNext(rankingMessage(request));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(0, ranking.getHitsCount());
 
     stream.onNext(reducedMessage(ReducedHitList.newBuilder()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
@@ -631,19 +632,19 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testRecallWindowCoversHitsToLog() throws Exception {
+  public void testRankingWindowCoversHitsToLog() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    // hitsToLog is larger than topHits, so the recall window has to widen to cover the documents
+    // hitsToLog is larger than topHits, so the ranking window has to widen to cover the documents
     // the client may pick out to log. Sized from the request value, since the context is built with
     // an unbounded logging limit.
-    stream.onNext(recallMessage(loggingRequest(3, 6).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(6, recall.getHitsCount());
+    stream.onNext(rankingMessage(loggingRequest(3, 6).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(6, ranking.getHitsCount());
 
     // A document past topHits can therefore still be logged, which is the reason for the window.
-    List<Integer> ids = docIds(recall);
+    List<Integer> ids = docIds(ranking);
     stream.onNext(reducedMessage(ids.subList(0, 3), ids.subList(3, 6)));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
@@ -654,27 +655,27 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testMultiRetrieverRecallAndFetch() throws Exception {
+  public void testMultiRetrieverRankingAndFetch() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(multiRetrieverRequest(4, 6).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(multiRetrieverRequest(4, 6).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // Blended ranking, trimmed to the same window a single retriever request would use: the blend
     // window is sized from the request's hitsToLog, not from the context's unbounded logging limit.
-    assertEquals(6, recall.getHitsCount());
-    for (SearchResponse.Hit hit : recall.getHitsList()) {
-      assertTrue("Blended score should be populated on the recall response", hit.getScore() > 0);
-      assertTrue("Recall phase should not fetch fields", hit.getFieldsMap().isEmpty());
+    assertEquals(6, ranking.getHitsCount());
+    for (SearchResponse.Hit hit : ranking.getHitsList()) {
+      assertTrue("Blended score should be populated on the ranking response", hit.getScore() > 0);
+      assertTrue("Ranking phase should not fetch fields", hit.getFieldsMap().isEmpty());
     }
     assertTrue(
-        recall
+        ranking
             .getDiagnostics()
             .getMultiRetrieverDiagnostics()
             .containsRetrieverDiagnostics("vendor"));
 
-    List<Integer> ids = docIds(recall);
+    List<Integer> ids = docIds(ranking);
     stream.onNext(reducedMessage(ids.subList(0, 2), ids.subList(0, 3)));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
@@ -698,11 +699,11 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       // Each phase waits less than the timeout, but the two together exceed it. The stream must
       // survive, and a timeout that already fired must not close a stream that just responded.
       Thread.sleep(idleTimeoutMs / 2);
-      stream.onNext(recallMessage(basicRequest(3).build()));
-      SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+      stream.onNext(rankingMessage(basicRequest(3).build()));
+      SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
       Thread.sleep(idleTimeoutMs / 2);
-      stream.onNext(reducedMessage(docIds(recall), List.of()));
+      stream.onNext(reducedMessage(docIds(ranking), List.of()));
       SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
       recorder.awaitClose();
 
@@ -729,7 +730,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(1).setIndexName("no_such_index").build()));
+    stream.onNext(rankingMessage(basicRequest(1).setIndexName("no_such_index").build()));
 
     // The status code must survive the stream's error handling instead of collapsing to INTERNAL.
     assertEquals(Status.NOT_FOUND.getCode(), recorder.awaitError().getStatus().getCode());
@@ -740,12 +741,12 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(5).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertTrue(recall.getDiagnostics().getFirstPassSearchTimeMs() > 0);
-    assertEquals(0, recall.getDiagnostics().getGetFieldsTimeMs(), 0.0);
+    stream.onNext(rankingMessage(basicRequest(5).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertTrue(ranking.getDiagnostics().getFirstPassSearchTimeMs() > 0);
+    assertEquals(0, ranking.getDiagnostics().getGetFieldsTimeMs(), 0.0);
 
-    stream.onNext(reducedMessage(docIds(recall), List.of()));
+    stream.onNext(reducedMessage(docIds(ranking), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     assertTrue(fetch.getDiagnostics().getGetFieldsTimeMs() >= 0);
@@ -758,11 +759,11 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(5).build()));
+    stream.onNext(rankingMessage(basicRequest(5).build()));
     recorder.awaitResponse();
 
     // Both sets are present but empty, which selects nothing. An absent set would instead mean
-    // "keep this shard's recall result as it is".
+    // "keep this shard's ranking result as it is".
     stream.onNext(reducedMessage(List.of(), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
@@ -770,21 +771,21 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testUnsetDocIdSetsKeepRecallResult() throws Exception {
+  public void testUnsetDocIdSetsKeepRankingResult() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(5, 2).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
-    assertEquals(5, recall.getHitsCount());
+    stream.onNext(rankingMessage(loggingRequest(5, 2).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
+    assertEquals(5, ranking.getHitsCount());
 
     // Neither set is present, so this shard falls back to what the unary search RPC would have
-    // done: fetch and return every recalled hit, and log the top hitsToLog of its own ranking.
+    // done: fetch and return every ranked hit, and log the top hitsToLog of its own ranking.
     stream.onNext(reducedMessage(ReducedHitList.newBuilder()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
 
-    assertEquals(docIds(recall), docIds(fetch));
+    assertEquals(docIds(ranking), docIds(fetch));
     assertEquals(1, logCalls.size());
     assertEquals(List.of("1", "2"), logCalls.get(0));
   }
@@ -794,11 +795,11 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(NUM_DOCS, 3).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(NUM_DOCS, 3).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // The client selected the documents to return but left the logging decision to the shard.
-    List<Integer> toReturn = docIds(recall).subList(5, 8);
+    List<Integer> toReturn = docIds(ranking).subList(5, 8);
     stream.onNext(
         reducedMessage(ReducedHitList.newBuilder().setLuceneDocIdsToReturn(docIdSet(toReturn))));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
@@ -810,18 +811,18 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testUnsetReturnSetReturnsEveryRecalledHit() throws Exception {
+  public void testUnsetReturnSetReturnsEveryRankedHit() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(loggingRequest(4, 4).build()));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(loggingRequest(4, 4).build()));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // Only the logging decision was reduced; the client still wants all of this shard's hits.
     stream.onNext(
         reducedMessage(
             ReducedHitList.newBuilder()
-                .setLuceneDocIdsToLog(docIdSet(docIds(recall).subList(2, 4)))));
+                .setLuceneDocIdsToLog(docIdSet(docIds(ranking).subList(2, 4)))));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
 
@@ -831,21 +832,21 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   @Test
-  public void testRecallRequestFieldsAreFilledOnRecallResponse() throws Exception {
+  public void testRankingRequestFieldsAreFilledOnRankingPhaseResponse() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
     // The client needs the primary key to deduplicate across shards, but nothing else yet.
-    stream.onNext(recallMessage(basicRequest(3).build(), List.of("doc_id")));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(basicRequest(3).build(), List.of("doc_id")));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
-    assertEquals(List.of("1", "2", "3"), docIdFields(recall));
-    for (SearchResponse.Hit hit : recall.getHitsList()) {
+    assertEquals(List.of("1", "2", "3"), docIdFields(ranking));
+    for (SearchResponse.Hit hit : ranking.getHitsList()) {
       assertEquals(Set.of("doc_id"), hit.getFieldsMap().keySet());
     }
 
     // The request retrieveFields still only show up on the fetch response.
-    stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+    stream.onNext(reducedMessage(docIds(ranking).subList(0, 2), List.of()));
     SearchResponse fetch = recorder.awaitResponse().getSearchResponse();
     recorder.awaitClose();
     for (SearchResponse.Hit hit : fetch.getHitsList()) {
@@ -874,22 +875,22 @@ public class SearchStreamHandlerTest extends ServerTestCase {
                                 SortType.newBuilder().setFieldName("long_field").setReverse(true)))
                     .build())
             .build();
-    stream.onNext(recallMessage(request, List.of("doc_id")));
-    SearchResponse recall = recorder.awaitResponse().getSearchResponse();
+    stream.onNext(rankingMessage(request, List.of("doc_id")));
+    SearchResponse ranking = recorder.awaitResponse().getSearchResponse();
 
     // Each hit must carry its own doc_id, in the requested sort order.
-    assertEquals(List.of("10", "9", "8", "7", "6", "5", "4", "3", "2", "1"), docIdFields(recall));
+    assertEquals(List.of("10", "9", "8", "7", "6", "5", "4", "3", "2", "1"), docIdFields(ranking));
 
     stream.onCompleted();
     recorder.awaitClose();
   }
 
   @Test
-  public void testUnknownRecallRequestFieldIsRejected() throws Exception {
+  public void testUnknownRankingRequestFieldIsRejected() throws Exception {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(3).build(), List.of("not_a_field")));
+    stream.onNext(rankingMessage(basicRequest(3).build(), List.of("not_a_field")));
 
     StatusRuntimeException error = recorder.awaitError();
     assertEquals(Status.INVALID_ARGUMENT.getCode(), error.getStatus().getCode());
@@ -901,12 +902,50 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     ResponseRecorder recorder = new ResponseRecorder();
     StreamObserver<StreamSearchRequest> stream = openStream(recorder);
 
-    stream.onNext(recallMessage(basicRequest(5).build()));
+    stream.onNext(rankingMessage(basicRequest(5).build()));
     recorder.awaitResponse();
 
     stream.onCompleted();
     recorder.awaitClose();
     assertEquals(0, recorder.responseCount());
+  }
+
+  /**
+   * Two streams open at once, interleaved message by message. What a stream carries between its two
+   * phases lives in a grpc Context derived per session, so this is what would break if that context
+   * were shared: each stream must fetch out of its own ranking, not the other's.
+   */
+  @Test
+  public void testInterleavedStreamsKeepSeparateState() throws Exception {
+    ResponseRecorder firstRecorder = new ResponseRecorder();
+    ResponseRecorder secondRecorder = new ResponseRecorder();
+    StreamObserver<StreamSearchRequest> first = openStream(firstRecorder);
+    StreamObserver<StreamSearchRequest> second = openStream(secondRecorder);
+
+    // Different rankings: the whole index versus a single document.
+    first.onNext(rankingMessage(basicRequest(NUM_DOCS).build()));
+    List<Integer> firstRanking = docIds(firstRecorder.awaitResponse().getSearchResponse());
+    second.onNext(rankingMessage(basicRequest(1).build()));
+    List<Integer> secondRanking = docIds(secondRecorder.awaitResponse().getSearchResponse());
+    assertEquals(NUM_DOCS, firstRanking.size());
+    assertEquals(1, secondRanking.size());
+
+    // Fetch in the opposite order, each asking for a document only its own ranking knows about.
+    List<Integer> secondFetch = List.of(secondRanking.get(0));
+    List<Integer> firstFetch = List.of(firstRanking.get(NUM_DOCS - 1));
+    second.onNext(reducedMessage(secondFetch, secondFetch));
+    SearchResponse secondResponse = secondRecorder.awaitResponse().getSearchResponse();
+    first.onNext(reducedMessage(firstFetch, firstFetch));
+    SearchResponse firstResponse = firstRecorder.awaitResponse().getSearchResponse();
+
+    assertEquals(secondFetch, docIds(secondResponse));
+    assertEquals(firstFetch, docIds(firstResponse));
+    // Each response reports its own shard-local totals, taken from its own search.
+    assertEquals(NUM_DOCS, firstResponse.getTotalHits().getValue());
+    assertEquals(NUM_DOCS, secondResponse.getTotalHits().getValue());
+
+    firstRecorder.awaitClose();
+    secondRecorder.awaitClose();
   }
 
   // Tests below drive a handler instance directly, so that the resource limits and the searcher
@@ -918,7 +957,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     try {
       ResponseRecorder firstRecorder = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> first = handler.handle(firstRecorder);
-      first.onNext(recallMessage(basicRequest(5).build()));
+      first.onNext(rankingMessage(basicRequest(5).build()));
       firstRecorder.awaitResponse();
       assertEquals(1, handler.getActiveStreams());
 
@@ -934,7 +973,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
 
       ResponseRecorder thirdRecorder = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> third = handler.handle(thirdRecorder);
-      third.onNext(recallMessage(basicRequest(5).build()));
+      third.onNext(rankingMessage(basicRequest(5).build()));
       thirdRecorder.awaitResponse();
       third.onCompleted();
       thirdRecorder.awaitClose();
@@ -942,6 +981,20 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     } finally {
       handler.shutdown();
     }
+  }
+
+  @Test
+  public void testStreamOpenedAfterShutdownIsRejectedWithoutLeakingItsPermit() throws Exception {
+    SearchStreamHandler handler = newHandler(4, SearchStreamHandler.DEFAULT_IDLE_TIMEOUT_MS);
+    handler.shutdown();
+
+    // With the timeout scheduler stopped there is nothing to bound an idle stream, so admission has
+    // to fail rather than hand out a session that could never time out.
+    ResponseRecorder recorder = new ResponseRecorder();
+    handler.handle(recorder);
+
+    assertEquals(Status.UNAVAILABLE.getCode(), recorder.awaitError().getStatus().getCode());
+    assertEquals(0, handler.getActiveStreams());
   }
 
   @Test
@@ -966,7 +1019,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       int refCountBefore = readerRefCount(DEFAULT_TEST_INDEX);
       ResponseRecorder recorder = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> stream = handler.handle(recorder);
-      stream.onNext(recallMessage(basicRequest(5).build()));
+      stream.onNext(rankingMessage(basicRequest(5).build()));
       recorder.awaitResponse();
 
       assertEquals(Status.DEADLINE_EXCEEDED.getCode(), recorder.awaitError().getStatus().getCode());
@@ -987,17 +1040,17 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       // Full two phase flow.
       ResponseRecorder completed = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> stream = handler.handle(completed);
-      stream.onNext(recallMessage(basicRequest(5).build()));
-      SearchResponse recall = completed.awaitResponse().getSearchResponse();
-      stream.onNext(reducedMessage(docIds(recall).subList(0, 2), List.of()));
+      stream.onNext(rankingMessage(basicRequest(5).build()));
+      SearchResponse ranking = completed.awaitResponse().getSearchResponse();
+      stream.onNext(reducedMessage(docIds(ranking).subList(0, 2), List.of()));
       completed.awaitResponse();
       completed.awaitClose();
       assertEquals(refCountBefore, readerRefCount(DEFAULT_TEST_INDEX));
 
-      // Client hangs up after the recall phase.
+      // Client hangs up after the ranking phase.
       ResponseRecorder abandoned = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> abandonedStream = handler.handle(abandoned);
-      abandonedStream.onNext(recallMessage(basicRequest(5).build()));
+      abandonedStream.onNext(rankingMessage(basicRequest(5).build()));
       abandoned.awaitResponse();
       abandonedStream.onCompleted();
       abandoned.awaitClose();
@@ -1006,7 +1059,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       // Client cancels the stream.
       ResponseRecorder cancelled = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> cancelledStream = handler.handle(cancelled);
-      cancelledStream.onNext(recallMessage(basicRequest(5).build()));
+      cancelledStream.onNext(rankingMessage(basicRequest(5).build()));
       cancelled.awaitResponse();
       cancelledStream.onError(new RuntimeException("client went away"));
       assertEquals(refCountBefore, readerRefCount(DEFAULT_TEST_INDEX));
@@ -1014,9 +1067,9 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       // Re-query, which releases the first searcher and acquires another.
       ResponseRecorder requeried = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> requeriedStream = handler.handle(requeried);
-      requeriedStream.onNext(recallMessage(basicRequest(5).build()));
+      requeriedStream.onNext(rankingMessage(basicRequest(5).build()));
       requeried.awaitResponse();
-      requeriedStream.onNext(recallMessage(basicRequest(3).build()));
+      requeriedStream.onNext(rankingMessage(basicRequest(3).build()));
       requeried.awaitResponse();
       requeriedStream.onCompleted();
       requeried.awaitClose();
@@ -1025,11 +1078,11 @@ public class SearchStreamHandlerTest extends ServerTestCase {
       // Server side failure.
       ResponseRecorder failed = new ResponseRecorder();
       StreamObserver<StreamSearchRequest> failedStream = handler.handle(failed);
-      failedStream.onNext(recallMessage(basicRequest(5).build()));
-      SearchResponse failedRecall = failed.awaitResponse().getSearchResponse();
+      failedStream.onNext(rankingMessage(basicRequest(5).build()));
+      SearchResponse failedRanking = failed.awaitResponse().getSearchResponse();
       failedStream.onNext(reducedMessage(List.of(9999), List.of()));
       assertEquals(Status.INVALID_ARGUMENT.getCode(), failed.awaitError().getStatus().getCode());
-      assertFalse(failedRecall.getHitsList().isEmpty());
+      assertFalse(failedRanking.getHitsList().isEmpty());
       assertEquals(refCountBefore, readerRefCount(DEFAULT_TEST_INDEX));
 
       assertEquals(0, handler.getActiveStreams());
@@ -1063,7 +1116,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   /**
-   * Logging request whose recall runs through the multi-retriever path instead of a plain query.
+   * Logging request whose ranking runs through the multi-retriever path instead of a plain query.
    */
   private static SearchRequest.Builder multiRetrieverRequest(int topHits, int hitsToLog) {
     return SearchRequest.newBuilder()

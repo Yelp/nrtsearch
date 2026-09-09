@@ -178,7 +178,7 @@ service LuceneServer {
     }
 
     // Bidirectional streaming search for Query-Then-Fetch (QTF) flow.
-    // The client sends a RecallRequest, receives scored hit IDs, then sends a ReducedHitList
+    // The client sends a RankingRequest, receives scored hit IDs, then sends a ReducedHitList
     // specifying which documents to fetch/log. The searcher is held open across round-trips.
     rpc searchStream (stream StreamSearchRequest) returns (stream StreamSearchResponse) {}
 
