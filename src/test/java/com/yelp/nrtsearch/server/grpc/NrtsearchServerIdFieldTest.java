@@ -15,19 +15,12 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
@@ -40,125 +33,90 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class NrtsearchServerIdFieldTest {
 
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+  private static final String TEST_INDEX = "test_index";
 
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
+  private TestServer server;
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
   public void setUp() throws IOException {
-    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
-    grpcServer = setUpGrpcServer(prometheusRegistry);
-  }
-
-  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        prometheusRegistry,
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort(),
-        null,
-        Collections.emptyList());
+    server = TestServer.builder(folder).build();
   }
 
   @Test
-  public void testAddUpdateAndSearch() throws IOException, InterruptedException {
-    GrpcServer.TestServer testServer =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsBasicWithId.json");
+  public void testAddUpdateAndSearch() throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasicWithId.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+
     // 2 docs addDocuments
-    testServer.addDocuments();
-    assertFalse(testServer.error);
-    assertTrue(testServer.completed);
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     // add 2 more docs
-    testServer.addDocuments();
-    assertFalse(testServer.error);
-    assertTrue(testServer.completed);
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
-    StatsResponse stats =
-        grpcServer
-            .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
-    // there are only 2 documents
+    StatsResponse stats = stub.stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    // there are only 2 documents (ID field deduplicates)
     assertEquals(2, stats.getNumDocs());
 
     // update schema: add a new field
-    grpcServer
-        .getBlockingStub()
-        .updateFields(
-            FieldDefRequest.newBuilder()
-                .setIndexName("test_index")
-                .addField(
-                    Field.newBuilder()
-                        .setName("new_text_field")
-                        .setType(FieldType.TEXT)
-                        .setStoreDocValues(true)
-                        .setSearch(true)
-                        .setMultiValued(true)
-                        .build())
-                .build());
-    // 2 docs addDocuments
-    testServer.addDocuments("addDocsUpdated.csv");
-    assertFalse(testServer.error);
-    assertTrue(testServer.completed);
-    stats =
-        grpcServer
-            .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    stub.updateFields(
+        FieldDefRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .addField(
+                Field.newBuilder()
+                    .setName("new_text_field")
+                    .setType(FieldType.TEXT)
+                    .setStoreDocValues(true)
+                    .setSearch(true)
+                    .setMultiValued(true)
+                    .build())
+            .build());
 
+    // 2 docs addDocuments with updated schema
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocsUpdated.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
+
+    stats = stub.stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
     // there are 4 documents in total
     assertEquals(4, stats.getNumDocs());
 
     // Query for first document
     SearchResponse searchResponse =
-        grpcServer
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
-                    .setQuery(
-                        Query.newBuilder()
-                            .setPhraseQuery(
-                                PhraseQuery.newBuilder()
-                                    .setField("vendor_name")
-                                    .addTerms("first")
-                                    .addTerms("vendor")
-                                    .build())
-                            .build())
-                    .build());
+        stub.search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
+                .setQuery(
+                    Query.newBuilder()
+                        .setPhraseQuery(
+                            PhraseQuery.newBuilder()
+                                .setField("vendor_name")
+                                .addTerms("first")
+                                .addTerms("vendor")
+                                .build())
+                        .build())
+                .build());
     assertEquals(1, searchResponse.getTotalHits().getValue());
     assertEquals(1, searchResponse.getHitsList().size());
     assertEquals(
@@ -167,20 +125,18 @@ public class NrtsearchServerIdFieldTest {
 
     // Term Query for first document
     searchResponse =
-        grpcServer
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
-                    .setQuery(
-                        Query.newBuilder()
-                            .setTermQuery(
-                                TermQuery.newBuilder().setField("doc_id").setTextValue("1").build())
-                            .build())
-                    .build());
+        stub.search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
+                .setQuery(
+                    Query.newBuilder()
+                        .setTermQuery(
+                            TermQuery.newBuilder().setField("doc_id").setTextValue("1").build())
+                        .build())
+                .build());
     assertEquals(1, searchResponse.getTotalHits().getValue());
     assertEquals(1, searchResponse.getHitsList().size());
     assertEquals(
@@ -189,26 +145,24 @@ public class NrtsearchServerIdFieldTest {
 
     // TermInSetQuery for first and third document
     searchResponse =
-        grpcServer
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
-                    .setQuery(
-                        Query.newBuilder()
-                            .setTermInSetQuery(
-                                TermInSetQuery.newBuilder()
-                                    .setField("doc_id")
-                                    .setTextTerms(
-                                        TermInSetQuery.TextTerms.newBuilder()
-                                            .addAllTerms(List.of("1", "3"))
-                                            .build())
-                                    .build())
-                            .build())
-                    .build());
+        stub.search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
+                .setQuery(
+                    Query.newBuilder()
+                        .setTermInSetQuery(
+                            TermInSetQuery.newBuilder()
+                                .setField("doc_id")
+                                .setTextTerms(
+                                    TermInSetQuery.TextTerms.newBuilder()
+                                        .addAllTerms(List.of("1", "3"))
+                                        .build())
+                                .build())
+                        .build())
+                .build());
     assertEquals(2, searchResponse.getTotalHits().getValue());
     assertEquals(2, searchResponse.getHitsList().size());
     assertEquals(
@@ -220,44 +174,43 @@ public class NrtsearchServerIdFieldTest {
   }
 
   @Test(expected = StatusRuntimeException.class)
-  public void testDuplicateIdFieldInIndexState() throws IOException, InterruptedException {
-    GrpcServer.TestServer testServer =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsBasicWithId.json");
+  public void testDuplicateIdFieldInIndexState() throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasicWithId.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+
     // 2 docs addDocuments
-    testServer.addDocuments();
-    assertFalse(testServer.error);
-    assertTrue(testServer.completed);
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     // add 2 more docs
-    testServer.addDocuments();
-    assertFalse(testServer.error);
-    assertTrue(testServer.completed);
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
-    StatsResponse stats =
-        grpcServer
-            .getBlockingStub()
-            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
-    // there are only 2 documents
+    StatsResponse stats = stub.stats(StatsRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    // there are only 2 documents (ID field deduplicates)
     assertEquals(2, stats.getNumDocs());
 
     try {
-      // update schema: add a new field
-      grpcServer
-          .getBlockingStub()
-          .updateFields(
-              FieldDefRequest.newBuilder()
-                  .setIndexName("test_index")
-                  .addField(
-                      Field.newBuilder()
-                          .setName("new_text_field")
-                          .setType(FieldType._ID)
-                          .setStore(true)
-                          .build())
-                  .build());
+      // update schema: add a new field with _ID type (duplicate)
+      stub.updateFields(
+          FieldDefRequest.newBuilder()
+              .setIndexName(TEST_INDEX)
+              .addField(
+                  Field.newBuilder()
+                      .setName("new_text_field")
+                      .setType(FieldType._ID)
+                      .setStore(true)
+                      .build())
+              .build());
     } catch (RuntimeException e) {
       String message =
           "INTERNAL: Error handling updateFields request\n"
@@ -331,15 +284,12 @@ public class NrtsearchServerIdFieldTest {
   }
 
   private void registerFields(List<Field> fields) throws IOException {
-    new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    String indexName = grpcServer.getTestIndex();
-    grpcServer
-        .getBlockingStub()
-        .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
-    FieldDefRequest.Builder builder = FieldDefRequest.newBuilder().setIndexName(indexName);
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    FieldDefRequest.Builder builder = FieldDefRequest.newBuilder().setIndexName(TEST_INDEX);
     for (Field field : fields) {
       builder.addField(field);
     }
-    grpcServer.getBlockingStub().registerFields(builder.build());
+    stub.registerFields(builder.build());
   }
 }

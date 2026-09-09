@@ -15,33 +15,29 @@
  */
 package com.yelp.nrtsearch.clientlib;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.TEST_INDEX;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.CommitRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
-import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
+import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -60,6 +56,7 @@ import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 public class NodeNameResolverAndLoadBalancingTests {
+  private static final String TEST_INDEX = "test_index";
   private static final String FIELD_NAME = "test_field";
   private static final String NODE_ADDRESSES_FILE_NAME = "nrtsearch-addresses.json";
 
@@ -70,20 +67,11 @@ public class NodeNameResolverAndLoadBalancingTests {
   private static final int SERVER_2_ID = 2;
   private static final int SERVER_3_ID = 3;
 
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
-  /**
-   * This rule ensures the temporary folder which maintains indexes are cleaned up after each test
-   */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer server1;
-  private GrpcServer server2;
-  private GrpcServer server3;
+  private TestServer server1;
+  private TestServer server2;
+  private TestServer server3;
   private int port1;
   private int port2;
   private int port3;
@@ -94,13 +82,13 @@ public class NodeNameResolverAndLoadBalancingTests {
   public void setup() throws IOException, InterruptedException {
     addressesFile = folder.newFile(NODE_ADDRESSES_FILE_NAME);
 
-    server1 = createGrpcServer();
-    server2 = createGrpcServer();
-    server3 = createGrpcServer();
+    server1 = TestServer.builder(folder).build();
+    server2 = TestServer.builder(folder).build();
+    server3 = TestServer.builder(folder).build();
 
-    port1 = server1.getGlobalState().getPort();
-    port2 = server2.getGlobalState().getPort();
-    port3 = server3.getGlobalState().getPort();
+    port1 = server1.getPort();
+    port2 = server2.getPort();
+    port3 = server3.getPort();
 
     startIndexAndAddDocuments(server1, SERVER_1_ID);
     startIndexAndAddDocuments(server2, SERVER_2_ID);
@@ -110,22 +98,8 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder = new LuceneServerStubBuilder(addressesFile.toString(), OBJECT_MAPPER);
   }
 
-  private GrpcServer createGrpcServer() throws IOException {
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        TEST_INDEX,
-        configuration.getPort());
-  }
-
-  private void startIndexAndAddDocuments(GrpcServer server, int id)
-      throws InterruptedException, IOException {
-    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getBlockingStub();
+  private void startIndexAndAddDocuments(TestServer server, int id) {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
 
     stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
@@ -152,8 +126,8 @@ public class NodeNameResolverAndLoadBalancingTests {
                     .addValue(String.valueOf(id))
                     .build())
             .build();
-    new GrpcServer.TestServer(server, false, Mode.STANDALONE)
-        .addDocumentsFromStream(Stream.of(addDocumentRequest));
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(), Stream.of(addDocumentRequest));
     stub.commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
     stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
   }
@@ -163,14 +137,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder.close();
     luceneServerStubBuilder.waitUntilClosed(100, TimeUnit.MILLISECONDS);
     luceneServerStubBuilder = null;
-    teardownGrpcServer(server1);
-    teardownGrpcServer(server2);
-    teardownGrpcServer(server3);
-  }
-
-  private void teardownGrpcServer(GrpcServer server) throws IOException {
-    server.getGlobalState().close();
-    server.shutdown();
+    TestServer.cleanupAll();
   }
 
   @Test(timeout = 10000)
@@ -240,7 +207,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
     // Shutdown server 1
-    server1.forceShutdown();
+    server1.stop();
     Thread.sleep(50);
 
     resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);

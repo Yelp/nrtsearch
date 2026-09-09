@@ -15,10 +15,8 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
@@ -26,12 +24,10 @@ import com.yelp.nrtsearch.server.field.FieldDefProvider;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -49,52 +45,24 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class CustomFieldTypeTest {
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
+  private static final String TEST_INDEX = "test_index";
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
-  private PrometheusRegistry prometheusRegistry;
+  private TestServer server;
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
   public void setUp() throws IOException {
-    prometheusRegistry = new PrometheusRegistry();
-    grpcServer = setUpGrpcServer(prometheusRegistry);
-  }
-
-  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        prometheusRegistry,
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort(),
-        null,
-        Collections.singletonList(new TestFieldTypePlugin()));
+    server =
+        TestServer.builder(folder)
+            .withPlugins(Collections.singletonList(new TestFieldTypePlugin()))
+            .build();
   }
 
   static class TestFieldDef extends IndexableFieldDef<Integer> {
@@ -140,30 +108,29 @@ public class CustomFieldTypeTest {
 
   @Test
   public void testCustomFieldDef() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsCustomType.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsCustomType.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsCustomType.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocsCustomType.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
     SearchResponse searchResponse =
-        grpcServer
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
-                    .addRetrieveFields("doc_id")
-                    .addRetrieveFields("int_field")
-                    .addRetrieveFields("custom_field")
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .setQuery(Query.newBuilder().build())
-                    .build());
+        stub.search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .addRetrieveFields("doc_id")
+                .addRetrieveFields("int_field")
+                .addRetrieveFields("custom_field")
+                .setStartHit(0)
+                .setTopHits(10)
+                .setQuery(Query.newBuilder().build())
+                .build());
     assertEquals(2, searchResponse.getHitsCount());
     assertEquals(
         "1", searchResponse.getHits(0).getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue());
@@ -185,9 +152,13 @@ public class CustomFieldTypeTest {
 
   @Test(expected = StatusRuntimeException.class)
   public void testNoTypeProperty() throws Exception {
-    new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsCustomTypeInvalid.json");
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsCustomTypeInvalid.json")
+            .toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
   }
 }
