@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.test_utils.PortUtils;
 import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -113,6 +114,7 @@ public class TestServer {
   private LuceneServerImpl serverImpl;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
+  private PrometheusRegistry prometheusRegistry;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
@@ -165,6 +167,10 @@ public class TestServer {
     return configuration;
   }
 
+  public PrometheusRegistry getPrometheusRegistry() {
+    return prometheusRegistry;
+  }
+
   private RemoteBackend createRemoteBackend() {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
@@ -185,7 +191,7 @@ public class TestServer {
       executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
     }
     remoteBackend = createRemoteBackend();
-    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
+    prometheusRegistry = new PrometheusRegistry();
     serverImpl =
         new LuceneServerImpl(
             configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
@@ -207,7 +213,7 @@ public class TestServer {
         NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
     server =
-        ServerBuilder.forPort(0)
+        ServerBuilder.forPort(configuration.getPort())
             .addService(
                 ServerInterceptors.intercept(
                     serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
@@ -615,6 +621,7 @@ public class TestServer {
 
     private String additionalConfig = "";
     private List<Plugin> plugins = Collections.emptyList();
+    private final int serverPort = PortUtils.findAvailablePort();
 
     Builder(TemporaryFolder folder) {
       this.folder = folder;
@@ -754,6 +761,7 @@ public class TestServer {
           "bucketName: " + TEST_BUCKET,
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
+          "port: " + serverPort,
           "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }
