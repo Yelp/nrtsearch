@@ -38,7 +38,6 @@ import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -651,37 +650,20 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         throw new IllegalStateException(
             "Adding documents to an index on a replica node is not supported");
       }
-      if (documents != null)
-        IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc(documents.size());
-      long ns_start = System.nanoTime();
-      shardState.writer.addDocuments(
-          (Iterable<Document>)
-              () ->
-                  new Iterator<>() {
-                    private Document nextDoc;
-
-                    @Override
-                    public boolean hasNext() {
-                      if (!documents.isEmpty()) {
-                        nextDoc = documents.poll();
-                        nextDoc = handleFacets(indexState, shardState, nextDoc);
-                        return true;
-                      } else {
-                        nextDoc = null;
-                        return false;
-                      }
-                    }
-
-                    @Override
-                    public Document next() {
-                      return nextDoc;
-                    }
-                  });
-      if (documents != null && documents.size() >= 1) {
-        IndexingMetrics.addDocumentLatency
-            .labelValues(indexName)
-            .observe((System.nanoTime() - ns_start) / ONE_MILLION / documents.size());
+      if (documents == null || documents.isEmpty()) {
+        return;
       }
+      int count = documents.size();
+      IndexingMetrics.addDocumentRequestsReceived.labelValues(indexName).inc(count);
+      long ns_start = System.nanoTime();
+      Document doc;
+      while ((doc = documents.poll()) != null) {
+        doc = handleFacets(indexState, shardState, doc);
+        shardState.writer.addDocument(doc);
+      }
+      IndexingMetrics.addDocumentLatency
+          .labelValues(indexName)
+          .observe((System.nanoTime() - ns_start) / ONE_MILLION / count);
     }
 
     private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
