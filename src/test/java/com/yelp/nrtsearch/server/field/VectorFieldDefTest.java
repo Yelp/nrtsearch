@@ -378,7 +378,10 @@ public class VectorFieldDefTest extends ServerTestCase {
     List<AddDocumentRequest> documents = buildDocuments(DEFAULT_TEST_INDEX, invalidJsonList);
     Exception exception =
         Assert.assertThrows(RuntimeException.class, () -> addDocuments(documents.stream()));
-    assertTrue(exception.getMessage().contains("For input string: \"a\""));
+    assertTrue(
+        exception
+            .getMessage()
+            .contains("No embedding provider configured for field: vector_field"));
   }
 
   @Test
