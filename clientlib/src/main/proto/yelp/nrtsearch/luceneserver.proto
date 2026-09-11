@@ -177,6 +177,11 @@ service LuceneServer {
         };
     }
 
+    // Bidirectional streaming search for Query-Then-Fetch (QTF) flow.
+    // The client sends a RankingRequest, receives scored hit IDs, then sends a ReducedHitList
+    // specifying which documents to fetch/log. The searcher is held open across round-trips.
+    rpc searchStream (stream StreamSearchRequest) returns (stream StreamSearchResponse) {}
+
     // Delete documents from an index. Changes are not durable until after the next successful @commit call.
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {

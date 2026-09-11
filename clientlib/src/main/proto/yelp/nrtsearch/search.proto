@@ -1728,3 +1728,91 @@ message KnnQuery {
     // Strategy to use when applying filter
     FilterStrategy filter_strategy = 9;
 }
+
+// Client-to-server message for the searchStream bidirectional streaming RPC.
+message StreamSearchRequest {
+    oneof streamPhase {
+        // Initial request: execute the ranking phase (search and rescore) and pause before fetch.
+        // The server holds the searcher open and returns scored hit IDs.
+        RankingRequest rankingRequest = 1;
+        // Continue with a reduced hit list, after the client has merged and deduplicated the
+        // responses of every shard. The server fetches and logs only the specified documents.
+        ReducedHitList reducedHitList = 2;
+    }
+}
+
+// Initial searchStream request: the search to execute for the ranking phase, plus the hit fields the
+// client needs on the intermediate response it merges.
+message RankingRequest {
+    // The search to execute. Its retrieveFields describe the hits of the final
+    // (FETCH_AND_LOG phase) response, and are not filled on the RESCORE phase response.
+    SearchRequest searchRequest = 1;
+    // Fields to fill on the hits of the RESCORE phase response, in addition to the ranking info
+    // that is always present. Typically the primary key, which the client needs in order to
+    // deduplicate documents that more than one shard returned before deciding what each shard
+    // should fetch and log. Keep this list small: these fields are fetched for every hit of the
+    // ranking phase, while SearchRequest.retrieveFields are only fetched for the documents that
+    // survive the merge.
+    repeated string intermediateRetrieveFields = 2;
+}
+
+// A set of lucene doc ids, used to select the documents of a searchStream fetch phase.
+//
+// Unordered by design. A global merge preserves the relative order of a single shard's own hits, so
+// the server can order the documents it fetches and logs by its own ranking; sending an order would
+// only add a way for the two sides to disagree.
+message LuceneDocIdSet {
+    // Lucene doc ids. Each must appear in this shard's RESCORE phase response, and must not repeat.
+    repeated int32 luceneDocIds = 1;
+}
+
+// Client-selected document sets for the fetch and log phase, sent after the client has merged the
+// RESCORE phase responses of all shards into a single global ranking.
+//
+// Both sets must be subsets of the lucene doc ids this shard returned in its own RESCORE phase
+// response; unknown ids are rejected with INVALID_ARGUMENT rather than silently ignored, so that a
+// client bug surfaces as an error instead of as missing documents or log records. Repeated ids are
+// rejected for the same reason. The two sets are otherwise independent: they may be identical,
+// overlapping, disjoint or empty.
+//
+// Each set is a message rather than a bare repeated field so an unset set can be told apart from an
+// empty one: unset keeps this shard's ranking phase result as it is, empty selects nothing.
+message ReducedHitList {
+    // Documents whose fields should be fetched and returned in the response hits. If unset, every
+    // hit of this shard's RESCORE phase response is fetched and returned.
+    LuceneDocIdSet luceneDocIdsToReturn = 1;
+    // Documents that should be logged (e.g. easy negatives, via a HitsLogger). The server logs
+    // exactly this set, and does not truncate it to LoggingHits.hitsToLog: that limit drops
+    // documents by this shard's local ranking, which the client's global merge has already
+    // replaced, so sizing the set is the client's job. If unset, this shard logs what the unary
+    // search RPC would have logged, the top LoggingHits.hitsToLog documents of its own ranking.
+    LuceneDocIdSet luceneDocIdsToLog = 2;
+}
+
+// Server-to-client message for the searchStream RPC.
+message StreamSearchResponse {
+    // The phase that was last completed when the server produced this response.
+    enum Phase {
+        PHASE_UNSPECIFIED = 0;
+        // First-pass retrieval completed (reserved for future decomposition).
+        SEARCH = 1;
+        // Rescoring completed; hit IDs, scores and any RankingRequest.intermediateRetrieveFields
+        // are available.
+        RESCORE = 2;
+        // Fetch completed and the selected documents were logged; full document fields are
+        // available.
+        FETCH_AND_LOG = 3;
+    }
+
+    Phase phase = 1;
+
+    oneof response {
+        // The search response. After the RESCORE phase this contains hit ids, ranking info (score
+        // or sorted field values) and any RankingRequest.intermediateRetrieveFields, along with the aggregations
+        // for this shard: facet results, collector results and search state. After the
+        // FETCH_AND_LOG phase it contains fully populated hit fields for the selected documents
+        // only; aggregations are not repeated, since the client already received them in the
+        // RESCORE response.
+        SearchResponse searchResponse = 2;
+    }
+}

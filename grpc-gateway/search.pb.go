@@ -1174,6 +1174,64 @@ func (KnnQuery_FilterStrategy) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{84, 0}
 }
 
+// The phase that was last completed when the server produced this response.
+type StreamSearchResponse_Phase int32
+
+const (
+	StreamSearchResponse_PHASE_UNSPECIFIED StreamSearchResponse_Phase = 0
+	// First-pass retrieval completed (reserved for future decomposition).
+	StreamSearchResponse_SEARCH StreamSearchResponse_Phase = 1
+	// Rescoring completed; hit IDs, scores and any RankingRequest.intermediateRetrieveFields
+	// are available.
+	StreamSearchResponse_RESCORE StreamSearchResponse_Phase = 2
+	// Fetch completed and the selected documents were logged; full document fields are
+	// available.
+	StreamSearchResponse_FETCH_AND_LOG StreamSearchResponse_Phase = 3
+)
+
+// Enum value maps for StreamSearchResponse_Phase.
+var (
+	StreamSearchResponse_Phase_name = map[int32]string{
+		0: "PHASE_UNSPECIFIED",
+		1: "SEARCH",
+		2: "RESCORE",
+		3: "FETCH_AND_LOG",
+	}
+	StreamSearchResponse_Phase_value = map[string]int32{
+		"PHASE_UNSPECIFIED": 0,
+		"SEARCH":            1,
+		"RESCORE":           2,
+		"FETCH_AND_LOG":     3,
+	}
+)
+
+func (x StreamSearchResponse_Phase) Enum() *StreamSearchResponse_Phase {
+	p := new(StreamSearchResponse_Phase)
+	*p = x
+	return p
+}
+
+func (x StreamSearchResponse_Phase) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StreamSearchResponse_Phase) Descriptor() protoreflect.EnumDescriptor {
+	return file_yelp_nrtsearch_search_proto_enumTypes[20].Descriptor()
+}
+
+func (StreamSearchResponse_Phase) Type() protoreflect.EnumType {
+	return &file_yelp_nrtsearch_search_proto_enumTypes[20]
+}
+
+func (x StreamSearchResponse_Phase) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StreamSearchResponse_Phase.Descriptor instead.
+func (StreamSearchResponse_Phase) EnumDescriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{89, 0}
+}
+
 // A clause in a BooleanQuery.
 type BooleanClause struct {
 	state         protoimpl.MessageState
@@ -8534,6 +8592,365 @@ func (x *KnnQuery) GetFilterStrategy() KnnQuery_FilterStrategy {
 	return KnnQuery_DEFAULT
 }
 
+// Client-to-server message for the searchStream bidirectional streaming RPC.
+type StreamSearchRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to StreamPhase:
+	//
+	//	*StreamSearchRequest_RankingRequest
+	//	*StreamSearchRequest_ReducedHitList
+	StreamPhase isStreamSearchRequest_StreamPhase `protobuf_oneof:"streamPhase"`
+}
+
+func (x *StreamSearchRequest) Reset() {
+	*x = StreamSearchRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[85]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamSearchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamSearchRequest) ProtoMessage() {}
+
+func (x *StreamSearchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[85]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamSearchRequest.ProtoReflect.Descriptor instead.
+func (*StreamSearchRequest) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{85}
+}
+
+func (m *StreamSearchRequest) GetStreamPhase() isStreamSearchRequest_StreamPhase {
+	if m != nil {
+		return m.StreamPhase
+	}
+	return nil
+}
+
+func (x *StreamSearchRequest) GetRankingRequest() *RankingRequest {
+	if x, ok := x.GetStreamPhase().(*StreamSearchRequest_RankingRequest); ok {
+		return x.RankingRequest
+	}
+	return nil
+}
+
+func (x *StreamSearchRequest) GetReducedHitList() *ReducedHitList {
+	if x, ok := x.GetStreamPhase().(*StreamSearchRequest_ReducedHitList); ok {
+		return x.ReducedHitList
+	}
+	return nil
+}
+
+type isStreamSearchRequest_StreamPhase interface {
+	isStreamSearchRequest_StreamPhase()
+}
+
+type StreamSearchRequest_RankingRequest struct {
+	// Initial request: execute the ranking phase (search and rescore) and pause before fetch.
+	// The server holds the searcher open and returns scored hit IDs.
+	RankingRequest *RankingRequest `protobuf:"bytes,1,opt,name=rankingRequest,proto3,oneof"`
+}
+
+type StreamSearchRequest_ReducedHitList struct {
+	// Continue with a reduced hit list, after the client has merged and deduplicated the
+	// responses of every shard. The server fetches and logs only the specified documents.
+	ReducedHitList *ReducedHitList `protobuf:"bytes,2,opt,name=reducedHitList,proto3,oneof"`
+}
+
+func (*StreamSearchRequest_RankingRequest) isStreamSearchRequest_StreamPhase() {}
+
+func (*StreamSearchRequest_ReducedHitList) isStreamSearchRequest_StreamPhase() {}
+
+// Initial searchStream request: the search to execute for the ranking phase, plus the hit fields the
+// client needs on the intermediate response it merges.
+type RankingRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The search to execute. Its retrieveFields describe the hits of the final
+	// (FETCH_AND_LOG phase) response, and are not filled on the RESCORE phase response.
+	SearchRequest *SearchRequest `protobuf:"bytes,1,opt,name=searchRequest,proto3" json:"searchRequest,omitempty"`
+	// Fields to fill on the hits of the RESCORE phase response, in addition to the ranking info
+	// that is always present. Typically the primary key, which the client needs in order to
+	// deduplicate documents that more than one shard returned before deciding what each shard
+	// should fetch and log. Keep this list small: these fields are fetched for every hit of the
+	// ranking phase, while SearchRequest.retrieveFields are only fetched for the documents that
+	// survive the merge.
+	IntermediateRetrieveFields []string `protobuf:"bytes,2,rep,name=intermediateRetrieveFields,proto3" json:"intermediateRetrieveFields,omitempty"`
+}
+
+func (x *RankingRequest) Reset() {
+	*x = RankingRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[86]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RankingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RankingRequest) ProtoMessage() {}
+
+func (x *RankingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[86]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RankingRequest.ProtoReflect.Descriptor instead.
+func (*RankingRequest) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *RankingRequest) GetSearchRequest() *SearchRequest {
+	if x != nil {
+		return x.SearchRequest
+	}
+	return nil
+}
+
+func (x *RankingRequest) GetIntermediateRetrieveFields() []string {
+	if x != nil {
+		return x.IntermediateRetrieveFields
+	}
+	return nil
+}
+
+// A set of lucene doc ids, used to select the documents of a searchStream fetch phase.
+//
+// Unordered by design. A global merge preserves the relative order of a single shard's own hits, so
+// the server can order the documents it fetches and logs by its own ranking; sending an order would
+// only add a way for the two sides to disagree.
+type LuceneDocIdSet struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Lucene doc ids. Each must appear in this shard's RESCORE phase response, and must not repeat.
+	LuceneDocIds []int32 `protobuf:"varint,1,rep,packed,name=luceneDocIds,proto3" json:"luceneDocIds,omitempty"`
+}
+
+func (x *LuceneDocIdSet) Reset() {
+	*x = LuceneDocIdSet{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[87]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *LuceneDocIdSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LuceneDocIdSet) ProtoMessage() {}
+
+func (x *LuceneDocIdSet) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[87]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LuceneDocIdSet.ProtoReflect.Descriptor instead.
+func (*LuceneDocIdSet) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *LuceneDocIdSet) GetLuceneDocIds() []int32 {
+	if x != nil {
+		return x.LuceneDocIds
+	}
+	return nil
+}
+
+// Client-selected document sets for the fetch and log phase, sent after the client has merged the
+// RESCORE phase responses of all shards into a single global ranking.
+//
+// Both sets must be subsets of the lucene doc ids this shard returned in its own RESCORE phase
+// response; unknown ids are rejected with INVALID_ARGUMENT rather than silently ignored, so that a
+// client bug surfaces as an error instead of as missing documents or log records. Repeated ids are
+// rejected for the same reason. The two sets are otherwise independent: they may be identical,
+// overlapping, disjoint or empty.
+//
+// Each set is a message rather than a bare repeated field so an unset set can be told apart from an
+// empty one: unset keeps this shard's ranking phase result as it is, empty selects nothing.
+type ReducedHitList struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Documents whose fields should be fetched and returned in the response hits. If unset, every
+	// hit of this shard's RESCORE phase response is fetched and returned.
+	LuceneDocIdsToReturn *LuceneDocIdSet `protobuf:"bytes,1,opt,name=luceneDocIdsToReturn,proto3" json:"luceneDocIdsToReturn,omitempty"`
+	// Documents that should be logged (e.g. easy negatives, via a HitsLogger). The server logs
+	// exactly this set, and does not truncate it to LoggingHits.hitsToLog: that limit drops
+	// documents by this shard's local ranking, which the client's global merge has already
+	// replaced, so sizing the set is the client's job. If unset, this shard logs what the unary
+	// search RPC would have logged, the top LoggingHits.hitsToLog documents of its own ranking.
+	LuceneDocIdsToLog *LuceneDocIdSet `protobuf:"bytes,2,opt,name=luceneDocIdsToLog,proto3" json:"luceneDocIdsToLog,omitempty"`
+}
+
+func (x *ReducedHitList) Reset() {
+	*x = ReducedHitList{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[88]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReducedHitList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReducedHitList) ProtoMessage() {}
+
+func (x *ReducedHitList) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[88]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReducedHitList.ProtoReflect.Descriptor instead.
+func (*ReducedHitList) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *ReducedHitList) GetLuceneDocIdsToReturn() *LuceneDocIdSet {
+	if x != nil {
+		return x.LuceneDocIdsToReturn
+	}
+	return nil
+}
+
+func (x *ReducedHitList) GetLuceneDocIdsToLog() *LuceneDocIdSet {
+	if x != nil {
+		return x.LuceneDocIdsToLog
+	}
+	return nil
+}
+
+// Server-to-client message for the searchStream RPC.
+type StreamSearchResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Phase StreamSearchResponse_Phase `protobuf:"varint,1,opt,name=phase,proto3,enum=luceneserver.StreamSearchResponse_Phase" json:"phase,omitempty"`
+	// Types that are assignable to Response:
+	//
+	//	*StreamSearchResponse_SearchResponse
+	Response isStreamSearchResponse_Response `protobuf_oneof:"response"`
+}
+
+func (x *StreamSearchResponse) Reset() {
+	*x = StreamSearchResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[89]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamSearchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamSearchResponse) ProtoMessage() {}
+
+func (x *StreamSearchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[89]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamSearchResponse.ProtoReflect.Descriptor instead.
+func (*StreamSearchResponse) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *StreamSearchResponse) GetPhase() StreamSearchResponse_Phase {
+	if x != nil {
+		return x.Phase
+	}
+	return StreamSearchResponse_PHASE_UNSPECIFIED
+}
+
+func (m *StreamSearchResponse) GetResponse() isStreamSearchResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (x *StreamSearchResponse) GetSearchResponse() *SearchResponse {
+	if x, ok := x.GetResponse().(*StreamSearchResponse_SearchResponse); ok {
+		return x.SearchResponse
+	}
+	return nil
+}
+
+type isStreamSearchResponse_Response interface {
+	isStreamSearchResponse_Response()
+}
+
+type StreamSearchResponse_SearchResponse struct {
+	// The search response. After the RESCORE phase this contains hit ids, ranking info (score
+	// or sorted field values) and any RankingRequest.intermediateRetrieveFields, along with the aggregations
+	// for this shard: facet results, collector results and search state. After the
+	// FETCH_AND_LOG phase it contains fully populated hit fields for the selected documents
+	// only; aggregations are not repeated, since the client already received them in the
+	// RESCORE response.
+	SearchResponse *SearchResponse `protobuf:"bytes,2,opt,name=searchResponse,proto3,oneof"`
+}
+
+func (*StreamSearchResponse_SearchResponse) isStreamSearchResponse_Response() {}
+
 // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset.
 // Valid values are low >= 0 and low < high
 type FuzzyParams_AutoFuzziness struct {
@@ -8550,7 +8967,7 @@ type FuzzyParams_AutoFuzziness struct {
 func (x *FuzzyParams_AutoFuzziness) Reset() {
 	*x = FuzzyParams_AutoFuzziness{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[85]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[90]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8563,7 +8980,7 @@ func (x *FuzzyParams_AutoFuzziness) String() string {
 func (*FuzzyParams_AutoFuzziness) ProtoMessage() {}
 
 func (x *FuzzyParams_AutoFuzziness) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[85]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[90]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8605,7 +9022,7 @@ type TermInSetQuery_TextTerms struct {
 func (x *TermInSetQuery_TextTerms) Reset() {
 	*x = TermInSetQuery_TextTerms{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[86]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[91]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8618,7 +9035,7 @@ func (x *TermInSetQuery_TextTerms) String() string {
 func (*TermInSetQuery_TextTerms) ProtoMessage() {}
 
 func (x *TermInSetQuery_TextTerms) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[86]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[91]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8653,7 +9070,7 @@ type TermInSetQuery_IntTerms struct {
 func (x *TermInSetQuery_IntTerms) Reset() {
 	*x = TermInSetQuery_IntTerms{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[87]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[92]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8666,7 +9083,7 @@ func (x *TermInSetQuery_IntTerms) String() string {
 func (*TermInSetQuery_IntTerms) ProtoMessage() {}
 
 func (x *TermInSetQuery_IntTerms) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[87]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[92]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8701,7 +9118,7 @@ type TermInSetQuery_LongTerms struct {
 func (x *TermInSetQuery_LongTerms) Reset() {
 	*x = TermInSetQuery_LongTerms{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[88]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[93]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8714,7 +9131,7 @@ func (x *TermInSetQuery_LongTerms) String() string {
 func (*TermInSetQuery_LongTerms) ProtoMessage() {}
 
 func (x *TermInSetQuery_LongTerms) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[88]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[93]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8749,7 +9166,7 @@ type TermInSetQuery_FloatTerms struct {
 func (x *TermInSetQuery_FloatTerms) Reset() {
 	*x = TermInSetQuery_FloatTerms{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[89]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[94]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8762,7 +9179,7 @@ func (x *TermInSetQuery_FloatTerms) String() string {
 func (*TermInSetQuery_FloatTerms) ProtoMessage() {}
 
 func (x *TermInSetQuery_FloatTerms) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[89]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[94]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8797,7 +9214,7 @@ type TermInSetQuery_DoubleTerms struct {
 func (x *TermInSetQuery_DoubleTerms) Reset() {
 	*x = TermInSetQuery_DoubleTerms{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[90]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[95]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8810,7 +9227,7 @@ func (x *TermInSetQuery_DoubleTerms) String() string {
 func (*TermInSetQuery_DoubleTerms) ProtoMessage() {}
 
 func (x *TermInSetQuery_DoubleTerms) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[90]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[95]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8855,7 +9272,7 @@ type MultiFunctionScoreQuery_FilterFunction struct {
 func (x *MultiFunctionScoreQuery_FilterFunction) Reset() {
 	*x = MultiFunctionScoreQuery_FilterFunction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[92]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[97]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8868,7 +9285,7 @@ func (x *MultiFunctionScoreQuery_FilterFunction) String() string {
 func (*MultiFunctionScoreQuery_FilterFunction) ProtoMessage() {}
 
 func (x *MultiFunctionScoreQuery_FilterFunction) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[92]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[97]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8970,7 +9387,7 @@ type MultiFunctionScoreQuery_DecayFunction struct {
 func (x *MultiFunctionScoreQuery_DecayFunction) Reset() {
 	*x = MultiFunctionScoreQuery_DecayFunction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[93]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[98]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8983,7 +9400,7 @@ func (x *MultiFunctionScoreQuery_DecayFunction) String() string {
 func (*MultiFunctionScoreQuery_DecayFunction) ProtoMessage() {}
 
 func (x *MultiFunctionScoreQuery_DecayFunction) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[93]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[98]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9083,7 +9500,7 @@ type Script_ParamValue struct {
 func (x *Script_ParamValue) Reset() {
 	*x = Script_ParamValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[97]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[102]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9096,7 +9513,7 @@ func (x *Script_ParamValue) String() string {
 func (*Script_ParamValue) ProtoMessage() {}
 
 func (x *Script_ParamValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[97]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[102]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9266,7 +9683,7 @@ type Script_ParamStructValue struct {
 func (x *Script_ParamStructValue) Reset() {
 	*x = Script_ParamStructValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[98]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[103]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9279,7 +9696,7 @@ func (x *Script_ParamStructValue) String() string {
 func (*Script_ParamStructValue) ProtoMessage() {}
 
 func (x *Script_ParamStructValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[98]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[103]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9315,7 +9732,7 @@ type Script_ParamListValue struct {
 func (x *Script_ParamListValue) Reset() {
 	*x = Script_ParamListValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[99]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[104]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9328,7 +9745,7 @@ func (x *Script_ParamListValue) String() string {
 func (*Script_ParamListValue) ProtoMessage() {}
 
 func (x *Script_ParamListValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[99]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[104]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9364,7 +9781,7 @@ type Script_ParamFloatVectorValue struct {
 func (x *Script_ParamFloatVectorValue) Reset() {
 	*x = Script_ParamFloatVectorValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[100]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[105]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9377,7 +9794,7 @@ func (x *Script_ParamFloatVectorValue) String() string {
 func (*Script_ParamFloatVectorValue) ProtoMessage() {}
 
 func (x *Script_ParamFloatVectorValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[100]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[105]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9444,7 +9861,7 @@ type SearchResponse_Diagnostics struct {
 func (x *SearchResponse_Diagnostics) Reset() {
 	*x = SearchResponse_Diagnostics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[103]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[108]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9457,7 +9874,7 @@ func (x *SearchResponse_Diagnostics) String() string {
 func (*SearchResponse_Diagnostics) ProtoMessage() {}
 
 func (x *SearchResponse_Diagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[103]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[108]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9615,7 +10032,7 @@ type SearchResponse_Hit struct {
 func (x *SearchResponse_Hit) Reset() {
 	*x = SearchResponse_Hit{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[104]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[109]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9628,7 +10045,7 @@ func (x *SearchResponse_Hit) String() string {
 func (*SearchResponse_Hit) ProtoMessage() {}
 
 func (x *SearchResponse_Hit) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[104]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[109]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9729,7 +10146,7 @@ type SearchResponse_SearchState struct {
 func (x *SearchResponse_SearchState) Reset() {
 	*x = SearchResponse_SearchState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[105]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[110]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9742,7 +10159,7 @@ func (x *SearchResponse_SearchState) String() string {
 func (*SearchResponse_SearchState) ProtoMessage() {}
 
 func (x *SearchResponse_SearchState) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[105]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[110]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9818,7 +10235,7 @@ type SearchResponse_Diagnostics_VectorDiagnostics struct {
 func (x *SearchResponse_Diagnostics_VectorDiagnostics) Reset() {
 	*x = SearchResponse_Diagnostics_VectorDiagnostics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[108]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[113]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9831,7 +10248,7 @@ func (x *SearchResponse_Diagnostics_VectorDiagnostics) String() string {
 func (*SearchResponse_Diagnostics_VectorDiagnostics) ProtoMessage() {}
 
 func (x *SearchResponse_Diagnostics_VectorDiagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[108]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[113]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9884,7 +10301,7 @@ type SearchResponse_Diagnostics_RetrieverDiagnostics struct {
 func (x *SearchResponse_Diagnostics_RetrieverDiagnostics) Reset() {
 	*x = SearchResponse_Diagnostics_RetrieverDiagnostics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[109]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[114]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9897,7 +10314,7 @@ func (x *SearchResponse_Diagnostics_RetrieverDiagnostics) String() string {
 func (*SearchResponse_Diagnostics_RetrieverDiagnostics) ProtoMessage() {}
 
 func (x *SearchResponse_Diagnostics_RetrieverDiagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[109]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[114]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9970,7 +10387,7 @@ type SearchResponse_Diagnostics_MultiRetrieverDiagnostics struct {
 func (x *SearchResponse_Diagnostics_MultiRetrieverDiagnostics) Reset() {
 	*x = SearchResponse_Diagnostics_MultiRetrieverDiagnostics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[110]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[115]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9983,7 +10400,7 @@ func (x *SearchResponse_Diagnostics_MultiRetrieverDiagnostics) String() string {
 func (*SearchResponse_Diagnostics_MultiRetrieverDiagnostics) ProtoMessage() {}
 
 func (x *SearchResponse_Diagnostics_MultiRetrieverDiagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[110]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[115]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10037,7 +10454,7 @@ type SearchResponse_Hit_FieldValue struct {
 func (x *SearchResponse_Hit_FieldValue) Reset() {
 	*x = SearchResponse_Hit_FieldValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[115]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[120]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10050,7 +10467,7 @@ func (x *SearchResponse_Hit_FieldValue) String() string {
 func (*SearchResponse_Hit_FieldValue) ProtoMessage() {}
 
 func (x *SearchResponse_Hit_FieldValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[115]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[120]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10230,7 +10647,7 @@ type SearchResponse_Hit_CompositeFieldValue struct {
 func (x *SearchResponse_Hit_CompositeFieldValue) Reset() {
 	*x = SearchResponse_Hit_CompositeFieldValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[116]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[121]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10243,7 +10660,7 @@ func (x *SearchResponse_Hit_CompositeFieldValue) String() string {
 func (*SearchResponse_Hit_CompositeFieldValue) ProtoMessage() {}
 
 func (x *SearchResponse_Hit_CompositeFieldValue) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[116]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[121]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10279,7 +10696,7 @@ type SearchResponse_Hit_Highlights struct {
 func (x *SearchResponse_Hit_Highlights) Reset() {
 	*x = SearchResponse_Hit_Highlights{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[117]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10292,7 +10709,7 @@ func (x *SearchResponse_Hit_Highlights) String() string {
 func (*SearchResponse_Hit_Highlights) ProtoMessage() {}
 
 func (x *SearchResponse_Hit_Highlights) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[117]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10329,7 +10746,7 @@ type SearchResponse_Hit_FieldValue_Vector struct {
 func (x *SearchResponse_Hit_FieldValue_Vector) Reset() {
 	*x = SearchResponse_Hit_FieldValue_Vector{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[123]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[128]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10342,7 +10759,7 @@ func (x *SearchResponse_Hit_FieldValue_Vector) String() string {
 func (*SearchResponse_Hit_FieldValue_Vector) ProtoMessage() {}
 
 func (x *SearchResponse_Hit_FieldValue_Vector) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[123]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[128]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10385,7 +10802,7 @@ type ProfileResult_AdditionalCollectorStats struct {
 func (x *ProfileResult_AdditionalCollectorStats) Reset() {
 	*x = ProfileResult_AdditionalCollectorStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[124]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[129]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10398,7 +10815,7 @@ func (x *ProfileResult_AdditionalCollectorStats) String() string {
 func (*ProfileResult_AdditionalCollectorStats) ProtoMessage() {}
 
 func (x *ProfileResult_AdditionalCollectorStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[124]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[129]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10442,7 +10859,7 @@ type ProfileResult_CollectorStats struct {
 func (x *ProfileResult_CollectorStats) Reset() {
 	*x = ProfileResult_CollectorStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[125]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[130]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10455,7 +10872,7 @@ func (x *ProfileResult_CollectorStats) String() string {
 func (*ProfileResult_CollectorStats) ProtoMessage() {}
 
 func (x *ProfileResult_CollectorStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[125]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[130]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10527,7 +10944,7 @@ type ProfileResult_SegmentStats struct {
 func (x *ProfileResult_SegmentStats) Reset() {
 	*x = ProfileResult_SegmentStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[126]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[131]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10540,7 +10957,7 @@ func (x *ProfileResult_SegmentStats) String() string {
 func (*ProfileResult_SegmentStats) ProtoMessage() {}
 
 func (x *ProfileResult_SegmentStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[126]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[131]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10608,7 +11025,7 @@ type ProfileResult_SearchStats struct {
 func (x *ProfileResult_SearchStats) Reset() {
 	*x = ProfileResult_SearchStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[127]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[132]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10621,7 +11038,7 @@ func (x *ProfileResult_SearchStats) String() string {
 func (*ProfileResult_SearchStats) ProtoMessage() {}
 
 func (x *ProfileResult_SearchStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[127]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[132]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10673,7 +11090,7 @@ type ProfileResult_MultiRetrieverProfileResult struct {
 func (x *ProfileResult_MultiRetrieverProfileResult) Reset() {
 	*x = ProfileResult_MultiRetrieverProfileResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[128]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[133]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10686,7 +11103,7 @@ func (x *ProfileResult_MultiRetrieverProfileResult) String() string {
 func (*ProfileResult_MultiRetrieverProfileResult) ProtoMessage() {}
 
 func (x *ProfileResult_MultiRetrieverProfileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[128]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[133]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10732,7 +11149,7 @@ type BucketResult_Bucket struct {
 func (x *BucketResult_Bucket) Reset() {
 	*x = BucketResult_Bucket{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[132]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[137]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10745,7 +11162,7 @@ func (x *BucketResult_Bucket) String() string {
 func (*BucketResult_Bucket) ProtoMessage() {}
 
 func (x *BucketResult_Bucket) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[132]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[137]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10837,7 +11254,7 @@ type Highlight_Settings struct {
 func (x *Highlight_Settings) Reset() {
 	*x = Highlight_Settings{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[135]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[140]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -10850,7 +11267,7 @@ func (x *Highlight_Settings) String() string {
 func (*Highlight_Settings) ProtoMessage() {}
 
 func (x *Highlight_Settings) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[135]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[140]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12809,71 +13226,122 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x55, 0x4c, 0x54, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x46, 0x41, 0x4e, 0x4f, 0x55, 0x54, 0x10,
 	0x01, 0x12, 0x09, 0x0a, 0x05, 0x41, 0x43, 0x4f, 0x52, 0x4e, 0x10, 0x02, 0x42, 0x16, 0x0a, 0x14,
 	0x5f, 0x73, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79, 0x54, 0x68, 0x72, 0x65, 0x73,
-	0x68, 0x6f, 0x6c, 0x64, 0x2a, 0x25, 0x0a, 0x0d, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x4f, 0x70, 0x65,
-	0x72, 0x61, 0x74, 0x6f, 0x72, 0x12, 0x0a, 0x0a, 0x06, 0x53, 0x48, 0x4f, 0x55, 0x4c, 0x44, 0x10,
-	0x00, 0x12, 0x08, 0x0a, 0x04, 0x4d, 0x55, 0x53, 0x54, 0x10, 0x01, 0x2a, 0x95, 0x01, 0x0a, 0x0d,
-	0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x12, 0x12, 0x0a,
-	0x0e, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x10,
-	0x00, 0x12, 0x1a, 0x0a, 0x16, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43,
-	0x4f, 0x52, 0x45, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10, 0x01, 0x12, 0x13, 0x0a,
-	0x0f, 0x53, 0x43, 0x4f, 0x52, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e,
-	0x10, 0x02, 0x12, 0x1b, 0x0a, 0x17, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f,
-	0x42, 0x4c, 0x45, 0x4e, 0x44, 0x45, 0x44, 0x5f, 0x46, 0x52, 0x45, 0x51, 0x53, 0x10, 0x03, 0x12,
-	0x13, 0x0a, 0x0f, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4f, 0x4f,
-	0x53, 0x54, 0x10, 0x04, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d,
-	0x53, 0x10, 0x05, 0x2a, 0x38, 0x0a, 0x13, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f,
-	0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x52,
-	0x45, 0x46, 0x49, 0x58, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b,
-	0x46, 0x55, 0x5a, 0x5a, 0x59, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x2a, 0xb0, 0x01,
-	0x0a, 0x0a, 0x52, 0x65, 0x67, 0x65, 0x78, 0x70, 0x46, 0x6c, 0x61, 0x67, 0x12, 0x0e, 0x0a, 0x0a,
-	0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4c, 0x4c, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10,
-	0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x4e, 0x59, 0x53, 0x54, 0x52, 0x49, 0x4e, 0x47,
-	0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x55, 0x54,
-	0x4f, 0x4d, 0x41, 0x54, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x15, 0x0a, 0x11, 0x52, 0x45, 0x47, 0x45,
-	0x58, 0x50, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x4d, 0x45, 0x4e, 0x54, 0x10, 0x03, 0x12,
-	0x10, 0x0a, 0x0c, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x45, 0x4d, 0x50, 0x54, 0x59, 0x10,
-	0x04, 0x12, 0x17, 0x0a, 0x13, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45,
-	0x52, 0x53, 0x45, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x05, 0x12, 0x13, 0x0a, 0x0f, 0x52, 0x45,
-	0x47, 0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x56, 0x41, 0x4c, 0x10, 0x06, 0x12,
-	0x0f, 0x0a, 0x0b, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x07,
-	0x2a, 0xbb, 0x03, 0x0a, 0x09, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08,
-	0x0a, 0x04, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x42, 0x4f, 0x4f, 0x4c,
-	0x45, 0x41, 0x4e, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x50,
-	0x48, 0x52, 0x41, 0x53, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x02, 0x12, 0x18, 0x0a,
-	0x14, 0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f,
-	0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x03, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x45, 0x52, 0x4d, 0x5f,
-	0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x04, 0x12, 0x15, 0x0a, 0x11, 0x54, 0x45, 0x52, 0x4d, 0x5f,
-	0x49, 0x4e, 0x5f, 0x53, 0x45, 0x54, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x05, 0x12, 0x13,
-	0x0a, 0x0f, 0x44, 0x49, 0x53, 0x4a, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d, 0x41,
-	0x58, 0x10, 0x06, 0x12, 0x09, 0x0a, 0x05, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x07, 0x12, 0x10,
-	0x0a, 0x0c, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x10, 0x08,
-	0x12, 0x0f, 0x0a, 0x0b, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x5f, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10,
-	0x09, 0x12, 0x09, 0x0a, 0x05, 0x52, 0x41, 0x4e, 0x47, 0x45, 0x10, 0x0a, 0x12, 0x14, 0x0a, 0x10,
-	0x47, 0x45, 0x4f, 0x5f, 0x42, 0x4f, 0x55, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x58,
-	0x10, 0x0b, 0x12, 0x0d, 0x0a, 0x09, 0x47, 0x45, 0x4f, 0x5f, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10,
-	0x0c, 0x12, 0x0a, 0x0a, 0x06, 0x4e, 0x45, 0x53, 0x54, 0x45, 0x44, 0x10, 0x0d, 0x12, 0x0a, 0x0a,
-	0x06, 0x45, 0x58, 0x49, 0x53, 0x54, 0x53, 0x10, 0x0e, 0x12, 0x0e, 0x0a, 0x0a, 0x47, 0x45, 0x4f,
-	0x5f, 0x52, 0x41, 0x44, 0x49, 0x55, 0x53, 0x10, 0x0f, 0x12, 0x0e, 0x0a, 0x0a, 0x43, 0x4f, 0x4d,
-	0x50, 0x4c, 0x45, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x10, 0x12, 0x1e, 0x0a, 0x1a, 0x4d, 0x55, 0x4c,
-	0x54, 0x49, 0x5f, 0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52,
-	0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x11, 0x12, 0x17, 0x0a, 0x13, 0x4d, 0x41, 0x54,
-	0x43, 0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x5f, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58,
-	0x10, 0x12, 0x12, 0x0a, 0x0a, 0x06, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10, 0x13, 0x12, 0x18,
-	0x0a, 0x14, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45,
-	0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x14, 0x12, 0x0f, 0x0a, 0x0b, 0x47, 0x45, 0x4f, 0x5f,
-	0x50, 0x4f, 0x4c, 0x59, 0x47, 0x4f, 0x4e, 0x10, 0x15, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x50, 0x41,
-	0x4e, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x16, 0x12, 0x13, 0x0a, 0x0f, 0x4d, 0x49, 0x4e,
-	0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x17, 0x2a, 0x3c,
-	0x0a, 0x08, 0x53, 0x65, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x12, 0x07, 0x0a, 0x03, 0x4d, 0x49,
-	0x4e, 0x10, 0x00, 0x12, 0x07, 0x0a, 0x03, 0x4d, 0x41, 0x58, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a,
-	0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x49, 0x4e, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a,
-	0x4d, 0x49, 0x44, 0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x41, 0x58, 0x10, 0x03, 0x42, 0x58, 0x0a, 0x1e,
-	0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72,
-	0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70, 0x63, 0x42, 0x13,
-	0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x50, 0x72,
-	0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
-	0x6d, 0x2f, 0x59, 0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68,
-	0xa2, 0x02, 0x03, 0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x68, 0x6f, 0x6c, 0x64, 0x22, 0xb4, 0x01, 0x0a, 0x13, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x53,
+	0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x46, 0x0a, 0x0e,
+	0x72, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x52, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x48, 0x00, 0x52, 0x0e, 0x72, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x46, 0x0a, 0x0e, 0x72, 0x65, 0x64, 0x75, 0x63, 0x65, 0x64, 0x48,
+	0x69, 0x74, 0x4c, 0x69, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x64, 0x75,
+	0x63, 0x65, 0x64, 0x48, 0x69, 0x74, 0x4c, 0x69, 0x73, 0x74, 0x48, 0x00, 0x52, 0x0e, 0x72, 0x65,
+	0x64, 0x75, 0x63, 0x65, 0x64, 0x48, 0x69, 0x74, 0x4c, 0x69, 0x73, 0x74, 0x42, 0x0d, 0x0a, 0x0b,
+	0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x50, 0x68, 0x61, 0x73, 0x65, 0x22, 0x93, 0x01, 0x0a, 0x0e,
+	0x52, 0x61, 0x6e, 0x6b, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x41,
+	0x0a, 0x0d, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x52, 0x0d, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x3e, 0x0a, 0x1a, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6d, 0x65, 0x64, 0x69, 0x61, 0x74,
+	0x65, 0x52, 0x65, 0x74, 0x72, 0x69, 0x65, 0x76, 0x65, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x18,
+	0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x1a, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6d, 0x65, 0x64, 0x69,
+	0x61, 0x74, 0x65, 0x52, 0x65, 0x74, 0x72, 0x69, 0x65, 0x76, 0x65, 0x46, 0x69, 0x65, 0x6c, 0x64,
+	0x73, 0x22, 0x34, 0x0a, 0x0e, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63, 0x49, 0x64,
+	0x53, 0x65, 0x74, 0x12, 0x22, 0x0a, 0x0c, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63,
+	0x49, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x05, 0x52, 0x0c, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x44, 0x6f, 0x63, 0x49, 0x64, 0x73, 0x22, 0xae, 0x01, 0x0a, 0x0e, 0x52, 0x65, 0x64, 0x75,
+	0x63, 0x65, 0x64, 0x48, 0x69, 0x74, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x50, 0x0a, 0x14, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63, 0x49, 0x64, 0x73, 0x54, 0x6f, 0x52, 0x65, 0x74, 0x75,
+	0x72, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f,
+	0x63, 0x49, 0x64, 0x53, 0x65, 0x74, 0x52, 0x14, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f,
+	0x63, 0x49, 0x64, 0x73, 0x54, 0x6f, 0x52, 0x65, 0x74, 0x75, 0x72, 0x6e, 0x12, 0x4a, 0x0a, 0x11,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63, 0x49, 0x64, 0x73, 0x54, 0x6f, 0x4c, 0x6f,
+	0x67, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63,
+	0x49, 0x64, 0x53, 0x65, 0x74, 0x52, 0x11, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x44, 0x6f, 0x63,
+	0x49, 0x64, 0x73, 0x54, 0x6f, 0x4c, 0x6f, 0x67, 0x22, 0xf6, 0x01, 0x0a, 0x14, 0x53, 0x74, 0x72,
+	0x65, 0x61, 0x6d, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x3e, 0x0a, 0x05, 0x70, 0x68, 0x61, 0x73, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x28, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x50, 0x68, 0x61, 0x73, 0x65, 0x52, 0x05, 0x70, 0x68, 0x61, 0x73,
+	0x65, 0x12, 0x46, 0x0a, 0x0e, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x0e, 0x73, 0x65, 0x61, 0x72, 0x63,
+	0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x4a, 0x0a, 0x05, 0x50, 0x68, 0x61,
+	0x73, 0x65, 0x12, 0x15, 0x0a, 0x11, 0x50, 0x48, 0x41, 0x53, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50,
+	0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x53, 0x45, 0x41,
+	0x52, 0x43, 0x48, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x52, 0x45, 0x53, 0x43, 0x4f, 0x52, 0x45,
+	0x10, 0x02, 0x12, 0x11, 0x0a, 0x0d, 0x46, 0x45, 0x54, 0x43, 0x48, 0x5f, 0x41, 0x4e, 0x44, 0x5f,
+	0x4c, 0x4f, 0x47, 0x10, 0x03, 0x42, 0x0a, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x2a, 0x25, 0x0a, 0x0d, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x6f, 0x72, 0x12, 0x0a, 0x0a, 0x06, 0x53, 0x48, 0x4f, 0x55, 0x4c, 0x44, 0x10, 0x00, 0x12, 0x08,
+	0x0a, 0x04, 0x4d, 0x55, 0x53, 0x54, 0x10, 0x01, 0x2a, 0x95, 0x01, 0x0a, 0x0d, 0x52, 0x65, 0x77,
+	0x72, 0x69, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x12, 0x12, 0x0a, 0x0e, 0x43, 0x4f,
+	0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x10, 0x00, 0x12, 0x1a,
+	0x0a, 0x16, 0x43, 0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45,
+	0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10, 0x01, 0x12, 0x13, 0x0a, 0x0f, 0x53, 0x43,
+	0x4f, 0x52, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e, 0x10, 0x02, 0x12,
+	0x1b, 0x0a, 0x17, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4c, 0x45,
+	0x4e, 0x44, 0x45, 0x44, 0x5f, 0x46, 0x52, 0x45, 0x51, 0x53, 0x10, 0x03, 0x12, 0x13, 0x0a, 0x0f,
+	0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x5f, 0x42, 0x4f, 0x4f, 0x53, 0x54, 0x10,
+	0x04, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x4f, 0x50, 0x5f, 0x54, 0x45, 0x52, 0x4d, 0x53, 0x10, 0x05,
+	0x2a, 0x38, 0x0a, 0x13, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x69, 0x6f, 0x6e, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x52, 0x45, 0x46, 0x49,
+	0x58, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x46, 0x55, 0x5a,
+	0x5a, 0x59, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x2a, 0xb0, 0x01, 0x0a, 0x0a, 0x52,
+	0x65, 0x67, 0x65, 0x78, 0x70, 0x46, 0x6c, 0x61, 0x67, 0x12, 0x0e, 0x0a, 0x0a, 0x52, 0x45, 0x47,
+	0x45, 0x58, 0x50, 0x5f, 0x41, 0x4c, 0x4c, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x45, 0x47,
+	0x45, 0x58, 0x50, 0x5f, 0x41, 0x4e, 0x59, 0x53, 0x54, 0x52, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12,
+	0x14, 0x0a, 0x10, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x4d, 0x41,
+	0x54, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x15, 0x0a, 0x11, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f,
+	0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x4d, 0x45, 0x4e, 0x54, 0x10, 0x03, 0x12, 0x10, 0x0a, 0x0c,
+	0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x45, 0x4d, 0x50, 0x54, 0x59, 0x10, 0x04, 0x12, 0x17,
+	0x0a, 0x13, 0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x53, 0x45,
+	0x43, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x05, 0x12, 0x13, 0x0a, 0x0f, 0x52, 0x45, 0x47, 0x45, 0x58,
+	0x50, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x56, 0x41, 0x4c, 0x10, 0x06, 0x12, 0x0f, 0x0a, 0x0b,
+	0x52, 0x45, 0x47, 0x45, 0x58, 0x50, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x07, 0x2a, 0xbb, 0x03,
+	0x0a, 0x09, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e,
+	0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x42, 0x4f, 0x4f, 0x4c, 0x45, 0x41, 0x4e,
+	0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x48, 0x52, 0x41,
+	0x53, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x02, 0x12, 0x18, 0x0a, 0x14, 0x46, 0x55,
+	0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45,
+	0x52, 0x59, 0x10, 0x03, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x51, 0x55, 0x45,
+	0x52, 0x59, 0x10, 0x04, 0x12, 0x15, 0x0a, 0x11, 0x54, 0x45, 0x52, 0x4d, 0x5f, 0x49, 0x4e, 0x5f,
+	0x53, 0x45, 0x54, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x05, 0x12, 0x13, 0x0a, 0x0f, 0x44,
+	0x49, 0x53, 0x4a, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d, 0x41, 0x58, 0x10, 0x06,
+	0x12, 0x09, 0x0a, 0x05, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x07, 0x12, 0x10, 0x0a, 0x0c, 0x4d,
+	0x41, 0x54, 0x43, 0x48, 0x5f, 0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x10, 0x08, 0x12, 0x0f, 0x0a,
+	0x0b, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x5f, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x09, 0x12, 0x09,
+	0x0a, 0x05, 0x52, 0x41, 0x4e, 0x47, 0x45, 0x10, 0x0a, 0x12, 0x14, 0x0a, 0x10, 0x47, 0x45, 0x4f,
+	0x5f, 0x42, 0x4f, 0x55, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x5f, 0x42, 0x4f, 0x58, 0x10, 0x0b, 0x12,
+	0x0d, 0x0a, 0x09, 0x47, 0x45, 0x4f, 0x5f, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10, 0x0c, 0x12, 0x0a,
+	0x0a, 0x06, 0x4e, 0x45, 0x53, 0x54, 0x45, 0x44, 0x10, 0x0d, 0x12, 0x0a, 0x0a, 0x06, 0x45, 0x58,
+	0x49, 0x53, 0x54, 0x53, 0x10, 0x0e, 0x12, 0x0e, 0x0a, 0x0a, 0x47, 0x45, 0x4f, 0x5f, 0x52, 0x41,
+	0x44, 0x49, 0x55, 0x53, 0x10, 0x0f, 0x12, 0x0e, 0x0a, 0x0a, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45,
+	0x54, 0x49, 0x4f, 0x4e, 0x10, 0x10, 0x12, 0x1e, 0x0a, 0x1a, 0x4d, 0x55, 0x4c, 0x54, 0x49, 0x5f,
+	0x46, 0x55, 0x4e, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51,
+	0x55, 0x45, 0x52, 0x59, 0x10, 0x11, 0x12, 0x17, 0x0a, 0x13, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x5f,
+	0x50, 0x48, 0x52, 0x41, 0x53, 0x45, 0x5f, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10, 0x12, 0x12,
+	0x0a, 0x0a, 0x06, 0x50, 0x52, 0x45, 0x46, 0x49, 0x58, 0x10, 0x13, 0x12, 0x18, 0x0a, 0x14, 0x43,
+	0x4f, 0x4e, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x5f, 0x53, 0x43, 0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55,
+	0x45, 0x52, 0x59, 0x10, 0x14, 0x12, 0x0f, 0x0a, 0x0b, 0x47, 0x45, 0x4f, 0x5f, 0x50, 0x4f, 0x4c,
+	0x59, 0x47, 0x4f, 0x4e, 0x10, 0x15, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x50, 0x41, 0x4e, 0x5f, 0x51,
+	0x55, 0x45, 0x52, 0x59, 0x10, 0x16, 0x12, 0x13, 0x0a, 0x0f, 0x4d, 0x49, 0x4e, 0x5f, 0x53, 0x43,
+	0x4f, 0x52, 0x45, 0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x17, 0x2a, 0x3c, 0x0a, 0x08, 0x53,
+	0x65, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x12, 0x07, 0x0a, 0x03, 0x4d, 0x49, 0x4e, 0x10, 0x00,
+	0x12, 0x07, 0x0a, 0x03, 0x4d, 0x41, 0x58, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x49, 0x44,
+	0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x49, 0x4e, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x49, 0x44,
+	0x44, 0x4c, 0x45, 0x5f, 0x4d, 0x41, 0x58, 0x10, 0x03, 0x42, 0x58, 0x0a, 0x1e, 0x63, 0x6f, 0x6d,
+	0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2e,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70, 0x63, 0x42, 0x13, 0x53, 0x65, 0x61,
+	0x72, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x59,
+	0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0xa2, 0x02, 0x03,
+	0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -12888,8 +13356,8 @@ func file_yelp_nrtsearch_search_proto_rawDescGZIP() []byte {
 	return file_yelp_nrtsearch_search_proto_rawDescData
 }
 
-var file_yelp_nrtsearch_search_proto_enumTypes = make([]protoimpl.EnumInfo, 20)
-var file_yelp_nrtsearch_search_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
+var file_yelp_nrtsearch_search_proto_enumTypes = make([]protoimpl.EnumInfo, 21)
+var file_yelp_nrtsearch_search_proto_msgTypes = make([]protoimpl.MessageInfo, 142)
 var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(MatchOperator)(0),                             // 0: luceneserver.MatchOperator
 	(RewriteMethod)(0),                             // 1: luceneserver.RewriteMethod
@@ -12911,409 +13379,422 @@ var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(BucketOrder_OrderType)(0),                     // 17: luceneserver.BucketOrder.OrderType
 	(Highlight_Type)(0),                            // 18: luceneserver.Highlight.Type
 	(KnnQuery_FilterStrategy)(0),                   // 19: luceneserver.KnnQuery.FilterStrategy
-	(*BooleanClause)(nil),                          // 20: luceneserver.BooleanClause
-	(*FuzzyParams)(nil),                            // 21: luceneserver.FuzzyParams
-	(*BooleanQuery)(nil),                           // 22: luceneserver.BooleanQuery
-	(*PhraseQuery)(nil),                            // 23: luceneserver.PhraseQuery
-	(*PrefixQuery)(nil),                            // 24: luceneserver.PrefixQuery
-	(*TermRangeQuery)(nil),                         // 25: luceneserver.TermRangeQuery
-	(*FunctionScoreQuery)(nil),                     // 26: luceneserver.FunctionScoreQuery
-	(*FunctionFilterQuery)(nil),                    // 27: luceneserver.FunctionFilterQuery
-	(*NestedQuery)(nil),                            // 28: luceneserver.NestedQuery
-	(*TermQuery)(nil),                              // 29: luceneserver.TermQuery
-	(*TermInSetQuery)(nil),                         // 30: luceneserver.TermInSetQuery
-	(*DisjunctionMaxQuery)(nil),                    // 31: luceneserver.DisjunctionMaxQuery
-	(*MatchQuery)(nil),                             // 32: luceneserver.MatchQuery
-	(*MatchPhraseQuery)(nil),                       // 33: luceneserver.MatchPhraseQuery
-	(*MatchPhrasePrefixQuery)(nil),                 // 34: luceneserver.MatchPhrasePrefixQuery
-	(*MultiMatchQuery)(nil),                        // 35: luceneserver.MultiMatchQuery
-	(*RangeQuery)(nil),                             // 36: luceneserver.RangeQuery
-	(*GeoBoundingBoxQuery)(nil),                    // 37: luceneserver.GeoBoundingBoxQuery
-	(*GeoRadiusQuery)(nil),                         // 38: luceneserver.GeoRadiusQuery
-	(*GeoPointQuery)(nil),                          // 39: luceneserver.GeoPointQuery
-	(*Polygon)(nil),                                // 40: luceneserver.Polygon
-	(*GeoPolygonQuery)(nil),                        // 41: luceneserver.GeoPolygonQuery
-	(*ExistsQuery)(nil),                            // 42: luceneserver.ExistsQuery
-	(*CompletionQuery)(nil),                        // 43: luceneserver.CompletionQuery
-	(*MultiFunctionScoreQuery)(nil),                // 44: luceneserver.MultiFunctionScoreQuery
-	(*ConstantScoreQuery)(nil),                     // 45: luceneserver.ConstantScoreQuery
-	(*SpanQuery)(nil),                              // 46: luceneserver.SpanQuery
-	(*WildcardQuery)(nil),                          // 47: luceneserver.WildcardQuery
-	(*FuzzyQuery)(nil),                             // 48: luceneserver.FuzzyQuery
-	(*SpanMultiTermQuery)(nil),                     // 49: luceneserver.SpanMultiTermQuery
-	(*RegexpQuery)(nil),                            // 50: luceneserver.RegexpQuery
-	(*SpanNearQuery)(nil),                          // 51: luceneserver.SpanNearQuery
-	(*MatchAllQuery)(nil),                          // 52: luceneserver.MatchAllQuery
-	(*ExactVectorQuery)(nil),                       // 53: luceneserver.ExactVectorQuery
-	(*CrossIndexQuery)(nil),                        // 54: luceneserver.CrossIndexQuery
-	(*MinScoreQuery)(nil),                          // 55: luceneserver.MinScoreQuery
-	(*Query)(nil),                                  // 56: luceneserver.Query
-	(*SearchRequest)(nil),                          // 57: luceneserver.SearchRequest
-	(*ChildFilter)(nil),                            // 58: luceneserver.ChildFilter
-	(*MultiRetrieverRequest)(nil),                  // 59: luceneserver.MultiRetrieverRequest
-	(*Retriever)(nil),                              // 60: luceneserver.Retriever
-	(*TextRetriever)(nil),                          // 61: luceneserver.TextRetriever
-	(*KnnRetriever)(nil),                           // 62: luceneserver.KnnRetriever
-	(*Blender)(nil),                                // 63: luceneserver.Blender
-	(*WeightedRrfBlender)(nil),                     // 64: luceneserver.WeightedRrfBlender
-	(*WeightedScoreOrderBlender)(nil),              // 65: luceneserver.WeightedScoreOrderBlender
-	(*ScorelessRawMergeBlender)(nil),               // 66: luceneserver.ScorelessRawMergeBlender
-	(*PluginBlender)(nil),                          // 67: luceneserver.PluginBlender
-	(*LastHitInfo)(nil),                            // 68: luceneserver.LastHitInfo
-	(*InnerHit)(nil),                               // 69: luceneserver.InnerHit
-	(*VirtualField)(nil),                           // 70: luceneserver.VirtualField
-	(*RuntimeField)(nil),                           // 71: luceneserver.RuntimeField
-	(*Script)(nil),                                 // 72: luceneserver.Script
-	(*QuerySortField)(nil),                         // 73: luceneserver.QuerySortField
-	(*SortFields)(nil),                             // 74: luceneserver.SortFields
-	(*SortType)(nil),                               // 75: luceneserver.SortType
-	(*TotalHits)(nil),                              // 76: luceneserver.TotalHits
-	(*Point)(nil),                                  // 77: luceneserver.Point
-	(*SearchResponse)(nil),                         // 78: luceneserver.SearchResponse
-	(*NumericRangeType)(nil),                       // 79: luceneserver.NumericRangeType
-	(*SumCollector)(nil),                           // 80: luceneserver.SumCollector
-	(*Facet)(nil),                                  // 81: luceneserver.Facet
-	(*FacetResult)(nil),                            // 82: luceneserver.FacetResult
-	(*LabelAndValue)(nil),                          // 83: luceneserver.LabelAndValue
-	(*FetchTask)(nil),                              // 84: luceneserver.FetchTask
-	(*PluginRescorer)(nil),                         // 85: luceneserver.PluginRescorer
-	(*QueryRescorer)(nil),                          // 86: luceneserver.QueryRescorer
-	(*ScriptRescorer)(nil),                         // 87: luceneserver.ScriptRescorer
-	(*Rescorer)(nil),                               // 88: luceneserver.Rescorer
-	(*ProfileResult)(nil),                          // 89: luceneserver.ProfileResult
-	(*Collector)(nil),                              // 90: luceneserver.Collector
-	(*PluginCollector)(nil),                        // 91: luceneserver.PluginCollector
-	(*TermsCollector)(nil),                         // 92: luceneserver.TermsCollector
-	(*TopHitsCollector)(nil),                       // 93: luceneserver.TopHitsCollector
-	(*FilterCollector)(nil),                        // 94: luceneserver.FilterCollector
-	(*MaxCollector)(nil),                           // 95: luceneserver.MaxCollector
-	(*MinCollector)(nil),                           // 96: luceneserver.MinCollector
-	(*CollectorResult)(nil),                        // 97: luceneserver.CollectorResult
-	(*BucketOrder)(nil),                            // 98: luceneserver.BucketOrder
-	(*BucketResult)(nil),                           // 99: luceneserver.BucketResult
-	(*HitsResult)(nil),                             // 100: luceneserver.HitsResult
-	(*FilterResult)(nil),                           // 101: luceneserver.FilterResult
-	(*LoggingHits)(nil),                            // 102: luceneserver.LoggingHits
-	(*Highlight)(nil),                              // 103: luceneserver.Highlight
-	(*KnnQuery)(nil),                               // 104: luceneserver.KnnQuery
-	(*FuzzyParams_AutoFuzziness)(nil),              // 105: luceneserver.FuzzyParams.AutoFuzziness
-	(*TermInSetQuery_TextTerms)(nil),               // 106: luceneserver.TermInSetQuery.TextTerms
-	(*TermInSetQuery_IntTerms)(nil),                // 107: luceneserver.TermInSetQuery.IntTerms
-	(*TermInSetQuery_LongTerms)(nil),               // 108: luceneserver.TermInSetQuery.LongTerms
-	(*TermInSetQuery_FloatTerms)(nil),              // 109: luceneserver.TermInSetQuery.FloatTerms
-	(*TermInSetQuery_DoubleTerms)(nil),             // 110: luceneserver.TermInSetQuery.DoubleTerms
-	nil,                                            // 111: luceneserver.MultiMatchQuery.FieldBoostsEntry
-	(*MultiFunctionScoreQuery_FilterFunction)(nil), // 112: luceneserver.MultiFunctionScoreQuery.FilterFunction
-	(*MultiFunctionScoreQuery_DecayFunction)(nil),  // 113: luceneserver.MultiFunctionScoreQuery.DecayFunction
-	nil,                                  // 114: luceneserver.SearchRequest.CollectorsEntry
-	nil,                                  // 115: luceneserver.SearchRequest.InnerHitsEntry
-	nil,                                  // 116: luceneserver.SearchRequest.AdditionalOptionsEntry
-	(*Script_ParamValue)(nil),            // 117: luceneserver.Script.ParamValue
-	(*Script_ParamStructValue)(nil),      // 118: luceneserver.Script.ParamStructValue
-	(*Script_ParamListValue)(nil),        // 119: luceneserver.Script.ParamListValue
-	(*Script_ParamFloatVectorValue)(nil), // 120: luceneserver.Script.ParamFloatVectorValue
-	nil,                                  // 121: luceneserver.Script.ParamsEntry
-	nil,                                  // 122: luceneserver.Script.ParamStructValue.FieldsEntry
-	(*SearchResponse_Diagnostics)(nil),   // 123: luceneserver.SearchResponse.Diagnostics
-	(*SearchResponse_Hit)(nil),           // 124: luceneserver.SearchResponse.Hit
-	(*SearchResponse_SearchState)(nil),   // 125: luceneserver.SearchResponse.SearchState
-	nil,                                  // 126: luceneserver.SearchResponse.CollectorResultsEntry
-	nil,                                  // 127: luceneserver.SearchResponse.ExtraDataEntry
-	(*SearchResponse_Diagnostics_VectorDiagnostics)(nil),         // 128: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
-	(*SearchResponse_Diagnostics_RetrieverDiagnostics)(nil),      // 129: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics
-	(*SearchResponse_Diagnostics_MultiRetrieverDiagnostics)(nil), // 130: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics
-	nil,                                   // 131: luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
-	nil,                                   // 132: luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
-	nil,                                   // 133: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
-	nil,                                   // 134: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry
-	(*SearchResponse_Hit_FieldValue)(nil), // 135: luceneserver.SearchResponse.Hit.FieldValue
-	(*SearchResponse_Hit_CompositeFieldValue)(nil), // 136: luceneserver.SearchResponse.Hit.CompositeFieldValue
-	(*SearchResponse_Hit_Highlights)(nil),          // 137: luceneserver.SearchResponse.Hit.Highlights
-	nil,                                            // 138: luceneserver.SearchResponse.Hit.FieldsEntry
-	nil,                                            // 139: luceneserver.SearchResponse.Hit.SortedFieldsEntry
-	nil,                                            // 140: luceneserver.SearchResponse.Hit.HighlightsEntry
-	nil,                                            // 141: luceneserver.SearchResponse.Hit.InnerHitsEntry
-	nil,                                            // 142: luceneserver.SearchResponse.Hit.RetrieverScoresEntry
-	(*SearchResponse_Hit_FieldValue_Vector)(nil),      // 143: luceneserver.SearchResponse.Hit.FieldValue.Vector
-	(*ProfileResult_AdditionalCollectorStats)(nil),    // 144: luceneserver.ProfileResult.AdditionalCollectorStats
-	(*ProfileResult_CollectorStats)(nil),              // 145: luceneserver.ProfileResult.CollectorStats
-	(*ProfileResult_SegmentStats)(nil),                // 146: luceneserver.ProfileResult.SegmentStats
-	(*ProfileResult_SearchStats)(nil),                 // 147: luceneserver.ProfileResult.SearchStats
-	(*ProfileResult_MultiRetrieverProfileResult)(nil), // 148: luceneserver.ProfileResult.MultiRetrieverProfileResult
-	nil,                            // 149: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
-	nil,                            // 150: luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry
-	nil,                            // 151: luceneserver.Collector.NestedCollectorsEntry
-	(*BucketResult_Bucket)(nil),    // 152: luceneserver.BucketResult.Bucket
-	nil,                            // 153: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
-	nil,                            // 154: luceneserver.FilterResult.NestedCollectorResultsEntry
-	(*Highlight_Settings)(nil),     // 155: luceneserver.Highlight.Settings
-	nil,                            // 156: luceneserver.Highlight.FieldSettingsEntry
-	(*Analyzer)(nil),               // 157: luceneserver.Analyzer
-	(*latlng.LatLng)(nil),          // 158: google.type.LatLng
-	(*structpb.Struct)(nil),        // 159: google.protobuf.Struct
-	(*anypb.Any)(nil),              // 160: google.protobuf.Any
-	(*wrapperspb.DoubleValue)(nil), // 161: google.protobuf.DoubleValue
-	(*structpb.Value)(nil),         // 162: google.protobuf.Value
-	(*structpb.ListValue)(nil),     // 163: google.protobuf.ListValue
-	(*wrapperspb.UInt32Value)(nil), // 164: google.protobuf.UInt32Value
-	(*wrapperspb.BoolValue)(nil),   // 165: google.protobuf.BoolValue
-	(*wrapperspb.StringValue)(nil), // 166: google.protobuf.StringValue
+	(StreamSearchResponse_Phase)(0),                // 20: luceneserver.StreamSearchResponse.Phase
+	(*BooleanClause)(nil),                          // 21: luceneserver.BooleanClause
+	(*FuzzyParams)(nil),                            // 22: luceneserver.FuzzyParams
+	(*BooleanQuery)(nil),                           // 23: luceneserver.BooleanQuery
+	(*PhraseQuery)(nil),                            // 24: luceneserver.PhraseQuery
+	(*PrefixQuery)(nil),                            // 25: luceneserver.PrefixQuery
+	(*TermRangeQuery)(nil),                         // 26: luceneserver.TermRangeQuery
+	(*FunctionScoreQuery)(nil),                     // 27: luceneserver.FunctionScoreQuery
+	(*FunctionFilterQuery)(nil),                    // 28: luceneserver.FunctionFilterQuery
+	(*NestedQuery)(nil),                            // 29: luceneserver.NestedQuery
+	(*TermQuery)(nil),                              // 30: luceneserver.TermQuery
+	(*TermInSetQuery)(nil),                         // 31: luceneserver.TermInSetQuery
+	(*DisjunctionMaxQuery)(nil),                    // 32: luceneserver.DisjunctionMaxQuery
+	(*MatchQuery)(nil),                             // 33: luceneserver.MatchQuery
+	(*MatchPhraseQuery)(nil),                       // 34: luceneserver.MatchPhraseQuery
+	(*MatchPhrasePrefixQuery)(nil),                 // 35: luceneserver.MatchPhrasePrefixQuery
+	(*MultiMatchQuery)(nil),                        // 36: luceneserver.MultiMatchQuery
+	(*RangeQuery)(nil),                             // 37: luceneserver.RangeQuery
+	(*GeoBoundingBoxQuery)(nil),                    // 38: luceneserver.GeoBoundingBoxQuery
+	(*GeoRadiusQuery)(nil),                         // 39: luceneserver.GeoRadiusQuery
+	(*GeoPointQuery)(nil),                          // 40: luceneserver.GeoPointQuery
+	(*Polygon)(nil),                                // 41: luceneserver.Polygon
+	(*GeoPolygonQuery)(nil),                        // 42: luceneserver.GeoPolygonQuery
+	(*ExistsQuery)(nil),                            // 43: luceneserver.ExistsQuery
+	(*CompletionQuery)(nil),                        // 44: luceneserver.CompletionQuery
+	(*MultiFunctionScoreQuery)(nil),                // 45: luceneserver.MultiFunctionScoreQuery
+	(*ConstantScoreQuery)(nil),                     // 46: luceneserver.ConstantScoreQuery
+	(*SpanQuery)(nil),                              // 47: luceneserver.SpanQuery
+	(*WildcardQuery)(nil),                          // 48: luceneserver.WildcardQuery
+	(*FuzzyQuery)(nil),                             // 49: luceneserver.FuzzyQuery
+	(*SpanMultiTermQuery)(nil),                     // 50: luceneserver.SpanMultiTermQuery
+	(*RegexpQuery)(nil),                            // 51: luceneserver.RegexpQuery
+	(*SpanNearQuery)(nil),                          // 52: luceneserver.SpanNearQuery
+	(*MatchAllQuery)(nil),                          // 53: luceneserver.MatchAllQuery
+	(*ExactVectorQuery)(nil),                       // 54: luceneserver.ExactVectorQuery
+	(*CrossIndexQuery)(nil),                        // 55: luceneserver.CrossIndexQuery
+	(*MinScoreQuery)(nil),                          // 56: luceneserver.MinScoreQuery
+	(*Query)(nil),                                  // 57: luceneserver.Query
+	(*SearchRequest)(nil),                          // 58: luceneserver.SearchRequest
+	(*ChildFilter)(nil),                            // 59: luceneserver.ChildFilter
+	(*MultiRetrieverRequest)(nil),                  // 60: luceneserver.MultiRetrieverRequest
+	(*Retriever)(nil),                              // 61: luceneserver.Retriever
+	(*TextRetriever)(nil),                          // 62: luceneserver.TextRetriever
+	(*KnnRetriever)(nil),                           // 63: luceneserver.KnnRetriever
+	(*Blender)(nil),                                // 64: luceneserver.Blender
+	(*WeightedRrfBlender)(nil),                     // 65: luceneserver.WeightedRrfBlender
+	(*WeightedScoreOrderBlender)(nil),              // 66: luceneserver.WeightedScoreOrderBlender
+	(*ScorelessRawMergeBlender)(nil),               // 67: luceneserver.ScorelessRawMergeBlender
+	(*PluginBlender)(nil),                          // 68: luceneserver.PluginBlender
+	(*LastHitInfo)(nil),                            // 69: luceneserver.LastHitInfo
+	(*InnerHit)(nil),                               // 70: luceneserver.InnerHit
+	(*VirtualField)(nil),                           // 71: luceneserver.VirtualField
+	(*RuntimeField)(nil),                           // 72: luceneserver.RuntimeField
+	(*Script)(nil),                                 // 73: luceneserver.Script
+	(*QuerySortField)(nil),                         // 74: luceneserver.QuerySortField
+	(*SortFields)(nil),                             // 75: luceneserver.SortFields
+	(*SortType)(nil),                               // 76: luceneserver.SortType
+	(*TotalHits)(nil),                              // 77: luceneserver.TotalHits
+	(*Point)(nil),                                  // 78: luceneserver.Point
+	(*SearchResponse)(nil),                         // 79: luceneserver.SearchResponse
+	(*NumericRangeType)(nil),                       // 80: luceneserver.NumericRangeType
+	(*SumCollector)(nil),                           // 81: luceneserver.SumCollector
+	(*Facet)(nil),                                  // 82: luceneserver.Facet
+	(*FacetResult)(nil),                            // 83: luceneserver.FacetResult
+	(*LabelAndValue)(nil),                          // 84: luceneserver.LabelAndValue
+	(*FetchTask)(nil),                              // 85: luceneserver.FetchTask
+	(*PluginRescorer)(nil),                         // 86: luceneserver.PluginRescorer
+	(*QueryRescorer)(nil),                          // 87: luceneserver.QueryRescorer
+	(*ScriptRescorer)(nil),                         // 88: luceneserver.ScriptRescorer
+	(*Rescorer)(nil),                               // 89: luceneserver.Rescorer
+	(*ProfileResult)(nil),                          // 90: luceneserver.ProfileResult
+	(*Collector)(nil),                              // 91: luceneserver.Collector
+	(*PluginCollector)(nil),                        // 92: luceneserver.PluginCollector
+	(*TermsCollector)(nil),                         // 93: luceneserver.TermsCollector
+	(*TopHitsCollector)(nil),                       // 94: luceneserver.TopHitsCollector
+	(*FilterCollector)(nil),                        // 95: luceneserver.FilterCollector
+	(*MaxCollector)(nil),                           // 96: luceneserver.MaxCollector
+	(*MinCollector)(nil),                           // 97: luceneserver.MinCollector
+	(*CollectorResult)(nil),                        // 98: luceneserver.CollectorResult
+	(*BucketOrder)(nil),                            // 99: luceneserver.BucketOrder
+	(*BucketResult)(nil),                           // 100: luceneserver.BucketResult
+	(*HitsResult)(nil),                             // 101: luceneserver.HitsResult
+	(*FilterResult)(nil),                           // 102: luceneserver.FilterResult
+	(*LoggingHits)(nil),                            // 103: luceneserver.LoggingHits
+	(*Highlight)(nil),                              // 104: luceneserver.Highlight
+	(*KnnQuery)(nil),                               // 105: luceneserver.KnnQuery
+	(*StreamSearchRequest)(nil),                    // 106: luceneserver.StreamSearchRequest
+	(*RankingRequest)(nil),                         // 107: luceneserver.RankingRequest
+	(*LuceneDocIdSet)(nil),                         // 108: luceneserver.LuceneDocIdSet
+	(*ReducedHitList)(nil),                         // 109: luceneserver.ReducedHitList
+	(*StreamSearchResponse)(nil),                   // 110: luceneserver.StreamSearchResponse
+	(*FuzzyParams_AutoFuzziness)(nil),              // 111: luceneserver.FuzzyParams.AutoFuzziness
+	(*TermInSetQuery_TextTerms)(nil),               // 112: luceneserver.TermInSetQuery.TextTerms
+	(*TermInSetQuery_IntTerms)(nil),                // 113: luceneserver.TermInSetQuery.IntTerms
+	(*TermInSetQuery_LongTerms)(nil),               // 114: luceneserver.TermInSetQuery.LongTerms
+	(*TermInSetQuery_FloatTerms)(nil),              // 115: luceneserver.TermInSetQuery.FloatTerms
+	(*TermInSetQuery_DoubleTerms)(nil),             // 116: luceneserver.TermInSetQuery.DoubleTerms
+	nil,                                            // 117: luceneserver.MultiMatchQuery.FieldBoostsEntry
+	(*MultiFunctionScoreQuery_FilterFunction)(nil), // 118: luceneserver.MultiFunctionScoreQuery.FilterFunction
+	(*MultiFunctionScoreQuery_DecayFunction)(nil),  // 119: luceneserver.MultiFunctionScoreQuery.DecayFunction
+	nil,                                  // 120: luceneserver.SearchRequest.CollectorsEntry
+	nil,                                  // 121: luceneserver.SearchRequest.InnerHitsEntry
+	nil,                                  // 122: luceneserver.SearchRequest.AdditionalOptionsEntry
+	(*Script_ParamValue)(nil),            // 123: luceneserver.Script.ParamValue
+	(*Script_ParamStructValue)(nil),      // 124: luceneserver.Script.ParamStructValue
+	(*Script_ParamListValue)(nil),        // 125: luceneserver.Script.ParamListValue
+	(*Script_ParamFloatVectorValue)(nil), // 126: luceneserver.Script.ParamFloatVectorValue
+	nil,                                  // 127: luceneserver.Script.ParamsEntry
+	nil,                                  // 128: luceneserver.Script.ParamStructValue.FieldsEntry
+	(*SearchResponse_Diagnostics)(nil),   // 129: luceneserver.SearchResponse.Diagnostics
+	(*SearchResponse_Hit)(nil),           // 130: luceneserver.SearchResponse.Hit
+	(*SearchResponse_SearchState)(nil),   // 131: luceneserver.SearchResponse.SearchState
+	nil,                                  // 132: luceneserver.SearchResponse.CollectorResultsEntry
+	nil,                                  // 133: luceneserver.SearchResponse.ExtraDataEntry
+	(*SearchResponse_Diagnostics_VectorDiagnostics)(nil),         // 134: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
+	(*SearchResponse_Diagnostics_RetrieverDiagnostics)(nil),      // 135: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics
+	(*SearchResponse_Diagnostics_MultiRetrieverDiagnostics)(nil), // 136: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics
+	nil,                                   // 137: luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
+	nil,                                   // 138: luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
+	nil,                                   // 139: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
+	nil,                                   // 140: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry
+	(*SearchResponse_Hit_FieldValue)(nil), // 141: luceneserver.SearchResponse.Hit.FieldValue
+	(*SearchResponse_Hit_CompositeFieldValue)(nil), // 142: luceneserver.SearchResponse.Hit.CompositeFieldValue
+	(*SearchResponse_Hit_Highlights)(nil),          // 143: luceneserver.SearchResponse.Hit.Highlights
+	nil,                                            // 144: luceneserver.SearchResponse.Hit.FieldsEntry
+	nil,                                            // 145: luceneserver.SearchResponse.Hit.SortedFieldsEntry
+	nil,                                            // 146: luceneserver.SearchResponse.Hit.HighlightsEntry
+	nil,                                            // 147: luceneserver.SearchResponse.Hit.InnerHitsEntry
+	nil,                                            // 148: luceneserver.SearchResponse.Hit.RetrieverScoresEntry
+	(*SearchResponse_Hit_FieldValue_Vector)(nil),      // 149: luceneserver.SearchResponse.Hit.FieldValue.Vector
+	(*ProfileResult_AdditionalCollectorStats)(nil),    // 150: luceneserver.ProfileResult.AdditionalCollectorStats
+	(*ProfileResult_CollectorStats)(nil),              // 151: luceneserver.ProfileResult.CollectorStats
+	(*ProfileResult_SegmentStats)(nil),                // 152: luceneserver.ProfileResult.SegmentStats
+	(*ProfileResult_SearchStats)(nil),                 // 153: luceneserver.ProfileResult.SearchStats
+	(*ProfileResult_MultiRetrieverProfileResult)(nil), // 154: luceneserver.ProfileResult.MultiRetrieverProfileResult
+	nil,                            // 155: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	nil,                            // 156: luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry
+	nil,                            // 157: luceneserver.Collector.NestedCollectorsEntry
+	(*BucketResult_Bucket)(nil),    // 158: luceneserver.BucketResult.Bucket
+	nil,                            // 159: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
+	nil,                            // 160: luceneserver.FilterResult.NestedCollectorResultsEntry
+	(*Highlight_Settings)(nil),     // 161: luceneserver.Highlight.Settings
+	nil,                            // 162: luceneserver.Highlight.FieldSettingsEntry
+	(*Analyzer)(nil),               // 163: luceneserver.Analyzer
+	(*latlng.LatLng)(nil),          // 164: google.type.LatLng
+	(*structpb.Struct)(nil),        // 165: google.protobuf.Struct
+	(*anypb.Any)(nil),              // 166: google.protobuf.Any
+	(*wrapperspb.DoubleValue)(nil), // 167: google.protobuf.DoubleValue
+	(*structpb.Value)(nil),         // 168: google.protobuf.Value
+	(*structpb.ListValue)(nil),     // 169: google.protobuf.ListValue
+	(*wrapperspb.UInt32Value)(nil), // 170: google.protobuf.UInt32Value
+	(*wrapperspb.BoolValue)(nil),   // 171: google.protobuf.BoolValue
+	(*wrapperspb.StringValue)(nil), // 172: google.protobuf.StringValue
 }
 var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
-	56,  // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query
+	57,  // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query
 	6,   // 1: luceneserver.BooleanClause.occur:type_name -> luceneserver.BooleanClause.Occur
-	105, // 2: luceneserver.FuzzyParams.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
-	20,  // 3: luceneserver.BooleanQuery.clauses:type_name -> luceneserver.BooleanClause
+	111, // 2: luceneserver.FuzzyParams.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
+	21,  // 3: luceneserver.BooleanQuery.clauses:type_name -> luceneserver.BooleanClause
 	1,   // 4: luceneserver.PrefixQuery.rewrite:type_name -> luceneserver.RewriteMethod
 	1,   // 5: luceneserver.TermRangeQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	56,  // 6: luceneserver.FunctionScoreQuery.query:type_name -> luceneserver.Query
-	72,  // 7: luceneserver.FunctionScoreQuery.script:type_name -> luceneserver.Script
-	72,  // 8: luceneserver.FunctionFilterQuery.script:type_name -> luceneserver.Script
-	56,  // 9: luceneserver.NestedQuery.query:type_name -> luceneserver.Query
+	57,  // 6: luceneserver.FunctionScoreQuery.query:type_name -> luceneserver.Query
+	73,  // 7: luceneserver.FunctionScoreQuery.script:type_name -> luceneserver.Script
+	73,  // 8: luceneserver.FunctionFilterQuery.script:type_name -> luceneserver.Script
+	57,  // 9: luceneserver.NestedQuery.query:type_name -> luceneserver.Query
 	7,   // 10: luceneserver.NestedQuery.scoreMode:type_name -> luceneserver.NestedQuery.ScoreMode
-	106, // 11: luceneserver.TermInSetQuery.textTerms:type_name -> luceneserver.TermInSetQuery.TextTerms
-	107, // 12: luceneserver.TermInSetQuery.intTerms:type_name -> luceneserver.TermInSetQuery.IntTerms
-	108, // 13: luceneserver.TermInSetQuery.longTerms:type_name -> luceneserver.TermInSetQuery.LongTerms
-	109, // 14: luceneserver.TermInSetQuery.floatTerms:type_name -> luceneserver.TermInSetQuery.FloatTerms
-	110, // 15: luceneserver.TermInSetQuery.doubleTerms:type_name -> luceneserver.TermInSetQuery.DoubleTerms
-	56,  // 16: luceneserver.DisjunctionMaxQuery.disjuncts:type_name -> luceneserver.Query
+	112, // 11: luceneserver.TermInSetQuery.textTerms:type_name -> luceneserver.TermInSetQuery.TextTerms
+	113, // 12: luceneserver.TermInSetQuery.intTerms:type_name -> luceneserver.TermInSetQuery.IntTerms
+	114, // 13: luceneserver.TermInSetQuery.longTerms:type_name -> luceneserver.TermInSetQuery.LongTerms
+	115, // 14: luceneserver.TermInSetQuery.floatTerms:type_name -> luceneserver.TermInSetQuery.FloatTerms
+	116, // 15: luceneserver.TermInSetQuery.doubleTerms:type_name -> luceneserver.TermInSetQuery.DoubleTerms
+	57,  // 16: luceneserver.DisjunctionMaxQuery.disjuncts:type_name -> luceneserver.Query
 	0,   // 17: luceneserver.MatchQuery.operator:type_name -> luceneserver.MatchOperator
-	157, // 18: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
-	21,  // 19: luceneserver.MatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
-	157, // 20: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
+	163, // 18: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	22,  // 19: luceneserver.MatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
+	163, // 20: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
 	8,   // 21: luceneserver.MatchPhraseQuery.zeroTermsQuery:type_name -> luceneserver.MatchPhraseQuery.ZeroTerms
-	157, // 22: luceneserver.MatchPhrasePrefixQuery.analyzer:type_name -> luceneserver.Analyzer
-	111, // 23: luceneserver.MultiMatchQuery.fieldBoosts:type_name -> luceneserver.MultiMatchQuery.FieldBoostsEntry
+	163, // 22: luceneserver.MatchPhrasePrefixQuery.analyzer:type_name -> luceneserver.Analyzer
+	117, // 23: luceneserver.MultiMatchQuery.fieldBoosts:type_name -> luceneserver.MultiMatchQuery.FieldBoostsEntry
 	0,   // 24: luceneserver.MultiMatchQuery.operator:type_name -> luceneserver.MatchOperator
-	157, // 25: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
-	21,  // 26: luceneserver.MultiMatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
+	163, // 25: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	22,  // 26: luceneserver.MultiMatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
 	9,   // 27: luceneserver.MultiMatchQuery.type:type_name -> luceneserver.MultiMatchQuery.MatchType
-	158, // 28: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
-	158, // 29: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
-	158, // 30: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
-	158, // 31: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
-	158, // 32: luceneserver.Polygon.points:type_name -> google.type.LatLng
-	40,  // 33: luceneserver.Polygon.holes:type_name -> luceneserver.Polygon
-	40,  // 34: luceneserver.GeoPolygonQuery.polygons:type_name -> luceneserver.Polygon
+	164, // 28: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
+	164, // 29: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
+	164, // 30: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
+	164, // 31: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
+	164, // 32: luceneserver.Polygon.points:type_name -> google.type.LatLng
+	41,  // 33: luceneserver.Polygon.holes:type_name -> luceneserver.Polygon
+	41,  // 34: luceneserver.GeoPolygonQuery.polygons:type_name -> luceneserver.Polygon
 	2,   // 35: luceneserver.CompletionQuery.queryType:type_name -> luceneserver.CompletionQueryType
-	56,  // 36: luceneserver.MultiFunctionScoreQuery.query:type_name -> luceneserver.Query
-	112, // 37: luceneserver.MultiFunctionScoreQuery.functions:type_name -> luceneserver.MultiFunctionScoreQuery.FilterFunction
+	57,  // 36: luceneserver.MultiFunctionScoreQuery.query:type_name -> luceneserver.Query
+	118, // 37: luceneserver.MultiFunctionScoreQuery.functions:type_name -> luceneserver.MultiFunctionScoreQuery.FilterFunction
 	11,  // 38: luceneserver.MultiFunctionScoreQuery.score_mode:type_name -> luceneserver.MultiFunctionScoreQuery.FunctionScoreMode
 	12,  // 39: luceneserver.MultiFunctionScoreQuery.boost_mode:type_name -> luceneserver.MultiFunctionScoreQuery.BoostMode
-	56,  // 40: luceneserver.ConstantScoreQuery.filter:type_name -> luceneserver.Query
-	29,  // 41: luceneserver.SpanQuery.spanTermQuery:type_name -> luceneserver.TermQuery
-	51,  // 42: luceneserver.SpanQuery.spanNearQuery:type_name -> luceneserver.SpanNearQuery
-	49,  // 43: luceneserver.SpanQuery.spanMultiTermQuery:type_name -> luceneserver.SpanMultiTermQuery
+	57,  // 40: luceneserver.ConstantScoreQuery.filter:type_name -> luceneserver.Query
+	30,  // 41: luceneserver.SpanQuery.spanTermQuery:type_name -> luceneserver.TermQuery
+	52,  // 42: luceneserver.SpanQuery.spanNearQuery:type_name -> luceneserver.SpanNearQuery
+	50,  // 43: luceneserver.SpanQuery.spanMultiTermQuery:type_name -> luceneserver.SpanMultiTermQuery
 	1,   // 44: luceneserver.WildcardQuery.rewrite:type_name -> luceneserver.RewriteMethod
 	1,   // 45: luceneserver.FuzzyQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	105, // 46: luceneserver.FuzzyQuery.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
-	47,  // 47: luceneserver.SpanMultiTermQuery.wildcardQuery:type_name -> luceneserver.WildcardQuery
-	48,  // 48: luceneserver.SpanMultiTermQuery.fuzzyQuery:type_name -> luceneserver.FuzzyQuery
-	24,  // 49: luceneserver.SpanMultiTermQuery.prefixQuery:type_name -> luceneserver.PrefixQuery
-	50,  // 50: luceneserver.SpanMultiTermQuery.regexpQuery:type_name -> luceneserver.RegexpQuery
-	25,  // 51: luceneserver.SpanMultiTermQuery.termRangeQuery:type_name -> luceneserver.TermRangeQuery
+	111, // 46: luceneserver.FuzzyQuery.auto:type_name -> luceneserver.FuzzyParams.AutoFuzziness
+	48,  // 47: luceneserver.SpanMultiTermQuery.wildcardQuery:type_name -> luceneserver.WildcardQuery
+	49,  // 48: luceneserver.SpanMultiTermQuery.fuzzyQuery:type_name -> luceneserver.FuzzyQuery
+	25,  // 49: luceneserver.SpanMultiTermQuery.prefixQuery:type_name -> luceneserver.PrefixQuery
+	51,  // 50: luceneserver.SpanMultiTermQuery.regexpQuery:type_name -> luceneserver.RegexpQuery
+	26,  // 51: luceneserver.SpanMultiTermQuery.termRangeQuery:type_name -> luceneserver.TermRangeQuery
 	3,   // 52: luceneserver.RegexpQuery.flag:type_name -> luceneserver.RegexpFlag
 	1,   // 53: luceneserver.RegexpQuery.rewrite:type_name -> luceneserver.RewriteMethod
-	46,  // 54: luceneserver.SpanNearQuery.clauses:type_name -> luceneserver.SpanQuery
-	56,  // 55: luceneserver.CrossIndexQuery.query:type_name -> luceneserver.Query
+	47,  // 54: luceneserver.SpanNearQuery.clauses:type_name -> luceneserver.SpanQuery
+	57,  // 55: luceneserver.CrossIndexQuery.query:type_name -> luceneserver.Query
 	13,  // 56: luceneserver.CrossIndexQuery.score_mode:type_name -> luceneserver.CrossIndexQuery.JoinScoreMode
-	56,  // 57: luceneserver.MinScoreQuery.query:type_name -> luceneserver.Query
+	57,  // 57: luceneserver.MinScoreQuery.query:type_name -> luceneserver.Query
 	4,   // 58: luceneserver.Query.queryType:type_name -> luceneserver.QueryType
-	22,  // 59: luceneserver.Query.booleanQuery:type_name -> luceneserver.BooleanQuery
-	23,  // 60: luceneserver.Query.phraseQuery:type_name -> luceneserver.PhraseQuery
-	26,  // 61: luceneserver.Query.functionScoreQuery:type_name -> luceneserver.FunctionScoreQuery
-	29,  // 62: luceneserver.Query.termQuery:type_name -> luceneserver.TermQuery
-	30,  // 63: luceneserver.Query.termInSetQuery:type_name -> luceneserver.TermInSetQuery
-	31,  // 64: luceneserver.Query.disjunctionMaxQuery:type_name -> luceneserver.DisjunctionMaxQuery
-	32,  // 65: luceneserver.Query.matchQuery:type_name -> luceneserver.MatchQuery
-	33,  // 66: luceneserver.Query.matchPhraseQuery:type_name -> luceneserver.MatchPhraseQuery
-	35,  // 67: luceneserver.Query.multiMatchQuery:type_name -> luceneserver.MultiMatchQuery
-	36,  // 68: luceneserver.Query.rangeQuery:type_name -> luceneserver.RangeQuery
-	37,  // 69: luceneserver.Query.geoBoundingBoxQuery:type_name -> luceneserver.GeoBoundingBoxQuery
-	39,  // 70: luceneserver.Query.geoPointQuery:type_name -> luceneserver.GeoPointQuery
-	28,  // 71: luceneserver.Query.nestedQuery:type_name -> luceneserver.NestedQuery
-	42,  // 72: luceneserver.Query.existsQuery:type_name -> luceneserver.ExistsQuery
-	38,  // 73: luceneserver.Query.geoRadiusQuery:type_name -> luceneserver.GeoRadiusQuery
-	27,  // 74: luceneserver.Query.functionFilterQuery:type_name -> luceneserver.FunctionFilterQuery
-	43,  // 75: luceneserver.Query.completionQuery:type_name -> luceneserver.CompletionQuery
-	44,  // 76: luceneserver.Query.multiFunctionScoreQuery:type_name -> luceneserver.MultiFunctionScoreQuery
-	34,  // 77: luceneserver.Query.matchPhrasePrefixQuery:type_name -> luceneserver.MatchPhrasePrefixQuery
-	24,  // 78: luceneserver.Query.prefixQuery:type_name -> luceneserver.PrefixQuery
-	45,  // 79: luceneserver.Query.constantScoreQuery:type_name -> luceneserver.ConstantScoreQuery
-	41,  // 80: luceneserver.Query.geoPolygonQuery:type_name -> luceneserver.GeoPolygonQuery
-	46,  // 81: luceneserver.Query.spanQuery:type_name -> luceneserver.SpanQuery
-	52,  // 82: luceneserver.Query.matchAllQuery:type_name -> luceneserver.MatchAllQuery
-	53,  // 83: luceneserver.Query.exactVectorQuery:type_name -> luceneserver.ExactVectorQuery
-	54,  // 84: luceneserver.Query.crossIndexQuery:type_name -> luceneserver.CrossIndexQuery
-	55,  // 85: luceneserver.Query.minScoreQuery:type_name -> luceneserver.MinScoreQuery
-	70,  // 86: luceneserver.SearchRequest.virtualFields:type_name -> luceneserver.VirtualField
-	56,  // 87: luceneserver.SearchRequest.query:type_name -> luceneserver.Query
-	73,  // 88: luceneserver.SearchRequest.querySort:type_name -> luceneserver.QuerySortField
-	81,  // 89: luceneserver.SearchRequest.facets:type_name -> luceneserver.Facet
-	84,  // 90: luceneserver.SearchRequest.fetchTasks:type_name -> luceneserver.FetchTask
-	88,  // 91: luceneserver.SearchRequest.rescorers:type_name -> luceneserver.Rescorer
-	114, // 92: luceneserver.SearchRequest.collectors:type_name -> luceneserver.SearchRequest.CollectorsEntry
-	103, // 93: luceneserver.SearchRequest.highlight:type_name -> luceneserver.Highlight
-	115, // 94: luceneserver.SearchRequest.inner_hits:type_name -> luceneserver.SearchRequest.InnerHitsEntry
-	71,  // 95: luceneserver.SearchRequest.runtimeFields:type_name -> luceneserver.RuntimeField
-	102, // 96: luceneserver.SearchRequest.loggingHits:type_name -> luceneserver.LoggingHits
-	68,  // 97: luceneserver.SearchRequest.searchAfter:type_name -> luceneserver.LastHitInfo
-	104, // 98: luceneserver.SearchRequest.knn:type_name -> luceneserver.KnnQuery
-	116, // 99: luceneserver.SearchRequest.additionalOptions:type_name -> luceneserver.SearchRequest.AdditionalOptionsEntry
-	59,  // 100: luceneserver.SearchRequest.multiRetriever:type_name -> luceneserver.MultiRetrieverRequest
-	58,  // 101: luceneserver.SearchRequest.childFilters:type_name -> luceneserver.ChildFilter
-	56,  // 102: luceneserver.ChildFilter.filter:type_name -> luceneserver.Query
-	60,  // 103: luceneserver.MultiRetrieverRequest.retrievers:type_name -> luceneserver.Retriever
-	63,  // 104: luceneserver.MultiRetrieverRequest.blender:type_name -> luceneserver.Blender
-	61,  // 105: luceneserver.Retriever.textRetriever:type_name -> luceneserver.TextRetriever
-	62,  // 106: luceneserver.Retriever.knnRetriever:type_name -> luceneserver.KnnRetriever
-	88,  // 107: luceneserver.Retriever.rescorer:type_name -> luceneserver.Rescorer
-	56,  // 108: luceneserver.TextRetriever.query:type_name -> luceneserver.Query
-	104, // 109: luceneserver.KnnRetriever.knnQuery:type_name -> luceneserver.KnnQuery
-	64,  // 110: luceneserver.Blender.weightedRrf:type_name -> luceneserver.WeightedRrfBlender
-	65,  // 111: luceneserver.Blender.weightedScoreOrder:type_name -> luceneserver.WeightedScoreOrderBlender
-	67,  // 112: luceneserver.Blender.plugin:type_name -> luceneserver.PluginBlender
-	66,  // 113: luceneserver.Blender.scorelessRawMerge:type_name -> luceneserver.ScorelessRawMergeBlender
+	23,  // 59: luceneserver.Query.booleanQuery:type_name -> luceneserver.BooleanQuery
+	24,  // 60: luceneserver.Query.phraseQuery:type_name -> luceneserver.PhraseQuery
+	27,  // 61: luceneserver.Query.functionScoreQuery:type_name -> luceneserver.FunctionScoreQuery
+	30,  // 62: luceneserver.Query.termQuery:type_name -> luceneserver.TermQuery
+	31,  // 63: luceneserver.Query.termInSetQuery:type_name -> luceneserver.TermInSetQuery
+	32,  // 64: luceneserver.Query.disjunctionMaxQuery:type_name -> luceneserver.DisjunctionMaxQuery
+	33,  // 65: luceneserver.Query.matchQuery:type_name -> luceneserver.MatchQuery
+	34,  // 66: luceneserver.Query.matchPhraseQuery:type_name -> luceneserver.MatchPhraseQuery
+	36,  // 67: luceneserver.Query.multiMatchQuery:type_name -> luceneserver.MultiMatchQuery
+	37,  // 68: luceneserver.Query.rangeQuery:type_name -> luceneserver.RangeQuery
+	38,  // 69: luceneserver.Query.geoBoundingBoxQuery:type_name -> luceneserver.GeoBoundingBoxQuery
+	40,  // 70: luceneserver.Query.geoPointQuery:type_name -> luceneserver.GeoPointQuery
+	29,  // 71: luceneserver.Query.nestedQuery:type_name -> luceneserver.NestedQuery
+	43,  // 72: luceneserver.Query.existsQuery:type_name -> luceneserver.ExistsQuery
+	39,  // 73: luceneserver.Query.geoRadiusQuery:type_name -> luceneserver.GeoRadiusQuery
+	28,  // 74: luceneserver.Query.functionFilterQuery:type_name -> luceneserver.FunctionFilterQuery
+	44,  // 75: luceneserver.Query.completionQuery:type_name -> luceneserver.CompletionQuery
+	45,  // 76: luceneserver.Query.multiFunctionScoreQuery:type_name -> luceneserver.MultiFunctionScoreQuery
+	35,  // 77: luceneserver.Query.matchPhrasePrefixQuery:type_name -> luceneserver.MatchPhrasePrefixQuery
+	25,  // 78: luceneserver.Query.prefixQuery:type_name -> luceneserver.PrefixQuery
+	46,  // 79: luceneserver.Query.constantScoreQuery:type_name -> luceneserver.ConstantScoreQuery
+	42,  // 80: luceneserver.Query.geoPolygonQuery:type_name -> luceneserver.GeoPolygonQuery
+	47,  // 81: luceneserver.Query.spanQuery:type_name -> luceneserver.SpanQuery
+	53,  // 82: luceneserver.Query.matchAllQuery:type_name -> luceneserver.MatchAllQuery
+	54,  // 83: luceneserver.Query.exactVectorQuery:type_name -> luceneserver.ExactVectorQuery
+	55,  // 84: luceneserver.Query.crossIndexQuery:type_name -> luceneserver.CrossIndexQuery
+	56,  // 85: luceneserver.Query.minScoreQuery:type_name -> luceneserver.MinScoreQuery
+	71,  // 86: luceneserver.SearchRequest.virtualFields:type_name -> luceneserver.VirtualField
+	57,  // 87: luceneserver.SearchRequest.query:type_name -> luceneserver.Query
+	74,  // 88: luceneserver.SearchRequest.querySort:type_name -> luceneserver.QuerySortField
+	82,  // 89: luceneserver.SearchRequest.facets:type_name -> luceneserver.Facet
+	85,  // 90: luceneserver.SearchRequest.fetchTasks:type_name -> luceneserver.FetchTask
+	89,  // 91: luceneserver.SearchRequest.rescorers:type_name -> luceneserver.Rescorer
+	120, // 92: luceneserver.SearchRequest.collectors:type_name -> luceneserver.SearchRequest.CollectorsEntry
+	104, // 93: luceneserver.SearchRequest.highlight:type_name -> luceneserver.Highlight
+	121, // 94: luceneserver.SearchRequest.inner_hits:type_name -> luceneserver.SearchRequest.InnerHitsEntry
+	72,  // 95: luceneserver.SearchRequest.runtimeFields:type_name -> luceneserver.RuntimeField
+	103, // 96: luceneserver.SearchRequest.loggingHits:type_name -> luceneserver.LoggingHits
+	69,  // 97: luceneserver.SearchRequest.searchAfter:type_name -> luceneserver.LastHitInfo
+	105, // 98: luceneserver.SearchRequest.knn:type_name -> luceneserver.KnnQuery
+	122, // 99: luceneserver.SearchRequest.additionalOptions:type_name -> luceneserver.SearchRequest.AdditionalOptionsEntry
+	60,  // 100: luceneserver.SearchRequest.multiRetriever:type_name -> luceneserver.MultiRetrieverRequest
+	59,  // 101: luceneserver.SearchRequest.childFilters:type_name -> luceneserver.ChildFilter
+	57,  // 102: luceneserver.ChildFilter.filter:type_name -> luceneserver.Query
+	61,  // 103: luceneserver.MultiRetrieverRequest.retrievers:type_name -> luceneserver.Retriever
+	64,  // 104: luceneserver.MultiRetrieverRequest.blender:type_name -> luceneserver.Blender
+	62,  // 105: luceneserver.Retriever.textRetriever:type_name -> luceneserver.TextRetriever
+	63,  // 106: luceneserver.Retriever.knnRetriever:type_name -> luceneserver.KnnRetriever
+	89,  // 107: luceneserver.Retriever.rescorer:type_name -> luceneserver.Rescorer
+	57,  // 108: luceneserver.TextRetriever.query:type_name -> luceneserver.Query
+	105, // 109: luceneserver.KnnRetriever.knnQuery:type_name -> luceneserver.KnnQuery
+	65,  // 110: luceneserver.Blender.weightedRrf:type_name -> luceneserver.WeightedRrfBlender
+	66,  // 111: luceneserver.Blender.weightedScoreOrder:type_name -> luceneserver.WeightedScoreOrderBlender
+	68,  // 112: luceneserver.Blender.plugin:type_name -> luceneserver.PluginBlender
+	67,  // 113: luceneserver.Blender.scorelessRawMerge:type_name -> luceneserver.ScorelessRawMergeBlender
 	14,  // 114: luceneserver.WeightedScoreOrderBlender.scoreMode:type_name -> luceneserver.WeightedScoreOrderBlender.ScoreMode
-	159, // 115: luceneserver.PluginBlender.params:type_name -> google.protobuf.Struct
-	56,  // 116: luceneserver.InnerHit.inner_query:type_name -> luceneserver.Query
-	73,  // 117: luceneserver.InnerHit.query_sort:type_name -> luceneserver.QuerySortField
-	103, // 118: luceneserver.InnerHit.highlight:type_name -> luceneserver.Highlight
-	72,  // 119: luceneserver.VirtualField.script:type_name -> luceneserver.Script
-	72,  // 120: luceneserver.RuntimeField.script:type_name -> luceneserver.Script
-	121, // 121: luceneserver.Script.params:type_name -> luceneserver.Script.ParamsEntry
-	74,  // 122: luceneserver.QuerySortField.fields:type_name -> luceneserver.SortFields
-	75,  // 123: luceneserver.SortFields.sortedFields:type_name -> luceneserver.SortType
+	165, // 115: luceneserver.PluginBlender.params:type_name -> google.protobuf.Struct
+	57,  // 116: luceneserver.InnerHit.inner_query:type_name -> luceneserver.Query
+	74,  // 117: luceneserver.InnerHit.query_sort:type_name -> luceneserver.QuerySortField
+	104, // 118: luceneserver.InnerHit.highlight:type_name -> luceneserver.Highlight
+	73,  // 119: luceneserver.VirtualField.script:type_name -> luceneserver.Script
+	73,  // 120: luceneserver.RuntimeField.script:type_name -> luceneserver.Script
+	127, // 121: luceneserver.Script.params:type_name -> luceneserver.Script.ParamsEntry
+	75,  // 122: luceneserver.QuerySortField.fields:type_name -> luceneserver.SortFields
+	76,  // 123: luceneserver.SortFields.sortedFields:type_name -> luceneserver.SortType
 	5,   // 124: luceneserver.SortType.selector:type_name -> luceneserver.Selector
-	77,  // 125: luceneserver.SortType.origin:type_name -> luceneserver.Point
+	78,  // 125: luceneserver.SortType.origin:type_name -> luceneserver.Point
 	16,  // 126: luceneserver.TotalHits.relation:type_name -> luceneserver.TotalHits.Relation
-	123, // 127: luceneserver.SearchResponse.diagnostics:type_name -> luceneserver.SearchResponse.Diagnostics
-	76,  // 128: luceneserver.SearchResponse.totalHits:type_name -> luceneserver.TotalHits
-	124, // 129: luceneserver.SearchResponse.hits:type_name -> luceneserver.SearchResponse.Hit
-	125, // 130: luceneserver.SearchResponse.searchState:type_name -> luceneserver.SearchResponse.SearchState
-	82,  // 131: luceneserver.SearchResponse.facetResult:type_name -> luceneserver.FacetResult
-	89,  // 132: luceneserver.SearchResponse.profileResult:type_name -> luceneserver.ProfileResult
-	126, // 133: luceneserver.SearchResponse.collectorResults:type_name -> luceneserver.SearchResponse.CollectorResultsEntry
-	127, // 134: luceneserver.SearchResponse.extraData:type_name -> luceneserver.SearchResponse.ExtraDataEntry
-	72,  // 135: luceneserver.SumCollector.script:type_name -> luceneserver.Script
-	79,  // 136: luceneserver.Facet.numericRange:type_name -> luceneserver.NumericRangeType
-	72,  // 137: luceneserver.Facet.script:type_name -> luceneserver.Script
-	83,  // 138: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
-	159, // 139: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
-	159, // 140: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
-	56,  // 141: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
-	72,  // 142: luceneserver.ScriptRescorer.script:type_name -> luceneserver.Script
-	86,  // 143: luceneserver.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
-	85,  // 144: luceneserver.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
-	87,  // 145: luceneserver.Rescorer.scriptRescorer:type_name -> luceneserver.ScriptRescorer
-	147, // 146: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
-	148, // 147: luceneserver.ProfileResult.multiRetrieverProfileResult:type_name -> luceneserver.ProfileResult.MultiRetrieverProfileResult
-	92,  // 148: luceneserver.Collector.terms:type_name -> luceneserver.TermsCollector
-	91,  // 149: luceneserver.Collector.pluginCollector:type_name -> luceneserver.PluginCollector
-	93,  // 150: luceneserver.Collector.topHitsCollector:type_name -> luceneserver.TopHitsCollector
-	94,  // 151: luceneserver.Collector.filter:type_name -> luceneserver.FilterCollector
-	95,  // 152: luceneserver.Collector.max:type_name -> luceneserver.MaxCollector
-	96,  // 153: luceneserver.Collector.min:type_name -> luceneserver.MinCollector
-	80,  // 154: luceneserver.Collector.sum:type_name -> luceneserver.SumCollector
-	151, // 155: luceneserver.Collector.nestedCollectors:type_name -> luceneserver.Collector.NestedCollectorsEntry
-	159, // 156: luceneserver.PluginCollector.params:type_name -> google.protobuf.Struct
-	72,  // 157: luceneserver.TermsCollector.script:type_name -> luceneserver.Script
-	98,  // 158: luceneserver.TermsCollector.order:type_name -> luceneserver.BucketOrder
-	73,  // 159: luceneserver.TopHitsCollector.querySort:type_name -> luceneserver.QuerySortField
-	56,  // 160: luceneserver.FilterCollector.query:type_name -> luceneserver.Query
-	30,  // 161: luceneserver.FilterCollector.setQuery:type_name -> luceneserver.TermInSetQuery
-	72,  // 162: luceneserver.MaxCollector.script:type_name -> luceneserver.Script
-	72,  // 163: luceneserver.MinCollector.script:type_name -> luceneserver.Script
-	99,  // 164: luceneserver.CollectorResult.bucketResult:type_name -> luceneserver.BucketResult
-	160, // 165: luceneserver.CollectorResult.anyResult:type_name -> google.protobuf.Any
-	100, // 166: luceneserver.CollectorResult.hitsResult:type_name -> luceneserver.HitsResult
-	101, // 167: luceneserver.CollectorResult.filterResult:type_name -> luceneserver.FilterResult
-	161, // 168: luceneserver.CollectorResult.doubleResult:type_name -> google.protobuf.DoubleValue
+	129, // 127: luceneserver.SearchResponse.diagnostics:type_name -> luceneserver.SearchResponse.Diagnostics
+	77,  // 128: luceneserver.SearchResponse.totalHits:type_name -> luceneserver.TotalHits
+	130, // 129: luceneserver.SearchResponse.hits:type_name -> luceneserver.SearchResponse.Hit
+	131, // 130: luceneserver.SearchResponse.searchState:type_name -> luceneserver.SearchResponse.SearchState
+	83,  // 131: luceneserver.SearchResponse.facetResult:type_name -> luceneserver.FacetResult
+	90,  // 132: luceneserver.SearchResponse.profileResult:type_name -> luceneserver.ProfileResult
+	132, // 133: luceneserver.SearchResponse.collectorResults:type_name -> luceneserver.SearchResponse.CollectorResultsEntry
+	133, // 134: luceneserver.SearchResponse.extraData:type_name -> luceneserver.SearchResponse.ExtraDataEntry
+	73,  // 135: luceneserver.SumCollector.script:type_name -> luceneserver.Script
+	80,  // 136: luceneserver.Facet.numericRange:type_name -> luceneserver.NumericRangeType
+	73,  // 137: luceneserver.Facet.script:type_name -> luceneserver.Script
+	84,  // 138: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
+	165, // 139: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
+	165, // 140: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
+	57,  // 141: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
+	73,  // 142: luceneserver.ScriptRescorer.script:type_name -> luceneserver.Script
+	87,  // 143: luceneserver.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
+	86,  // 144: luceneserver.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
+	88,  // 145: luceneserver.Rescorer.scriptRescorer:type_name -> luceneserver.ScriptRescorer
+	153, // 146: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
+	154, // 147: luceneserver.ProfileResult.multiRetrieverProfileResult:type_name -> luceneserver.ProfileResult.MultiRetrieverProfileResult
+	93,  // 148: luceneserver.Collector.terms:type_name -> luceneserver.TermsCollector
+	92,  // 149: luceneserver.Collector.pluginCollector:type_name -> luceneserver.PluginCollector
+	94,  // 150: luceneserver.Collector.topHitsCollector:type_name -> luceneserver.TopHitsCollector
+	95,  // 151: luceneserver.Collector.filter:type_name -> luceneserver.FilterCollector
+	96,  // 152: luceneserver.Collector.max:type_name -> luceneserver.MaxCollector
+	97,  // 153: luceneserver.Collector.min:type_name -> luceneserver.MinCollector
+	81,  // 154: luceneserver.Collector.sum:type_name -> luceneserver.SumCollector
+	157, // 155: luceneserver.Collector.nestedCollectors:type_name -> luceneserver.Collector.NestedCollectorsEntry
+	165, // 156: luceneserver.PluginCollector.params:type_name -> google.protobuf.Struct
+	73,  // 157: luceneserver.TermsCollector.script:type_name -> luceneserver.Script
+	99,  // 158: luceneserver.TermsCollector.order:type_name -> luceneserver.BucketOrder
+	74,  // 159: luceneserver.TopHitsCollector.querySort:type_name -> luceneserver.QuerySortField
+	57,  // 160: luceneserver.FilterCollector.query:type_name -> luceneserver.Query
+	31,  // 161: luceneserver.FilterCollector.setQuery:type_name -> luceneserver.TermInSetQuery
+	73,  // 162: luceneserver.MaxCollector.script:type_name -> luceneserver.Script
+	73,  // 163: luceneserver.MinCollector.script:type_name -> luceneserver.Script
+	100, // 164: luceneserver.CollectorResult.bucketResult:type_name -> luceneserver.BucketResult
+	166, // 165: luceneserver.CollectorResult.anyResult:type_name -> google.protobuf.Any
+	101, // 166: luceneserver.CollectorResult.hitsResult:type_name -> luceneserver.HitsResult
+	102, // 167: luceneserver.CollectorResult.filterResult:type_name -> luceneserver.FilterResult
+	167, // 168: luceneserver.CollectorResult.doubleResult:type_name -> google.protobuf.DoubleValue
 	17,  // 169: luceneserver.BucketOrder.order:type_name -> luceneserver.BucketOrder.OrderType
-	152, // 170: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
-	76,  // 171: luceneserver.HitsResult.totalHits:type_name -> luceneserver.TotalHits
-	124, // 172: luceneserver.HitsResult.hits:type_name -> luceneserver.SearchResponse.Hit
-	154, // 173: luceneserver.FilterResult.nestedCollectorResults:type_name -> luceneserver.FilterResult.NestedCollectorResultsEntry
-	159, // 174: luceneserver.LoggingHits.params:type_name -> google.protobuf.Struct
-	155, // 175: luceneserver.Highlight.settings:type_name -> luceneserver.Highlight.Settings
-	156, // 176: luceneserver.Highlight.field_settings:type_name -> luceneserver.Highlight.FieldSettingsEntry
-	56,  // 177: luceneserver.KnnQuery.filter:type_name -> luceneserver.Query
+	158, // 170: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
+	77,  // 171: luceneserver.HitsResult.totalHits:type_name -> luceneserver.TotalHits
+	130, // 172: luceneserver.HitsResult.hits:type_name -> luceneserver.SearchResponse.Hit
+	160, // 173: luceneserver.FilterResult.nestedCollectorResults:type_name -> luceneserver.FilterResult.NestedCollectorResultsEntry
+	165, // 174: luceneserver.LoggingHits.params:type_name -> google.protobuf.Struct
+	161, // 175: luceneserver.Highlight.settings:type_name -> luceneserver.Highlight.Settings
+	162, // 176: luceneserver.Highlight.field_settings:type_name -> luceneserver.Highlight.FieldSettingsEntry
+	57,  // 177: luceneserver.KnnQuery.filter:type_name -> luceneserver.Query
 	19,  // 178: luceneserver.KnnQuery.filter_strategy:type_name -> luceneserver.KnnQuery.FilterStrategy
-	56,  // 179: luceneserver.MultiFunctionScoreQuery.FilterFunction.filter:type_name -> luceneserver.Query
-	72,  // 180: luceneserver.MultiFunctionScoreQuery.FilterFunction.script:type_name -> luceneserver.Script
-	113, // 181: luceneserver.MultiFunctionScoreQuery.FilterFunction.decayFunction:type_name -> luceneserver.MultiFunctionScoreQuery.DecayFunction
-	10,  // 182: luceneserver.MultiFunctionScoreQuery.DecayFunction.decayType:type_name -> luceneserver.MultiFunctionScoreQuery.DecayType
-	158, // 183: luceneserver.MultiFunctionScoreQuery.DecayFunction.geoPoint:type_name -> google.type.LatLng
-	90,  // 184: luceneserver.SearchRequest.CollectorsEntry.value:type_name -> luceneserver.Collector
-	69,  // 185: luceneserver.SearchRequest.InnerHitsEntry.value:type_name -> luceneserver.InnerHit
-	15,  // 186: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
-	119, // 187: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
-	118, // 188: luceneserver.Script.ParamValue.structValue:type_name -> luceneserver.Script.ParamStructValue
-	120, // 189: luceneserver.Script.ParamValue.floatVectorValue:type_name -> luceneserver.Script.ParamFloatVectorValue
-	122, // 190: luceneserver.Script.ParamStructValue.fields:type_name -> luceneserver.Script.ParamStructValue.FieldsEntry
-	117, // 191: luceneserver.Script.ParamListValue.values:type_name -> luceneserver.Script.ParamValue
-	117, // 192: luceneserver.Script.ParamsEntry.value:type_name -> luceneserver.Script.ParamValue
-	117, // 193: luceneserver.Script.ParamStructValue.FieldsEntry.value:type_name -> luceneserver.Script.ParamValue
-	131, // 194: luceneserver.SearchResponse.Diagnostics.facetTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
-	132, // 195: luceneserver.SearchResponse.Diagnostics.rescorersTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
-	133, // 196: luceneserver.SearchResponse.Diagnostics.innerHitsDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
-	128, // 197: luceneserver.SearchResponse.Diagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
-	130, // 198: luceneserver.SearchResponse.Diagnostics.multiRetrieverDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics
-	138, // 199: luceneserver.SearchResponse.Hit.fields:type_name -> luceneserver.SearchResponse.Hit.FieldsEntry
-	139, // 200: luceneserver.SearchResponse.Hit.sortedFields:type_name -> luceneserver.SearchResponse.Hit.SortedFieldsEntry
-	140, // 201: luceneserver.SearchResponse.Hit.highlights:type_name -> luceneserver.SearchResponse.Hit.HighlightsEntry
-	141, // 202: luceneserver.SearchResponse.Hit.innerHits:type_name -> luceneserver.SearchResponse.Hit.InnerHitsEntry
-	142, // 203: luceneserver.SearchResponse.Hit.retrieverScores:type_name -> luceneserver.SearchResponse.Hit.RetrieverScoresEntry
-	68,  // 204: luceneserver.SearchResponse.SearchState.lastHitInfo:type_name -> luceneserver.LastHitInfo
-	97,  // 205: luceneserver.SearchResponse.CollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	162, // 206: luceneserver.SearchResponse.ExtraDataEntry.value:type_name -> google.protobuf.Value
-	76,  // 207: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics.totalHits:type_name -> luceneserver.TotalHits
-	76,  // 208: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics.totalHits:type_name -> luceneserver.TotalHits
-	128, // 209: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
-	134, // 210: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.retrieverDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry
-	123, // 211: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics
-	129, // 212: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics
-	158, // 213: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
-	159, // 214: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
-	143, // 215: luceneserver.SearchResponse.Hit.FieldValue.vectorValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue.Vector
-	163, // 216: luceneserver.SearchResponse.Hit.FieldValue.listValue:type_name -> google.protobuf.ListValue
-	135, // 217: luceneserver.SearchResponse.Hit.CompositeFieldValue.fieldValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue
-	136, // 218: luceneserver.SearchResponse.Hit.FieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
-	136, // 219: luceneserver.SearchResponse.Hit.SortedFieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
-	137, // 220: luceneserver.SearchResponse.Hit.HighlightsEntry.value:type_name -> luceneserver.SearchResponse.Hit.Highlights
-	100, // 221: luceneserver.SearchResponse.Hit.InnerHitsEntry.value:type_name -> luceneserver.HitsResult
-	146, // 222: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
-	149, // 223: luceneserver.ProfileResult.CollectorStats.additionalCollectorStats:type_name -> luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
-	145, // 224: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
-	150, // 225: luceneserver.ProfileResult.MultiRetrieverProfileResult.retrieverProfileResults:type_name -> luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry
-	89,  // 226: luceneserver.ProfileResult.MultiRetrieverProfileResult.aggregationProfileResult:type_name -> luceneserver.ProfileResult
-	144, // 227: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry.value:type_name -> luceneserver.ProfileResult.AdditionalCollectorStats
-	89,  // 228: luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry.value:type_name -> luceneserver.ProfileResult
-	90,  // 229: luceneserver.Collector.NestedCollectorsEntry.value:type_name -> luceneserver.Collector
-	153, // 230: luceneserver.BucketResult.Bucket.nestedCollectorResults:type_name -> luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
-	97,  // 231: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	97,  // 232: luceneserver.FilterResult.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	18,  // 233: luceneserver.Highlight.Settings.highlighter_type:type_name -> luceneserver.Highlight.Type
-	164, // 234: luceneserver.Highlight.Settings.fragment_size:type_name -> google.protobuf.UInt32Value
-	164, // 235: luceneserver.Highlight.Settings.max_number_of_fragments:type_name -> google.protobuf.UInt32Value
-	56,  // 236: luceneserver.Highlight.Settings.highlight_query:type_name -> luceneserver.Query
-	165, // 237: luceneserver.Highlight.Settings.field_match:type_name -> google.protobuf.BoolValue
-	165, // 238: luceneserver.Highlight.Settings.score_ordered:type_name -> google.protobuf.BoolValue
-	166, // 239: luceneserver.Highlight.Settings.fragmenter:type_name -> google.protobuf.StringValue
-	165, // 240: luceneserver.Highlight.Settings.discrete_multivalue:type_name -> google.protobuf.BoolValue
-	159, // 241: luceneserver.Highlight.Settings.custom_highlighter_params:type_name -> google.protobuf.Struct
-	166, // 242: luceneserver.Highlight.Settings.boundary_scanner:type_name -> google.protobuf.StringValue
-	166, // 243: luceneserver.Highlight.Settings.boundary_chars:type_name -> google.protobuf.StringValue
-	164, // 244: luceneserver.Highlight.Settings.boundary_max_scan:type_name -> google.protobuf.UInt32Value
-	166, // 245: luceneserver.Highlight.Settings.boundary_scanner_locale:type_name -> google.protobuf.StringValue
-	165, // 246: luceneserver.Highlight.Settings.top_boost_only:type_name -> google.protobuf.BoolValue
-	164, // 247: luceneserver.Highlight.Settings.max_number_of_highlighted_phrase_per_fragment:type_name -> google.protobuf.UInt32Value
-	155, // 248: luceneserver.Highlight.FieldSettingsEntry.value:type_name -> luceneserver.Highlight.Settings
-	249, // [249:249] is the sub-list for method output_type
-	249, // [249:249] is the sub-list for method input_type
-	249, // [249:249] is the sub-list for extension type_name
-	249, // [249:249] is the sub-list for extension extendee
-	0,   // [0:249] is the sub-list for field type_name
+	107, // 179: luceneserver.StreamSearchRequest.rankingRequest:type_name -> luceneserver.RankingRequest
+	109, // 180: luceneserver.StreamSearchRequest.reducedHitList:type_name -> luceneserver.ReducedHitList
+	58,  // 181: luceneserver.RankingRequest.searchRequest:type_name -> luceneserver.SearchRequest
+	108, // 182: luceneserver.ReducedHitList.luceneDocIdsToReturn:type_name -> luceneserver.LuceneDocIdSet
+	108, // 183: luceneserver.ReducedHitList.luceneDocIdsToLog:type_name -> luceneserver.LuceneDocIdSet
+	20,  // 184: luceneserver.StreamSearchResponse.phase:type_name -> luceneserver.StreamSearchResponse.Phase
+	79,  // 185: luceneserver.StreamSearchResponse.searchResponse:type_name -> luceneserver.SearchResponse
+	57,  // 186: luceneserver.MultiFunctionScoreQuery.FilterFunction.filter:type_name -> luceneserver.Query
+	73,  // 187: luceneserver.MultiFunctionScoreQuery.FilterFunction.script:type_name -> luceneserver.Script
+	119, // 188: luceneserver.MultiFunctionScoreQuery.FilterFunction.decayFunction:type_name -> luceneserver.MultiFunctionScoreQuery.DecayFunction
+	10,  // 189: luceneserver.MultiFunctionScoreQuery.DecayFunction.decayType:type_name -> luceneserver.MultiFunctionScoreQuery.DecayType
+	164, // 190: luceneserver.MultiFunctionScoreQuery.DecayFunction.geoPoint:type_name -> google.type.LatLng
+	91,  // 191: luceneserver.SearchRequest.CollectorsEntry.value:type_name -> luceneserver.Collector
+	70,  // 192: luceneserver.SearchRequest.InnerHitsEntry.value:type_name -> luceneserver.InnerHit
+	15,  // 193: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
+	125, // 194: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
+	124, // 195: luceneserver.Script.ParamValue.structValue:type_name -> luceneserver.Script.ParamStructValue
+	126, // 196: luceneserver.Script.ParamValue.floatVectorValue:type_name -> luceneserver.Script.ParamFloatVectorValue
+	128, // 197: luceneserver.Script.ParamStructValue.fields:type_name -> luceneserver.Script.ParamStructValue.FieldsEntry
+	123, // 198: luceneserver.Script.ParamListValue.values:type_name -> luceneserver.Script.ParamValue
+	123, // 199: luceneserver.Script.ParamsEntry.value:type_name -> luceneserver.Script.ParamValue
+	123, // 200: luceneserver.Script.ParamStructValue.FieldsEntry.value:type_name -> luceneserver.Script.ParamValue
+	137, // 201: luceneserver.SearchResponse.Diagnostics.facetTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
+	138, // 202: luceneserver.SearchResponse.Diagnostics.rescorersTimeMs:type_name -> luceneserver.SearchResponse.Diagnostics.RescorersTimeMsEntry
+	139, // 203: luceneserver.SearchResponse.Diagnostics.innerHitsDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry
+	134, // 204: luceneserver.SearchResponse.Diagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
+	136, // 205: luceneserver.SearchResponse.Diagnostics.multiRetrieverDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics
+	144, // 206: luceneserver.SearchResponse.Hit.fields:type_name -> luceneserver.SearchResponse.Hit.FieldsEntry
+	145, // 207: luceneserver.SearchResponse.Hit.sortedFields:type_name -> luceneserver.SearchResponse.Hit.SortedFieldsEntry
+	146, // 208: luceneserver.SearchResponse.Hit.highlights:type_name -> luceneserver.SearchResponse.Hit.HighlightsEntry
+	147, // 209: luceneserver.SearchResponse.Hit.innerHits:type_name -> luceneserver.SearchResponse.Hit.InnerHitsEntry
+	148, // 210: luceneserver.SearchResponse.Hit.retrieverScores:type_name -> luceneserver.SearchResponse.Hit.RetrieverScoresEntry
+	69,  // 211: luceneserver.SearchResponse.SearchState.lastHitInfo:type_name -> luceneserver.LastHitInfo
+	98,  // 212: luceneserver.SearchResponse.CollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	168, // 213: luceneserver.SearchResponse.ExtraDataEntry.value:type_name -> google.protobuf.Value
+	77,  // 214: luceneserver.SearchResponse.Diagnostics.VectorDiagnostics.totalHits:type_name -> luceneserver.TotalHits
+	77,  // 215: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics.totalHits:type_name -> luceneserver.TotalHits
+	134, // 216: luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics.vectorDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.VectorDiagnostics
+	140, // 217: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.retrieverDiagnostics:type_name -> luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry
+	129, // 218: luceneserver.SearchResponse.Diagnostics.InnerHitsDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics
+	135, // 219: luceneserver.SearchResponse.Diagnostics.MultiRetrieverDiagnostics.RetrieverDiagnosticsEntry.value:type_name -> luceneserver.SearchResponse.Diagnostics.RetrieverDiagnostics
+	164, // 220: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
+	165, // 221: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
+	149, // 222: luceneserver.SearchResponse.Hit.FieldValue.vectorValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue.Vector
+	169, // 223: luceneserver.SearchResponse.Hit.FieldValue.listValue:type_name -> google.protobuf.ListValue
+	141, // 224: luceneserver.SearchResponse.Hit.CompositeFieldValue.fieldValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue
+	142, // 225: luceneserver.SearchResponse.Hit.FieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
+	142, // 226: luceneserver.SearchResponse.Hit.SortedFieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
+	143, // 227: luceneserver.SearchResponse.Hit.HighlightsEntry.value:type_name -> luceneserver.SearchResponse.Hit.Highlights
+	101, // 228: luceneserver.SearchResponse.Hit.InnerHitsEntry.value:type_name -> luceneserver.HitsResult
+	152, // 229: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
+	155, // 230: luceneserver.ProfileResult.CollectorStats.additionalCollectorStats:type_name -> luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	151, // 231: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
+	156, // 232: luceneserver.ProfileResult.MultiRetrieverProfileResult.retrieverProfileResults:type_name -> luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry
+	90,  // 233: luceneserver.ProfileResult.MultiRetrieverProfileResult.aggregationProfileResult:type_name -> luceneserver.ProfileResult
+	150, // 234: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry.value:type_name -> luceneserver.ProfileResult.AdditionalCollectorStats
+	90,  // 235: luceneserver.ProfileResult.MultiRetrieverProfileResult.RetrieverProfileResultsEntry.value:type_name -> luceneserver.ProfileResult
+	91,  // 236: luceneserver.Collector.NestedCollectorsEntry.value:type_name -> luceneserver.Collector
+	159, // 237: luceneserver.BucketResult.Bucket.nestedCollectorResults:type_name -> luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry
+	98,  // 238: luceneserver.BucketResult.Bucket.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	98,  // 239: luceneserver.FilterResult.NestedCollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
+	18,  // 240: luceneserver.Highlight.Settings.highlighter_type:type_name -> luceneserver.Highlight.Type
+	170, // 241: luceneserver.Highlight.Settings.fragment_size:type_name -> google.protobuf.UInt32Value
+	170, // 242: luceneserver.Highlight.Settings.max_number_of_fragments:type_name -> google.protobuf.UInt32Value
+	57,  // 243: luceneserver.Highlight.Settings.highlight_query:type_name -> luceneserver.Query
+	171, // 244: luceneserver.Highlight.Settings.field_match:type_name -> google.protobuf.BoolValue
+	171, // 245: luceneserver.Highlight.Settings.score_ordered:type_name -> google.protobuf.BoolValue
+	172, // 246: luceneserver.Highlight.Settings.fragmenter:type_name -> google.protobuf.StringValue
+	171, // 247: luceneserver.Highlight.Settings.discrete_multivalue:type_name -> google.protobuf.BoolValue
+	165, // 248: luceneserver.Highlight.Settings.custom_highlighter_params:type_name -> google.protobuf.Struct
+	172, // 249: luceneserver.Highlight.Settings.boundary_scanner:type_name -> google.protobuf.StringValue
+	172, // 250: luceneserver.Highlight.Settings.boundary_chars:type_name -> google.protobuf.StringValue
+	170, // 251: luceneserver.Highlight.Settings.boundary_max_scan:type_name -> google.protobuf.UInt32Value
+	172, // 252: luceneserver.Highlight.Settings.boundary_scanner_locale:type_name -> google.protobuf.StringValue
+	171, // 253: luceneserver.Highlight.Settings.top_boost_only:type_name -> google.protobuf.BoolValue
+	170, // 254: luceneserver.Highlight.Settings.max_number_of_highlighted_phrase_per_fragment:type_name -> google.protobuf.UInt32Value
+	161, // 255: luceneserver.Highlight.FieldSettingsEntry.value:type_name -> luceneserver.Highlight.Settings
+	256, // [256:256] is the sub-list for method output_type
+	256, // [256:256] is the sub-list for method input_type
+	256, // [256:256] is the sub-list for extension type_name
+	256, // [256:256] is the sub-list for extension extendee
+	0,   // [0:256] is the sub-list for field type_name
 }
 
 func init() { file_yelp_nrtsearch_search_proto_init() }
@@ -14344,7 +14825,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FuzzyParams_AutoFuzziness); i {
+			switch v := v.(*StreamSearchRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14356,7 +14837,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TermInSetQuery_TextTerms); i {
+			switch v := v.(*RankingRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14368,7 +14849,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[87].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TermInSetQuery_IntTerms); i {
+			switch v := v.(*LuceneDocIdSet); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14380,7 +14861,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[88].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TermInSetQuery_LongTerms); i {
+			switch v := v.(*ReducedHitList); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14392,7 +14873,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[89].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TermInSetQuery_FloatTerms); i {
+			switch v := v.(*StreamSearchResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14404,7 +14885,19 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[90].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TermInSetQuery_DoubleTerms); i {
+			switch v := v.(*FuzzyParams_AutoFuzziness); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[91].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TermInSetQuery_TextTerms); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14416,7 +14909,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[92].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MultiFunctionScoreQuery_FilterFunction); i {
+			switch v := v.(*TermInSetQuery_IntTerms); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14428,7 +14921,31 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[93].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MultiFunctionScoreQuery_DecayFunction); i {
+			switch v := v.(*TermInSetQuery_LongTerms); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[94].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TermInSetQuery_FloatTerms); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[95].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TermInSetQuery_DoubleTerms); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14440,7 +14957,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[97].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Script_ParamValue); i {
+			switch v := v.(*MultiFunctionScoreQuery_FilterFunction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14452,7 +14969,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[98].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Script_ParamStructValue); i {
+			switch v := v.(*MultiFunctionScoreQuery_DecayFunction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14463,20 +14980,8 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[99].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Script_ParamListValue); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_yelp_nrtsearch_search_proto_msgTypes[100].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Script_ParamFloatVectorValue); i {
+		file_yelp_nrtsearch_search_proto_msgTypes[102].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Script_ParamValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14488,7 +14993,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[103].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_Diagnostics); i {
+			switch v := v.(*Script_ParamStructValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14500,7 +15005,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[104].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_Hit); i {
+			switch v := v.(*Script_ParamListValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14512,7 +15017,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[105].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_SearchState); i {
+			switch v := v.(*Script_ParamFloatVectorValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14524,7 +15029,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[108].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_Diagnostics_VectorDiagnostics); i {
+			switch v := v.(*SearchResponse_Diagnostics); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14536,7 +15041,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[109].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_Diagnostics_RetrieverDiagnostics); i {
+			switch v := v.(*SearchResponse_Hit); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14548,7 +15053,31 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[110].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearchResponse_Diagnostics_MultiRetrieverDiagnostics); i {
+			switch v := v.(*SearchResponse_SearchState); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[113].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SearchResponse_Diagnostics_VectorDiagnostics); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[114].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SearchResponse_Diagnostics_RetrieverDiagnostics); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -14560,6 +15089,18 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[115].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SearchResponse_Diagnostics_MultiRetrieverDiagnostics); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[120].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SearchResponse_Hit_FieldValue); i {
 			case 0:
 				return &v.state
@@ -14571,7 +15112,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[116].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[121].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SearchResponse_Hit_CompositeFieldValue); i {
 			case 0:
 				return &v.state
@@ -14583,7 +15124,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[117].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SearchResponse_Hit_Highlights); i {
 			case 0:
 				return &v.state
@@ -14595,7 +15136,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[128].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SearchResponse_Hit_FieldValue_Vector); i {
 			case 0:
 				return &v.state
@@ -14607,7 +15148,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[129].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProfileResult_AdditionalCollectorStats); i {
 			case 0:
 				return &v.state
@@ -14619,7 +15160,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[125].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[130].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProfileResult_CollectorStats); i {
 			case 0:
 				return &v.state
@@ -14631,7 +15172,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[126].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[131].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProfileResult_SegmentStats); i {
 			case 0:
 				return &v.state
@@ -14643,7 +15184,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[127].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[132].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProfileResult_SearchStats); i {
 			case 0:
 				return &v.state
@@ -14655,7 +15196,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[128].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[133].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProfileResult_MultiRetrieverProfileResult); i {
 			case 0:
 				return &v.state
@@ -14667,7 +15208,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[132].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[137].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BucketResult_Bucket); i {
 			case 0:
 				return &v.state
@@ -14679,7 +15220,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 				return nil
 			}
 		}
-		file_yelp_nrtsearch_search_proto_msgTypes[135].Exporter = func(v interface{}, i int) interface{} {
+		file_yelp_nrtsearch_search_proto_msgTypes[140].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Highlight_Settings); i {
 			case 0:
 				return &v.state
@@ -14804,14 +15345,21 @@ func file_yelp_nrtsearch_search_proto_init() {
 		(*CollectorResult_DoubleResult)(nil),
 	}
 	file_yelp_nrtsearch_search_proto_msgTypes[84].OneofWrappers = []interface{}{}
-	file_yelp_nrtsearch_search_proto_msgTypes[92].OneofWrappers = []interface{}{
+	file_yelp_nrtsearch_search_proto_msgTypes[85].OneofWrappers = []interface{}{
+		(*StreamSearchRequest_RankingRequest)(nil),
+		(*StreamSearchRequest_ReducedHitList)(nil),
+	}
+	file_yelp_nrtsearch_search_proto_msgTypes[89].OneofWrappers = []interface{}{
+		(*StreamSearchResponse_SearchResponse)(nil),
+	}
+	file_yelp_nrtsearch_search_proto_msgTypes[97].OneofWrappers = []interface{}{
 		(*MultiFunctionScoreQuery_FilterFunction_Script)(nil),
 		(*MultiFunctionScoreQuery_FilterFunction_DecayFunction)(nil),
 	}
-	file_yelp_nrtsearch_search_proto_msgTypes[93].OneofWrappers = []interface{}{
+	file_yelp_nrtsearch_search_proto_msgTypes[98].OneofWrappers = []interface{}{
 		(*MultiFunctionScoreQuery_DecayFunction_GeoPoint)(nil),
 	}
-	file_yelp_nrtsearch_search_proto_msgTypes[97].OneofWrappers = []interface{}{
+	file_yelp_nrtsearch_search_proto_msgTypes[102].OneofWrappers = []interface{}{
 		(*Script_ParamValue_TextValue)(nil),
 		(*Script_ParamValue_BooleanValue)(nil),
 		(*Script_ParamValue_IntValue)(nil),
@@ -14823,7 +15371,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 		(*Script_ParamValue_StructValue)(nil),
 		(*Script_ParamValue_FloatVectorValue)(nil),
 	}
-	file_yelp_nrtsearch_search_proto_msgTypes[115].OneofWrappers = []interface{}{
+	file_yelp_nrtsearch_search_proto_msgTypes[120].OneofWrappers = []interface{}{
 		(*SearchResponse_Hit_FieldValue_TextValue)(nil),
 		(*SearchResponse_Hit_FieldValue_BooleanValue)(nil),
 		(*SearchResponse_Hit_FieldValue_IntValue)(nil),
@@ -14840,8 +15388,8 @@ func file_yelp_nrtsearch_search_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yelp_nrtsearch_search_proto_rawDesc,
-			NumEnums:      20,
-			NumMessages:   137,
+			NumEnums:      21,
+			NumMessages:   142,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -146,6 +146,23 @@ public class FetchTasks {
    */
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits)
       throws IOException {
+    processAllHits(searchContext, hits, false);
+  }
+
+  /**
+   * Invoke the {@link FetchTask#processAllHits(SearchContext, List)} method on all query {@link
+   * FetchTask}s.
+   *
+   * @param searchContext search context
+   * @param hits list of query hits
+   * @param skipLogging if true, do not run the {@link HitsLoggerFetchTask}. Used by the
+   *     query-then-fetch streaming search flow, which fetches the union of the documents to return
+   *     and the documents to log, and then logs the requested subset of them itself.
+   * @throws IOException on error reading data
+   */
+  public void processAllHits(
+      SearchContext searchContext, List<SearchResponse.Hit.Builder> hits, boolean skipLogging)
+      throws IOException {
     for (FetchTask task : taskList) {
       task.processAllHits(searchContext, hits);
     }
@@ -153,7 +170,7 @@ public class FetchTasks {
     // hitsLogger should be the last fetch task to run because it might need shared data from other
     // plugins, including
     // other fetch task plugins
-    if (hitsLoggerFetchTask != null) {
+    if (hitsLoggerFetchTask != null && !skipLogging) {
       hitsLoggerFetchTask.processAllHits(searchContext, hits);
     }
   }
