@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.LuceneDocIdSet;
+import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.MatchAllQuery;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
@@ -105,9 +106,7 @@ public class SearchStreamHandlerTest extends ServerTestCase {
     // Field data is read a segment at a time, so a single segment index would not exercise the
     // doc id ordering that FillDocsTask requires of the hits it is given.
     addDocumentBatch(name, 1, NUM_DOCS / 2);
-    getGrpcServer()
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(name).build());
+    getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(name).build());
     addDocumentBatch(name, NUM_DOCS / 2 + 1, NUM_DOCS);
   }
 
@@ -210,7 +209,10 @@ public class SearchStreamHandlerTest extends ServerTestCase {
   }
 
   private StreamObserver<StreamSearchRequest> openStream(ResponseRecorder recorder) {
-    return getGrpcServer().getStub().searchStream(recorder);
+    // A bidi streaming call needs the async stub. Derive it from the channel the test server's
+    // blocking stub is already on, so it carries the same decompressor registry and the stream can
+    // read the compressed responses the handler sends back.
+    return LuceneServerGrpc.newStub(getBlockingStub().getChannel()).searchStream(recorder);
   }
 
   private static StreamSearchRequest rankingMessage(SearchRequest request) {
