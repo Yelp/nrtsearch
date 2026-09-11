@@ -20,11 +20,8 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
-import io.grpc.testing.GrpcCleanupRule;
-import java.io.IOException;
-import java.nio.file.Paths;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -38,65 +35,42 @@ import org.junit.rules.TemporaryFolder;
 
 public class QueryTest {
 
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+  private static final String TEST_INDEX = "test_index";
 
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
+  private TestServer server;
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    GrpcServer.rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
   public void setUp() throws Exception {
-    grpcServer = setUpGrpcServer();
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-  }
-
-  private GrpcServer setUpGrpcServer() throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort());
+    server = TestServer.builder(folder).build();
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/registerFieldsBasic.json").toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/addDocs.csv"));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
   }
 
   @Test
   public void testSearchQueryText() {
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -114,11 +88,12 @@ public class QueryTest {
   @Test
   public void testSearchV2QueryText() throws InvalidProtocolBufferException {
     Any anyResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .searchV2(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -140,11 +115,12 @@ public class QueryTest {
 
     for (String compressionType : compressionTypes) {
       SearchResponse searchResponse =
-          grpcServer
+          server
+              .getClient()
               .getBlockingStub()
               .search(
                   SearchRequest.newBuilder()
-                      .setIndexName(grpcServer.getTestIndex())
+                      .setIndexName(TEST_INDEX)
                       .setStartHit(0)
                       .setTopHits(10)
                       .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -167,11 +143,12 @@ public class QueryTest {
 
     for (String compressionType : compressionTypes) {
       Any anyResponse =
-          grpcServer
+          server
+              .getClient()
               .getBlockingStub()
               .searchV2(
                   SearchRequest.newBuilder()
-                      .setIndexName(grpcServer.getTestIndex())
+                      .setIndexName(TEST_INDEX)
                       .setStartHit(0)
                       .setTopHits(10)
                       .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -994,11 +971,12 @@ public class QueryTest {
           assertEquals("2", docId);
           NrtsearchServerTest.checkHits(hit);
         };
-    SearchResponse searchResponse = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    SearchResponse searchResponse =
+        server.getClient().getBlockingStub().search(buildSearchRequest(query));
     responseTester.accept(searchResponse);
     boolean explain = true;
     SearchResponse searchResponseExplained =
-        grpcServer.getBlockingStub().search(buildSearchRequestWithExplain(query, explain));
+        server.getClient().getBlockingStub().search(buildSearchRequestWithExplain(query, explain));
     responseTester.accept(searchResponseExplained);
     String expectedExplain =
         "0.3979403 = weight(vendor_name:\"second again\"~1 in 1) [], result of:\n"
@@ -1030,7 +1008,8 @@ public class QueryTest {
   @Test
   public void testEmptyBooleanQuery() {
     Query query = Query.newBuilder().setBooleanQuery(BooleanQuery.newBuilder().build()).build();
-    SearchResponse response = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    SearchResponse response =
+        server.getClient().getBlockingStub().search(buildSearchRequest(query));
     assertEquals(response.getHitsCount(), 2);
     for (SearchResponse.Hit hit : response.getHitsList()) {
       assertEquals(1.0, hit.getScore(), 0.0);
@@ -1049,7 +1028,8 @@ public class QueryTest {
             .build();
     long deadlineMs = 30000;
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .withDeadlineAfter(deadlineMs, TimeUnit.MILLISECONDS)
             .search(buildSearchRequest(query));
@@ -1066,7 +1046,8 @@ public class QueryTest {
                     .setQuery("SECOND again")
                     .setSlop(1))
             .build();
-    SearchResponse searchResponse = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    SearchResponse searchResponse =
+        server.getClient().getBlockingStub().search(buildSearchRequest(query));
     assertEquals(0, searchResponse.getDiagnostics().getInitialDeadlineMs(), 0);
   }
 
@@ -1078,7 +1059,8 @@ public class QueryTest {
    * @param responseTester {@link Consumer} that tests a {@link SearchResponse}
    */
   private void testQuery(Query query, Consumer<SearchResponse> responseTester) {
-    SearchResponse searchResponse = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    SearchResponse searchResponse =
+        server.getClient().getBlockingStub().search(buildSearchRequest(query));
     responseTester.accept(searchResponse);
     testWithBoost(query, searchResponse);
   }
@@ -1086,7 +1068,10 @@ public class QueryTest {
   private void testQueryWithRescorers(
       Query query, List<Rescorer> rescorers, Consumer<SearchResponse> responseTester) {
     SearchResponse searchResponse =
-        grpcServer.getBlockingStub().search(buildSearchRequestWithRescorers(query, rescorers));
+        server
+            .getClient()
+            .getBlockingStub()
+            .search(buildSearchRequestWithRescorers(query, rescorers));
     responseTester.accept(searchResponse);
   }
 
@@ -1103,7 +1088,7 @@ public class QueryTest {
 
   private SearchRequest buildSearchRequest(Query query) {
     return SearchRequest.newBuilder()
-        .setIndexName(grpcServer.getTestIndex())
+        .setIndexName(TEST_INDEX)
         .setStartHit(0)
         .setTopHits(10)
         .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -1113,7 +1098,7 @@ public class QueryTest {
 
   private SearchRequest buildSearchRequestWithExplain(Query query, boolean explain) {
     return SearchRequest.newBuilder()
-        .setIndexName(grpcServer.getTestIndex())
+        .setIndexName(TEST_INDEX)
         .setStartHit(0)
         .setTopHits(10)
         .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -1124,7 +1109,7 @@ public class QueryTest {
 
   private SearchRequest buildSearchRequestWithRescorers(Query query, List<Rescorer> rescorers) {
     return SearchRequest.newBuilder()
-        .setIndexName(grpcServer.getTestIndex())
+        .setIndexName(TEST_INDEX)
         .setStartHit(0)
         .setTopHits(10)
         .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
@@ -1137,7 +1122,7 @@ public class QueryTest {
     int boost = 2;
     Query boostedQuery = Query.newBuilder(originalQuery).setBoost(boost).build();
     SearchResponse searchResponseBoosted =
-        grpcServer.getBlockingStub().search(buildSearchRequest(boostedQuery));
+        server.getClient().getBlockingStub().search(buildSearchRequest(boostedQuery));
 
     assertEquals(
         searchResponse.getTotalHits().getValue(), searchResponseBoosted.getTotalHits().getValue());

@@ -17,13 +17,9 @@ package com.yelp.nrtsearch.tools.cli;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
-import io.grpc.testing.GrpcCleanupRule;
+import com.yelp.nrtsearch.server.grpc.TestServer;
 import java.io.IOException;
 import org.junit.After;
 import org.junit.Rule;
@@ -33,43 +29,26 @@ import picocli.CommandLine;
 
 public class ReadyCommandTest {
 
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   @After
-  public void cleanup() throws IOException {
-    if (server != null) {
-      server.shutdown();
-      server = null;
-    }
+  public void cleanup() {
+    TestServer.cleanupAll();
   }
 
-  private GrpcServer server;
+  private TestServer server;
 
   private void startServer() throws IOException {
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
-    server =
-        new GrpcServer(
-            grpcCleanup,
-            configuration,
-            folder,
-            null,
-            configuration.getIndexDir(),
-            "test_index",
-            configuration.getPort(),
-            null);
+    server = TestServer.builder(folder).build();
   }
 
   private void createIndex(String indexName) {
-    server
-        .getBlockingStub()
-        .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
+    server.createIndex(indexName);
   }
 
   private void startIndex(String indexName) {
     server
+        .getClient()
         .getBlockingStub()
         .startIndex(
             StartIndexRequest.newBuilder().setIndexName(indexName).setMode(Mode.PRIMARY).build());
@@ -86,8 +65,7 @@ public class ReadyCommandTest {
   public void testNoIndices() throws IOException {
     startServer();
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
-    int exitCode =
-        cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
+    int exitCode = cmd.execute("--hostname=localhost", "--port=" + server.getPort(), "ready");
     assertEquals(0, exitCode);
   }
 
@@ -125,8 +103,7 @@ public class ReadyCommandTest {
     verifyIndicesReady("test_index,test_index_3", 1);
 
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
-    int exitCode =
-        cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
+    int exitCode = cmd.execute("--hostname=localhost", "--port=" + server.getPort(), "ready");
     assertEquals(0, exitCode);
   }
 
@@ -145,8 +122,7 @@ public class ReadyCommandTest {
     verifyIndicesReady("test_index,test_index_3", 0);
 
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
-    int exitCode =
-        cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
+    int exitCode = cmd.execute("--hostname=localhost", "--port=" + server.getPort(), "ready");
     assertEquals(0, exitCode);
   }
 
@@ -154,10 +130,7 @@ public class ReadyCommandTest {
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
-            "--hostname=localhost",
-            "--port=" + server.getGlobalState().getPort(),
-            "ready",
-            "--indices=" + indices);
+            "--hostname=localhost", "--port=" + server.getPort(), "ready", "--indices=" + indices);
     assertEquals(expectedExitCode, exitCode);
   }
 }

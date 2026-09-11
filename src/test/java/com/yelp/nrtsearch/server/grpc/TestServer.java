@@ -35,18 +35,22 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
+import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.test_utils.PortUtils;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
@@ -59,9 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
@@ -104,6 +106,7 @@ public class TestServer {
   private final NrtsearchConfig configuration;
   private final boolean writeDiscoveryFile;
   private final Path discoveryFilePath;
+  private final List<Plugin> plugins;
   private Server server;
   private Server replicationServer;
   private NrtsearchClient client;
@@ -111,6 +114,7 @@ public class TestServer {
   private LuceneServerImpl serverImpl;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
+  private PrometheusRegistry prometheusRegistry;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
@@ -142,11 +146,29 @@ public class TestServer {
   public TestServer(
       NrtsearchConfig configuration, boolean writeDiscoveryFile, Path discoveryFilePath)
       throws IOException {
+    this(configuration, writeDiscoveryFile, discoveryFilePath, Collections.emptyList());
+  }
+
+  public TestServer(
+      NrtsearchConfig configuration,
+      boolean writeDiscoveryFile,
+      Path discoveryFilePath,
+      List<Plugin> plugins)
+      throws IOException {
     this.configuration = configuration;
     this.writeDiscoveryFile = writeDiscoveryFile;
     this.discoveryFilePath = discoveryFilePath;
+    this.plugins = plugins;
     createdServers.add(this);
     restart();
+  }
+
+  public NrtsearchConfig getConfiguration() {
+    return configuration;
+  }
+
+  public PrometheusRegistry getPrometheusRegistry() {
+    return prometheusRegistry;
   }
 
   private RemoteBackend createRemoteBackend() {
@@ -169,13 +191,10 @@ public class TestServer {
       executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
     }
     remoteBackend = createRemoteBackend();
+    prometheusRegistry = new PrometheusRegistry();
     serverImpl =
         new LuceneServerImpl(
-            configuration,
-            remoteBackend,
-            new PrometheusRegistry(),
-            executorFactory,
-            Collections.emptyList());
+            configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
 
     replicationServer =
         ServerBuilder.forPort(0)
@@ -190,9 +209,14 @@ public class TestServer {
       writeDiscoveryFile(replicationServer.getPort());
     }
 
+    NrtsearchMonitoringServerInterceptor monitoringInterceptor =
+        NrtsearchMonitoringServerInterceptor.create(
+            Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
     server =
-        ServerBuilder.forPort(0)
-            .addService(ServerInterceptors.intercept(serverImpl, new NrtsearchHeaderInterceptor()))
+        ServerBuilder.forPort(configuration.getPort())
+            .addService(
+                ServerInterceptors.intercept(
+                    serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
             .build()
             .start();
     client = new NrtsearchClient("localhost", server.getPort());
@@ -406,55 +430,7 @@ public class TestServer {
   }
 
   public AddDocumentResponse addDocs(Stream<AddDocumentRequest> requestStream) {
-    CountDownLatch finishLatch = new CountDownLatch(1);
-    // observers responses from Server(should get one onNext and oneCompleted)
-    final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
-    final AtomicReference<Exception> exception = new AtomicReference<>();
-    StreamObserver<AddDocumentResponse> responseStreamObserver =
-        new StreamObserver<>() {
-          @Override
-          public void onNext(AddDocumentResponse value) {
-            response.set(value);
-          }
-
-          @Override
-          public void onError(Throwable t) {
-            exception.set(new RuntimeException(t));
-            finishLatch.countDown();
-          }
-
-          @Override
-          public void onCompleted() {
-            finishLatch.countDown();
-          }
-        };
-    // requestObserver sends requests to Server (one onNext per AddDocumentRequest and one
-    // onCompleted)
-    StreamObserver<AddDocumentRequest> requestObserver =
-        client.getAsyncStub().addDocuments(responseStreamObserver);
-    // parse CSV into a stream of AddDocumentRequest
-    try {
-      requestStream.forEach(requestObserver::onNext);
-    } catch (RuntimeException e) {
-      // Cancel RPC
-      requestObserver.onError(e);
-      throw e;
-    }
-    // Mark the end of requests
-    requestObserver.onCompleted();
-    // Receiving happens asynchronously, so block here 20 seconds
-    try {
-      if (!finishLatch.await(20, TimeUnit.SECONDS)) {
-        throw new RuntimeException("addDocuments can not finish within 20 seconds");
-      }
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-    // Re-throw exception
-    if (exception.get() != null) {
-      throw new RuntimeException(exception.get());
-    }
-    return response.get();
+    return TestDocumentHelper.addDocuments(client.getAsyncStub(), requestStream);
   }
 
   public void addSimpleDocs(String indexName, int... ids) {
@@ -644,6 +620,8 @@ public class TestServer {
     private boolean writeDiscoveryFile = false;
 
     private String additionalConfig = "";
+    private List<Plugin> plugins = Collections.emptyList();
+    private final int serverPort = PortUtils.findAvailablePort();
 
     Builder(TemporaryFolder folder) {
       this.folder = folder;
@@ -704,6 +682,11 @@ public class TestServer {
       return this;
     }
 
+    public Builder withPlugins(List<Plugin> plugins) {
+      this.plugins = plugins;
+      return this;
+    }
+
     public Builder withWriteDiscoveryFile(boolean writeDiscoveryFile) {
       this.writeDiscoveryFile = writeDiscoveryFile;
       return this;
@@ -723,7 +706,8 @@ public class TestServer {
       return new TestServer(
           new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes())),
           writeDiscoveryFile,
-          Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
+          Paths.get(folder.getRoot().toString(), DISCOVERY_FILE),
+          plugins);
     }
 
     private String backendConfig() {
@@ -777,6 +761,7 @@ public class TestServer {
           "bucketName: " + TEST_BUCKET,
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
+          "port: " + serverPort,
           "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }

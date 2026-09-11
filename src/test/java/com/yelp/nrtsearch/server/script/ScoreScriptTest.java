@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.script;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -23,28 +22,26 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.common.primitives.Floats;
-import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.geo.GeoPoint;
-import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
+import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
+import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
-import com.yelp.nrtsearch.server.utils.NrtsearchTestConfigurationFactory;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.metrics.model.registry.PrometheusRegistry;
+import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -64,52 +61,38 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class ScoreScriptTest {
-  /**
-   * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test.
-   */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
+  private static final String TEST_INDEX = "test_index";
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
-  private PrometheusRegistry prometheusRegistry;
+  private TestServer server;
 
   @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
-  }
-
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  public void tearDown() {
+    TestServer.cleanupAll();
   }
 
   @Before
   public void setUp() throws IOException {
-    prometheusRegistry = new PrometheusRegistry();
-    grpcServer = setUpGrpcServer(prometheusRegistry);
+    server =
+        TestServer.builder(folder)
+            .withPlugins(Collections.singletonList(new ScoreScriptTestPlugin()))
+            .build();
   }
 
-  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
-    String testIndex = "test_index";
-    NrtsearchConfig configuration =
-        NrtsearchTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    return new GrpcServer(
-        prometheusRegistry,
-        grpcCleanup,
-        configuration,
-        folder,
-        null,
-        configuration.getIndexDir(),
-        testIndex,
-        configuration.getPort(),
-        null,
-        Collections.singletonList(new ScoreScriptTestPlugin()));
+  private void setupIndex(String registerFieldsFile, String addDocsFile) throws Exception {
+    LuceneServerGrpc.LuceneServerBlockingStub stub = server.getClient().getBlockingStub();
+    stub.createIndex(CreateIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.startIndex(StartIndexRequest.newBuilder().setIndexName(TEST_INDEX).build());
+    stub.registerFields(
+        TestResourceHelper.getFieldsFromResourceFile("/" + registerFieldsFile).toBuilder()
+            .setIndexName(TEST_INDEX)
+            .build());
+    TestDocumentHelper.addDocuments(
+        server.getClient().getAsyncStub(),
+        TestResourceHelper.getCsvDocumentStream(TEST_INDEX, "/" + addDocsFile));
+    stub.refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
   }
 
   static class ScoreScriptTestPlugin extends Plugin implements ScriptPlugin {
@@ -684,23 +667,15 @@ public class ScoreScriptTest {
 
   @Test
   public void testScriptDocValuesIndexField() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsScriptTest.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsScriptTest.json", "addDocs.csv");
 
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .addRetrieveFields("test_doc_values")
                     .setStartHit(0)
                     .setTopHits(10)
@@ -726,14 +701,7 @@ public class ScoreScriptTest {
 
   @Test
   public void testScriptDocValuesScoreQuery() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     SearchResponse searchResponse = doFunctionScoreQuery("verify_doc_values");
     assertEquals(2, searchResponse.getHitsCount());
@@ -771,14 +739,7 @@ public class ScoreScriptTest {
 
   @Test
   public void testScriptUsingScore() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     VirtualField virtualField =
         VirtualField.newBuilder()
@@ -787,11 +748,12 @@ public class ScoreScriptTest {
             .build();
 
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
@@ -811,23 +773,15 @@ public class ScoreScriptTest {
 
   @Test
   public void testScriptUsingScoreInIndexField() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsScriptTest.json");
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsScriptTest.json", "addDocs.csv");
 
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .addRetrieveFields("test_score")
                     .setStartHit(0)
                     .setTopHits(10)
@@ -846,14 +800,7 @@ public class ScoreScriptTest {
 
   @Test
   public void testScriptUsingScoreInScoreQuery() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     SearchResponse searchResponse = doFunctionScoreQuery("verify_score");
     assertEquals(2, searchResponse.getHitsCount());
@@ -868,14 +815,7 @@ public class ScoreScriptTest {
 
   @Test
   public void testParams() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex("registerFieldsBasic.json", "addDocs.csv");
 
     VirtualField virtualField =
         VirtualField.newBuilder()
@@ -901,11 +841,12 @@ public class ScoreScriptTest {
             .build();
 
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
@@ -925,15 +866,7 @@ public class ScoreScriptTest {
   private void testQueryFieldScript(
       String source, String registerFieldsFile, String addDocsFile, double expectedScore)
       throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, registerFieldsFile);
-    AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments(addDocsFile);
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    setupIndex(registerFieldsFile, addDocsFile);
 
     VirtualField virtualField =
         VirtualField.newBuilder()
@@ -942,11 +875,12 @@ public class ScoreScriptTest {
             .build();
 
     SearchResponse searchResponse =
-        grpcServer
+        server
+            .getClient()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
@@ -964,11 +898,12 @@ public class ScoreScriptTest {
   }
 
   private SearchResponse doFunctionScoreQuery(String scriptSource) {
-    return grpcServer
+    return server
+        .getClient()
         .getBlockingStub()
         .search(
             SearchRequest.newBuilder()
-                .setIndexName(grpcServer.getTestIndex())
+                .setIndexName(TEST_INDEX)
                 .setStartHit(0)
                 .setTopHits(10)
                 .setQuery(
