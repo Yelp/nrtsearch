@@ -236,7 +236,13 @@ public class QueryNodeMapper {
                 BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = getNestedPathQuery(queryContext.docLookup(), IndexState.ROOT);
+    // Use the immediate parent path so that nested NestedQuery calls correctly join
+    // items→orders→root instead of jumping every level directly to root.
+    String parentPath =
+        IndexState.getFieldBaseNestedPath(nestedQuery.getPath(), queryContext.docLookup());
+    Query parentQuery =
+        getNestedPathQuery(
+            queryContext.docLookup(), parentPath != null ? parentPath : IndexState.ROOT);
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
