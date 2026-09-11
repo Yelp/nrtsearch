@@ -575,7 +575,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
 
-      addGlobalNestedDocumentOffsets(documents);
+      addNestedDocumentOffsets(documents, indexState);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
@@ -610,7 +610,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
             e.getValue().stream().map(v -> handleFacets(indexState, shardState, v)).toList());
       }
 
-      addGlobalNestedDocumentOffsets(documents);
+      addNestedDocumentOffsets(documents, indexState);
 
       Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
@@ -680,23 +680,34 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     }
 
     /**
-     * Adds global offset values to nested documents for proper ordering and retrieval.
+     * Assigns _parent_offset to each nested document pointing to its immediate parent.
      *
-     * <p>This method calculates and assigns a global offset to each nested document within a parent
-     * document. The offset calculation uses reverse ordering (totalNestedDocs - currentIndex)
+     * <p>Processes the list right-to-left, maintaining the latest position seen per nested path.
+     * The root document (appended after this list) is treated as position {@code
+     * nestedDocuments.size()}.
      *
-     * @param nestedDocuments the list of nested documents to process; must not be null or empty
-     * @throws IllegalArgumentException if nestedDocuments is null
+     * <p>Backward compatible with single-level nesting: when all child docs share the same
+     * _nested_path, the resulting offsets are identical to the previous global-reverse formula.
      */
-    private void addGlobalNestedDocumentOffsets(List<Document> nestedDocuments) {
-      int totalNestedDocs = nestedDocuments.size();
-      for (int i = 0; i < totalNestedDocs; i++) {
-        int globalOffset = totalNestedDocs - i;
+    private void addNestedDocumentOffsets(List<Document> nestedDocuments, IndexState indexState) {
+      int rootPosition = nestedDocuments.size();
+      Map<String, Integer> pathToLatestPosition = new HashMap<>();
+      pathToLatestPosition.put(IndexState.ROOT, rootPosition);
+
+      for (int i = nestedDocuments.size() - 1; i >= 0; i--) {
+        String nestedPath = nestedDocuments.get(i).get(IndexState.NESTED_PATH);
+        String parentPath = IndexState.getFieldBaseNestedPath(nestedPath, indexState);
+        if (parentPath == null) {
+          parentPath = IndexState.ROOT;
+        }
+        int parentPosition = pathToLatestPosition.getOrDefault(parentPath, rootPosition);
+        int offset = parentPosition - i;
         nestedDocuments
             .get(i)
             .add(
                 new org.apache.lucene.document.NumericDocValuesField(
-                    IndexState.NESTED_DOCUMENT_OFFSET, globalOffset));
+                    IndexState.NESTED_DOCUMENT_OFFSET, offset));
+        pathToLatestPosition.put(nestedPath, i);
       }
     }
 

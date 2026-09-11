@@ -95,32 +95,85 @@ public class ObjectFieldDef extends IndexableFieldDef<Struct> {
       List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
       fieldValues.stream().map(e -> GSON.fromJson(e, Map.class)).forEach(fieldValueMaps::add);
 
-      int totalDocs = fieldValueMaps.size();
-      List<Document> childDocuments = new ArrayList<>(totalDocs);
-
+      List<Document> allDocuments = new ArrayList<>();
       for (Map<String, Object> fieldValueMap : fieldValueMaps) {
-        childDocuments.add(createChildDocument(fieldValueMap, facetHierarchyPaths));
+        allDocuments.addAll(createChildDocumentBlock(fieldValueMap, facetHierarchyPaths));
       }
 
-      documentsContext.addChildDocuments(this.getName(), childDocuments);
+      documentsContext.addChildDocuments(this.getName(), allDocuments);
     }
   }
 
   /**
-   * create a new lucene document for each nested object
+   * Creates an ordered block of Lucene documents for one value of this nested OBJECT field. Inner
+   * nested children come first (Lucene block-join convention), this document comes last.
    *
-   * @param fieldValue the field value to include in the document
+   * @param fieldValue the JSON-parsed map for this nested object value
    * @param facetHierarchyPaths facet hierarchy paths
-   * @return lucene document
+   * @return ordered list: [innerChildren..., thisDoc]
    */
-  private Document createChildDocument(
+  private List<Document> createChildDocumentBlock(
       Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
+    List<Document> block = new ArrayList<>();
     Document document = new Document();
-    parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
+
+    for (Map.Entry<String, IndexableFieldDef<?>> childField : this.getChildFields().entrySet()) {
+      String[] keys = childField.getKey().split("\\.");
+      String key = keys[keys.length - 1];
+      Object rawValue = fieldValue.get(key);
+      if (rawValue == null) {
+        continue;
+      }
+
+      if (childField.getValue() instanceof ObjectFieldDef childObjectDef
+          && childObjectDef.isNestedDoc()) {
+        // Inner nested OBJECT: recursively create child document blocks
+        List<Map<String, Object>> innerValues = new ArrayList<>();
+        if (rawValue instanceof Map) {
+          innerValues.add((Map<String, Object>) rawValue);
+        } else if (rawValue instanceof List) {
+          innerValues.addAll((List<Map<String, Object>>) rawValue);
+        } else {
+          throw new IllegalArgumentException("Invalid data");
+        }
+        for (Map<String, Object> innerValue : innerValues) {
+          block.addAll(childObjectDef.createChildDocumentBlock(innerValue, facetHierarchyPaths));
+        }
+      } else if (childField.getValue().getType().equals("OBJECT")) {
+        // Non-nested OBJECT: flatten into current document
+        List<Map<String, Object>> childValues = new ArrayList<>();
+        if (rawValue instanceof Map) {
+          childValues.add((Map<String, Object>) rawValue);
+        } else if (rawValue instanceof List) {
+          childValues.addAll((List<Map<String, Object>>) rawValue);
+        } else {
+          throw new IllegalArgumentException("Invalid data");
+        }
+        ((ObjectFieldDef) childField.getValue())
+            .parseFieldWithChildrenObject(document, childValues, facetHierarchyPaths);
+      } else {
+        // Leaf field: extract scalar/list values and add to current document
+        List<String> childrenValues = new ArrayList<>();
+        if (rawValue instanceof List) {
+          for (Object e : (List<Object>) rawValue) {
+            if (e instanceof List || e instanceof Map) {
+              childrenValues.add(GSON.toJson(e));
+            } else {
+              childrenValues.add(String.valueOf(e));
+            }
+          }
+        } else {
+          childrenValues.add(String.valueOf(rawValue));
+        }
+        childField.getValue().parseFieldWithChildren(document, childrenValues, facetHierarchyPaths);
+      }
+    }
+
     ((IndexableFieldDef<?>) (IndexState.getMetaField(IndexState.NESTED_PATH)))
         .parseDocumentField(document, List.of(this.getName()), List.of());
 
-    return document;
+    block.add(document);
+    return block;
   }
 
   @Override

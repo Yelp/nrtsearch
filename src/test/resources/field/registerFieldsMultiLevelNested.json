@@ -1,0 +1,53 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "parent_field",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "orders",
+      "type": "OBJECT",
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "order_name",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "items",
+          "type": "OBJECT",
+          "nestedDoc": true,
+          "multiValued": true,
+          "childFields": [
+            {
+              "name": "item_name",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true,
+              "multiValued": true
+            },
+            {
+              "name": "quantity",
+              "type": "INT",
+              "search": true,
+              "storeDocValues": true,
+              "multiValued": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
