@@ -22,15 +22,11 @@ import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import io.grpc.testing.GrpcCleanupRule;
 import java.util.List;
 import java.util.Map;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class CustomRpcTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   protected List<Plugin> getPlugins(NrtsearchConfig configuration) {

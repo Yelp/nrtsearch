@@ -30,7 +30,6 @@ import com.yelp.nrtsearch.server.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.search.SearcherResult;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,7 +49,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.NamedThreadFactory;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class TimeoutTest extends ServerTestCase {
@@ -68,8 +66,6 @@ public class TimeoutTest extends ServerTestCase {
           TimeUnit.SECONDS,
           new LinkedBlockingQueue<>(10),
           new NamedThreadFactory("LuceneSearchExecutor"));
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

@@ -31,7 +31,6 @@ import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,12 +39,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class ObjectFieldDefTest extends ServerTestCase {
 
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   private static final String STORED_TEST_INDEX = "stored_test_index";
 
   private ObjectFieldDef createFieldDef(Field field) {

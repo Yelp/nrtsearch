@@ -23,18 +23,14 @@ import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTestsBase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   static final ExpectedValues[] ORDINAL_EXPECTED_MULTI_ORDER_DESC =
       new ExpectedValues[] {

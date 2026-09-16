@@ -33,7 +33,6 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.plugins.FetchTaskPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,11 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.lucene.index.LeafReaderContext;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class FetchTasksTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;

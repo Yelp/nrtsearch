@@ -18,17 +18,14 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final String TEST_INDEX = "test_index";
 

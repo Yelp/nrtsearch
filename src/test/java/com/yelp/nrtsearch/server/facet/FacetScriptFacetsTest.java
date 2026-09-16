@@ -35,7 +35,6 @@ import com.yelp.nrtsearch.server.script.FacetScript;
 import com.yelp.nrtsearch.server.script.FacetScript.SegmentFactory;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,14 +46,11 @@ import java.util.Set;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class FacetScriptFacetsTest extends ServerTestCase {
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   public static class TestFacetScriptPlugin extends Plugin implements ScriptPlugin {
 

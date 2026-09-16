@@ -30,19 +30,15 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class VirtualTermsCollectorManagerTest extends TermsCollectorManagerTestsBase {
   private static final String VIRTUAL_FIELD = "index_virtual";
   private static final String VIRTUAL_SCORE_FIELD = "index_virtual_score";
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/search/collection/terms_virtual.json");

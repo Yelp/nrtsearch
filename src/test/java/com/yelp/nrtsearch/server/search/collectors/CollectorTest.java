@@ -42,7 +42,6 @@ import com.yelp.nrtsearch.server.plugins.CollectorPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -61,7 +60,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class CollectorTest extends ServerTestCase {
@@ -71,8 +69,6 @@ public class CollectorTest extends ServerTestCase {
   private static final int SEGMENT_CHUNK = 10;
   private static final String COLLECTOR_NAME = "top_reviews_aggregation";
   private static final String PLUGIN_COLLECTOR = "plugin_collector";
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

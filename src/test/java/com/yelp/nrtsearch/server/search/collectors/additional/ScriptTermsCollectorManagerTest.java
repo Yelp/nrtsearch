@@ -34,7 +34,6 @@ import com.yelp.nrtsearch.server.script.FacetScript;
 import com.yelp.nrtsearch.server.script.FacetScript.SegmentFactory;
 import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,12 +42,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.index.LeafReaderContext;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsBase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   public static class TestTermsScriptPlugin extends Plugin implements ScriptPlugin {
 

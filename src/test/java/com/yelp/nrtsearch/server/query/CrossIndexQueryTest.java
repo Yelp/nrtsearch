@@ -22,14 +22,12 @@ import static org.junit.Assert.fail;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -40,8 +38,6 @@ import org.junit.Test;
 public class CrossIndexQueryTest extends ServerTestCase {
   private static final String PRIMARY_INDEX = "primary_index";
   private static final String SECONDARY_INDEX = "secondary_index";
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {
