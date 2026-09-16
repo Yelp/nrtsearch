@@ -357,36 +357,12 @@ public class MultiLevelNestedTest extends ServerTestCase {
    * finds no matching order docs → empty result. After PR2 the inner NestedQuery uses orders as
    * parent, correctly joining items→orders→root.
    *
-   * <p>Uses doc_id=2 data ("doohickey" in order3) - never modified by other tests.
+   * <p>Uses doc_id=2 data ("doohickey" in order3) — never modified by other tests. assertDocIds
+   * checks exact set equality, so if doc_id=1 were spuriously returned cross-doc isolation would
+   * also be caught here.
    */
   @Test
   public void testNestedNestedQueryFindsRootDocument() {
-    Query innerNestedQuery =
-        Query.newBuilder()
-            .setNestedQuery(
-                NestedQuery.newBuilder()
-                    .setPath("orders.items")
-                    .setQuery(
-                        Query.newBuilder()
-                            .setTermQuery(
-                                TermQuery.newBuilder()
-                                    .setField("orders.items.item_name")
-                                    .setTextValue("doohickey")
-                                    .build())))
-            .build();
-
-    Query outerNestedQuery =
-        Query.newBuilder()
-            .setNestedQuery(NestedQuery.newBuilder().setPath("orders").setQuery(innerNestedQuery))
-            .build();
-
-    SearchResponse response = doSearch(outerNestedQuery, List.of("doc_id"));
-    assertDocIds(response, "2");
-  }
-
-  /** Cross-doc isolation: querying for "doohickey" (only in doc_id=2) must return only doc_id=2. */
-  @Test
-  public void testNestedNestedQueryCrossDocIsolation() {
     Query innerNestedQuery =
         Query.newBuilder()
             .setNestedQuery(
