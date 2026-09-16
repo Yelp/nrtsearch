@@ -118,11 +118,21 @@ public class TestServer {
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
-      int port = PortUtils.findAvailablePort();
       Path s3Directory = folder.newFolder("s3").toPath();
-      api = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
-      api.start();
-      S3_ENDPOINT = "http://127.0.0.1:" + port;
+      for (int attempt = 0; attempt < 5; attempt++) {
+        int port = PortUtils.findAvailablePort();
+        S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
+        try {
+          mock.start();
+          api = mock;
+          S3_ENDPOINT = "http://127.0.0.1:" + port;
+          return;
+        } catch (Exception e) {
+          if (attempt == 4) {
+            throw new IOException("Failed to start S3Mock after 5 attempts", e);
+          }
+        }
+      }
     }
   }
 
