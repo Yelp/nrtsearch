@@ -268,60 +268,55 @@ public class EmbeddingIntegrationTest extends ServerTestCase {
   }
 
   /**
-   * Mock plugin that registers two embedding provider types: "mock" (direct lookup) and
-   * "mock-override" (prepends "override_" to text before lookup).
+   * Mock plugin that provides two named embedding providers: "test-mock" (direct lookup) and
+   * "test-mock-override" (prepends "override_" to text before lookup).
    */
   public static class TestMockEmbeddingPlugin extends Plugin implements EmbeddingPlugin {
+    private static final int DIMS = 3;
+
     @Override
-    public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
-      Map<String, EmbeddingProviderFactory> factories = new HashMap<>();
+    public Map<String, EmbeddingProvider> getEmbeddingProviders() {
+      Map<String, EmbeddingProvider> providers = new HashMap<>();
 
       // Standard mock provider: looks up text directly in VECTOR_MAP
-      factories.put(
-          "mock",
-          config -> {
-            int dims = ((Number) config.get("dimensions")).intValue();
-            return new EmbeddingProvider() {
-              @Override
-              protected float[] doEmbed(String text) {
-                float[] vec = VECTOR_MAP.get(text);
-                if (vec != null) {
-                  return vec;
-                }
-                // Fallback: return a zero-like vector for unknown text
-                return new float[dims];
+      providers.put(
+          "test-mock",
+          new EmbeddingProvider() {
+            @Override
+            protected float[] doEmbed(String text) {
+              float[] vec = VECTOR_MAP.get(text);
+              if (vec != null) {
+                return vec;
               }
+              return new float[DIMS];
+            }
 
-              @Override
-              public int dimensions() {
-                return dims;
-              }
-            };
+            @Override
+            public int dimensions() {
+              return DIMS;
+            }
           });
 
       // Override mock provider: prepends "override_" to text before lookup
-      factories.put(
-          "mock-override",
-          config -> {
-            int dims = ((Number) config.get("dimensions")).intValue();
-            return new EmbeddingProvider() {
-              @Override
-              protected float[] doEmbed(String text) {
-                float[] vec = VECTOR_MAP.get("override_" + text);
-                if (vec != null) {
-                  return vec;
-                }
-                return new float[dims];
+      providers.put(
+          "test-mock-override",
+          new EmbeddingProvider() {
+            @Override
+            protected float[] doEmbed(String text) {
+              float[] vec = VECTOR_MAP.get("override_" + text);
+              if (vec != null) {
+                return vec;
               }
+              return new float[DIMS];
+            }
 
-              @Override
-              public int dimensions() {
-                return dims;
-              }
-            };
+            @Override
+            public int dimensions() {
+              return DIMS;
+            }
           });
 
-      return factories;
+      return providers;
     }
   }
 }

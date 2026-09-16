@@ -35,16 +35,8 @@ public class EmbeddingCreatorTest {
   }
 
   @Test
-  public void testGetProviderFromConfig() {
-    String yaml =
-        String.join(
-            "\n",
-            "nodeName: test",
-            "embeddingProviders:",
-            "  test-provider:",
-            "    type: mock",
-            "    dimensions: 3");
-    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(yaml.getBytes()));
+  public void testGetProviderFromPlugin() {
+    NrtsearchConfig config = getEmptyConfig();
     Plugin mockPlugin = new MockEmbeddingPlugin(3);
     EmbeddingCreator.initialize(config, List.of(mockPlugin));
 
@@ -62,33 +54,11 @@ public class EmbeddingCreatorTest {
   }
 
   @Test(expected = IllegalArgumentException.class)
-  public void testDuplicateProviderType() {
-    String yaml =
-        String.join(
-            "\n",
-            "nodeName: test",
-            "embeddingProviders:",
-            "  p1:",
-            "    type: mock",
-            "    dimensions: 3");
-    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(yaml.getBytes()));
+  public void testDuplicateProviderName() {
+    NrtsearchConfig config = getEmptyConfig();
     Plugin plugin1 = new MockEmbeddingPlugin(3);
     Plugin plugin2 = new MockEmbeddingPlugin(3);
     EmbeddingCreator.initialize(config, List.of(plugin1, plugin2));
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testUnknownProviderType() {
-    String yaml =
-        String.join(
-            "\n",
-            "nodeName: test",
-            "embeddingProviders:",
-            "  test-provider:",
-            "    type: unknown-type",
-            "    dimensions: 3");
-    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(yaml.getBytes()));
-    EmbeddingCreator.initialize(config, Collections.emptyList());
   }
 
   private NrtsearchConfig getEmptyConfig() {
@@ -103,22 +73,19 @@ public class EmbeddingCreatorTest {
     }
 
     @Override
-    public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
+    public Map<String, EmbeddingProvider> getEmbeddingProviders() {
       return Map.of(
-          "mock",
-          config -> {
-            int dims = ((Number) config.get("dimensions")).intValue();
-            return new EmbeddingProvider() {
-              @Override
-              protected float[] doEmbed(String text) {
-                return new float[dims];
-              }
+          "test-provider",
+          new EmbeddingProvider() {
+            @Override
+            protected float[] doEmbed(String text) {
+              return new float[dimensions];
+            }
 
-              @Override
-              public int dimensions() {
-                return dims;
-              }
-            };
+            @Override
+            public int dimensions() {
+              return dimensions;
+            }
           });
     }
   }

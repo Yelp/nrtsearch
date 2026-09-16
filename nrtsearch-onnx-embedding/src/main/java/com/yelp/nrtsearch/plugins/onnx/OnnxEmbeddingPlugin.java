@@ -16,19 +16,31 @@
 package com.yelp.nrtsearch.plugins.onnx;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.embedding.EmbeddingProviderFactory;
+import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
 import com.yelp.nrtsearch.server.plugins.EmbeddingPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import java.util.HashMap;
 import java.util.Map;
 
-/** Plugin that registers the ONNX embedding provider type. */
+/** Plugin that provides ONNX-based embedding providers. */
 public class OnnxEmbeddingPlugin extends Plugin implements EmbeddingPlugin {
+  static final String TYPE_NAME = "onnx";
 
-  /** Create a new ONNX embedding plugin. */
-  public OnnxEmbeddingPlugin(NrtsearchConfig configuration) {}
+  private final Map<String, EmbeddingProvider> providers = new HashMap<>();
+
+  /** Create a new ONNX embedding plugin, initializing providers from server configuration. */
+  public OnnxEmbeddingPlugin(NrtsearchConfig configuration) {
+    Map<String, Map<String, Object>> configs = configuration.getEmbeddingProviderConfigs();
+    for (Map.Entry<String, Map<String, Object>> entry : configs.entrySet()) {
+      String type = (String) entry.getValue().get("type");
+      if (TYPE_NAME.equals(type)) {
+        providers.put(entry.getKey(), OnnxEmbeddingProviderFactory.create(entry.getValue()));
+      }
+    }
+  }
 
   @Override
-  public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
-    return Map.of("onnx", new OnnxEmbeddingProviderFactory());
+  public Map<String, EmbeddingProvider> getEmbeddingProviders() {
+    return providers;
   }
 }

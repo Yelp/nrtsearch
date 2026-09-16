@@ -22,7 +22,6 @@ import static org.mockito.Mockito.mock;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
 import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
-import com.yelp.nrtsearch.server.embedding.EmbeddingProviderFactory;
 import com.yelp.nrtsearch.server.field.VectorFieldDef.ByteVectorFieldDef;
 import com.yelp.nrtsearch.server.field.VectorFieldDef.FloatVectorFieldDef;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -48,22 +47,11 @@ public class VectorFieldDefEmbeddingTest {
 
   @Before
   public void setUp() {
-    // Initialize SimilarityCreator (needed by IndexableFieldDef constructor)
-    NrtsearchConfig simConfig =
+    NrtsearchConfig config =
         new NrtsearchConfig(new ByteArrayInputStream("nodeName: test".getBytes()));
-    SimilarityCreator.initialize(simConfig, Collections.emptyList());
-
-    String yaml =
-        String.join(
-            "\n",
-            "nodeName: test",
-            "embeddingProviders:",
-            "  test-provider:",
-            "    type: mock",
-            "    dimensions: 3");
-    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(yaml.getBytes()));
-    Plugin mockPlugin = new MockEmbeddingPlugin();
-    EmbeddingCreator.initialize(config, List.of(mockPlugin));
+    // Initialize SimilarityCreator (needed by IndexableFieldDef constructor)
+    SimilarityCreator.initialize(config, Collections.emptyList());
+    EmbeddingCreator.initialize(config, List.of(new MockEmbeddingPlugin()));
   }
 
   @Test
@@ -292,27 +280,23 @@ public class VectorFieldDefEmbeddingTest {
 
   private static class MockEmbeddingPlugin extends Plugin implements EmbeddingPlugin {
     @Override
-    public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
+    public Map<String, EmbeddingProvider> getEmbeddingProviders() {
       return Map.of(
-          "mock",
-          config -> {
-            int dims = ((Number) config.get("dimensions")).intValue();
-            return new EmbeddingProvider() {
-              @Override
-              protected float[] doEmbed(String text) {
-                float[] result = new float[dims];
-                // Fill with deterministic values based on text hash
-                for (int i = 0; i < dims; i++) {
-                  result[i] = MOCK_EMBEDDING[i % MOCK_EMBEDDING.length];
-                }
-                return result;
+          "test-provider",
+          new EmbeddingProvider() {
+            @Override
+            protected float[] doEmbed(String text) {
+              float[] result = new float[DIMENSIONS];
+              for (int i = 0; i < DIMENSIONS; i++) {
+                result[i] = MOCK_EMBEDDING[i % MOCK_EMBEDDING.length];
               }
+              return result;
+            }
 
-              @Override
-              public int dimensions() {
-                return dims;
-              }
-            };
+            @Override
+            public int dimensions() {
+              return DIMENSIONS;
+            }
           });
     }
   }

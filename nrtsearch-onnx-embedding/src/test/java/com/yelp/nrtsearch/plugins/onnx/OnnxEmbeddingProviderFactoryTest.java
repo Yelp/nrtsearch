@@ -27,9 +27,8 @@ public class OnnxEmbeddingProviderFactoryTest {
   @Test
   public void testCreateFromConfig() {
     String modelDir = System.getProperty("user.dir") + "/../models/all-MiniLM-L6-v2";
-    OnnxEmbeddingProviderFactory factory = new OnnxEmbeddingProviderFactory();
     EmbeddingProvider provider =
-        factory.create(
+        OnnxEmbeddingProviderFactory.create(
             Map.of(
                 "modelPath",
                 modelDir + "/model.onnx",
@@ -46,11 +45,10 @@ public class OnnxEmbeddingProviderFactoryTest {
 
   @Test(expected = RuntimeException.class)
   public void testCreateWithMissingModel() {
-    new OnnxEmbeddingProviderFactory()
-        .create(
-            Map.of(
-                "modelPath", "/nonexistent/model.onnx",
-                "tokenizerPath", "/nonexistent/tokenizer.json",
-                "dimensions", 384));
+    OnnxEmbeddingProviderFactory.create(
+        Map.of(
+            "modelPath", "/nonexistent/model.onnx",
+            "tokenizerPath", "/nonexistent/tokenizer.json",
+            "dimensions", 384));
   }
 }

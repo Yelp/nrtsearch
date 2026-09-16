@@ -23,69 +23,41 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Registry for named {@link EmbeddingProvider} instances, initialized from server config. */
+/** Registry for named {@link EmbeddingProvider} instances, collected from plugins. */
 public class EmbeddingCreator {
   private static final Logger logger = LoggerFactory.getLogger(EmbeddingCreator.class);
   private static EmbeddingCreator instance;
 
-  private final Map<String, EmbeddingProviderFactory> factoryMap = new HashMap<>();
   private final Map<String, EmbeddingProvider> providerMap = new HashMap<>();
 
-  public EmbeddingCreator(NrtsearchConfig configuration) {}
+  private EmbeddingCreator() {}
 
   /**
    * Get a named {@link EmbeddingProvider} instance.
    *
-   * @param name provider instance name from config
+   * @param name provider instance name
    * @return the provider, or null if not found
    */
   public EmbeddingProvider getProvider(String name) {
     return providerMap.get(name);
   }
 
-  private void registerType(String typeName, EmbeddingProviderFactory factory) {
-    if (factoryMap.containsKey(typeName)) {
-      throw new IllegalArgumentException("Embedding provider type already registered: " + typeName);
+  private void registerProvider(String name, EmbeddingProvider provider) {
+    if (providerMap.containsKey(name)) {
+      throw new IllegalArgumentException("Embedding provider already registered: " + name);
     }
-    factoryMap.put(typeName, factory);
+    providerMap.put(name, provider);
+    logger.info(
+        "Registered embedding provider '{}' with {} dimensions", name, provider.dimensions());
   }
 
-  private void registerTypes(Map<String, EmbeddingProviderFactory> factories) {
-    factories.forEach(this::registerType);
-  }
-
-  private void createProviders(NrtsearchConfig configuration) {
-    Map<String, Map<String, Object>> providerConfigs = configuration.getEmbeddingProviderConfigs();
-    for (Map.Entry<String, Map<String, Object>> entry : providerConfigs.entrySet()) {
-      String name = entry.getKey();
-      Map<String, Object> config = entry.getValue();
-      String type = (String) config.get("type");
-      if (type == null) {
-        throw new IllegalArgumentException(
-            "Embedding provider '" + name + "' missing required 'type' field");
-      }
-      EmbeddingProviderFactory factory = factoryMap.get(type);
-      if (factory == null) {
-        throw new IllegalArgumentException(
-            "Unknown embedding provider type: "
-                + type
-                + ", available types: "
-                + factoryMap.keySet());
-      }
-      EmbeddingProvider provider = factory.create(config);
-      providerMap.put(name, provider);
-      logger.info(
-          "Created embedding provider '{}' of type '{}' with {} dimensions",
-          name,
-          type,
-          provider.dimensions());
-    }
+  private void registerProviders(Map<String, EmbeddingProvider> providers) {
+    providers.forEach(this::registerProvider);
   }
 
   /**
-   * Initialize singleton instance of {@link EmbeddingCreator}. Registers any additional {@link
-   * EmbeddingProvider} type factories provided by {@link EmbeddingPlugin}s, then instantiates named
-   * providers from server config.
+   * Initialize singleton instance of {@link EmbeddingCreator}. Collects initialized {@link
+   * EmbeddingProvider} instances from {@link EmbeddingPlugin}s.
    *
    * @param configuration service configuration
    * @param plugins list of loaded plugins
@@ -94,13 +66,12 @@ public class EmbeddingCreator {
     if (instance != null) {
       instance.closeProviders();
     }
-    instance = new EmbeddingCreator(configuration);
+    instance = new EmbeddingCreator();
     for (Plugin plugin : plugins) {
       if (plugin instanceof EmbeddingPlugin embeddingPlugin) {
-        instance.registerTypes(embeddingPlugin.getEmbeddingProviders());
+        instance.registerProviders(embeddingPlugin.getEmbeddingProviders());
       }
     }
-    instance.createProviders(configuration);
   }
 
   private void closeProviders() {

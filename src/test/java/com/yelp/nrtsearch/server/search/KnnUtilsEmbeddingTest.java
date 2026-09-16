@@ -21,7 +21,6 @@ import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
 import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
-import com.yelp.nrtsearch.server.embedding.EmbeddingProviderFactory;
 import com.yelp.nrtsearch.server.field.VectorFieldDef;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.plugins.EmbeddingPlugin;
@@ -39,19 +38,8 @@ public class KnnUtilsEmbeddingTest {
 
   @Before
   public void setUp() {
-    // Initialize EmbeddingCreator with a mock provider for each test
-    String yaml =
-        String.join(
-            "\n",
-            "nodeName: test",
-            "embeddingProviders:",
-            "  test-provider:",
-            "    type: mock",
-            "    dimensions: 3",
-            "  alt-provider:",
-            "    type: mock",
-            "    dimensions: 3");
-    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(yaml.getBytes()));
+    NrtsearchConfig config =
+        new NrtsearchConfig(new ByteArrayInputStream("nodeName: test".getBytes()));
     EmbeddingCreator.initialize(config, List.of(new MockEmbeddingPlugin()));
   }
 
@@ -244,24 +232,20 @@ public class KnnUtilsEmbeddingTest {
 
   private static class MockEmbeddingPlugin extends Plugin implements EmbeddingPlugin {
     @Override
-    public Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
-      return Map.of(
-          "mock",
-          config -> {
-            int dims = ((Number) config.get("dimensions")).intValue();
-            return new EmbeddingProvider() {
-              @Override
-              protected float[] doEmbed(String text) {
-                // Return a known vector for testing
-                return MOCK_VECTOR.clone();
-              }
+    public Map<String, EmbeddingProvider> getEmbeddingProviders() {
+      EmbeddingProvider provider =
+          new EmbeddingProvider() {
+            @Override
+            protected float[] doEmbed(String text) {
+              return MOCK_VECTOR.clone();
+            }
 
-              @Override
-              public int dimensions() {
-                return dims;
-              }
-            };
-          });
+            @Override
+            public int dimensions() {
+              return MOCK_VECTOR.length;
+            }
+          };
+      return Map.of("test-provider", provider, "alt-provider", provider);
     }
   }
 }

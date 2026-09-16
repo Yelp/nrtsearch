@@ -16,15 +16,13 @@
 package com.yelp.nrtsearch.plugins.onnx;
 
 import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
-import com.yelp.nrtsearch.server.embedding.EmbeddingProviderFactory;
 import java.util.Map;
 
-/** Factory that creates {@link OnnxEmbeddingProvider} instances from configuration maps. */
-public class OnnxEmbeddingProviderFactory implements EmbeddingProviderFactory {
+/** Utility for creating {@link OnnxEmbeddingProvider} instances from configuration maps. */
+class OnnxEmbeddingProviderFactory {
   private static final int DEFAULT_MAX_TOKEN_LENGTH = 256;
 
-  @Override
-  public EmbeddingProvider create(Map<String, Object> config) {
+  static EmbeddingProvider create(Map<String, Object> config) {
     String modelPath = requireString(config, "modelPath");
     String tokenizerPath = requireString(config, "tokenizerPath");
     int dimensions = requireInt(config, "dimensions");
@@ -52,4 +50,6 @@ public class OnnxEmbeddingProviderFactory implements EmbeddingProviderFactory {
     Object value = config.get(key);
     return value == null ? defaultValue : ((Number) value).intValue();
   }
+
+  private OnnxEmbeddingProviderFactory() {}
 }

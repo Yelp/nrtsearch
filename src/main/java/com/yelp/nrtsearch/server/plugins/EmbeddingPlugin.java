@@ -15,18 +15,21 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.embedding.EmbeddingProviderFactory;
+import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
 import java.util.Collections;
 import java.util.Map;
 
 /**
- * Plugin interface for providing custom {@link
- * com.yelp.nrtsearch.server.embedding.EmbeddingProvider}s. Provides info for registration of
- * embedding provider types by name.
+ * Plugin interface for providing custom {@link EmbeddingProvider}s. Plugins read their
+ * configuration from {@link com.yelp.nrtsearch.server.config.NrtsearchConfig} (available via the
+ * plugin constructor) and return fully initialized, named provider instances.
  */
 public interface EmbeddingPlugin {
-  /** Get map of provider type name to {@link EmbeddingProviderFactory} for registration. */
-  default Map<String, EmbeddingProviderFactory> getEmbeddingProviders() {
+  /**
+   * Get map of provider instance name to initialized {@link EmbeddingProvider}. Plugins should read
+   * the server configuration to determine which providers to create and how to configure them.
+   */
+  default Map<String, EmbeddingProvider> getEmbeddingProviders() {
     return Collections.emptyMap();
   }
 }
