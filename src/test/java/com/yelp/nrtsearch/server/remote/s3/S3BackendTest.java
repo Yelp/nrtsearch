@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.remote.s3;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -26,6 +27,7 @@ import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.remote.LZ4FileCompressor;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
@@ -1194,7 +1196,7 @@ public class S3BackendTest {
     S3Backend.AdaptiveConcurrencyConfig adaptive =
         new S3Backend.AdaptiveConcurrencyConfig(true, 16, 1, 50, 0.3, 0.1, 0.85, 0.75, 2000, 3);
     S3Backend.S3BackendConfig config =
-        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false, adaptive);
+        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false, adaptive, "NONE");
     try (S3Backend backend =
         new S3Backend(
             BUCKET_NAME, false, config, new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
@@ -1256,9 +1258,9 @@ public class S3BackendTest {
     List<S3Backend.FileNamePair> fileNamePairs =
         S3Backend.getFileNamePairs(Map.of("file1", fileMetaData1, "file2", fileMetaData2));
     S3Backend.FileNamePair expected1 =
-        new S3Backend.FileNamePair("file1", "time_string_1-pid1-file1", 1);
+        new S3Backend.FileNamePair("file1", "time_string_1-pid1-file1", 1, 1, null);
     S3Backend.FileNamePair expected2 =
-        new S3Backend.FileNamePair("file2", "time_string_2-pid2-file2", 1);
+        new S3Backend.FileNamePair("file2", "time_string_2-pid2-file2", 1, 1, null);
     assertEquals(2, fileNamePairs.size());
     assertTrue(fileNamePairs.contains(expected1));
     assertTrue(fileNamePairs.contains(expected2));
@@ -1878,6 +1880,183 @@ public class S3BackendTest {
     assertEquals(1000L, config.getDownloadRetryBaseDelayMs());
     assertEquals(30000L, config.getDownloadRetryMaxDelayMs());
     assertTrue(config.getDownloadRetryReduceConcurrency());
+  }
+
+  @Test
+  public void testUploadIndexFiles_withLZ4Compression() throws IOException {
+    File indexDir = folder.newFolder("index_dir_lz4_upload");
+    String testContent = "index file content for lz4 compression test";
+    File file1 = new File(indexDir, "lz4_file1");
+    Files.write(file1.toPath(), testContent.getBytes(StandardCharsets.UTF_8));
+
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(new byte[0], new byte[0], testContent.length(), 0, "pid_lz4", "ts_lz4");
+
+    S3Backend lz4Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
+            new LZ4FileCompressor());
+
+    lz4Backend.uploadIndexFiles(
+        "lz4_upload_service", "lz4_index", indexDir.toPath(), Map.of("lz4_file1", meta1));
+
+    // After upload, metadata should have compressionType and compressedLength set
+    assertEquals("LZ4", meta1.compressionType);
+    assertNotNull(meta1.compressedLength);
+    assertTrue(meta1.compressedLength > 0);
+  }
+
+  @Test
+  public void testDownloadIndexFiles_withLZ4Compression() throws IOException {
+    File uploadDir = folder.newFolder("lz4_upload_dir");
+    File downloadDir = folder.newFolder("lz4_download_dir");
+    String testContent = "download index file content for lz4 decompression test";
+    File file1 = new File(uploadDir, "lz4_dl_file1");
+    Files.write(file1.toPath(), testContent.getBytes(StandardCharsets.UTF_8));
+
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(
+            new byte[0], new byte[0], testContent.length(), 0, "pid_lz4_dl", "ts_lz4_dl");
+
+    S3Backend lz4Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
+            new LZ4FileCompressor());
+
+    // Upload compressed
+    lz4Backend.uploadIndexFiles(
+        "lz4_dl_service", "lz4_dl_index", uploadDir.toPath(), Map.of("lz4_dl_file1", meta1));
+
+    // Download and verify decompressed content matches original
+    lz4Backend.downloadIndexFiles(
+        "lz4_dl_service", "lz4_dl_index", downloadDir.toPath(), Map.of("lz4_dl_file1", meta1));
+
+    String downloadedContent =
+        new String(
+            Files.readAllBytes(downloadDir.toPath().resolve("lz4_dl_file1")),
+            StandardCharsets.UTF_8);
+    assertEquals(testContent, downloadedContent);
+  }
+
+  @Test
+  public void testDownloadIndexFile_withLZ4Compression() throws IOException {
+    File uploadDir = folder.newFolder("lz4_stream_upload_dir");
+    String testContent = "stream download content with lz4 compression";
+    File file1 = new File(uploadDir, "lz4_stream_file1");
+    Files.write(file1.toPath(), testContent.getBytes(StandardCharsets.UTF_8));
+
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(
+            new byte[0], new byte[0], testContent.length(), 0, "pid_lz4_stream", "ts_lz4_stream");
+
+    S3Backend lz4Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
+            new LZ4FileCompressor());
+
+    // Upload compressed
+    lz4Backend.uploadIndexFiles(
+        "lz4_stream_service",
+        "lz4_stream_index",
+        uploadDir.toPath(),
+        Map.of("lz4_stream_file1", meta1));
+
+    // Download as stream and verify decompressed content
+    InputStream stream =
+        lz4Backend.downloadIndexFile(
+            "lz4_stream_service", "lz4_stream_index", "lz4_stream_file1", meta1);
+    String downloadedContent = convertToString(stream);
+    assertEquals(testContent, downloadedContent);
+  }
+
+  @Test
+  public void testDownloadIndexFiles_mixedCompressedAndUncompressed() throws IOException {
+    File uploadDirLz4 = folder.newFolder("mixed_upload_lz4");
+    File uploadDirPlain = folder.newFolder("mixed_upload_plain");
+    File downloadDir = folder.newFolder("mixed_download");
+
+    String content1 = "compressed file content";
+    String content2 = "uncompressed file content";
+    Files.write(
+        new File(uploadDirLz4, "compressed_file").toPath(),
+        content1.getBytes(StandardCharsets.UTF_8));
+    Files.write(
+        new File(uploadDirPlain, "plain_file").toPath(), content2.getBytes(StandardCharsets.UTF_8));
+
+    NrtFileMetaData metaCompressed =
+        new NrtFileMetaData(new byte[0], new byte[0], content1.length(), 0, "pid_comp", "ts_comp");
+    NrtFileMetaData metaPlain =
+        new NrtFileMetaData(
+            new byte[0], new byte[0], content2.length(), 0, "pid_plain", "ts_plain");
+
+    S3Backend lz4Backend =
+        new S3Backend(
+            BUCKET_NAME,
+            false,
+            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
+            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
+            new LZ4FileCompressor());
+
+    // Upload compressed file
+    lz4Backend.uploadIndexFiles(
+        "mixed_service",
+        "mixed_index",
+        uploadDirLz4.toPath(),
+        Map.of("compressed_file", metaCompressed));
+
+    // Upload plain file without compression (as if it came from an old version)
+    // We manually put it in S3 as uncompressed bytes, with no compressionType on metadata
+    String backendKey =
+        S3Backend.getIndexDataPrefix("mixed_service", "mixed_index")
+            + S3Backend.getIndexBackendFileName("plain_file", metaPlain);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET_NAME).key(backendKey).build(),
+        RequestBody.fromBytes(content2.getBytes(StandardCharsets.UTF_8)));
+
+    // Download both files - compressed one should be decompressed, plain one should work as-is
+    lz4Backend.downloadIndexFiles(
+        "mixed_service",
+        "mixed_index",
+        downloadDir.toPath(),
+        Map.of("compressed_file", metaCompressed, "plain_file", metaPlain));
+
+    String downloadedCompressed =
+        new String(
+            Files.readAllBytes(downloadDir.toPath().resolve("compressed_file")),
+            StandardCharsets.UTF_8);
+    String downloadedPlain =
+        new String(
+            Files.readAllBytes(downloadDir.toPath().resolve("plain_file")), StandardCharsets.UTF_8);
+
+    assertEquals(content1, downloadedCompressed);
+    assertEquals(content2, downloadedPlain);
+  }
+
+  @Test
+  public void testS3BackendConfig_compressionType_default() {
+    String configStr = "bucketName: test-bucket";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
+    assertEquals("NONE", config.getCompressionType());
+  }
+
+  @Test
+  public void testS3BackendConfig_compressionType_LZ4() {
+    String configStr = "bucketName: test-bucket\nremoteConfig:\n  s3:\n    compressionType: LZ4";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
+    assertEquals("LZ4", config.getCompressionType());
   }
 
   private String convertToString(InputStream inputStream) throws IOException {

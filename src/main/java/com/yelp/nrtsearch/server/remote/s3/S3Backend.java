@@ -26,6 +26,8 @@ import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.remote.FileCompressor;
+import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.StateUtils;
@@ -57,6 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -75,7 +78,9 @@ import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.Download;
 import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.Upload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
+import software.amazon.awssdk.transfer.s3.model.UploadRequest;
 
 /** Backend implementation that stored data in amazon s3 object storage. */
 public class S3Backend implements RemoteBackend {
@@ -114,14 +119,25 @@ public class S3Backend implements RemoteBackend {
   private final S3TransferManager transferManager;
   private final boolean s3Metrics;
   private final GlobalWindowRateLimiter rateLimiter;
+  private final FileCompressor fileCompressor;
+  private final String fileCompressorName;
 
   /**
    * Pair of file names, one for the local file and one for the backend file.
    *
    * @param fileName local file name
    * @param backendFileName backend file name
+   * @param length uncompressed file length
+   * @param downloadLength expected size of the S3 object (compressed if applicable, else same as
+   *     length)
+   * @param compressionType compression type name, or null if uncompressed
    */
-  record FileNamePair(String fileName, String backendFileName, long length) {}
+  record FileNamePair(
+      String fileName,
+      String backendFileName,
+      long length,
+      long downloadLength,
+      String compressionType) {}
 
   /** Configuration for the adaptive concurrency limiter. */
   public static class AdaptiveConcurrencyConfig {
@@ -248,6 +264,7 @@ public class S3Backend implements RemoteBackend {
     private final long downloadRetryMaxDelayMs;
     private final boolean downloadRetryReduceConcurrency;
     private final AdaptiveConcurrencyConfig adaptiveConcurrencyConfig;
+    private final String compressionType;
 
     /**
      * Create S3BackendConfig from NrtsearchConfig.
@@ -275,6 +292,8 @@ public class S3Backend implements RemoteBackend {
       AdaptiveConcurrencyConfig adaptiveConcurrencyConfig =
           AdaptiveConcurrencyConfig.fromConfig(configuration);
 
+      String compressionType = configReader.getString(CONFIG_PREFIX + "compressionType", "NONE");
+
       return new S3BackendConfig(
           metrics,
           rateLimitBytes,
@@ -285,12 +304,13 @@ public class S3Backend implements RemoteBackend {
           downloadRetryBaseDelayMs,
           downloadRetryMaxDelayMs,
           downloadRetryReduceConcurrency,
-          adaptiveConcurrencyConfig);
+          adaptiveConcurrencyConfig,
+          compressionType);
     }
 
     /**
-     * Convenience constructor with adaptive concurrency disabled. Adaptive parameters are set to
-     * their defaults.
+     * Convenience constructor with adaptive concurrency disabled and no compression. Adaptive
+     * parameters are set to their defaults.
      */
     public S3BackendConfig(
         boolean metrics,
@@ -312,7 +332,8 @@ public class S3Backend implements RemoteBackend {
           downloadRetryBaseDelayMs,
           downloadRetryMaxDelayMs,
           downloadRetryReduceConcurrency,
-          AdaptiveConcurrencyConfig.DISABLED);
+          AdaptiveConcurrencyConfig.DISABLED,
+          "NONE");
     }
 
     /**
@@ -342,7 +363,8 @@ public class S3Backend implements RemoteBackend {
         long downloadRetryBaseDelayMs,
         long downloadRetryMaxDelayMs,
         boolean downloadRetryReduceConcurrency,
-        AdaptiveConcurrencyConfig adaptiveConcurrencyConfig) {
+        AdaptiveConcurrencyConfig adaptiveConcurrencyConfig,
+        String compressionType) {
       if (rateLimitBytes < 0) {
         throw new IllegalArgumentException("rateLimitBytes must be >= 0");
       }
@@ -377,6 +399,7 @@ public class S3Backend implements RemoteBackend {
           adaptiveConcurrencyConfig != null
               ? adaptiveConcurrencyConfig
               : AdaptiveConcurrencyConfig.DISABLED;
+      this.compressionType = compressionType != null ? compressionType : "NONE";
     }
 
     /**
@@ -464,6 +487,15 @@ public class S3Backend implements RemoteBackend {
       return adaptiveConcurrencyConfig;
     }
 
+    /**
+     * Get the compression type name for index data file uploads.
+     *
+     * @return compression type name, or "NONE" for no compression
+     */
+    public String getCompressionType() {
+      return compressionType;
+    }
+
     @VisibleForTesting
     static long rateLimitStringToBytes(String sizeStr) {
       String baseStr = sizeStr;
@@ -505,10 +537,24 @@ public class S3Backend implements RemoteBackend {
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
         s3ClientBundle,
+        resolveCompressor(S3BackendConfig.fromConfig(configuration).getCompressionType()),
+        S3BackendConfig.fromConfig(configuration).getCompressionType(),
         configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
             .maxThreads());
+  }
+
+  private static FileCompressor resolveCompressor(String compressionType) {
+    if (compressionType == null || compressionType.isEmpty() || "NONE".equals(compressionType)) {
+      return null;
+    }
+    FileCompressorCreator creator = FileCompressorCreator.getInstance();
+    if (creator == null) {
+      throw new IllegalStateException(
+          "FileCompressorCreator not initialized; cannot resolve compressor: " + compressionType);
+    }
+    return creator.getCompressor(compressionType);
   }
 
   /**
@@ -529,6 +575,35 @@ public class S3Backend implements RemoteBackend {
         savePluginBeforeUnzip,
         s3BackendConfig,
         s3ClientBundle,
+        null,
+        "NONE",
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
+  }
+
+  /**
+   * Constructor with explicit file compressor, for testing.
+   *
+   * @param serviceBucket bucket name
+   * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3BackendConfig s3 backend configuration
+   * @param s3ClientBundle s3 client bundle
+   * @param fileCompressor compressor to use for index file uploads/downloads, or null for none
+   */
+  public S3Backend(
+      String serviceBucket,
+      boolean savePluginBeforeUnzip,
+      S3BackendConfig s3BackendConfig,
+      S3Util.S3ClientBundle s3ClientBundle,
+      FileCompressor fileCompressor) {
+    this(
+        serviceBucket,
+        savePluginBeforeUnzip,
+        s3BackendConfig,
+        s3ClientBundle,
+        fileCompressor,
+        fileCompressor != null
+            ? fileCompressor.getClass().getSimpleName().replace("FileCompressor", "")
+            : "NONE",
         ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
   }
 
@@ -539,6 +614,8 @@ public class S3Backend implements RemoteBackend {
    * @param savePluginBeforeUnzip save plugin before unzipping
    * @param s3BackendConfig s3 backend configuration
    * @param s3ClientBundle s3 client bundle
+   * @param fileCompressor compressor to use for index file uploads/downloads, or null for none
+   * @param fileCompressorName name of the compressor (stored in file metadata), or "NONE"
    * @param defaultParallelism parallelism to use when downloading multipart objects, also the
    *     default batch size when downloading all index files
    */
@@ -547,6 +624,8 @@ public class S3Backend implements RemoteBackend {
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
       S3Util.S3ClientBundle s3ClientBundle,
+      FileCompressor fileCompressor,
+      String fileCompressorName,
       int defaultParallelism) {
     this.s3 = s3ClientBundle.s3Client();
     this.s3Async = s3ClientBundle.s3AsyncClient();
@@ -564,6 +643,8 @@ public class S3Backend implements RemoteBackend {
     this.downloadRetryReduceConcurrency = s3BackendConfig.getDownloadRetryReduceConcurrency();
     this.adaptiveConcurrencyConfig = s3BackendConfig.getAdaptiveConcurrencyConfig();
     this.serviceBucket = serviceBucket;
+    this.fileCompressor = fileCompressor;
+    this.fileCompressorName = fileCompressorName;
 
     this.s3Metrics = s3BackendConfig.metrics;
     if (s3BackendConfig.getRateLimitBytes() > 0) {
@@ -893,7 +974,7 @@ public class S3Backend implements RemoteBackend {
 
     Semaphore semaphore = new Semaphore(maxConcurrency);
     AtomicReference<Throwable> failure = new AtomicReference<>();
-    List<CompletableFuture<CompletedFileUpload>> futures = new ArrayList<>();
+    List<CompletableFuture<?>> futures = new ArrayList<>();
 
     for (FileNamePair pair : fileList) {
       if (failure.get() != null) {
@@ -911,34 +992,75 @@ public class S3Backend implements RemoteBackend {
       }
       String backendKey = backendPrefix + pair.backendFileName;
       Path localFile = indexDir.resolve(pair.fileName);
-      UploadFileRequest request =
-          UploadFileRequest.builder()
-              .putObjectRequest(
-                  PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-              .source(localFile)
-              .addTransferListener(uploadProgressListener)
-              .build();
-      try {
-        FileUpload upload = transferManager.uploadFile(request);
-        CompletableFuture<CompletedFileUpload> future =
-            upload
-                .completionFuture()
-                .whenComplete(
-                    (result, t) -> {
-                      semaphore.release();
-                      if (t != null) {
-                        failure.compareAndSet(null, t);
-                      }
-                    });
-        futures.add(future);
-      } catch (Throwable t) {
-        semaphore.release();
-        failure.compareAndSet(null, t);
-        break;
+
+      if (fileCompressor != null) {
+        // Compress to memory (no temp files), then upload with known content length
+        try {
+          NrtFileMetaData meta = files.get(pair.fileName());
+          java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+          try (java.io.OutputStream compStream = fileCompressor.compressStream(baos);
+              InputStream source = Files.newInputStream(localFile)) {
+            IOUtils.copy(source, compStream);
+          }
+          byte[] compressedData = baos.toByteArray();
+          final String compressorName = fileCompressorName;
+          Upload upload =
+              transferManager.upload(
+                  UploadRequest.builder()
+                      .putObjectRequest(
+                          PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                      .requestBody(AsyncRequestBody.fromBytes(compressedData))
+                      .build());
+          CompletableFuture<?> combined =
+              upload
+                  .completionFuture()
+                  .whenComplete(
+                      (r, t) -> {
+                        semaphore.release();
+                        if (t != null) {
+                          failure.compareAndSet(null, t);
+                        } else {
+                          meta.compressionType = compressorName;
+                          meta.compressedLength = (long) compressedData.length;
+                        }
+                      });
+          futures.add(combined);
+        } catch (Throwable t) {
+          semaphore.release();
+          failure.compareAndSet(null, t);
+          break;
+        }
+      } else {
+        // Uncompressed upload: existing file-based path
+        UploadFileRequest request =
+            UploadFileRequest.builder()
+                .putObjectRequest(
+                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .source(localFile)
+                .addTransferListener(uploadProgressListener)
+                .build();
+        try {
+          FileUpload upload = transferManager.uploadFile(request);
+          CompletableFuture<CompletedFileUpload> future =
+              upload
+                  .completionFuture()
+                  .whenComplete(
+                      (result, t) -> {
+                        semaphore.release();
+                        if (t != null) {
+                          failure.compareAndSet(null, t);
+                        }
+                      });
+          futures.add(future);
+        } catch (Throwable t) {
+          semaphore.release();
+          failure.compareAndSet(null, t);
+          break;
+        }
       }
     }
 
-    for (CompletableFuture<CompletedFileUpload> future : futures) {
+    for (CompletableFuture<?> future : futures) {
       try {
         future.join();
       } catch (Exception ignored) {
@@ -990,7 +1112,8 @@ public class S3Backend implements RemoteBackend {
         }
       }
 
-      long batchExpectedBytes = filesToDownload.stream().mapToLong(FileNamePair::length).sum();
+      long batchExpectedBytes =
+          filesToDownload.stream().mapToLong(FileNamePair::downloadLength).sum();
       S3ProgressListenerImpl downloadProgressListener =
           new S3ProgressListenerImpl(
               service, indexIdentifier, "download_index_files", batchExpectedBytes);
@@ -1072,63 +1195,110 @@ public class S3Backend implements RemoteBackend {
       } catch (IOException ignored) {
         // best-effort cleanup; the download will overwrite or fail on its own
       }
-      DownloadRequest<GetObjectResponse> request =
-          DownloadRequest.builder()
-              .getObjectRequest(
-                  GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-              .responseTransformer(AsyncResponseTransformer.toFile(localFile))
-              .addTransferListener(progressListener)
-              .build();
-      try {
-        Download<GetObjectResponse> download = transferManager.download(request);
+
+      if (pair.compressionType() != null) {
+        // Compressed file: stream from S3 -> decompress -> write to local file
         CompletableFuture<?> future =
-            download
-                .completionFuture()
-                .whenComplete(
-                    (result, t) -> {
-                      if (t != null) {
-                        limiter.onError();
-                        logger.warn(
-                            "Failed to download file: {}, error: {}",
-                            pair.fileName(),
-                            t.getMessage());
-                        failures.add(new FailedDownload(pair, t));
-                      } else {
-                        try {
-                          long actualSize = Files.size(localFile);
-                          if (actualSize != pair.length()) {
-                            limiter.onError();
-                            IOException sizeError =
-                                new IOException(
-                                    "Downloaded file size mismatch for "
-                                        + pair.fileName()
-                                        + ": expected "
-                                        + pair.length()
-                                        + " bytes, got "
-                                        + actualSize);
-                            logger.warn(
-                                "Failed to download file: {}, error: {}",
-                                pair.fileName(),
-                                sizeError.getMessage());
-                            failures.add(new FailedDownload(pair, sizeError));
-                          } else {
-                            limiter.onSuccess();
-                          }
-                        } catch (IOException e) {
+            CompletableFuture.runAsync(
+                () -> {
+                  try {
+                    FileCompressor compressor = getCompressorForDownload(pair.compressionType());
+                    if (compressor == null) {
+                      throw new IOException(
+                          "No compressor registered for type: " + pair.compressionType());
+                    }
+                    try (InputStream s3Stream =
+                            downloadFromS3Path(serviceBucket, backendKey, false);
+                        InputStream decompressed = compressor.decompressStream(s3Stream)) {
+                      Files.copy(decompressed, localFile);
+                    }
+                    long actualSize = Files.size(localFile);
+                    if (actualSize != pair.length()) {
+                      limiter.onError();
+                      IOException sizeError =
+                          new IOException(
+                              "Decompressed file size mismatch for "
+                                  + pair.fileName()
+                                  + ": expected "
+                                  + pair.length()
+                                  + " bytes, got "
+                                  + actualSize);
+                      logger.warn(
+                          "Failed to download file: {}, error: {}",
+                          pair.fileName(),
+                          sizeError.getMessage());
+                      failures.add(new FailedDownload(pair, sizeError));
+                    } else {
+                      limiter.onSuccess();
+                    }
+                  } catch (Throwable t) {
+                    limiter.onError();
+                    logger.warn(
+                        "Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
+                    failures.add(new FailedDownload(pair, t));
+                  }
+                });
+        futures.add(future);
+      } else {
+        // Uncompressed file: existing TransferManager path
+        DownloadRequest<GetObjectResponse> request =
+            DownloadRequest.builder()
+                .getObjectRequest(
+                    GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .responseTransformer(AsyncResponseTransformer.toFile(localFile))
+                .addTransferListener(progressListener)
+                .build();
+        try {
+          Download<GetObjectResponse> download = transferManager.download(request);
+          CompletableFuture<?> future =
+              download
+                  .completionFuture()
+                  .whenComplete(
+                      (result, t) -> {
+                        if (t != null) {
                           limiter.onError();
                           logger.warn(
                               "Failed to download file: {}, error: {}",
                               pair.fileName(),
-                              e.getMessage());
-                          failures.add(new FailedDownload(pair, e));
+                              t.getMessage());
+                          failures.add(new FailedDownload(pair, t));
+                        } else {
+                          try {
+                            long actualSize = Files.size(localFile);
+                            if (actualSize != pair.length()) {
+                              limiter.onError();
+                              IOException sizeError =
+                                  new IOException(
+                                      "Downloaded file size mismatch for "
+                                          + pair.fileName()
+                                          + ": expected "
+                                          + pair.length()
+                                          + " bytes, got "
+                                          + actualSize);
+                              logger.warn(
+                                  "Failed to download file: {}, error: {}",
+                                  pair.fileName(),
+                                  sizeError.getMessage());
+                              failures.add(new FailedDownload(pair, sizeError));
+                            } else {
+                              limiter.onSuccess();
+                            }
+                          } catch (IOException e) {
+                            limiter.onError();
+                            logger.warn(
+                                "Failed to download file: {}, error: {}",
+                                pair.fileName(),
+                                e.getMessage());
+                            failures.add(new FailedDownload(pair, e));
+                          }
                         }
-                      }
-                    });
-        futures.add(future);
-      } catch (Throwable t) {
-        limiter.onError();
-        logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
-        failures.add(new FailedDownload(pair, t));
+                      });
+          futures.add(future);
+        } catch (Throwable t) {
+          limiter.onError();
+          logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
+          failures.add(new FailedDownload(pair, t));
+        }
       }
     }
 
@@ -1164,6 +1334,32 @@ public class S3Backend implements RemoteBackend {
     return Math.min(delay, downloadRetryMaxDelayMs);
   }
 
+  /**
+   * Look up the compressor for a given compression type name. Uses the global FileCompressorCreator
+   * registry when initialized, falling back to this backend's own configured compressor when the
+   * creator is not available (e.g., in tests).
+   *
+   * @param compressionType the compression type name from file metadata
+   * @return the compressor, or null if compressionType is null or "NONE"
+   * @throws IOException if the compressor is not available
+   */
+  private FileCompressor getCompressorForDownload(String compressionType) throws IOException {
+    if (compressionType == null || compressionType.isEmpty() || "NONE".equals(compressionType)) {
+      return null;
+    }
+    FileCompressorCreator creator = FileCompressorCreator.getInstance();
+    if (creator != null) {
+      return creator.getCompressor(compressionType);
+    }
+    // Fallback for tests or early bootstrap: use the locally configured compressor
+    if (compressionType.equals(fileCompressorName) && fileCompressor != null) {
+      return fileCompressor;
+    }
+    throw new IOException(
+        "FileCompressorCreator not initialized and no local compressor for type: "
+            + compressionType);
+  }
+
   @Override
   public InputStream downloadIndexFile(
       String service, String indexIdentifier, String fileName, NrtFileMetaData fileMetaData)
@@ -1171,11 +1367,14 @@ public class S3Backend implements RemoteBackend {
     String backendFileName = getIndexBackendFileName(fileName, fileMetaData);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     String backendKey = backendPrefix + backendFileName;
-    return wrapDownloadStream(
-        downloadFromS3Path(serviceBucket, backendKey, false),
-        s3Metrics,
-        indexIdentifier,
-        rateLimiter);
+    InputStream rawStream = downloadFromS3Path(serviceBucket, backendKey, false);
+    InputStream wrappedStream =
+        wrapDownloadStream(rawStream, s3Metrics, indexIdentifier, rateLimiter);
+    FileCompressor compressor = getCompressorForDownload(fileMetaData.compressionType);
+    if (compressor != null) {
+      return compressor.decompressStream(wrappedStream);
+    }
+    return wrappedStream;
   }
 
   @VisibleForTesting
@@ -1184,9 +1383,17 @@ public class S3Backend implements RemoteBackend {
     for (Map.Entry<String, NrtFileMetaData> entry : files.entrySet()) {
       String fileName = entry.getKey();
       NrtFileMetaData fileMetaData = entry.getValue();
+      long downloadLength =
+          fileMetaData.compressedLength != null
+              ? fileMetaData.compressedLength
+              : fileMetaData.length;
       fileList.add(
           new FileNamePair(
-              fileName, getIndexBackendFileName(fileName, fileMetaData), fileMetaData.length));
+              fileName,
+              getIndexBackendFileName(fileName, fileMetaData),
+              fileMetaData.length,
+              downloadLength,
+              fileMetaData.compressionType));
     }
     return fileList;
   }
