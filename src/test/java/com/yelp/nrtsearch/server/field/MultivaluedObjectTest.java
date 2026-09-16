@@ -34,7 +34,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -93,8 +91,6 @@ public class MultivaluedObjectTest extends ServerTestCase {
           List.of(MULTIVALUED_OBJECTS.get(8), MULTIVALUED_OBJECTS.get(9)),
           5,
           List.of(MULTIVALUED_OBJECTS.get(12), MULTIVALUED_OBJECTS.get(13)));
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);

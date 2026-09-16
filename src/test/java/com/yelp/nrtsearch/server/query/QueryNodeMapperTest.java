@@ -36,7 +36,6 @@ import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
@@ -45,7 +44,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.DoubleValues;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class QueryNodeMapperTest extends ServerTestCase {
@@ -54,8 +52,6 @@ public class QueryNodeMapperTest extends ServerTestCase {
   private static final int SEGMENT_CHUNK = 10;
   private static final List<String> RETRIEVE_LIST =
       Arrays.asList("doc_id", "int_score", "int_field");
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private void init(List<Plugin> plugins) {
     ScriptService.initialize(getEmptyConfig(), plugins);

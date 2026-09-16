@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.search.sort.SortParser;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +30,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class SortFieldTest extends ServerTestCase {
@@ -40,8 +38,6 @@ public class SortFieldTest extends ServerTestCase {
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   protected List<String> getIndices() {

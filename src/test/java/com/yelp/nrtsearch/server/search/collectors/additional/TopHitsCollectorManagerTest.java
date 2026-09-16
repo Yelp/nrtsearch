@@ -37,7 +37,6 @@ import com.yelp.nrtsearch.server.grpc.TopHitsCollector;
 import com.yelp.nrtsearch.server.grpc.TotalHits.Relation;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,11 +44,9 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class TopHitsCollectorManagerTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;

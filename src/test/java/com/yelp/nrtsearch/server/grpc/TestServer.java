@@ -76,7 +76,7 @@ public class TestServer {
   private final Gson gson = new GsonBuilder().serializeNulls().create();
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
-  public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
+  public static String S3_ENDPOINT = null;
   public static final String DISCOVERY_FILE = "primary_node.json";
   public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
@@ -119,8 +119,20 @@ public class TestServer {
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
       Path s3Directory = folder.newFolder("s3").toPath();
-      api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-      api.start();
+      for (int attempt = 0; attempt < 5; attempt++) {
+        int port = PortUtils.findAvailablePort();
+        S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
+        try {
+          mock.start();
+          api = mock;
+          S3_ENDPOINT = "http://127.0.0.1:" + port;
+          return;
+        } catch (Exception e) {
+          if (attempt == 4) {
+            throw new IOException("Failed to start S3Mock after 5 attempts", e);
+          }
+        }
+      }
     }
   }
 
@@ -140,6 +152,7 @@ public class TestServer {
     if (api != null) {
       api.shutdown();
       api = null;
+      S3_ENDPOINT = null;
     }
   }
 

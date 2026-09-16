@@ -30,7 +30,6 @@ import com.yelp.nrtsearch.server.grpc.MatchAllQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,12 +37,10 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class FilteredSSDVFacetCountsTest extends ServerTestCase {
   private static final String MULTI_SEGMENT_INDEX = "test_index_multi";
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {

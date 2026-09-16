@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URISyntaxException;
@@ -36,7 +35,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -57,8 +55,6 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
   private static final Map<String, String> INDEX_TO_DOCS =
       Map.of(
           INDEX_1, "/addDocsMultiIndexIndexing1.csv", INDEX_2, "/addDocsMultiIndexIndexing2.csv");
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

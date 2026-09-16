@@ -27,14 +27,12 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.Rule;
 import org.junit.Test;
 
 public class JsScriptEngineTest extends ServerTestCase {
@@ -42,8 +40,6 @@ public class JsScriptEngineTest extends ServerTestCase {
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
    */
-  @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);
   }

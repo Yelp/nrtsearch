@@ -33,7 +33,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Set;
@@ -42,11 +41,9 @@ import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.classic.ClassicAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class ContextSuggestFieldDefTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   private static final String SINGLE_VALUED_FIELD_NAME = "context_suggest_name";
   private static final String MULTI_VALUED_FIELD_NAME = "context_suggest_name_multi_valued";
   private static final String FIELD_TYPE = "CONTEXT_SUGGEST";

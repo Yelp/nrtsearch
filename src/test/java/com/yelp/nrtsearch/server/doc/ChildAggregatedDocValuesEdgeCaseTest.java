@@ -30,7 +30,6 @@ import com.yelp.nrtsearch.server.script.ScriptContext;
 import com.yelp.nrtsearch.server.script.ScriptEngine;
 import com.yelp.nrtsearch.server.script.ScriptFactoryContext;
 import com.yelp.nrtsearch.server.script.ScriptService;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
@@ -38,7 +37,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.DoubleValues;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -62,7 +60,6 @@ public class ChildAggregatedDocValuesEdgeCaseTest extends ServerTestCase {
   private static final int NUM_DOCS_WITHOUT_CHILDREN = 2;
   private static final int TOTAL_DOCS = NUM_DOCS_WITH_CHILDREN + NUM_DOCS_WITHOUT_CHILDREN;
 
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   protected Gson gson = new GsonBuilder().serializeNulls().create();
 
   private void init(List<Plugin> plugins) {

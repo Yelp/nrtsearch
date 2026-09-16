@@ -31,16 +31,12 @@ import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.Polygon;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.*;
 import org.apache.lucene.document.Document;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class PolygonFieldDefTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final Gson GSON = new Gson();
 

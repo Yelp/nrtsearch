@@ -31,7 +31,6 @@ import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -41,12 +40,9 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class SearchContextTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   public static class DummyCollector extends DocCollector {
 

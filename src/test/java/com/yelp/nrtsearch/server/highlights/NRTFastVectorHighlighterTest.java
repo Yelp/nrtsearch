@@ -39,20 +39,16 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
   private static final List<String> ALL_FIELDS = List.of("doc_id", "comment");
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/highlights/register_fields_highlights.json");
