@@ -29,7 +29,6 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.GlobalOrdinalLookup;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +37,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class EagerFieldOrdinalTest extends ServerTestCase {
@@ -61,8 +59,6 @@ public class EagerFieldOrdinalTest extends ServerTestCase {
   private static final List<String> EAGER_FIELDS =
       Arrays.asList(
           EAGER_TEXT_FIELD, EAGER_ATOM_FIELD, EAGER_TEXT_FIELD_MULTI, EAGER_ATOM_FIELD_MULTI);
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);

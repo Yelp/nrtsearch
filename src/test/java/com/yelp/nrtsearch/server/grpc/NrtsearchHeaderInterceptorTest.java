@@ -28,17 +28,14 @@ import com.yelp.nrtsearch.server.search.FetchTasks;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import io.grpc.Metadata;
 import io.grpc.stub.MetadataUtils;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class NrtsearchHeaderInterceptorTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   static class HeaderInterceptorTestPlugin extends Plugin implements FetchTaskPlugin {
     static volatile Map<String, String> headers;

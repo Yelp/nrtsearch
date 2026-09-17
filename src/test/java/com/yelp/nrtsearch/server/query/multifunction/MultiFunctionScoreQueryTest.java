@@ -33,18 +33,15 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class MultiFunctionScoreQueryTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   private static final Script DOUBLE_SCRIPT =
       Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("double_field").build();
 

@@ -22,15 +22,11 @@ import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.*;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class innerHitTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);

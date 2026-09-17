@@ -51,13 +51,11 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
 import com.yelp.nrtsearch.server.grpc.WeightedScoreOrderBlender;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class MultiRetrieverSearchTest extends ServerTestCase {
@@ -65,8 +63,6 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   private static final double SCORE_DELTA = 1e-5;
   // Max RRF score a doc can get from a single retriever with k=60: 1/(60+1)
   private static final double RRF_RANK1_K60 = 1.0 / 61.0;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {

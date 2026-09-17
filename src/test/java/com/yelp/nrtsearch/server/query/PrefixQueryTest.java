@@ -31,7 +31,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,11 +39,9 @@ import java.util.List;
 import java.util.Set;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class PrefixQueryTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);

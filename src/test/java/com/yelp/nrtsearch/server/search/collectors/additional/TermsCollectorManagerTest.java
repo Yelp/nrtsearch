@@ -26,15 +26,12 @@ import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class TermsCollectorManagerTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/search/collection/terms_building.json");

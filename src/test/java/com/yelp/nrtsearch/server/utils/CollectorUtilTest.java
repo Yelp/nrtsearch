@@ -19,17 +19,14 @@ import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 
 public class CollectorUtilTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   protected static final Script FIELD_SCRIPT =
       Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("value_field").build();
   protected static final Script SCORE_SCRIPT =

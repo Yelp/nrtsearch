@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.test_utils.PortUtils;
 import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -75,7 +76,7 @@ public class TestServer {
   private final Gson gson = new GsonBuilder().serializeNulls().create();
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
-  public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
+  public static String S3_ENDPOINT = null;
   public static final String DISCOVERY_FILE = "primary_node.json";
   public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
@@ -113,12 +114,25 @@ public class TestServer {
   private LuceneServerImpl serverImpl;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
+  private PrometheusRegistry prometheusRegistry;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
       Path s3Directory = folder.newFolder("s3").toPath();
-      api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-      api.start();
+      for (int attempt = 0; attempt < 5; attempt++) {
+        int port = PortUtils.findAvailablePort();
+        S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
+        try {
+          mock.start();
+          api = mock;
+          S3_ENDPOINT = "http://127.0.0.1:" + port;
+          return;
+        } catch (Exception e) {
+          if (attempt == 4) {
+            throw new IOException("Failed to start S3Mock after 5 attempts", e);
+          }
+        }
+      }
     }
   }
 
@@ -138,6 +152,7 @@ public class TestServer {
     if (api != null) {
       api.shutdown();
       api = null;
+      S3_ENDPOINT = null;
     }
   }
 
@@ -165,6 +180,10 @@ public class TestServer {
     return configuration;
   }
 
+  public PrometheusRegistry getPrometheusRegistry() {
+    return prometheusRegistry;
+  }
+
   private RemoteBackend createRemoteBackend() {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
@@ -185,7 +204,7 @@ public class TestServer {
       executorFactory = new ExecutorFactory(configuration.getThreadPoolConfiguration());
     }
     remoteBackend = createRemoteBackend();
-    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
+    prometheusRegistry = new PrometheusRegistry();
     serverImpl =
         new LuceneServerImpl(
             configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
@@ -207,7 +226,7 @@ public class TestServer {
         NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
     server =
-        ServerBuilder.forPort(0)
+        ServerBuilder.forPort(configuration.getPort())
             .addService(
                 ServerInterceptors.intercept(
                     serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
@@ -615,6 +634,7 @@ public class TestServer {
 
     private String additionalConfig = "";
     private List<Plugin> plugins = Collections.emptyList();
+    private final int serverPort = PortUtils.findAvailablePort();
 
     Builder(TemporaryFolder folder) {
       this.folder = folder;
@@ -754,6 +774,7 @@ public class TestServer {
           "bucketName: " + TEST_BUCKET,
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
+          "port: " + serverPort,
           "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }

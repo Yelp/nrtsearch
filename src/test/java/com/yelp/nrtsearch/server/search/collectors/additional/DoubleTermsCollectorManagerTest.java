@@ -23,17 +23,13 @@ import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class DoubleTermsCollectorManagerTest extends TermsCollectorManagerTestsBase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/search/collection/terms_double.json");

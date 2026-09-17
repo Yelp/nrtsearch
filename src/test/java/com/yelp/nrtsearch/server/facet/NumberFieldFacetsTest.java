@@ -27,18 +27,15 @@ import com.yelp.nrtsearch.server.grpc.NumericRangeType;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class NumberFieldFacetsTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final List<String> fields =
       Arrays.asList(

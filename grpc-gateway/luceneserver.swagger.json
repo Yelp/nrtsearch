@@ -2442,6 +2442,17 @@
       },
       "title": "State for use in subsequent searches (search after)"
     },
+    "StreamSearchResponsePhase": {
+      "type": "string",
+      "enum": [
+        "PHASE_UNSPECIFIED",
+        "SEARCH",
+        "RESCORE",
+        "FETCH_AND_LOG"
+      ],
+      "default": "PHASE_UNSPECIFIED",
+      "description": "The phase that was last completed when the server produced this response.\n\n - SEARCH: First-pass retrieval completed (reserved for future decomposition).\n - RESCORE: Rescoring completed; hit IDs, scores and any RankingRequest.intermediateRetrieveFields\nare available.\n - FETCH_AND_LOG: Fetch completed and the selected documents were logged; full document fields are\navailable."
+    },
     "TermInSetQueryDoubleTerms": {
       "type": "object",
       "properties": {
@@ -4626,6 +4637,20 @@
       },
       "title": "Defines logger for search hits"
     },
+    "luceneserverLuceneDocIdSet": {
+      "type": "object",
+      "properties": {
+        "luceneDocIds": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Lucene doc ids. Each must appear in this shard's RESCORE phase response, and must not repeat."
+        }
+      },
+      "description": "A set of lucene doc ids, used to select the documents of a searchStream fetch phase.\n\nUnordered by design. A global merge preserves the relative order of a single shard's own hits, so\nthe server can order the documents it fetches and logs by its own ranking; sending an order would\nonly add a way for the two sides to disagree."
+    },
     "luceneserverMatchAllQuery": {
       "type": "object",
       "description": "A query that matches all documents."
@@ -5357,6 +5382,23 @@
       },
       "description": "A query that matches documents with values within the specified range. The lower and upper values though provided\nas strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME\nfield types."
     },
+    "luceneserverRankingRequest": {
+      "type": "object",
+      "properties": {
+        "searchRequest": {
+          "$ref": "#/definitions/luceneserverSearchRequest",
+          "description": "The search to execute. Its retrieveFields describe the hits of the final\n(FETCH_AND_LOG phase) response, and are not filled on the RESCORE phase response."
+        },
+        "intermediateRetrieveFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to fill on the hits of the RESCORE phase response, in addition to the ranking info\nthat is always present. Typically the primary key, which the client needs in order to\ndeduplicate documents that more than one shard returned before deciding what each shard\nshould fetch and log. Keep this list small: these fields are fetched for every hit of the\nranking phase, while SearchRequest.retrieveFields are only fetched for the documents that\nsurvive the merge."
+        }
+      },
+      "description": "Initial searchStream request: the search to execute for the ranking phase, plus the hit fields the\nclient needs on the intermediate response it merges."
+    },
     "luceneserverRawFileChunk": {
       "type": "object",
       "properties": {
@@ -5376,6 +5418,20 @@
         }
       },
       "title": "Chunk of file data"
+    },
+    "luceneserverReducedHitList": {
+      "type": "object",
+      "properties": {
+        "luceneDocIdsToReturn": {
+          "$ref": "#/definitions/luceneserverLuceneDocIdSet",
+          "description": "Documents whose fields should be fetched and returned in the response hits. If unset, every\nhit of this shard's RESCORE phase response is fetched and returned."
+        },
+        "luceneDocIdsToLog": {
+          "$ref": "#/definitions/luceneserverLuceneDocIdSet",
+          "description": "Documents that should be logged (e.g. easy negatives, via a HitsLogger). The server logs\nexactly this set, and does not truncate it to LoggingHits.hitsToLog: that limit drops\ndocuments by this shard's local ranking, which the client's global merge has already\nreplaced, so sizing the set is the client's job. If unset, this shard logs what the unary\nsearch RPC would have logged, the top LoggingHits.hitsToLog documents of its own ranking."
+        }
+      },
+      "description": "Client-selected document sets for the fetch and log phase, sent after the client has merged the\nRESCORE phase responses of all shards into a single global ranking.\n\nBoth sets must be subsets of the lucene doc ids this shard returned in its own RESCORE phase\nresponse; unknown ids are rejected with INVALID_ARGUMENT rather than silently ignored, so that a\nclient bug surfaces as an error instead of as missing documents or log records. Repeated ids are\nrejected for the same reason. The two sets are otherwise independent: they may be identical,\noverlapping, disjoint or empty.\n\nEach set is a message rather than a bare repeated field so an unset set can be told apart from an\nempty one: unset keeps this shard's ranking phase result as it is, empty selects nothing."
     },
     "luceneserverRefreshRequest": {
       "type": "object",
@@ -6275,6 +6331,19 @@
         }
       },
       "title": "Input to stopIndex"
+    },
+    "luceneserverStreamSearchResponse": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "$ref": "#/definitions/StreamSearchResponsePhase"
+        },
+        "searchResponse": {
+          "$ref": "#/definitions/luceneserverSearchResponse",
+          "description": "The search response. After the RESCORE phase this contains hit ids, ranking info (score\nor sorted field values) and any RankingRequest.intermediateRetrieveFields, along with the aggregations\nfor this shard: facet results, collector results and search state. After the\nFETCH_AND_LOG phase it contains fully populated hit fields for the selected documents\nonly; aggregations are not repeated, since the client already received them in the\nRESCORE response."
+        }
+      },
+      "description": "Server-to-client message for the searchStream RPC."
     },
     "luceneserverSumCollector": {
       "type": "object",

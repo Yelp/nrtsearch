@@ -32,20 +32,16 @@ import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.search.SearchContext;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class HitsLoggerTest extends ServerTestCase {
   private static String logMessage;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   protected List<Plugin> getPlugins(NrtsearchConfig configuration) {

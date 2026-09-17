@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexResponse;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
@@ -42,6 +41,7 @@ import com.yelp.nrtsearch.server.grpc.SettingsResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
+import com.yelp.nrtsearch.test_utils.TestFileUtils;
 import com.yelp.nrtsearch.yelp_reviews.utils.OneDocBuilder;
 import com.yelp.nrtsearch.yelp_reviews.utils.ParallelDocumentIndexer;
 import io.grpc.Status;
@@ -233,10 +233,10 @@ public class YelpReviewsTest {
     Path yelp_reviews_test_base_path =
         Paths.get(
             System.getProperty("user.home"), "lucene", "server", "scratch", "yelp_reviews_test");
-    GrpcServer.rmDir(yelp_reviews_test_base_path);
-    GrpcServer.rmDir(Paths.get("shared_state"));
-    GrpcServer.rmDir(Paths.get("primary_index_base"));
-    GrpcServer.rmDir(Paths.get("replica_index_base"));
+    TestFileUtils.rmDir(yelp_reviews_test_base_path);
+    TestFileUtils.rmDir(Paths.get("shared_state"));
+    TestFileUtils.rmDir(Paths.get("primary_index_base"));
+    TestFileUtils.rmDir(Paths.get("replica_index_base"));
 
     // create empty primary and secondary dirs
     Path primaryDir = yelp_reviews_test_base_path.resolve("primary");

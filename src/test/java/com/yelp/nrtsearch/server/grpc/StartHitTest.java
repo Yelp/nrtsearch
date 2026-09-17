@@ -18,16 +18,13 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class StartHitTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;

@@ -34,7 +34,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,15 +49,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class RescorerTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

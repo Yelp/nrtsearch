@@ -22,15 +22,11 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.*;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class ExistsQueryTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected Gson gson = new GsonBuilder().serializeNulls().create();
 

@@ -23,17 +23,14 @@ import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class IdFieldTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private IdFieldDef createFieldDef(Field field) {
     return new IdFieldDef("test_field", field, mock(FieldDefCreator.FieldDefCreatorContext.class));

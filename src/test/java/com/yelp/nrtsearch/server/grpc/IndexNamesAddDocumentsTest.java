@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.fail;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URISyntaxException;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -44,8 +42,6 @@ public class IndexNamesAddDocumentsTest extends ServerTestCase {
   private static final String INDEX_1 = "test_index_1";
   private static final String INDEX_2 = "test_index_2";
   private static final String INDEX_3 = "test_index_3";
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

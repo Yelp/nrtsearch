@@ -29,7 +29,6 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,14 +44,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.LongValues;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class GlobalOrdinalLookupTest extends ServerTestCase {
   private static final String VALUE_FIELD = "value";
   private static final String VALUE_MULTI_FIELD = "value_multi";
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {

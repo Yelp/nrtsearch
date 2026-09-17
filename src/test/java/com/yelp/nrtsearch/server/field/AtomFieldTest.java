@@ -36,17 +36,14 @@ import com.yelp.nrtsearch.server.grpc.TermInSetQuery.LongTerms;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery.TextTerms;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class AtomFieldTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   protected List<String> getIndices() {
     return List.of(DEFAULT_TEST_INDEX, "test_index_2");

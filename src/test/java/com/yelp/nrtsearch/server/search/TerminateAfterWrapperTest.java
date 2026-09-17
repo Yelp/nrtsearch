@@ -27,22 +27,18 @@ import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class TerminateAfterWrapperTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public List<String> getIndices() {

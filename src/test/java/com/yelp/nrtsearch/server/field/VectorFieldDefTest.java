@@ -36,7 +36,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.index.IndexState;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,12 +58,9 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.junit.Assert;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class VectorFieldDefTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private VectorFieldDef.FloatVectorFieldDef createFloatFieldDef(Field field) {
     return new VectorFieldDef.FloatVectorFieldDef(

@@ -29,7 +29,6 @@ import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,12 +51,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class BucketedTieredMergePolicyTest extends ServerTestCase {
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {

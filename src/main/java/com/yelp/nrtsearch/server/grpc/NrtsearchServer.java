@@ -79,6 +79,7 @@ import com.yelp.nrtsearch.server.handler.StatusHandler;
 import com.yelp.nrtsearch.server.handler.StopIndexHandler;
 import com.yelp.nrtsearch.server.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
+import com.yelp.nrtsearch.server.handler.stream.SearchStreamHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.ingestion.IngestionPluginUtils;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
@@ -143,6 +144,7 @@ public class NrtsearchServer {
 
   private Server server;
   private Server replicationServer;
+  private LuceneServerImpl serverImpl;
   private final NrtsearchConfig configuration;
 
   @Inject
@@ -164,7 +166,7 @@ public class NrtsearchServer {
     long startNs = System.nanoTime();
     List<Plugin> plugins = pluginsService.loadPlugins();
 
-    LuceneServerImpl serverImpl =
+    serverImpl =
         new LuceneServerImpl(
             configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
@@ -252,6 +254,11 @@ public class NrtsearchServer {
     }
     if (replicationServer != null) {
       replicationServer.awaitTermination();
+    }
+    // After awaitTermination: a searchStream RPC only ends via its idle timeout, so stopping the
+    // timeout scheduler earlier could keep awaitTermination from ever returning.
+    if (serverImpl != null) {
+      serverImpl.shutdown();
     }
   }
 
@@ -365,6 +372,7 @@ public class NrtsearchServer {
     private final ReleaseSnapshotHandler releaseSnapshotHandler;
     private final ReloadStateHandler reloadStateHandler;
     private final SearchHandler searchHandler;
+    private final SearchStreamHandler searchStreamHandler;
     private final SearchV2Handler searchV2Handler;
     private final SettingsHandler settingsHandler;
     private final SettingsV2Handler settingsV2Handler;
@@ -431,6 +439,7 @@ public class NrtsearchServer {
       releaseSnapshotHandler = new ReleaseSnapshotHandler(globalState);
       reloadStateHandler = new ReloadStateHandler(globalState);
       searchHandler = new SearchHandler(globalState);
+      searchStreamHandler = new SearchStreamHandler(globalState);
       searchV2Handler = new SearchV2Handler(globalState, searchHandler);
       settingsHandler = new SettingsHandler(globalState);
       settingsV2Handler = new SettingsV2Handler(globalState);
@@ -440,6 +449,11 @@ public class NrtsearchServer {
       statusHandler = new StatusHandler();
       stopIndexHandler = new StopIndexHandler(globalState);
       updateFieldsHandler = new UpdateFieldsHandler(globalState);
+    }
+
+    /** Release resources held by handlers that own background threads. */
+    void shutdown() {
+      searchStreamHandler.shutdown();
     }
 
     private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
@@ -587,6 +601,12 @@ public class NrtsearchServer {
     public void searchV2(
         SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
       searchV2Handler.handle(searchRequest, searchResponseStreamObserver);
+    }
+
+    @Override
+    public StreamObserver<StreamSearchRequest> searchStream(
+        StreamObserver<StreamSearchResponse> responseObserver) {
+      return searchStreamHandler.handle(responseObserver);
     }
 
     @Override
