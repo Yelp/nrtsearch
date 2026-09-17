@@ -181,6 +181,25 @@ public class S3BackendConfigTest {
   }
 
   @Test
+  public void testFromConfig_compressionInMemoryThreshold_default() {
+    String configStr = "bucketName: test-bucket";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3BackendConfig config = S3BackendConfig.fromConfig(nrtsearchConfig);
+    assertEquals(128 * 1024 * 1024L, config.getCompressionInMemoryThresholdBytes());
+  }
+
+  @Test
+  public void testFromConfig_compressionInMemoryThreshold_custom() {
+    String configStr =
+        "bucketName: test-bucket\nremoteConfig:\n  s3:\n    compressionInMemoryThresholdBytes: 67108864";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3BackendConfig config = S3BackendConfig.fromConfig(nrtsearchConfig);
+    assertEquals(64 * 1024 * 1024L, config.getCompressionInMemoryThresholdBytes());
+  }
+
+  @Test
   public void testInvalidWindowSeconds() {
     // Test zero or negative window seconds throws IllegalArgumentException
     try {

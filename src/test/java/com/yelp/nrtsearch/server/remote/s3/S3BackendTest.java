@@ -1196,7 +1196,8 @@ public class S3BackendTest {
     S3Backend.AdaptiveConcurrencyConfig adaptive =
         new S3Backend.AdaptiveConcurrencyConfig(true, 16, 1, 50, 0.3, 0.1, 0.85, 0.75, 2000, 3);
     S3Backend.S3BackendConfig config =
-        new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false, adaptive, "NONE");
+        new S3Backend.S3BackendConfig(
+            false, 0, 1, 0, 0, 1, 0, 0, false, adaptive, "NONE", 128L * 1024 * 1024);
     try (S3Backend backend =
         new S3Backend(
             BUCKET_NAME, false, config, new S3Util.S3ClientBundle(mock(S3Client.class), null))) {
