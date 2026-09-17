@@ -16,12 +16,18 @@
 package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
+import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.HitsResult;
+import com.yelp.nrtsearch.server.grpc.InnerHit;
+import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -340,6 +346,249 @@ public class MultiLevelNestedTest extends ServerTestCase {
     assertDataFields(after, "orders.items.item_name", "replacement_item", "doohickey");
   }
 
+  // ─────────────────── NestedQuery (ToParentBlockJoinQuery) tests ───────────
+
+  /**
+   * A NestedQuery targeting the inner level must join items to their order (not to root). This
+   * requires the parent filter to be _nested_path=orders (the immediate parent), not _root.
+   *
+   * <p>Pattern: NestedQuery(orders, NestedQuery(orders.items, term)) Before PR2 the inner
+   * NestedQuery uses _root as parent, joins items directly to root docs, and the outer NestedQuery
+   * finds no matching order docs → empty result. After PR2 the inner NestedQuery uses orders as
+   * parent, correctly joining items→orders→root.
+   *
+   * <p>Uses doc_id=2 data ("doohickey" in order3) — never modified by other tests. assertDocIds
+   * checks exact set equality, so if doc_id=1 were spuriously returned cross-doc isolation would
+   * also be caught here.
+   */
+  @Test
+  public void testNestedNestedQueryFindsRootDocument() {
+    Query innerNestedQuery =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders.items")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("orders.items.item_name")
+                                    .setTextValue("doohickey")
+                                    .build())))
+            .build();
+
+    Query outerNestedQuery =
+        Query.newBuilder()
+            .setNestedQuery(NestedQuery.newBuilder().setPath("orders").setQuery(innerNestedQuery))
+            .build();
+
+    SearchResponse response = doSearch(outerNestedQuery, List.of("doc_id"));
+    assertDocIds(response, "2");
+  }
+
+  /**
+   * Single-level NestedQuery must still work after the parent-path fix. Regression guard: orders is
+   * a direct child of root so getFieldBaseNestedPath("orders") returns _root.
+   */
+  @Test
+  public void testSingleLevelNestedQueryRegression() {
+    Query query =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("orders.order_name")
+                                    .setTextValue("order3")
+                                    .build())))
+            .build();
+
+    SearchResponse response = doSearch(query, List.of("doc_id"));
+    assertDocIds(response, "2");
+  }
+
+  /**
+   * Combined outer-level and inner-level conditions must be satisfiable when both are true, and
+   * must not match when only one condition is true.
+   */
+  @Test
+  public void testNestedNestedQueryBooleanCombination() {
+    // order3 has doohickey AND order_name=order3 → doc_id=2 (stable, not modified by other tests)
+    Query itemMatch =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders.items")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("orders.items.item_name")
+                                    .setTextValue("doohickey")
+                                    .build())))
+            .build();
+    Query orderMatch =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(itemMatch))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("orders.order_name")
+                                                            .setTextValue("order3")
+                                                            .build()))))))
+            .build();
+
+    SearchResponse response = doSearch(orderMatch, List.of("doc_id"));
+    assertDocIds(response, "2");
+
+    // doohickey is in order3 (doc2) but order1 is in doc1 — no single order satisfies both
+    Query noMatch =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setNestedQuery(
+                                                        NestedQuery.newBuilder()
+                                                            .setPath("orders.items")
+                                                            .setQuery(
+                                                                Query.newBuilder()
+                                                                    .setTermQuery(
+                                                                        TermQuery.newBuilder()
+                                                                            .setField(
+                                                                                "orders.items.item_name")
+                                                                            .setTextValue(
+                                                                                "doohickey")
+                                                                            .build())))))
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.MUST)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setTermQuery(
+                                                        TermQuery.newBuilder()
+                                                            .setField("orders.order_name")
+                                                            .setTextValue("order1")
+                                                            .build()))))))
+            .build();
+
+    SearchResponse noMatchResponse = doSearch(noMatch, List.of("doc_id"));
+    assertDocIds(noMatchResponse /*, empty */);
+  }
+
+  // ─────────────────────── InnerHit on inner-level tests ────────────────────
+
+  /**
+   * InnerHit on orders.items should return item child docs for each root hit. This uses
+   * ParentChildrenBlockJoinQuery(parentFilter=_root, child=_nested_path=orders.items, hit=rootDoc),
+   * which is correct with the current parentQueryNestedPath=rootQueryNestedPath approach.
+   */
+  @Test
+  public void testInnerHitOnInnerLevelReturnsItems() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .putInnerHits(
+                        "items",
+                        InnerHit.newBuilder()
+                            .setQueryNestedPath("orders.items")
+                            .setTopHits(10)
+                            .addRetrieveFields("orders.items.item_name")
+                            .build())
+                    .build());
+
+    assertEquals(2, response.getHitsCount());
+
+    Set<String> allItems = new HashSet<>();
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      HitsResult innerHits = hit.getInnerHitsOrThrow("items");
+      for (SearchResponse.Hit innerHit : innerHits.getHitsList()) {
+        SearchResponse.Hit.CompositeFieldValue fv =
+            innerHit.getFieldsOrDefault("orders.items.item_name", null);
+        if (fv != null) {
+          for (int i = 0; i < fv.getFieldValueCount(); i++) {
+            allItems.add(fv.getFieldValue(i).getTextValue());
+          }
+        }
+      }
+    }
+    // doohickey is always present (doc_id=2, never modified); others may vary by test order
+    assertTrue("Expected doohickey in inner items", allItems.contains("doohickey"));
+  }
+
+  /**
+   * InnerHit on outer level (orders) must still work. Regression guard for single-level InnerHit.
+   */
+  @Test
+  public void testInnerHitOnOuterLevelRegression() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .putInnerHits(
+                        "orders",
+                        InnerHit.newBuilder()
+                            .setQueryNestedPath("orders")
+                            .setTopHits(10)
+                            .addRetrieveFields("orders.order_name")
+                            .build())
+                    .build());
+
+    assertEquals(2, response.getHitsCount());
+
+    Set<String> allOrders = new HashSet<>();
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      HitsResult innerHits = hit.getInnerHitsOrThrow("orders");
+      for (SearchResponse.Hit innerHit : innerHits.getHitsList()) {
+        SearchResponse.Hit.CompositeFieldValue fv =
+            innerHit.getFieldsOrDefault("orders.order_name", null);
+        if (fv != null) {
+          for (int i = 0; i < fv.getFieldValueCount(); i++) {
+            allOrders.add(fv.getFieldValue(i).getTextValue());
+          }
+        }
+      }
+    }
+    // order3 is always present (doc_id=2, never modified); others may vary by test order
+    assertTrue("Expected order3 in inner orders", allOrders.contains("order3"));
+  }
+
   // ─────────────────────── helper methods ────────────────────────────────────
 
   private SearchResponse queryAtNestedPath(String nestedPath, List<String> retrieveFields) {
@@ -373,6 +622,30 @@ public class MultiLevelNestedTest extends ServerTestCase {
       }
     }
     assertEquals(new HashSet<>(Arrays.asList(expectedValues)), actual);
+  }
+
+  private SearchResponse doSearch(Query query, List<String> retrieveFields) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(DEFAULT_TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(100)
+                .addAllRetrieveFields(retrieveFields)
+                .setQuery(query)
+                .build());
+  }
+
+  private void assertDocIds(SearchResponse response, String... expectedDocIds) {
+    Set<String> actual = new HashSet<>();
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      SearchResponse.Hit.CompositeFieldValue fv = hit.getFieldsOrDefault("doc_id", null);
+      if (fv != null && fv.getFieldValueCount() > 0) {
+        actual.add(fv.getFieldValue(0).getTextValue());
+      }
+    }
+    assertEquals(new HashSet<>(Arrays.asList(expectedDocIds)), actual);
   }
 
   private void refresh() {

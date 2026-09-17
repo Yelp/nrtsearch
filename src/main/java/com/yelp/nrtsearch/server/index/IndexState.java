@@ -377,6 +377,32 @@ public abstract class IndexState implements Closeable {
     return IndexState.ROOT;
   }
 
+  /**
+   * Get the base path for the nested document containing the field at the given path, using a
+   * {@link DocLookup} for field resolution instead of an {@link IndexState}. Semantics are
+   * identical to {@link #getFieldBaseNestedPath(String, IndexState)}.
+   *
+   * @param path field path
+   * @param docLookup lookup for field definitions
+   * @return nested base path, or null if path is ROOT
+   */
+  public static String getFieldBaseNestedPath(String path, DocLookup docLookup) {
+    Objects.requireNonNull(path, "path cannot be null");
+    if (path.equals(IndexState.ROOT)) {
+      return null;
+    }
+
+    String currentPath = path;
+    while (currentPath.contains(".")) {
+      currentPath = currentPath.substring(0, currentPath.lastIndexOf("."));
+      FieldDef fieldDef = docLookup.getFieldDefOrThrow(currentPath);
+      if (fieldDef instanceof ObjectFieldDef objFieldDef && objFieldDef.isNestedDoc()) {
+        return currentPath;
+      }
+    }
+    return IndexState.ROOT;
+  }
+
   /** Get index state info. */
   public abstract IndexStateInfo getIndexStateInfo();
 
