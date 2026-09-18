@@ -43,6 +43,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
   private final BitSetProducer parentBitSetProducer;
+  private final Map<String, BitSetProducer> allLevelBitSetProducers;
   private final Function<String, BitSetProducer> childPathFilterLookup;
   private final Map<String, ChildAggregatedDocValues> childrenLoaderCache = new HashMap<>();
 
@@ -51,7 +52,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private SegmentDocLookup parentLookup = null;
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
-    this(fieldDefLookup, context, null, null);
+    this(fieldDefLookup, context, null, null, null);
   }
 
   public SegmentDocLookup(
@@ -59,9 +60,19 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       LeafReaderContext context,
       BitSetProducer parentBitSetProducer,
       Function<String, BitSetProducer> childPathFilterLookup) {
+    this(fieldDefLookup, context, parentBitSetProducer, null, childPathFilterLookup);
+  }
+
+  public SegmentDocLookup(
+      Function<String, FieldDef> fieldDefLookup,
+      LeafReaderContext context,
+      BitSetProducer parentBitSetProducer,
+      Map<String, BitSetProducer> allLevelBitSetProducers,
+      Function<String, BitSetProducer> childPathFilterLookup) {
     this.fieldDefLookup = fieldDefLookup;
     this.context = context;
     this.parentBitSetProducer = parentBitSetProducer;
+    this.allLevelBitSetProducers = allLevelBitSetProducers;
     this.childPathFilterLookup = childPathFilterLookup;
   }
 
@@ -195,10 +206,10 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
    *     the field doesn't support doc values
    */
   private LoadedDocValues<?> getChildrenDocValues(String fieldName) {
-    if (parentBitSetProducer == null) {
+    if (allLevelBitSetProducers == null || allLevelBitSetProducers.isEmpty()) {
       throw new IllegalArgumentException(
           "Cannot access child fields: index has no nested documents "
-              + "or parentBitSetProducer not provided");
+              + "or level BitSet producers not provided");
     }
 
     ChildAggregatedDocValues childDocValues = childrenLoaderCache.get(fieldName);
@@ -223,8 +234,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       try {
         childDocValues =
             new ChildAggregatedDocValues(
-                indexableFieldDef, context,
-                parentBitSetProducer, childPathFilter);
+                indexableFieldDef, context, allLevelBitSetProducers, childPathFilter);
       } catch (IOException e) {
         throw new IllegalArgumentException(
             "Could not create child doc values for field: " + fieldName, e);

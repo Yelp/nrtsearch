@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.MatchAllQuery;
+import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -435,6 +436,55 @@ public class MultiLevelNestedScriptAccessTest extends ServerTestCase {
       total += score;
     }
     assertEquals("order1(2+1=3) + order2(3) + order3(5) = 11", 11.0, total, 0.01);
+  }
+
+  /**
+   * Verifies that _CHILDREN.orders.items.quantity works correctly when a FunctionScoreQuery script
+   * runs on order docs inside a NestedQuery, with no queryNestedPath on the SearchRequest.
+   *
+   * <p>The SearchRequest has queryNestedPath="" (root level), but the FunctionScoreQuery is
+   * evaluated on ORDER documents — the inner query of NestedQuery(path="orders"). The current fix
+   * that uses searchRequest.getQueryNestedPath() to pick the parent bitset reads "" → uses root
+   * bitset → parentBitSet.get(orderDocId) = false → all order scores = 0.0 → root docs score 0.
+   *
+   * <p>The correct fix uses the current document's level (determined at setDocId time), finds the
+   * orders bitset for order docs, and returns the correct per-order item quantities.
+   *
+   * <p>Expected: doc1 scores order1(2+1=3) + order2(3) = 6; doc2 scores order3(5) = 5; total = 11.
+   */
+  @Test
+  public void testChildrenAccessInsideNestedQuery() {
+    initScripts();
+
+    Query nestedFunctionScore =
+        Query.newBuilder()
+            .setNestedQuery(
+                NestedQuery.newBuilder()
+                    .setPath("orders")
+                    .setScoreMode(NestedQuery.ScoreMode.SUM)
+                    .setQuery(functionScoreQuery("order_level_item_quantity_sum")))
+            .build();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .setQuery(nestedFunctionScore)
+                    .build());
+
+    assertEquals("Expected 2 root doc hits", 2, response.getHitsCount());
+
+    double total = 0;
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      double score = hit.getScore();
+      assertTrue("Expected root doc to score > 0 (sum of order scores), got " + score, score > 0);
+      total += score;
+    }
+    assertEquals("doc1: order1(3)+order2(3)=6, doc2: order3(5)=5, total=11", 11.0, total, 0.01);
   }
 
   // ────────────────────────── helpers ───────────────────────────────────────

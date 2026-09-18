@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
 import java.util.Collection;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -32,6 +33,7 @@ public class DocLookup {
   private final Supplier<Collection<String>> allFieldNamesSupplier;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
   private final BitSetProducer parentBitSetProducer;
+  private final Map<String, BitSetProducer> allLevelBitSetProducers;
   private final Function<String, BitSetProducer> childPathFilterLookup;
 
   /**
@@ -45,7 +47,7 @@ public class DocLookup {
       Function<String, FieldDef> fieldDefLookup,
       Supplier<Collection<String>> allFieldNamesSupplier,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy) {
-    this(fieldDefLookup, allFieldNamesSupplier, searcherAndTaxonomy, null, null);
+    this(fieldDefLookup, allFieldNamesSupplier, searcherAndTaxonomy, null, null, null);
   }
 
   /**
@@ -56,6 +58,9 @@ public class DocLookup {
    * @param searcherAndTaxonomy searcher and taxonomy for the index
    * @param parentBitSetProducer produces the BitSet identifying parent documents, or null if the
    *     index has no nested documents
+   * @param allLevelBitSetProducers map from nested path name (including "_root") to BitSetProducer
+   *     for that level; used by _CHILDREN. to dynamically determine the parent boundary based on
+   *     the current document's nesting level; null if the index has no nested documents
    * @param childPathFilterLookup resolves a child field name to a BitSetProducer for its nested
    *     path, enabling filtering when multiple nested paths exist; null if not needed
    */
@@ -64,22 +69,28 @@ public class DocLookup {
       Supplier<Collection<String>> allFieldNamesSupplier,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
       BitSetProducer parentBitSetProducer,
+      Map<String, BitSetProducer> allLevelBitSetProducers,
       Function<String, BitSetProducer> childPathFilterLookup) {
     this.fieldDefLookup = fieldDefLookup;
     this.allFieldNamesSupplier = allFieldNamesSupplier;
     this.searcherAndTaxonomy = searcherAndTaxonomy;
     this.parentBitSetProducer = parentBitSetProducer;
+    this.allLevelBitSetProducers = allLevelBitSetProducers;
     this.childPathFilterLookup = childPathFilterLookup;
   }
 
   /**
    * Get the doc value lookup accessor bound to the given lucene segment. Passes
-   * parentBitSetProducer and childPathFilterLookup so that SegmentDocLookup can navigate to and
-   * filter child documents.
+   * parentBitSetProducer, allLevelBitSetProducers, and childPathFilterLookup so that
+   * SegmentDocLookup can navigate to and filter child documents.
    */
   public SegmentDocLookup getSegmentLookup(LeafReaderContext context) {
     return new SegmentDocLookup(
-        fieldDefLookup, context, parentBitSetProducer, childPathFilterLookup);
+        fieldDefLookup,
+        context,
+        parentBitSetProducer,
+        allLevelBitSetProducers,
+        childPathFilterLookup);
   }
 
   /** Get the parent BitSetProducer, or null if this index has no nested fields. */
