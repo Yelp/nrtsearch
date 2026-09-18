@@ -36,16 +36,6 @@ import org.apache.lucene.util.BitSet;
  * <p>The childPathBitSet filtering is essential for indexes with multiple nested paths (e.g., both
  * "appointments" and "reviews" under the same parent). Without it, iterating through the child
  * range would collect values from children of all nested paths, not just the target path.
- *
- * <p><b>Multi-level nesting limitation:</b> The {@code parentBitSet} supplied at construction time
- * always identifies <em>root</em> documents ({@code _nested_path = "_root"}). This means {@code
- * _CHILDREN.} aggregation correctly collects grandchild docs when called from a root document — the
- * child range spans the full block and {@code childPathBitSet} filters to the desired nested path.
- * However, calling {@code _CHILDREN.} from a mid-level parent (e.g., an order doc inside a {@code
- * queryNestedPath="orders"} search) produces incorrect results: {@code prevSetBit} finds the
- * previous <em>root</em> document rather than the previous order, so the child range extends across
- * multiple orders' items. This is a known limitation. Fix requires a context-sensitive {@code
- * parentBitSetProducer} that varies by the current document's nesting level.
  */
 public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
 
