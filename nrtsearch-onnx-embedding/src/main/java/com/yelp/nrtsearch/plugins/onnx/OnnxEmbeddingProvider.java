@@ -67,12 +67,7 @@ public class OnnxEmbeddingProvider extends EmbeddingProvider {
   }
 
   @Override
-  public boolean supportsDimensions(int dimensions) {
-    return dimensions == this.dimensions;
-  }
-
-  @Override
-  public float[] embed(String text) {
+  protected float[] doEmbed(String text) {
     try {
       Encoding encoding = tokenizer.encode(text);
       long[] inputIds = encoding.getIds();
@@ -129,6 +124,11 @@ public class OnnxEmbeddingProvider extends EmbeddingProvider {
       }
     }
     return result;
+  }
+
+  @Override
+  public int dimensions() {
+    return dimensions;
   }
 
   @Override

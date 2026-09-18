@@ -283,17 +283,17 @@ public class EmbeddingIntegrationTest extends ServerTestCase {
           "test-mock",
           new EmbeddingProvider() {
             @Override
-            public boolean supportsDimensions(int dimensions) {
-              return dimensions == DIMS;
-            }
-
-            @Override
-            public float[] embed(String text) {
+            protected float[] doEmbed(String text) {
               float[] vec = VECTOR_MAP.get(text);
               if (vec != null) {
                 return vec;
               }
               return new float[DIMS];
+            }
+
+            @Override
+            public int dimensions() {
+              return DIMS;
             }
           });
 
@@ -302,17 +302,17 @@ public class EmbeddingIntegrationTest extends ServerTestCase {
           "test-mock-override",
           new EmbeddingProvider() {
             @Override
-            public boolean supportsDimensions(int dimensions) {
-              return dimensions == DIMS;
-            }
-
-            @Override
-            public float[] embed(String text) {
+            protected float[] doEmbed(String text) {
               float[] vec = VECTOR_MAP.get("override_" + text);
               if (vec != null) {
                 return vec;
               }
               return new float[DIMS];
+            }
+
+            @Override
+            public int dimensions() {
+              return DIMS;
             }
           });
 

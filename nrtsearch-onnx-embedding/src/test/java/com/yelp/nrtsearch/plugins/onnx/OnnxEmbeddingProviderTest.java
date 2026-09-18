@@ -37,9 +37,8 @@ public class OnnxEmbeddingProviderTest {
   }
 
   @Test
-  public void testSupportsDimensions() {
-    assertTrue(provider.supportsDimensions(384));
-    assertFalse(provider.supportsDimensions(128));
+  public void testDimensions() {
+    assertEquals(384, provider.dimensions());
   }
 
   @Test

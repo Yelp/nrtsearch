@@ -42,7 +42,7 @@ public class EmbeddingCreatorTest {
 
     EmbeddingProvider provider = EmbeddingCreator.getInstance().getProvider("test-provider");
     assertNotNull(provider);
-    assertTrue(provider.supportsDimensions(3));
+    assertEquals(3, provider.dimensions());
     float[] result = provider.embed("hello");
     assertArrayEquals(new float[] {0f, 0f, 0f}, result, 0.0001f);
   }
@@ -78,13 +78,13 @@ public class EmbeddingCreatorTest {
           "test-provider",
           new EmbeddingProvider() {
             @Override
-            public boolean supportsDimensions(int dims) {
-              return dims == dimensions;
+            protected float[] doEmbed(String text) {
+              return new float[dimensions];
             }
 
             @Override
-            public float[] embed(String text) {
-              return new float[dimensions];
+            public int dimensions() {
+              return dimensions;
             }
           });
     }
