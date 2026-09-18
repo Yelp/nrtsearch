@@ -196,6 +196,8 @@ public class MultiLevelNestedScriptAccessTest extends ServerTestCase {
         case "item_root_chain_access" -> new ItemRootChainAccessScript(factoryContext, ctx, scores);
         case "root_grandchild_quantity_sum" ->
             new RootGrandchildQuantitySumScript(factoryContext, ctx, scores);
+        case "order_level_item_quantity_sum" ->
+            new OrderLevelItemQuantitySumScript(factoryContext, ctx, scores);
         default -> throw new IllegalArgumentException("Unknown script: " + scriptId);
       };
     }
@@ -251,6 +253,37 @@ public class MultiLevelNestedScriptAccessTest extends ServerTestCase {
    */
   static class RootGrandchildQuantitySumScript extends ScoreScript {
     RootGrandchildQuantitySumScript(
+        ScriptFactoryContext ctx, LeafReaderContext leaf, DoubleValues scores) {
+      super(ctx, leaf, scores);
+    }
+
+    @Override
+    public double execute() {
+      try {
+        Map<String, LoadedDocValues<?>> doc = getDoc();
+        LoadedDocValues<?> quantities = doc.get("_CHILDREN.orders.items.quantity");
+        if (quantities == null || quantities.size() == 0) {
+          return 0.0;
+        }
+        double sum = 0;
+        for (int i = 0; i < quantities.size(); i++) {
+          sum += ((Number) quantities.get(i)).doubleValue();
+        }
+        return sum;
+      } catch (Exception e) {
+        return -1.0;
+      }
+    }
+  }
+
+  /**
+   * From an order doc (queryNestedPath="orders"), sums _CHILDREN.orders.items.quantity. With the
+   * correct parentBitSetProducer (orders bitset), this returns the sum of this specific order's
+   * items. Without the fix (root bitset), parentBitSet.get(orderDocId) is false and the result is
+   * always 0.
+   */
+  static class OrderLevelItemQuantitySumScript extends ScoreScript {
+    OrderLevelItemQuantitySumScript(
         ScriptFactoryContext ctx, LeafReaderContext leaf, DoubleValues scores) {
       super(ctx, leaf, scores);
     }
@@ -368,6 +401,40 @@ public class MultiLevelNestedScriptAccessTest extends ServerTestCase {
     }
     // Total across both docs: (2+1+3) + 5 = 11
     assertEquals("Expected total grandchild quantity sum across both docs", 11.0, totalScore, 0.01);
+  }
+
+  /**
+   * Verifies that _CHILDREN.orders.items.quantity scopes correctly to each order's own items when
+   * the search runs at queryNestedPath="orders". Before the fix, parentBitSet.get() returns false
+   * for order docs (they are not root docs), so every score is 0.0. After the fix,
+   * parentBitSetProducer = orders bitset, and each order scores the sum of its own items'
+   * quantities: order1=3, order2=3, order3=5, total=11.
+   */
+  @Test
+  public void testChildrenAccessFromMidLevelParent() {
+    initScripts();
+
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(100)
+                    .setQuery(functionScoreQuery("order_level_item_quantity_sum"))
+                    .setQueryNestedPath("orders")
+                    .build());
+
+    assertEquals("Expected one hit per order", 3, response.getHitsCount());
+
+    double total = 0;
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      double score = hit.getScore();
+      assertTrue(
+          "Expected each order to score its items' quantity sum (> 0), got " + score, score > 0);
+      total += score;
+    }
+    assertEquals("order1(2+1=3) + order2(3) + order3(5) = 11", 11.0, total, 0.01);
   }
 
   // ────────────────────────── helpers ───────────────────────────────────────
