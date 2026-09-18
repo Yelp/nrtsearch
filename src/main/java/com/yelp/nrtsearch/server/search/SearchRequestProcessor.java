@@ -191,7 +191,13 @@ public class SearchRequestProcessor {
     Function<String, BitSetProducer> childPathFilterLookup = null;
 
     if (indexState.hasNestedChildFields()) {
-      parentBitSetProducer = indexState.getParentBitSetProducer();
+      String rawQueryNestedPath = searchRequest.getQueryNestedPath();
+      parentBitSetProducer =
+          (rawQueryNestedPath == null
+                  || rawQueryNestedPath.isEmpty()
+                  || rawQueryNestedPath.equals(IndexState.ROOT))
+              ? indexState.getParentBitSetProducer()
+              : indexState.getPathBitSetProducer(rawQueryNestedPath);
 
       Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
 
