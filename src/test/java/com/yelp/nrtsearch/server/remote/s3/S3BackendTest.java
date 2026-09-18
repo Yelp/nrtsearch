@@ -27,7 +27,7 @@ import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
-import com.yelp.nrtsearch.server.remote.LZ4FileCompressor;
+import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
@@ -84,6 +84,7 @@ public class S3BackendTest {
 
   @BeforeClass
   public static void setup() throws IOException {
+    FileCompressorCreator.initialize(java.util.List.of());
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = S3_PROVIDER.getS3Client();
@@ -1893,13 +1894,7 @@ public class S3BackendTest {
     NrtFileMetaData meta1 =
         new NrtFileMetaData(new byte[0], new byte[0], testContent.length(), 0, "pid_lz4", "ts_lz4");
 
-    S3Backend lz4Backend =
-        new S3Backend(
-            BUCKET_NAME,
-            false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
-            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
-            new LZ4FileCompressor());
+    S3Backend lz4Backend = createLz4Backend();
 
     lz4Backend.uploadIndexFiles(
         "lz4_upload_service", "lz4_index", indexDir.toPath(), Map.of("lz4_file1", meta1));
@@ -1922,13 +1917,7 @@ public class S3BackendTest {
         new NrtFileMetaData(
             new byte[0], new byte[0], testContent.length(), 0, "pid_lz4_dl", "ts_lz4_dl");
 
-    S3Backend lz4Backend =
-        new S3Backend(
-            BUCKET_NAME,
-            false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
-            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
-            new LZ4FileCompressor());
+    S3Backend lz4Backend = createLz4Backend();
 
     // Upload compressed
     lz4Backend.uploadIndexFiles(
@@ -1956,13 +1945,7 @@ public class S3BackendTest {
         new NrtFileMetaData(
             new byte[0], new byte[0], testContent.length(), 0, "pid_lz4_stream", "ts_lz4_stream");
 
-    S3Backend lz4Backend =
-        new S3Backend(
-            BUCKET_NAME,
-            false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
-            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
-            new LZ4FileCompressor());
+    S3Backend lz4Backend = createLz4Backend();
 
     // Upload compressed
     lz4Backend.uploadIndexFiles(
@@ -1999,13 +1982,7 @@ public class S3BackendTest {
         new NrtFileMetaData(
             new byte[0], new byte[0], content2.length(), 0, "pid_plain", "ts_plain");
 
-    S3Backend lz4Backend =
-        new S3Backend(
-            BUCKET_NAME,
-            false,
-            new S3Backend.S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false),
-            new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()),
-            new LZ4FileCompressor());
+    S3Backend lz4Backend = createLz4Backend();
 
     // Upload compressed file
     lz4Backend.uploadIndexFiles(
@@ -2058,6 +2035,13 @@ public class S3BackendTest {
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
     assertEquals("LZ4", config.getCompressionType());
+  }
+
+  private S3Backend createLz4Backend() throws IOException {
+    String configStr =
+        "bucketName: " + BUCKET_NAME + "\nremoteConfig:\n  s3:\n    compressionType: LZ4";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    return new S3Backend(config, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
   }
 
   private String convertToString(InputStream inputStream) throws IOException {

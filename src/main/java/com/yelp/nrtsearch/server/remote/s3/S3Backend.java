@@ -259,6 +259,7 @@ public class S3Backend implements RemoteBackend {
    */
   public static class S3BackendConfig {
     private static final String CONFIG_PREFIX = "remoteConfig.s3.";
+    public static final long DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES = 128L * 1024 * 1024;
 
     private final boolean metrics;
     private final long rateLimitBytes;
@@ -302,7 +303,8 @@ public class S3Backend implements RemoteBackend {
       String compressionType = configReader.getString(CONFIG_PREFIX + "compressionType", "NONE");
       long compressionInMemoryThresholdBytes =
           configReader.getLong(
-              CONFIG_PREFIX + "compressionInMemoryThresholdBytes", 128L * 1024 * 1024);
+              CONFIG_PREFIX + "compressionInMemoryThresholdBytes",
+              DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES);
 
       return new S3BackendConfig(
           metrics,
@@ -345,7 +347,7 @@ public class S3Backend implements RemoteBackend {
           downloadRetryReduceConcurrency,
           AdaptiveConcurrencyConfig.DISABLED,
           "NONE",
-          128L * 1024 * 1024);
+          DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES);
     }
 
     /**
@@ -562,24 +564,10 @@ public class S3Backend implements RemoteBackend {
         configuration.getSavePluginBeforeUnzip(),
         S3BackendConfig.fromConfig(configuration),
         s3ClientBundle,
-        resolveCompressor(S3BackendConfig.fromConfig(configuration).getCompressionType()),
-        S3BackendConfig.fromConfig(configuration).getCompressionType(),
         configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
             .maxThreads());
-  }
-
-  private static FileCompressor resolveCompressor(String compressionType) {
-    if (compressionType == null || compressionType.isEmpty() || "NONE".equals(compressionType)) {
-      return null;
-    }
-    FileCompressorCreator creator = FileCompressorCreator.getInstance();
-    if (creator == null) {
-      throw new IllegalStateException(
-          "FileCompressorCreator not initialized; cannot resolve compressor: " + compressionType);
-    }
-    return creator.getCompressor(compressionType);
   }
 
   /**
@@ -600,47 +588,16 @@ public class S3Backend implements RemoteBackend {
         savePluginBeforeUnzip,
         s3BackendConfig,
         s3ClientBundle,
-        null,
-        "NONE",
         ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
   }
 
   /**
-   * Constructor with explicit file compressor, for testing.
+   * Private constructor. Resolves the {@link FileCompressor} from the config compression type.
    *
    * @param serviceBucket bucket name
    * @param savePluginBeforeUnzip save plugin before unzipping
    * @param s3BackendConfig s3 backend configuration
    * @param s3ClientBundle s3 client bundle
-   * @param fileCompressor compressor to use for index file uploads/downloads, or null for none
-   */
-  public S3Backend(
-      String serviceBucket,
-      boolean savePluginBeforeUnzip,
-      S3BackendConfig s3BackendConfig,
-      S3Util.S3ClientBundle s3ClientBundle,
-      FileCompressor fileCompressor) {
-    this(
-        serviceBucket,
-        savePluginBeforeUnzip,
-        s3BackendConfig,
-        s3ClientBundle,
-        fileCompressor,
-        fileCompressor != null
-            ? fileCompressor.getClass().getSimpleName().replace("FileCompressor", "")
-            : "NONE",
-        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
-  }
-
-  /**
-   * Private constructor.
-   *
-   * @param serviceBucket bucket name
-   * @param savePluginBeforeUnzip save plugin before unzipping
-   * @param s3BackendConfig s3 backend configuration
-   * @param s3ClientBundle s3 client bundle
-   * @param fileCompressor compressor to use for index file uploads/downloads, or null for none
-   * @param fileCompressorName name of the compressor (stored in file metadata), or "NONE"
    * @param defaultParallelism parallelism to use when downloading multipart objects, also the
    *     default batch size when downloading all index files
    */
@@ -649,8 +606,6 @@ public class S3Backend implements RemoteBackend {
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
       S3Util.S3ClientBundle s3ClientBundle,
-      FileCompressor fileCompressor,
-      String fileCompressorName,
       int defaultParallelism) {
     this.s3 = s3ClientBundle.s3Client();
     this.s3Async = s3ClientBundle.s3AsyncClient();
@@ -668,8 +623,8 @@ public class S3Backend implements RemoteBackend {
     this.downloadRetryReduceConcurrency = s3BackendConfig.getDownloadRetryReduceConcurrency();
     this.adaptiveConcurrencyConfig = s3BackendConfig.getAdaptiveConcurrencyConfig();
     this.serviceBucket = serviceBucket;
-    this.fileCompressor = fileCompressor;
-    this.fileCompressorName = fileCompressorName;
+    this.fileCompressorName = s3BackendConfig.getCompressionType();
+    this.fileCompressor = resolveCompressor(this.fileCompressorName);
     this.compressionInMemoryThresholdBytes = s3BackendConfig.getCompressionInMemoryThresholdBytes();
 
     this.s3Metrics = s3BackendConfig.metrics;
@@ -684,6 +639,18 @@ public class S3Backend implements RemoteBackend {
     } else {
       this.rateLimiter = null;
     }
+  }
+
+  private static FileCompressor resolveCompressor(String compressionType) {
+    if (compressionType == null || compressionType.isEmpty() || "NONE".equals(compressionType)) {
+      return null;
+    }
+    FileCompressorCreator creator = FileCompressorCreator.getInstance();
+    if (creator == null) {
+      throw new IllegalStateException(
+          "FileCompressorCreator not initialized; cannot resolve compressor: " + compressionType);
+    }
+    return creator.getCompressor(compressionType);
   }
 
   public S3Client getS3() {

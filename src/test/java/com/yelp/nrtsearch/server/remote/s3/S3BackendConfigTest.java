@@ -186,7 +186,9 @@ public class S3BackendConfigTest {
     NrtsearchConfig nrtsearchConfig =
         new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     S3BackendConfig config = S3BackendConfig.fromConfig(nrtsearchConfig);
-    assertEquals(128 * 1024 * 1024L, config.getCompressionInMemoryThresholdBytes());
+    assertEquals(
+        S3BackendConfig.DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES,
+        config.getCompressionInMemoryThresholdBytes());
   }
 
   @Test
