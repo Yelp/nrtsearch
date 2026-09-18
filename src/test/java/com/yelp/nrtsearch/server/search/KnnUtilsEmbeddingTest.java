@@ -236,13 +236,13 @@ public class KnnUtilsEmbeddingTest {
       EmbeddingProvider provider =
           new EmbeddingProvider() {
             @Override
-            protected float[] doEmbed(String text) {
-              return MOCK_VECTOR.clone();
+            public boolean supportsDimensions(int dimensions) {
+              return dimensions == MOCK_VECTOR.length;
             }
 
             @Override
-            public int dimensions() {
-              return MOCK_VECTOR.length;
+            public float[] embed(String text) {
+              return MOCK_VECTOR.clone();
             }
           };
       return Map.of("test-provider", provider, "alt-provider", provider);

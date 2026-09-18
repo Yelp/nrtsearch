@@ -509,13 +509,11 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           throw new IllegalArgumentException(
               "Embedding provider not found: " + getEmbeddingProviderName());
         }
-        if (provider.dimensions() != vectorDimensions) {
+        if (!provider.supportsDimensions(vectorDimensions)) {
           throw new IllegalArgumentException(
               "Embedding provider '"
                   + getEmbeddingProviderName()
-                  + "' dimensions ("
-                  + provider.dimensions()
-                  + ") don't match field vectorDimensions ("
+                  + "' does not support field vectorDimensions ("
                   + vectorDimensions
                   + ")");
         }
@@ -782,13 +780,11 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
           throw new IllegalArgumentException(
               "Embedding provider not found: " + getEmbeddingProviderName());
         }
-        if (provider.dimensions() != vectorDimensions) {
+        if (!provider.supportsDimensions(vectorDimensions)) {
           throw new IllegalArgumentException(
               "Embedding provider '"
                   + getEmbeddingProviderName()
-                  + "' dimensions ("
-                  + provider.dimensions()
-                  + ") don't match field vectorDimensions ("
+                  + "' does not support field vectorDimensions ("
                   + vectorDimensions
                   + ")");
         }

@@ -285,17 +285,17 @@ public class VectorFieldDefEmbeddingTest {
           "test-provider",
           new EmbeddingProvider() {
             @Override
-            protected float[] doEmbed(String text) {
+            public boolean supportsDimensions(int dimensions) {
+              return dimensions == DIMENSIONS;
+            }
+
+            @Override
+            public float[] embed(String text) {
               float[] result = new float[DIMENSIONS];
               for (int i = 0; i < DIMENSIONS; i++) {
                 result[i] = MOCK_EMBEDDING[i % MOCK_EMBEDDING.length];
               }
               return result;
-            }
-
-            @Override
-            public int dimensions() {
-              return DIMENSIONS;
             }
           });
     }

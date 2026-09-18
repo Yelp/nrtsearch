@@ -47,8 +47,7 @@ public class EmbeddingCreator {
       throw new IllegalArgumentException("Embedding provider already registered: " + name);
     }
     providerMap.put(name, provider);
-    logger.info(
-        "Registered embedding provider '{}' with {} dimensions", name, provider.dimensions());
+    logger.info("Registered embedding provider '{}'", name);
   }
 
   private void registerProviders(Map<String, EmbeddingProvider> providers) {

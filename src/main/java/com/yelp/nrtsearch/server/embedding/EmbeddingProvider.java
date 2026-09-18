@@ -16,26 +16,29 @@
 package com.yelp.nrtsearch.server.embedding;
 
 /**
- * Converts text into a float vector embedding. Implementations must be thread-safe, as {@link
+ * Converts text into a vector embedding. Implementations must be thread-safe, as {@link
  * #embed(String)} may be called concurrently from multiple index and search threads.
  *
- * <p>Subclasses implement {@link #doEmbed(String)} (and optionally {@link #doEmbedBytes(String)})
- * to produce raw vectors. The public {@link #embed(String)} and {@link #embedBytes(String)} methods
- * are final and automatically validate that the returned vector length matches {@link
- * #dimensions()}.
+ * <p>Providers may support one or more output dimensions. Use {@link #supportsDimensions(int)} to
+ * check compatibility with a field's vector dimensions before use.
  */
 public abstract class EmbeddingProvider implements AutoCloseable {
 
-  /** Returns the output vector dimensions of this provider. */
-  public abstract int dimensions();
+  /**
+   * Check whether this provider supports the given output dimensions.
+   *
+   * @param dimensions the desired output vector dimensions
+   * @return true if this provider can produce vectors of the given size
+   */
+  public abstract boolean supportsDimensions(int dimensions);
 
   /**
    * Produce a float vector embedding for the given text. Implementations must be thread-safe.
    *
    * @param text input text to embed
-   * @return float array of embedding values; length must equal {@link #dimensions()}
+   * @return float array of embedding values
    */
-  protected abstract float[] doEmbed(String text);
+  public abstract float[] embed(String text);
 
   /**
    * Produce a byte vector embedding for the given text. Implementations must be thread-safe. The
@@ -43,55 +46,12 @@ public abstract class EmbeddingProvider implements AutoCloseable {
    * byte vector fields must override this method.
    *
    * @param text input text to embed
-   * @return byte array of embedding values; length must equal {@link #dimensions()}
+   * @return byte array of embedding values
    * @throws UnsupportedOperationException if this provider does not support byte embeddings
    */
-  protected byte[] doEmbedBytes(String text) {
+  public byte[] embedBytes(String text) {
     throw new UnsupportedOperationException(
         "This embedding provider does not support byte vector embeddings");
-  }
-
-  /**
-   * Convert text to a float vector embedding, validating that the result length matches {@link
-   * #dimensions()}.
-   *
-   * @param text input text to embed
-   * @return float array of embedding values
-   * @throws IllegalArgumentException if the returned vector length does not match {@link
-   *     #dimensions()}
-   */
-  public final float[] embed(String text) {
-    float[] result = doEmbed(text);
-    if (result.length != dimensions()) {
-      throw new IllegalArgumentException(
-          "Embedding provider returned vector of size "
-              + result.length
-              + " but provider dimensions() is "
-              + dimensions());
-    }
-    return result;
-  }
-
-  /**
-   * Convert text to a byte vector embedding, validating that the result length matches {@link
-   * #dimensions()}.
-   *
-   * @param text input text to embed
-   * @return byte array of embedding values
-   * @throws IllegalArgumentException if the returned vector length does not match {@link
-   *     #dimensions()}
-   * @throws UnsupportedOperationException if this provider does not support byte embeddings
-   */
-  public final byte[] embedBytes(String text) {
-    byte[] result = doEmbedBytes(text);
-    if (result.length != dimensions()) {
-      throw new IllegalArgumentException(
-          "Embedding provider returned vector of size "
-              + result.length
-              + " but provider dimensions() is "
-              + dimensions());
-    }
-    return result;
   }
 
   /**
