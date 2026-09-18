@@ -127,6 +127,11 @@ Example server configuration
      - If enabled, all indices must contain an _ID field to be started.
      - false
 
+   * - embeddingProviders
+     - map
+     - Named embedding provider configurations for text-to-vector conversion. Each entry maps a provider name to its config (must include ``type`` and type-specific settings). See :ref:`text-based-knn-search` in :doc:`vector_search` for details.
+     - {}
+
    * - serviceName
      - str
      - Name of this nrtsearch service. Used as the namespace prefix for remote state and S3 storage paths.

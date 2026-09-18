@@ -15,7 +15,11 @@
  */
 package com.yelp.nrtsearch.server.search;
 
+import com.google.protobuf.ByteString;
+import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
+import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.VectorFieldDef;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -114,6 +118,55 @@ public class KnnUtils {
   }
 
   /**
+   * Resolve query_text to a query vector if set. Returns a new KnnQuery with query_vector or
+   * query_byte_vector populated from the embedding provider, depending on the field type.
+   *
+   * @param knnQuery knn query definition
+   * @param fieldDef vector field definition
+   * @return knn query with query vector populated if query_text was set, otherwise the original
+   */
+  public static KnnQuery resolveQueryText(KnnQuery knnQuery, VectorFieldDef<?> fieldDef) {
+    if (knnQuery.getQueryText().isEmpty()) {
+      return knnQuery;
+    }
+    // Validate mutual exclusivity
+    if (knnQuery.getQueryVectorCount() > 0 || !knnQuery.getQueryByteVector().isEmpty()) {
+      throw new IllegalArgumentException(
+          "Provide only one of query_text, query_vector, or query_byte_vector — they cannot be combined");
+    }
+
+    // Resolve provider: explicit override > field's configured provider
+    String providerName =
+        knnQuery.getEmbeddingProvider().isEmpty()
+            ? fieldDef.getEmbeddingProviderName()
+            : knnQuery.getEmbeddingProvider();
+
+    if (providerName == null || providerName.isEmpty()) {
+      throw new IllegalArgumentException(
+          "query_text requires an embedding provider, but none configured on field '"
+              + knnQuery.getField()
+              + "' and no embedding_provider specified in query");
+    }
+
+    EmbeddingProvider provider = EmbeddingCreator.getInstance().getProvider(providerName);
+    if (provider == null) {
+      throw new IllegalArgumentException("Embedding provider not found: " + providerName);
+    }
+
+    KnnQuery.Builder builder = knnQuery.toBuilder().clearQueryText();
+    if (fieldDef instanceof VectorFieldDef.ByteVectorFieldDef) {
+      byte[] vector = provider.embedBytes(knnQuery.getQueryText());
+      builder.setQueryByteVector(ByteString.copyFrom(vector));
+    } else {
+      float[] vector = provider.embed(knnQuery.getQueryText());
+      for (float v : vector) {
+        builder.addQueryVector(v);
+      }
+    }
+    return builder.build();
+  }
+
+  /**
    * Construct lucene knn query from grpc knn query.
    *
    * @param knnQuery knn query definition
@@ -125,6 +178,11 @@ public class KnnUtils {
     FieldDef fieldDef = indexState.getFieldOrThrow(field);
     if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
       throw new IllegalArgumentException("Field does not support vector search: " + field);
+    }
+
+    // Resolve query_text to query_vector if needed
+    if (fieldDef instanceof VectorFieldDef<?> vectorFieldDef) {
+      knnQuery = resolveQueryText(knnQuery, vectorFieldDef);
     }
 
     // Path to nested document containing this field
