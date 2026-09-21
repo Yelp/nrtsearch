@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.doc;
 
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import java.util.Collection;
@@ -231,10 +232,14 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
         childPathFilter = childPathFilterLookup.apply(fieldName);
       }
 
+      // Resolve the parent BitSet once per field per segment from the field's schema position.
+      // The parent level is the parent of the field's own nested level, not the search-context
+      // level — this makes _CHILDREN. semantics independent of queryNestedPath or NestedQuery.
+      BitSetProducer parentBSP = resolveParentBitSetProducer(fieldName);
+
       try {
         childDocValues =
-            new ChildAggregatedDocValues(
-                indexableFieldDef, context, allLevelBitSetProducers, childPathFilter);
+            new ChildAggregatedDocValues(indexableFieldDef, context, parentBSP, childPathFilter);
       } catch (IOException e) {
         throw new IllegalArgumentException(
             "Could not create child doc values for field: " + fieldName, e);
@@ -249,6 +254,47 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
           "Could not set parent doc: " + docId + " for child field: " + fieldName, e);
     }
     return childDocValues;
+  }
+
+  /**
+   * Resolves the BitSetProducer for the parent level of the given child field. This is computed
+   * once per field (cached in childrenLoaderCache) and is independent of the search context.
+   *
+   * <p>The parent level is the parent of the field's own nested level: for {@code
+   * orders.items.quantity} the field's nested level is {@code orders.items} and its parent is
+   * {@code orders}; for {@code appointments.price} the nested level is {@code appointments} and its
+   * parent is {@code _root}.
+   */
+  private BitSetProducer resolveParentBitSetProducer(String fieldName) {
+    String childLevel = nearestNestedAncestor(fieldName);
+    String parentLevel =
+        (childLevel == null || childLevel.equals(IndexState.ROOT))
+            ? IndexState.ROOT
+            : nearestNestedAncestor(childLevel);
+    if (parentLevel == null) {
+      parentLevel = IndexState.ROOT;
+    }
+    return allLevelBitSetProducers.get(parentLevel);
+  }
+
+  /**
+   * Walks up a dot-separated field path to find the nearest ancestor that is a nested (nestedDoc)
+   * OBJECT field. Returns {@link IndexState#ROOT} if no nested ancestor exists, or {@code null} if
+   * the path is already ROOT.
+   */
+  private String nearestNestedAncestor(String path) {
+    if (path == null || path.equals(IndexState.ROOT)) {
+      return null;
+    }
+    String current = path;
+    while (current.contains(".")) {
+      current = current.substring(0, current.lastIndexOf("."));
+      FieldDef fieldDef = fieldDefLookup.apply(current);
+      if (fieldDef instanceof ObjectFieldDef objDef && objDef.isNestedDoc()) {
+        return current;
+      }
+    }
+    return IndexState.ROOT;
   }
 
   /**

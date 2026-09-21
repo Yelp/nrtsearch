@@ -18,10 +18,8 @@ package com.yelp.nrtsearch.server.doc;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
@@ -30,15 +28,17 @@ import org.apache.lucene.util.BitSet;
  * LoadedDocValues implementation that collects doc values from all child documents belonging to a
  * parent document. When setDocId is called with a parent doc ID, this class:
  *
- * <p>1. Determines the nesting level of the current document by checking which level's BitSet
- * contains it. 2. Uses that level's BitSet to find the previous sibling parent via {@code
- * prevSetBit}, deriving the child range as {@code [prevParent + 1, parentDocId - 1]}. 3. Optionally
- * filters children by their nested path using childPathBitSet. 4. Loads the specified field's doc
- * values from each matching child. 5. Exposes all child values as a flat multi-valued list.
+ * <p>1. Uses the parent BitSet to find the previous parent via {@code prevSetBit}, deriving the
+ * child range as {@code [prevParent + 1, parentDocId - 1]} 2. Optionally filters children by their
+ * nested path using childPathBitSet 3. Loads the specified field's doc values from each child 4.
+ * Exposes all child values as a flat multi-valued list
  *
- * <p>The level-aware parent BitSet means this class works correctly at any nesting depth: a root
- * document sees children in its full block; an order document (inside a NestedQuery or a
- * queryNestedPath="orders" search) sees only items belonging to that specific order.
+ * <p>The {@code parentBitSetProducer} passed at construction time identifies the nesting level
+ * whose documents act as parents for this field's children. It is derived from the field's schema
+ * position (the parent of the field's nested level) rather than from the search request's {@code
+ * queryNestedPath}, ensuring that the parent boundary is always schema-consistent and independent
+ * of how the query is structured. This is resolved once per field per segment in {@link
+ * SegmentDocLookup} and cached there.
  *
  * <p>The childPathBitSet filtering is essential for indexes with multiple nested paths (e.g., both
  * "appointments" and "reviews" under the same parent). Without it, iterating through the child
@@ -46,7 +46,7 @@ import org.apache.lucene.util.BitSet;
  */
 public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
 
-  private final Collection<BitSet> levelBitSets;
+  private final BitSet parentBitSet;
   private final BitSet childPathBitSet;
   private final boolean hasChildPathFilter;
   private final LoadedDocValues<?> childFieldDocValues;
@@ -58,31 +58,25 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
    *
    * @param fieldDef the child field definition to load doc values from
    * @param leafContext the current segment context
-   * @param levelBitSetProducers map from nested path name to BitSetProducer for that level; must
-   *     include all levels present in the index (including "_root"). The correct parent boundary is
-   *     determined at {@link #setDocId} time by checking which level the current document belongs
-   *     to.
+   * @param parentBitSetProducer produces the BitSet identifying documents at the parent level for
+   *     this field's children. This should be the BitSet for the parent of the field's nested level
+   *     (e.g. for {@code orders.items.quantity} the parent level is {@code orders}). Resolved once
+   *     per field per segment by {@link SegmentDocLookup}.
    * @param childPathBitSetProducer produces the BitSet identifying children of the target nested
    *     path, or null if no path filtering is needed (single nested path case). Note: Lucene's
    *     {@link org.apache.lucene.search.join.QueryBitSetProducer} returns null from {@code
    *     getBitSet()} when no documents match the query in a segment. When this producer is non-null
    *     but produces a null BitSet, all children are excluded (no matches in this segment).
-   * @throws IOException if any BitSet cannot be loaded for this segment
+   * @throws IOException if the BitSet cannot be loaded for this segment
    */
   public ChildAggregatedDocValues(
       IndexableFieldDef<?> fieldDef,
       LeafReaderContext leafContext,
-      Map<String, BitSetProducer> levelBitSetProducers,
+      BitSetProducer parentBitSetProducer,
       BitSetProducer childPathBitSetProducer)
       throws IOException {
-    List<BitSet> resolved = new ArrayList<>(levelBitSetProducers.size());
-    for (BitSetProducer producer : levelBitSetProducers.values()) {
-      BitSet bs = producer.getBitSet(leafContext);
-      if (bs != null) {
-        resolved.add(bs);
-      }
-    }
-    this.levelBitSets = resolved;
+    this.parentBitSet =
+        parentBitSetProducer != null ? parentBitSetProducer.getBitSet(leafContext) : null;
     this.hasChildPathFilter = childPathBitSetProducer != null;
     this.childPathBitSet =
         childPathBitSetProducer != null ? childPathBitSetProducer.getBitSet(leafContext) : null;
@@ -92,12 +86,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
   /**
    * Set the parent document ID. This triggers collection of all child doc values for this parent.
    *
-   * <p>The parent boundary is determined dynamically: the level BitSet that contains {@code
-   * parentDocId} is used to locate the previous parent, defining the child range. This correctly
-   * handles root docs, mid-level docs (e.g. order docs inside a NestedQuery), and any search
-   * context.
-   *
-   * @param parentDocId segment-relative document ID
+   * @param parentDocId segment-relative parent document ID
    * @throws IOException if doc values cannot be loaded
    */
   @Override
@@ -108,33 +97,26 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     lastParentDocId = parentDocId;
     values = new ArrayList<>();
 
-    if (parentDocId < 0) {
+    if (parentBitSet == null || parentDocId < 0) {
       return;
     }
 
-    // Find which level this document belongs to. Each document appears in exactly one level's
-    // BitSet. The level's BitSet defines the parent boundary for child range computation.
-    BitSet currentLevelBitSet = null;
-    for (BitSet bs : levelBitSets) {
-      if (bs.get(parentDocId)) {
-        currentLevelBitSet = bs;
-        break;
-      }
-    }
-    if (currentLevelBitSet == null) {
-      return; // doc not found in any level — should not happen in a valid index
+    if (!parentBitSet.get(parentDocId)) {
+      return;
     }
 
     // A child path filter was provided but produced no matches in this segment.
+    // This happens when QueryBitSetProducer returns null for an empty result set.
+    // In this case, no children should be included.
     if (hasChildPathFilter && childPathBitSet == null) {
       return;
     }
 
-    // Find the previous parent at the same level to determine child range.
-    // In Lucene's block join layout, children are stored contiguously between parents:
+    // Find the previous parent to determine child range. In Lucene's block join layout,
+    // children are stored contiguously between their parent and the previous parent:
     //   [prevParent] [child0] [child1] ... [childN] [thisParent]
     // prevSetBit returns -1 if there is no previous parent (first parent in segment).
-    int prevParent = currentLevelBitSet.prevSetBit(parentDocId - 1);
+    int prevParent = parentBitSet.prevSetBit(parentDocId - 1);
     int firstChild = prevParent + 1;
 
     if (firstChild >= parentDocId) {
