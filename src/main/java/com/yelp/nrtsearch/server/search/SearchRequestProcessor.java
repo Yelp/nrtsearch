@@ -254,7 +254,6 @@ public class SearchRequestProcessor {
             indexState::getField,
             () -> indexState.getAllFields().keySet(),
             searcherAndTaxonomy,
-            parentBitSetProducer,
             allLevelBitSetProducers,
             childPathFilterLookup);
 
@@ -278,7 +277,6 @@ public class SearchRequestProcessor {
             queryFields::get,
             queryFields::keySet,
             searcherAndTaxonomy,
-            parentBitSetProducer,
             allLevelBitSetProducers,
             childPathFilterLookup);
     contextBuilder.setDocLookup(docLookup);

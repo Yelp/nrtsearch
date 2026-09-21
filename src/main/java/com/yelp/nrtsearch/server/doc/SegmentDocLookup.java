@@ -43,7 +43,6 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private final Function<String, FieldDef> fieldDefLookup;
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
-  private final BitSetProducer parentBitSetProducer;
   private final Map<String, BitSetProducer> allLevelBitSetProducers;
   private final Function<String, BitSetProducer> childPathFilterLookup;
   private final Map<String, ChildAggregatedDocValues> childrenLoaderCache = new HashMap<>();
@@ -53,26 +52,16 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
   private SegmentDocLookup parentLookup = null;
 
   public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
-    this(fieldDefLookup, context, null, null, null);
+    this(fieldDefLookup, context, null, null);
   }
 
   public SegmentDocLookup(
       Function<String, FieldDef> fieldDefLookup,
       LeafReaderContext context,
-      BitSetProducer parentBitSetProducer,
-      Function<String, BitSetProducer> childPathFilterLookup) {
-    this(fieldDefLookup, context, parentBitSetProducer, null, childPathFilterLookup);
-  }
-
-  public SegmentDocLookup(
-      Function<String, FieldDef> fieldDefLookup,
-      LeafReaderContext context,
-      BitSetProducer parentBitSetProducer,
       Map<String, BitSetProducer> allLevelBitSetProducers,
       Function<String, BitSetProducer> childPathFilterLookup) {
     this.fieldDefLookup = fieldDefLookup;
     this.context = context;
-    this.parentBitSetProducer = parentBitSetProducer;
     this.allLevelBitSetProducers = allLevelBitSetProducers;
     this.childPathFilterLookup = childPathFilterLookup;
   }
@@ -114,7 +103,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
 
     if (fieldName.startsWith(CHILDREN_FIELD_PREFIX)) {
-      if (parentBitSetProducer == null) {
+      if (allLevelBitSetProducers == null || allLevelBitSetProducers.isEmpty()) {
         return false;
       }
       fieldName = fieldName.substring(CHILDREN_FIELD_PREFIX.length());
