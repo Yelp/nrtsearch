@@ -171,20 +171,28 @@ This works because each child document carries a ``_parent_offset`` pointing to 
 
 **_CHILDREN.fieldName**
 
-Aggregates doc-values across all child documents that are immediate children of the current document in the Lucene block. The parent boundary is determined by the **current document's nesting level** at scoring time — not by ``queryNestedPath`` on the search request.
+Aggregates doc-values from all immediate child documents of the current document. The parent boundary is derived from the **field's schema position** — specifically, the parent of the field's nested level — resolved once per field per segment and independent of query context.
 
-When a script evaluates ``_CHILDREN.fieldName``, nrtsearch checks which level's BitSet contains the current document and uses that level's block boundary to define the child range. This means the same ``_CHILDREN.`` expression works correctly in all contexts:
+For ``_CHILDREN.orders.items.quantity``:
 
-- **Root-level search** — the current document is a root doc; the block range spans all children between the previous root and this root. ``_CHILDREN.orders.order_name`` returns all order names for this root doc; ``_CHILDREN.orders.items.quantity`` returns all item quantities across all orders.
-- **``queryNestedPath="orders"`` search** — the current document is an order doc; the block range spans only the items belonging to this specific order. ``_CHILDREN.orders.items.quantity`` returns only this order's item quantities.
-- **``FunctionScoreQuery`` inside a ``NestedQuery(path="orders")``** — the script evaluates on order docs even though the outer search has no ``queryNestedPath`` set. The level is determined from the document itself at scoring time, so ``_CHILDREN.orders.items.quantity`` still correctly returns this order's items.
+- The field's nested level is ``orders.items`` (nearest ``nestedDoc`` ancestor).
+- The parent of that level is ``orders``.
+- The ``orders`` BitSet is used as the parent boundary regardless of whether the script runs in a root-level search, a ``queryNestedPath="orders"`` search, or inside a ``NestedQuery(path="orders")``.
 
-In all cases, the ``childPathBitSet`` (derived from the field name's registered ``nestedDoc`` path) filters the child range to documents at the expected nested level.
+This means the current document must be an **order document** (present in the ``orders`` BitSet) for ``_CHILDREN.orders.items.quantity`` to return any values. A root document is not in the ``orders`` BitSet, so calling ``_CHILDREN.orders.items.quantity`` from a root-level script always returns empty.
+
+To access item quantities, evaluate the script at the orders level:
+
+- Use ``queryNestedPath="orders"`` to score order documents directly, or
+- Use ``NestedQuery(path="orders", scoreMode=SUM)`` wrapping a ``FunctionScoreQuery`` to aggregate order-level scores up to root.
+
+For direct children of root (single-level nesting), ``_CHILDREN.`` works as expected from a root doc because the field's parent level is ``_root``:
+
+- ``_CHILDREN.orders.order_name`` from a root doc → returns all order names for that root document (parent level of ``orders.order_name`` is ``_root``).
 
 .. code-block:: python
 
-    # Example FunctionScoreQuery script (pseudo-code)
-    # Works correctly whether the script runs via queryNestedPath="orders"
-    # or inside NestedQuery(path="orders") — current doc is always an order doc
+    # FunctionScoreQuery script (pseudo-code) — must run at the orders level
+    # (via queryNestedPath="orders" or inside NestedQuery(path="orders"))
     quantities = doc["_CHILDREN.orders.items.quantity"]
     return sum(quantities)
