@@ -79,7 +79,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
-import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.Download;
 import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
@@ -953,14 +952,13 @@ public class S3Backend implements RemoteBackend {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = getIndexDataPrefix(service, indexIdentifier);
     int maxConcurrency = uploadBatchSize > 0 ? uploadBatchSize : defaultParallelism;
-    int totalFiles = fileList.size();
     long totalUploadBytes = files.values().stream().mapToLong(m -> m.length).sum();
     S3ProgressListenerImpl uploadProgressListener =
         new S3ProgressListenerImpl(
             service, indexIdentifier, "upload_index_files", totalUploadBytes);
     logger.info(
         "Uploading {} index files with max concurrency {} for {}/{}",
-        totalFiles,
+        fileList.size(),
         maxConcurrency,
         service,
         indexIdentifier);
@@ -985,145 +983,25 @@ public class S3Backend implements RemoteBackend {
       }
       String backendKey = backendPrefix + pair.backendFileName;
       Path localFile = indexDir.resolve(pair.fileName);
-
-      if (fileCompressor != null) {
-        try {
+      try {
+        CompletableFuture<?> future;
+        if (fileCompressor != null) {
           NrtFileMetaData meta = files.get(pair.fileName());
-          final String compressorName = fileCompressorName;
-          long fileSize = Files.size(localFile);
-
-          if (fileSize <= compressionInMemoryThresholdBytes) {
-            // Small file: compress fully to memory, upload with known content-length.
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            try (java.io.OutputStream compStream = fileCompressor.compressStream(baos);
-                InputStream source = Files.newInputStream(localFile)) {
-              IOUtils.copy(source, compStream);
-            }
-            byte[] compressedData = baos.toByteArray();
-            Upload upload =
-                transferManager.upload(
-                    UploadRequest.builder()
-                        .putObjectRequest(
-                            PutObjectRequest.builder()
-                                .bucket(serviceBucket)
-                                .key(backendKey)
-                                .build())
-                        .requestBody(AsyncRequestBody.fromBytes(compressedData))
-                        .build());
-            CompletableFuture<?> combined =
-                upload
-                    .completionFuture()
-                    .whenComplete(
-                        (r, t) -> {
-                          semaphore.release();
-                          if (t != null) {
-                            failure.compareAndSet(null, t);
-                          } else {
-                            meta.compressionType = compressorName;
-                            meta.compressedLength = (long) compressedData.length;
-                          }
-                        });
-            futures.add(combined);
-          } else {
-            // Large file: stream through a pipe into a BlockingInputStreamAsyncRequestBody so
-            // the SDK auto-multiparts the upload. Multiple parts can be in-flight simultaneously
-            // (controlled by remoteConfig.s3.java.maxInFlightParts); memory per upload is bounded
-            // to approximately partSize × maxInFlightParts regardless of total file size.
-            PipedInputStream pipedIn = new PipedInputStream(65536);
-            PipedOutputStream pipedOut = new PipedOutputStream(pipedIn);
-            AtomicLong compressedBytes = new AtomicLong();
-
-            BlockingInputStreamAsyncRequestBody body =
-                AsyncRequestBody.forBlockingInputStream(null);
-            Upload upload =
-                transferManager.upload(
-                    UploadRequest.builder()
-                        .putObjectRequest(
-                            PutObjectRequest.builder()
-                                .bucket(serviceBucket)
-                                .key(backendKey)
-                                .build())
-                        .requestBody(body)
-                        .build());
-
-            // Compression thread: read source, compress, write to pipe.
-            CompletableFuture<Void> compressionFuture =
-                CompletableFuture.runAsync(
-                    () -> {
-                      try {
-                        CountingOutputStream counter = new CountingOutputStream(pipedOut);
-                        try (java.io.OutputStream compStream =
-                            fileCompressor.compressStream(counter)) {
-                          IOUtils.copy(Files.newInputStream(localFile), compStream);
-                        }
-                        compressedBytes.set(counter.getByteCount());
-                      } catch (Exception e) {
-                        try {
-                          pipedOut.close();
-                        } catch (Exception ignored) {
-                        }
-                        throw new RuntimeException("Compression failed for " + pair.fileName(), e);
-                      }
-                    });
-
-            // Feeder thread: pump the compressed pipe into the S3 request body.
-            CompletableFuture<Void> feederFuture =
-                CompletableFuture.runAsync(
-                    () -> {
-                      try {
-                        body.writeInputStream(pipedIn);
-                      } catch (Exception e) {
-                        throw new RuntimeException(
-                            "S3 upload feed failed for " + pair.fileName(), e);
-                      }
-                    });
-
-            CompletableFuture<?> combined =
-                CompletableFuture.allOf(compressionFuture, feederFuture, upload.completionFuture())
-                    .whenComplete(
-                        (r, t) -> {
-                          semaphore.release();
-                          if (t != null) {
-                            failure.compareAndSet(null, t);
-                          } else {
-                            meta.compressionType = compressorName;
-                            meta.compressedLength = compressedBytes.get();
-                          }
-                        });
-            futures.add(combined);
-          }
-        } catch (Throwable t) {
-          semaphore.release();
-          failure.compareAndSet(null, t);
-          break;
+          future =
+              Files.size(localFile) <= compressionInMemoryThresholdBytes
+                  ? submitInMemoryCompressedUpload(backendKey, localFile, meta, semaphore, failure)
+                  : submitStreamingCompressedUpload(
+                      backendKey, localFile, meta, semaphore, failure);
+        } else {
+          future =
+              submitUncompressedUpload(
+                  backendKey, localFile, uploadProgressListener, semaphore, failure);
         }
-      } else {
-        // Uncompressed upload: existing file-based path
-        UploadFileRequest request =
-            UploadFileRequest.builder()
-                .putObjectRequest(
-                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-                .source(localFile)
-                .addTransferListener(uploadProgressListener)
-                .build();
-        try {
-          FileUpload upload = transferManager.uploadFile(request);
-          CompletableFuture<CompletedFileUpload> future =
-              upload
-                  .completionFuture()
-                  .whenComplete(
-                      (result, t) -> {
-                        semaphore.release();
-                        if (t != null) {
-                          failure.compareAndSet(null, t);
-                        }
-                      });
-          futures.add(future);
-        } catch (Throwable t) {
-          semaphore.release();
-          failure.compareAndSet(null, t);
-          break;
-        }
+        futures.add(future);
+      } catch (Throwable t) {
+        semaphore.release();
+        failure.compareAndSet(null, t);
+        break;
       }
     }
 
@@ -1138,6 +1016,143 @@ public class S3Backend implements RemoteBackend {
     if (failure.get() != null) {
       throw new IOException("Error while uploading index files to s3. ", failure.get());
     }
+  }
+
+  /**
+   * Submit a compressed upload where the file is fully compressed into a byte array in memory
+   * before uploading with a known content-length. Suitable for files at or below {@link
+   * #compressionInMemoryThresholdBytes}.
+   */
+  private CompletableFuture<?> submitInMemoryCompressedUpload(
+      String backendKey,
+      Path localFile,
+      NrtFileMetaData meta,
+      Semaphore semaphore,
+      AtomicReference<Throwable> failure)
+      throws IOException {
+    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+    try (java.io.OutputStream compStream = fileCompressor.compressStream(baos);
+        InputStream source = Files.newInputStream(localFile)) {
+      IOUtils.copy(source, compStream);
+    }
+    byte[] compressedData = baos.toByteArray();
+    Upload upload =
+        transferManager.upload(
+            UploadRequest.builder()
+                .putObjectRequest(
+                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .requestBody(AsyncRequestBody.fromBytes(compressedData))
+                .build());
+    return upload
+        .completionFuture()
+        .whenComplete(
+            (r, t) -> {
+              semaphore.release();
+              if (t != null) {
+                failure.compareAndSet(null, t);
+              } else {
+                meta.compressionType = fileCompressorName;
+                meta.compressedLength = (long) compressedData.length;
+              }
+            });
+  }
+
+  /**
+   * Submit a compressed upload that streams through a pipe into a {@link
+   * BlockingInputStreamAsyncRequestBody}, allowing the SDK to auto-multipart the upload. Multiple
+   * parts can be in-flight simultaneously (controlled by {@code
+   * remoteConfig.s3.java.maxInFlightParts}); memory per upload is bounded to approximately {@code
+   * partSize × maxInFlightParts} regardless of total file size. Suitable for files above {@link
+   * #compressionInMemoryThresholdBytes}.
+   */
+  private CompletableFuture<?> submitStreamingCompressedUpload(
+      String backendKey,
+      Path localFile,
+      NrtFileMetaData meta,
+      Semaphore semaphore,
+      AtomicReference<Throwable> failure)
+      throws IOException {
+    PipedInputStream pipedIn = new PipedInputStream(65536);
+    PipedOutputStream pipedOut = new PipedOutputStream(pipedIn);
+    AtomicLong compressedBytes = new AtomicLong();
+
+    BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(null);
+    Upload upload =
+        transferManager.upload(
+            UploadRequest.builder()
+                .putObjectRequest(
+                    PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+                .requestBody(body)
+                .build());
+
+    // Compression thread: read source file, compress, write to pipe.
+    CompletableFuture<Void> compressionFuture =
+        CompletableFuture.runAsync(
+            () -> {
+              try {
+                CountingOutputStream counter = new CountingOutputStream(pipedOut);
+                try (java.io.OutputStream compStream = fileCompressor.compressStream(counter)) {
+                  IOUtils.copy(Files.newInputStream(localFile), compStream);
+                }
+                compressedBytes.set(counter.getByteCount());
+              } catch (Exception e) {
+                try {
+                  pipedOut.close();
+                } catch (Exception ignored) {
+                }
+                throw new RuntimeException("Compression failed for " + localFile.getFileName(), e);
+              }
+            });
+
+    // Feeder thread: pump the compressed pipe into the S3 request body.
+    CompletableFuture<Void> feederFuture =
+        CompletableFuture.runAsync(
+            () -> {
+              try {
+                body.writeInputStream(pipedIn);
+              } catch (Exception e) {
+                throw new RuntimeException(
+                    "S3 upload feed failed for " + localFile.getFileName(), e);
+              }
+            });
+
+    return CompletableFuture.allOf(compressionFuture, feederFuture, upload.completionFuture())
+        .whenComplete(
+            (r, t) -> {
+              semaphore.release();
+              if (t != null) {
+                failure.compareAndSet(null, t);
+              } else {
+                meta.compressionType = fileCompressorName;
+                meta.compressedLength = compressedBytes.get();
+              }
+            });
+  }
+
+  /** Submit an uncompressed upload using the file-based TransferManager API. */
+  private CompletableFuture<?> submitUncompressedUpload(
+      String backendKey,
+      Path localFile,
+      S3ProgressListenerImpl progressListener,
+      Semaphore semaphore,
+      AtomicReference<Throwable> failure) {
+    UploadFileRequest request =
+        UploadFileRequest.builder()
+            .putObjectRequest(
+                PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+            .source(localFile)
+            .addTransferListener(progressListener)
+            .build();
+    FileUpload upload = transferManager.uploadFile(request);
+    return upload
+        .completionFuture()
+        .whenComplete(
+            (result, t) -> {
+              semaphore.release();
+              if (t != null) {
+                failure.compareAndSet(null, t);
+              }
+            });
   }
 
   @Override
@@ -1263,110 +1278,12 @@ public class S3Backend implements RemoteBackend {
         // best-effort cleanup; the download will overwrite or fail on its own
       }
 
-      if (pair.compressionType() != null) {
-        // Compressed file: stream from S3 -> decompress -> write to local file
-        CompletableFuture<?> future =
-            CompletableFuture.runAsync(
-                () -> {
-                  try {
-                    FileCompressor compressor = getCompressorForDownload(pair.compressionType());
-                    if (compressor == null) {
-                      throw new IOException(
-                          "No compressor registered for type: " + pair.compressionType());
-                    }
-                    try (InputStream s3Stream =
-                            downloadFromS3Path(serviceBucket, backendKey, false);
-                        InputStream decompressed = compressor.decompressStream(s3Stream)) {
-                      Files.copy(decompressed, localFile);
-                    }
-                    long actualSize = Files.size(localFile);
-                    if (actualSize != pair.length()) {
-                      limiter.onError();
-                      IOException sizeError =
-                          new IOException(
-                              "Decompressed file size mismatch for "
-                                  + pair.fileName()
-                                  + ": expected "
-                                  + pair.length()
-                                  + " bytes, got "
-                                  + actualSize);
-                      logger.warn(
-                          "Failed to download file: {}, error: {}",
-                          pair.fileName(),
-                          sizeError.getMessage());
-                      failures.add(new FailedDownload(pair, sizeError));
-                    } else {
-                      limiter.onSuccess();
-                    }
-                  } catch (Throwable t) {
-                    limiter.onError();
-                    logger.warn(
-                        "Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
-                    failures.add(new FailedDownload(pair, t));
-                  }
-                });
-        futures.add(future);
-      } else {
-        // Uncompressed file: existing TransferManager path
-        DownloadRequest<GetObjectResponse> request =
-            DownloadRequest.builder()
-                .getObjectRequest(
-                    GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
-                .responseTransformer(AsyncResponseTransformer.toFile(localFile))
-                .addTransferListener(progressListener)
-                .build();
-        try {
-          Download<GetObjectResponse> download = transferManager.download(request);
-          CompletableFuture<?> future =
-              download
-                  .completionFuture()
-                  .whenComplete(
-                      (result, t) -> {
-                        if (t != null) {
-                          limiter.onError();
-                          logger.warn(
-                              "Failed to download file: {}, error: {}",
-                              pair.fileName(),
-                              t.getMessage());
-                          failures.add(new FailedDownload(pair, t));
-                        } else {
-                          try {
-                            long actualSize = Files.size(localFile);
-                            if (actualSize != pair.length()) {
-                              limiter.onError();
-                              IOException sizeError =
-                                  new IOException(
-                                      "Downloaded file size mismatch for "
-                                          + pair.fileName()
-                                          + ": expected "
-                                          + pair.length()
-                                          + " bytes, got "
-                                          + actualSize);
-                              logger.warn(
-                                  "Failed to download file: {}, error: {}",
-                                  pair.fileName(),
-                                  sizeError.getMessage());
-                              failures.add(new FailedDownload(pair, sizeError));
-                            } else {
-                              limiter.onSuccess();
-                            }
-                          } catch (IOException e) {
-                            limiter.onError();
-                            logger.warn(
-                                "Failed to download file: {}, error: {}",
-                                pair.fileName(),
-                                e.getMessage());
-                            failures.add(new FailedDownload(pair, e));
-                          }
-                        }
-                      });
-          futures.add(future);
-        } catch (Throwable t) {
-          limiter.onError();
-          logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
-          failures.add(new FailedDownload(pair, t));
-        }
-      }
+      CompletableFuture<?> future =
+          pair.compressionType() != null
+              ? submitCompressedDownload(pair, localFile, backendKey, limiter, failures)
+              : submitUncompressedDownload(
+                  pair, localFile, backendKey, limiter, progressListener, failures);
+      futures.add(future);
     }
 
     for (CompletableFuture<?> future : futures) {
@@ -1378,6 +1295,96 @@ public class S3Backend implements RemoteBackend {
     }
 
     return new ArrayList<>(failures);
+  }
+
+  /** Submit a compressed file download. Streams from S3 through decompression directly to disk. */
+  private CompletableFuture<?> submitCompressedDownload(
+      FileNamePair pair,
+      Path localFile,
+      String backendKey,
+      ConcurrencyLimiter limiter,
+      ConcurrentLinkedQueue<FailedDownload> failures) {
+    return CompletableFuture.runAsync(
+        () -> {
+          try {
+            FileCompressor compressor = resolveCompressor(pair.compressionType());
+            try (InputStream s3Stream = downloadFromS3Path(serviceBucket, backendKey, false);
+                InputStream decompressed = compressor.decompressStream(s3Stream)) {
+              Files.copy(decompressed, localFile);
+            }
+            verifyFileSize(pair, localFile, pair.length(), limiter, failures);
+          } catch (Throwable t) {
+            limiter.onError();
+            logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
+            failures.add(new FailedDownload(pair, t));
+          }
+        });
+  }
+
+  /** Submit an uncompressed file download using the TransferManager. */
+  private CompletableFuture<?> submitUncompressedDownload(
+      FileNamePair pair,
+      Path localFile,
+      String backendKey,
+      ConcurrencyLimiter limiter,
+      S3ProgressListenerImpl progressListener,
+      ConcurrentLinkedQueue<FailedDownload> failures) {
+    DownloadRequest<GetObjectResponse> request =
+        DownloadRequest.builder()
+            .getObjectRequest(
+                GetObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
+            .responseTransformer(AsyncResponseTransformer.toFile(localFile))
+            .addTransferListener(progressListener)
+            .build();
+    Download<GetObjectResponse> download = transferManager.download(request);
+    return download
+        .completionFuture()
+        .whenComplete(
+            (result, t) -> {
+              if (t != null) {
+                limiter.onError();
+                logger.warn(
+                    "Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
+                failures.add(new FailedDownload(pair, t));
+              } else {
+                verifyFileSize(pair, localFile, pair.length(), limiter, failures);
+              }
+            });
+  }
+
+  /**
+   * Verify a downloaded file matches the expected size, recording success or failure to the
+   * limiter.
+   */
+  private void verifyFileSize(
+      FileNamePair pair,
+      Path localFile,
+      long expectedSize,
+      ConcurrencyLimiter limiter,
+      ConcurrentLinkedQueue<FailedDownload> failures) {
+    try {
+      long actualSize = Files.size(localFile);
+      if (actualSize != expectedSize) {
+        limiter.onError();
+        IOException sizeError =
+            new IOException(
+                "Downloaded file size mismatch for "
+                    + pair.fileName()
+                    + ": expected "
+                    + expectedSize
+                    + " bytes, got "
+                    + actualSize);
+        logger.warn(
+            "Failed to download file: {}, error: {}", pair.fileName(), sizeError.getMessage());
+        failures.add(new FailedDownload(pair, sizeError));
+      } else {
+        limiter.onSuccess();
+      }
+    } catch (IOException e) {
+      limiter.onError();
+      logger.warn("Failed to download file: {}, error: {}", pair.fileName(), e.getMessage());
+      failures.add(new FailedDownload(pair, e));
+    }
   }
 
   /**
@@ -1401,32 +1408,6 @@ public class S3Backend implements RemoteBackend {
     return Math.min(delay, downloadRetryMaxDelayMs);
   }
 
-  /**
-   * Look up the compressor for a given compression type name. Uses the global FileCompressorCreator
-   * registry when initialized, falling back to this backend's own configured compressor when the
-   * creator is not available (e.g., in tests).
-   *
-   * @param compressionType the compression type name from file metadata
-   * @return the compressor, or null if compressionType is null or "NONE"
-   * @throws IOException if the compressor is not available
-   */
-  private FileCompressor getCompressorForDownload(String compressionType) throws IOException {
-    if (compressionType == null || compressionType.isEmpty() || "NONE".equals(compressionType)) {
-      return null;
-    }
-    FileCompressorCreator creator = FileCompressorCreator.getInstance();
-    if (creator != null) {
-      return creator.getCompressor(compressionType);
-    }
-    // Fallback for tests or early bootstrap: use the locally configured compressor
-    if (compressionType.equals(fileCompressorName) && fileCompressor != null) {
-      return fileCompressor;
-    }
-    throw new IOException(
-        "FileCompressorCreator not initialized and no local compressor for type: "
-            + compressionType);
-  }
-
   @Override
   public InputStream downloadIndexFile(
       String service, String indexIdentifier, String fileName, NrtFileMetaData fileMetaData)
@@ -1437,7 +1418,7 @@ public class S3Backend implements RemoteBackend {
     InputStream rawStream = downloadFromS3Path(serviceBucket, backendKey, false);
     InputStream wrappedStream =
         wrapDownloadStream(rawStream, s3Metrics, indexIdentifier, rateLimiter);
-    FileCompressor compressor = getCompressorForDownload(fileMetaData.compressionType);
+    FileCompressor compressor = resolveCompressor(fileMetaData.compressionType);
     if (compressor != null) {
       return compressor.decompressStream(wrappedStream);
     }
