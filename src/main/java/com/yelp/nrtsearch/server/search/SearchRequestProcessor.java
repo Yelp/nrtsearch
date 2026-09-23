@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -188,10 +189,23 @@ public class SearchRequestProcessor {
         .setWarming(warming);
 
     BitSetProducer parentBitSetProducer = null;
+    Map<String, BitSetProducer> allLevelBitSetProducers = null;
     Function<String, BitSetProducer> childPathFilterLookup = null;
 
     if (indexState.hasNestedChildFields()) {
       parentBitSetProducer = indexState.getParentBitSetProducer();
+
+      // Build the level map: _root plus every registered nestedDoc=true field path.
+      // ChildAggregatedDocValues uses this to dynamically find the correct parent boundary
+      // for the current document at setDocId time, regardless of search context.
+      allLevelBitSetProducers = new LinkedHashMap<>();
+      allLevelBitSetProducers.put(IndexState.ROOT, parentBitSetProducer);
+      for (Map.Entry<String, FieldDef> entry : indexState.getAllFields().entrySet()) {
+        if (entry.getValue() instanceof ObjectFieldDef objDef && objDef.isNestedDoc()) {
+          allLevelBitSetProducers.put(
+              entry.getKey(), indexState.getPathBitSetProducer(entry.getKey()));
+        }
+      }
 
       Map<String, Query> userChildFilters = parseChildFilters(searchRequest, indexState);
 
@@ -240,7 +254,7 @@ public class SearchRequestProcessor {
             indexState::getField,
             () -> indexState.getAllFields().keySet(),
             searcherAndTaxonomy,
-            parentBitSetProducer,
+            allLevelBitSetProducers,
             childPathFilterLookup);
 
     Map<String, FieldDef> queryVirtualFields =
@@ -263,7 +277,7 @@ public class SearchRequestProcessor {
             queryFields::get,
             queryFields::keySet,
             searcherAndTaxonomy,
-            parentBitSetProducer,
+            allLevelBitSetProducers,
             childPathFilterLookup);
     contextBuilder.setDocLookup(docLookup);
     String rootQueryNestedPath =

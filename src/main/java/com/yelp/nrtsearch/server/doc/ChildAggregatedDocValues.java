@@ -33,6 +33,13 @@ import org.apache.lucene.util.BitSet;
  * nested path using childPathBitSet 3. Loads the specified field's doc values from each child 4.
  * Exposes all child values as a flat multi-valued list
  *
+ * <p>The {@code parentBitSetProducer} passed at construction time identifies the nesting level
+ * whose documents act as parents for this field's children. It is derived from the field's schema
+ * position (the parent of the field's nested level) rather than from the search request's {@code
+ * queryNestedPath}, ensuring that the parent boundary is always schema-consistent and independent
+ * of how the query is structured. This is resolved once per field per segment in {@link
+ * SegmentDocLookup} and cached there.
+ *
  * <p>The childPathBitSet filtering is essential for indexes with multiple nested paths (e.g., both
  * "appointments" and "reviews" under the same parent). Without it, iterating through the child
  * range would collect values from children of all nested paths, not just the target path.
@@ -51,7 +58,10 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
    *
    * @param fieldDef the child field definition to load doc values from
    * @param leafContext the current segment context
-   * @param parentBitSetProducer produces the BitSet identifying parent docs
+   * @param parentBitSetProducer produces the BitSet identifying documents at the parent level for
+   *     this field's children. This should be the BitSet for the parent of the field's nested level
+   *     (e.g. for {@code orders.items.quantity} the parent level is {@code orders}). Resolved once
+   *     per field per segment by {@link SegmentDocLookup}.
    * @param childPathBitSetProducer produces the BitSet identifying children of the target nested
    *     path, or null if no path filtering is needed (single nested path case). Note: Lucene's
    *     {@link org.apache.lucene.search.join.QueryBitSetProducer} returns null from {@code
@@ -65,7 +75,8 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
       BitSetProducer parentBitSetProducer,
       BitSetProducer childPathBitSetProducer)
       throws IOException {
-    this.parentBitSet = parentBitSetProducer.getBitSet(leafContext);
+    this.parentBitSet =
+        parentBitSetProducer != null ? parentBitSetProducer.getBitSet(leafContext) : null;
     this.hasChildPathFilter = childPathBitSetProducer != null;
     this.childPathBitSet =
         childPathBitSetProducer != null ? childPathBitSetProducer.getBitSet(leafContext) : null;
@@ -86,7 +97,7 @@ public class ChildAggregatedDocValues extends LoadedDocValues<Object> {
     lastParentDocId = parentDocId;
     values = new ArrayList<>();
 
-    if (parentBitSet == null || parentDocId <= 0) {
+    if (parentBitSet == null || parentDocId < 0) {
       return;
     }
 
