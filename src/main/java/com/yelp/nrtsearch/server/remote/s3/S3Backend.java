@@ -1025,8 +1025,10 @@ public class S3Backend implements RemoteBackend {
                         });
             futures.add(combined);
           } else {
-            // Large file: stream through a pipe so the SDK auto-multiparts the upload,
-            // keeping at most one part (~8 MB) in memory at a time regardless of file size.
+            // Large file: stream through a pipe into a BlockingInputStreamAsyncRequestBody so
+            // the SDK auto-multiparts the upload. Multiple parts can be in-flight simultaneously
+            // (controlled by remoteConfig.s3.java.maxInFlightParts); memory per upload is bounded
+            // to approximately partSize × maxInFlightParts regardless of total file size.
             PipedInputStream pipedIn = new PipedInputStream(65536);
             PipedOutputStream pipedOut = new PipedOutputStream(pipedIn);
             AtomicLong compressedBytes = new AtomicLong();
