@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -61,7 +60,7 @@ public class WarmerTest {
   private Warmer warmer;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider("warmer-unittest");
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(bucketName);
 
   @Before
   public void setup() throws IOException {
@@ -71,24 +70,6 @@ public class WarmerTest {
     remoteBackend =
         new S3Backend(config, new S3Util.S3ClientBundle(s3, s3Provider.getS3AsyncClient()));
     warmer = new Warmer(remoteBackend, service, index, 4);
-  }
-
-  @Before
-  public void clearBucket() {
-    software.amazon.awssdk.services.s3.S3Client s3Client = s3Provider.getS3Client();
-    s3Client
-        .listObjectsV2(
-            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .build())
-        .contents()
-        .forEach(
-            o ->
-                s3Client.deleteObject(
-                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(o.key())
-                        .build()));
   }
 
   @Test

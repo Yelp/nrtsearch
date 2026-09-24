@@ -71,11 +71,6 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.Delete;
-import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -160,12 +155,7 @@ public class TestServer {
     }
   }
 
-  /**
-   * Stops all created servers and closes executor factories without shutting down S3Mock. Use this
-   * in {@code @After} when S3Mock is managed at class-level (started in {@code @BeforeClass} and
-   * torn down in {@code @AfterClass} via {@link #cleanupAll()}).
-   */
-  public static void stopServers() {
+  public static void cleanupAll() {
     createdServers.forEach(TestServer::stop);
     createdServers.forEach(
         s -> {
@@ -178,54 +168,10 @@ public class TestServer {
           }
         });
     createdServers.clear();
-  }
-
-  /** Stops all servers and shuts down S3Mock. Use this in {@code @AfterClass}. */
-  public static void cleanupAll() {
-    stopServers();
     if (api != null) {
       api.shutdown();
       api = null;
       S3_ENDPOINT = null;
-    }
-  }
-
-  /**
-   * Deletes all objects in the shared test S3 bucket so that each test in a class-level S3Mock
-   * setup starts with a clean bucket. Required for tests that use REMOTE data location, since all
-   * TestServer instances share the same service name in S3.
-   */
-  public static void resetS3Bucket() {
-    if (S3_ENDPOINT == null) {
-      return;
-    }
-    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    String token = null;
-    try {
-      do {
-        ListObjectsV2Response resp =
-            s3.listObjectsV2(
-                ListObjectsV2Request.builder()
-                    .bucket(TEST_BUCKET)
-                    .continuationToken(token)
-                    .build());
-        if (!resp.contents().isEmpty()) {
-          s3.deleteObjects(
-              DeleteObjectsRequest.builder()
-                  .bucket(TEST_BUCKET)
-                  .delete(
-                      Delete.builder()
-                          .objects(
-                              resp.contents().stream()
-                                  .map(o -> ObjectIdentifier.builder().key(o.key()).build())
-                                  .collect(Collectors.toList()))
-                          .build())
-                  .build());
-        }
-        token = resp.isTruncated() ? resp.nextContinuationToken() : null;
-      } while (token != null);
-    } catch (software.amazon.awssdk.services.s3.model.NoSuchBucketException ignored) {
-      // Bucket not yet created — nothing to clear.
     }
   }
 
@@ -262,7 +208,7 @@ public class TestServer {
     // Retry createBucket: even after the HTTP probe, the PUT handler may not
     // be registered in Akka's routing tree immediately.
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 50; attempt++) {
+    for (int attempt = 0; attempt < 10; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
@@ -270,7 +216,7 @@ public class TestServer {
       } catch (Exception e) {
         lastBucketException = e;
         try {
-          Thread.sleep(500);
+          Thread.sleep(200);
         } catch (InterruptedException ie) {
           Thread.currentThread().interrupt();
           throw new IOException("Interrupted waiting for S3Mock bucket creation", ie);
@@ -425,13 +371,6 @@ public class TestServer {
       } catch (InterruptedException ignore) {
       }
       replicationServer = null;
-    }
-    if (remoteBackend != null) {
-      try {
-        remoteBackend.close();
-      } catch (Exception ignore) {
-      }
-      remoteBackend = null;
     }
   }
 

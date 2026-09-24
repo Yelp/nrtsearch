@@ -23,7 +23,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -38,13 +37,13 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class LegacyVersionManagerTest {
-  private static final String BUCKET_NAME = "version-manager-unittest";
+  private final String BUCKET_NAME = "version-manager-unittest";
   private LegacyVersionManager versionManager;
   private S3Client s3;
   private Path archiverDirectory;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider(BUCKET_NAME);
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(BUCKET_NAME);
 
   @Before
   public void setup() throws IOException {
@@ -52,24 +51,6 @@ public class LegacyVersionManagerTest {
 
     s3 = s3Provider.getAmazonS3();
     versionManager = new LegacyVersionManager(s3, BUCKET_NAME);
-  }
-
-  @Before
-  public void clearBucket() {
-    software.amazon.awssdk.services.s3.S3Client s3Client = s3Provider.getS3Client();
-    s3Client
-        .listObjectsV2(
-            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
-                .bucket(BUCKET_NAME)
-                .build())
-        .contents()
-        .forEach(
-            o ->
-                s3Client.deleteObject(
-                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
-                        .bucket(BUCKET_NAME)
-                        .key(o.key())
-                        .build()));
   }
 
   @Test

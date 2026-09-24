@@ -44,10 +44,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -56,28 +52,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class PutRemoteStateCommandTest {
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   private S3Client getS3() {
@@ -213,6 +192,7 @@ public class PutRemoteStateCommandTest {
 
   @Test
   public void testInvalidState() throws IOException {
+    TestServer.initS3(folder);
     String stateStr =
         "{\"ind\":{\"test_index\":{\"id\":\"09d9c9e4-483e-4a90-9c4f-d342c8da1210\",\"started\":true}}}";
     CommandLine cmd = getInjectedCommand();
@@ -234,6 +214,7 @@ public class PutRemoteStateCommandTest {
 
   @Test
   public void testSkipValidate() throws IOException {
+    TestServer.initS3(folder);
     String stateStr =
         "{\"ind\":{\"test_index\":{\"id\":\"09d9c9e4-483e-4a90-9c4f-d342c8da1210\",\"started\":true}}}";
     CommandLine cmd = getInjectedCommand();
@@ -256,6 +237,7 @@ public class PutRemoteStateCommandTest {
 
   @Test
   public void testBackupStateNotPresent() throws IOException {
+    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     GlobalStateInfo stateInfo = GlobalStateInfo.newBuilder().build();

@@ -67,18 +67,6 @@ public class NodeNameResolverAndLoadBalancingTests {
   private static final int SERVER_2_ID = 2;
   private static final int SERVER_3_ID = 3;
 
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private TestServer server1;
@@ -149,7 +137,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder.close();
     luceneServerStubBuilder.waitUntilClosed(100, TimeUnit.MILLISECONDS);
     luceneServerStubBuilder = null;
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   @Test(timeout = 10000)

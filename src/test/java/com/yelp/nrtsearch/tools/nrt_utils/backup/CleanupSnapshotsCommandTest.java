@@ -38,10 +38,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -52,28 +48,11 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 public class CleanupSnapshotsCommandTest {
   private static final long HOUR_TO_MS = 60L * 60L * 1000L;
 
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
 
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   private S3Client getS3() {
@@ -156,7 +135,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getMetadataRoot(String indexUniqueName, String serviceName) {
-    return s3Folder
+    return folder
         .getRoot()
         .toPath()
         .resolve("s3")
@@ -168,7 +147,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getIndexSnapshotDataRoot(String indexUniqueName, String serviceName) {
-    return s3Folder
+    return folder
         .getRoot()
         .toPath()
         .resolve("s3")
@@ -180,6 +159,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshots() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -200,6 +180,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsDryRun() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -226,6 +207,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsDifferentRoot() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos =
         createTestSnapshotData(indexUniqueName, true, "different_root");
@@ -252,6 +234,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsKeepsN() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -277,6 +260,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsKeepMore() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -303,6 +287,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteAllSnapshots() throws IOException, InterruptedException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -324,6 +309,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testOnlyKeepN() throws IOException, InterruptedException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -345,6 +331,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testNoData() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
 
     CommandLine cmd = getInjectedCommand();
@@ -364,6 +351,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testDeleteDataWithoutMetadata() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
@@ -383,6 +371,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testKeepDataWithoutMetadata() throws IOException {
+    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
@@ -403,6 +392,7 @@ public class CleanupSnapshotsCommandTest {
 
   @Test
   public void testIndexIdFromGlobalState() throws IOException {
+    TestServer.initS3(folder);
     TestServer server = TestServer.builder(folder).withRemoteStateBackend(false).build();
     server.createIndex("test_index");
     String indexUniqueName = server.getGlobalState().getDataResourceForIndex("test_index");

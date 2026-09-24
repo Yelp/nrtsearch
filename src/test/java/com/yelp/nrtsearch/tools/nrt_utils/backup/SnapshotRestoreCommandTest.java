@@ -51,10 +51,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -68,29 +64,11 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class SnapshotRestoreCommandTest {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
 
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   private S3Client getS3() {

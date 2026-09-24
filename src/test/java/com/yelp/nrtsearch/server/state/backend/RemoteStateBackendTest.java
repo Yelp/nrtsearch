@@ -51,18 +51,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class RemoteStateBackendTest {
+  @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
+
   private static final String TEST_BUCKET = "remote-state-test";
   private static final String TEST_SERVICE_NAME = "test-service-name";
-
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
-
   private RemoteBackend remoteBackend;
 
   @Before
@@ -73,23 +71,6 @@ public class RemoteStateBackendTest {
             false,
             S3Backend.DEFAULT_CONFIG,
             new S3Util.S3ClientBundle(s3Provider.getAmazonS3(), s3Provider.getS3AsyncClient()));
-  }
-
-  @Before
-  public void clearBucket() {
-    software.amazon.awssdk.services.s3.S3Client s3 = s3Provider.getS3Client();
-    s3.listObjectsV2(
-            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
-                .bucket(TEST_BUCKET)
-                .build())
-        .contents()
-        .forEach(
-            o ->
-                s3.deleteObject(
-                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
-                        .bucket(TEST_BUCKET)
-                        .key(o.key())
-                        .build()));
   }
 
   private NrtsearchConfig getConfig(boolean readOnly) throws IOException {

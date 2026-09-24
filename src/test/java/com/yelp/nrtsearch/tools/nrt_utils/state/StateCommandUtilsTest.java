@@ -53,10 +53,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -64,28 +60,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class StateCommandUtilsTest {
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   private S3Client getS3() {
@@ -118,6 +97,7 @@ public class StateCommandUtilsTest {
 
   @Test
   public void testGetGlobalStateFileContents_notExist() throws IOException {
+    TestServer.initS3(folder);
     String contents =
         StateCommandUtils.getGlobalStateFileContents(getRemoteBackend(), SERVICE_NAME);
     assertNull(contents);
@@ -125,6 +105,7 @@ public class StateCommandUtilsTest {
 
   @Test
   public void testGetIndexStateFileContents_notExist() throws IOException {
+    TestServer.initS3(folder);
     String contents =
         StateCommandUtils.getIndexStateFileContents(getRemoteBackend(), SERVICE_NAME, "test_index");
     assertNull(contents);
@@ -132,6 +113,7 @@ public class StateCommandUtilsTest {
 
   @Test
   public void testGetIndexStateFileContents_ResourceNotExist() throws IOException {
+    TestServer.initS3(folder);
     S3Backend mockS3Backend = mock(S3Backend.class);
     when(mockS3Backend.exists(
             SERVICE_NAME, "test_index", RemoteBackend.IndexResourceType.INDEX_STATE))
@@ -331,6 +313,7 @@ public class StateCommandUtilsTest {
 
   @Test
   public void testGetResourceName_NoGlobalState() throws IOException {
+    TestServer.initS3(folder);
     S3Backend s3Backend = getRemoteBackend();
     try {
       StateCommandUtils.getResourceName(s3Backend, SERVICE_NAME, "test_index", false);

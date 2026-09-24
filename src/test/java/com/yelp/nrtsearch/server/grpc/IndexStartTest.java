@@ -33,37 +33,16 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class IndexStartTest {
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
 
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   @Test

@@ -25,10 +25,6 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Iterator;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,29 +44,12 @@ public class ReplicationServerTest {
    */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
   private TestServer primaryServer;
   private TestServer replicaServer;
 
-  @BeforeClass
-  public static void initS3() throws java.io.IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
-
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   @Test

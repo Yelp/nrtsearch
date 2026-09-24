@@ -39,10 +39,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -51,25 +48,13 @@ public class CustomFieldTypeTest {
 
   private static final String TEST_INDEX = "test_index";
 
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private TestServer server;
 
   @After
   public void tearDown() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   @Before

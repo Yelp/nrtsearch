@@ -38,7 +38,6 @@ import com.yelp.nrtsearch.test_utils.TestResourceHelper;
 import io.grpc.StatusRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,10 +58,7 @@ import java.util.stream.Stream;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -101,23 +97,6 @@ public class NrtsearchServerTest {
   private static final String TEST_INDEX = "test_index";
   private static final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
-
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
-
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private TestServer primaryServer;
@@ -126,7 +105,7 @@ public class NrtsearchServerTest {
 
   @After
   public void tearDown() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   @Before

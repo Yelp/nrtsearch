@@ -30,10 +30,6 @@ import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -42,28 +38,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class UpdateGlobalIndexStateCommandTest {
-  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
-
-  @BeforeClass
-  public static void initS3() throws IOException {
-    TestServer.initS3(s3Folder);
-  }
-
-  @AfterClass
-  public static void cleanupS3() {
-    TestServer.cleanupAll();
-  }
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  @Before
-  public void resetS3() {
-    TestServer.resetS3Bucket();
-  }
-
   @After
   public void cleanup() {
-    TestServer.stopServers();
+    TestServer.cleanupAll();
   }
 
   private S3Client getS3() {

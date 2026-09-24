@@ -22,8 +22,7 @@ import static org.junit.Assert.fail;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import java.util.Set;
-import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -32,24 +31,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class BackupCommandUtilsTest {
   private static final String TEST_BUCKET = "test-backup-bucket";
 
-  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
-
-  @Before
-  public void clearBucket() {
-    software.amazon.awssdk.services.s3.S3Client s3 = s3Provider.getS3Client();
-    s3.listObjectsV2(
-            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
-                .bucket(TEST_BUCKET)
-                .build())
-        .contents()
-        .forEach(
-            o ->
-                s3.deleteObject(
-                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
-                        .bucket(TEST_BUCKET)
-                        .key(o.key())
-                        .build()));
-  }
+  @Rule public AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   @Test
   public void testGetSnapshotRoot_rootProvided() {
