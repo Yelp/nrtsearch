@@ -40,8 +40,6 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
 import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
-import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupFetchTask;
-import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupManager;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
@@ -59,6 +57,8 @@ import com.yelp.nrtsearch.server.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupFetchTask;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupManager;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderCreator;
@@ -277,9 +277,7 @@ public class SearchRequestProcessor {
     if (!searchRequest.getCrossIndexLookupsList().isEmpty()) {
       crossIndexLookupManager =
           CrossIndexLookupManager.create(
-              searchRequest.getCrossIndexLookupsList(),
-              indexState,
-              indexState.getGlobalState());
+              searchRequest.getCrossIndexLookupsList(), indexState, indexState.getGlobalState());
       contextBuilder.setCrossIndexLookupManager(crossIndexLookupManager);
     }
 

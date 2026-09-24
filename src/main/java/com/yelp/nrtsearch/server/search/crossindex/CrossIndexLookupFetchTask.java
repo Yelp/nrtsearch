@@ -47,9 +47,7 @@ public class CrossIndexLookupFetchTask implements FetchTasks.FetchTask {
 
   @Override
   public void processHit(
-      SearchContext searchContext,
-      LeafReaderContext hitLeaf,
-      SearchResponse.Hit.Builder hit)
+      SearchContext searchContext, LeafReaderContext hitLeaf, SearchResponse.Hit.Builder hit)
       throws IOException {
 
     for (CrossIndexLookup lookup : lookups) {
@@ -67,8 +65,7 @@ public class CrossIndexLookupFetchTask implements FetchTasks.FetchTask {
       }
 
       // Look up materialized results
-      List<Map<String, CompositeFieldValue>> secondaryHits =
-          manager.getResults(indexName, joinKey);
+      List<Map<String, CompositeFieldValue>> secondaryHits = manager.getResults(indexName, joinKey);
       if (secondaryHits == null || secondaryHits.isEmpty()) {
         continue;
       }

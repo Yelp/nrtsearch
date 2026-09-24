@@ -42,7 +42,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,8 +113,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
         throw new IllegalArgumentException("CrossIndexLookup.index must not be empty");
       }
       if (states.containsKey(indexName)) {
-        throw new IllegalArgumentException(
-            "Duplicate CrossIndexLookup for index: " + indexName);
+        throw new IllegalArgumentException("Duplicate CrossIndexLookup for index: " + indexName);
       }
       if (lookup.getPrimaryField().isEmpty()) {
         throw new IllegalArgumentException(
@@ -200,9 +198,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
     return state != null ? state.searcher : null;
   }
 
-  /**
-   * Get the ShardState for a secondary index lookup.
-   */
+  /** Get the ShardState for a secondary index lookup. */
   public ShardState getShardState(String indexName) {
     LookupState state = lookupStates.get(indexName);
     return state != null ? state.secondaryShard : null;
@@ -267,22 +263,17 @@ public class CrossIndexLookupManager implements AutoCloseable {
       }
 
       // Step 2: Scan secondary index to find matching docs and read fields
-      int topHits =
-          state.config.getTopHits() > 0 ? state.config.getTopHits() : DEFAULT_TOP_HITS;
-      state.materializedResults =
-          scanSecondaryIndex(state, joinKeys, topHits);
+      int topHits = state.config.getTopHits() > 0 ? state.config.getTopHits() : DEFAULT_TOP_HITS;
+      state.materializedResults = scanSecondaryIndex(state, joinKeys, topHits);
 
       // Step 3: Populate SharedDocContext for expose_to_scripts
       if (!state.config.getExposeToScriptsList().isEmpty()) {
-        populateSharedDocContext(
-            hits, state, docIdToJoinKey, sharedDocContext);
+        populateSharedDocContext(hits, state, docIdToJoinKey, sharedDocContext);
       }
     }
   }
 
-  /**
-   * Collect join key values from primary hits by reading primary field doc values.
-   */
+  /** Collect join key values from primary hits by reading primary field doc values. */
   private void collectJoinKeys(
       TopDocs hits,
       SearcherAndTaxonomy primarySearcher,
@@ -300,8 +291,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
     for (ScoreDoc scoreDoc : sorted) {
       // Advance to correct leaf
-      while (leafIdx < leaves.size() - 1
-          && leaves.get(leafIdx + 1).docBase <= scoreDoc.doc) {
+      while (leafIdx < leaves.size() - 1 && leaves.get(leafIdx + 1).docBase <= scoreDoc.doc) {
         leafIdx++;
         primaryDV = null;
       }
@@ -413,9 +403,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
     return results;
   }
 
-  /**
-   * Add a secondary hit's field values to the results map.
-   */
+  /** Add a secondary hit's field values to the results map. */
   private void addSecondaryHit(
       Map<String, List<Map<String, CompositeFieldValue>>> results,
       String joinKey,
@@ -449,9 +437,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
     hitList.add(fieldValues);
   }
 
-  /**
-   * Populate SharedDocContext with expose_to_scripts values for each primary hit.
-   */
+  /** Populate SharedDocContext with expose_to_scripts values for each primary hit. */
   private void populateSharedDocContext(
       TopDocs hits,
       LookupState state,
@@ -463,8 +449,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
       String joinKey = docIdToJoinKey.get(scoreDoc.doc);
       if (joinKey == null) continue;
 
-      List<Map<String, CompositeFieldValue>> secondaryHits =
-          state.materializedResults.get(joinKey);
+      List<Map<String, CompositeFieldValue>> secondaryHits = state.materializedResults.get(joinKey);
       if (secondaryHits == null || secondaryHits.isEmpty()) continue;
 
       Map<String, Object> docContext = sharedDocContext.getContext(scoreDoc.doc);
