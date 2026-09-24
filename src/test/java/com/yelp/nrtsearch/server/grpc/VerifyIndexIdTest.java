@@ -24,6 +24,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Rule;
@@ -92,10 +93,13 @@ public class VerifyIndexIdTest {
   public void testVerifyIndexId_recvRawFile() throws IOException {
     TestServer primary = getVerifyIndexIdPrimary();
     try {
+      // recvRawFile is a streaming RPC; add a deadline so a missing index-ID
+      // validation in the server doesn't block the test indefinitely.
       Iterator<RawFileChunk> it =
           primary
               .getReplicationClient()
               .getBlockingStub()
+              .withDeadlineAfter(5, TimeUnit.SECONDS)
               .recvRawFile(
                   FileInfo.newBuilder()
                       .setIndexName("test_index")

@@ -88,6 +88,10 @@ public class ServerTestCase {
     return testServer.getClient().getBlockingStub();
   }
 
+  public static int getPort() {
+    return testServer.getPort();
+  }
+
   public static PrometheusRegistry getPrometheusRegistry() {
     return testServer.getPrometheusRegistry();
   }

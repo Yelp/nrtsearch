@@ -16,7 +16,10 @@
 package com.yelp.nrtsearch.test_utils;
 
 import io.findify.s3mock.S3Mock;
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
@@ -91,11 +94,42 @@ public class AmazonS3Provider extends ExternalResource {
     int port = PortUtils.findAvailablePort();
     api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
     api.start();
+    // Wait until S3Mock's HTTP server is ready to respond to requests. A TCP
+    // connection succeeding is not enough — Akka HTTP routing may not be set up
+    // yet. We send a real HTTP GET with short timeouts and retry until we get
+    // any HTTP response (even 404), which proves the routing is live.
     String endpoint = String.format("http://127.0.0.1:%d", port);
+    for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
+      try {
+        HttpURLConnection conn = (HttpURLConnection) new URL(endpoint + "/").openConnection();
+        conn.setConnectTimeout(500);
+        conn.setReadTimeout(500);
+        try {
+          conn.getResponseCode();
+          break; // got a response — server is live
+        } finally {
+          conn.disconnect();
+        }
+      } catch (IOException ignored) {
+        Thread.sleep(100);
+      }
+    }
     s3 = createTestS3Client(endpoint);
     s3Async = createTestS3AsyncClient(endpoint);
     transferManager = S3TransferManager.builder().s3Client(s3Async).build();
-    s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    // Retry createBucket: even after the HTTP probe succeeds, the PUT handler
+    // for bucket creation may not be registered yet in Akka's routing tree.
+    Exception lastException = null;
+    for (int attempt = 0; attempt < 10; attempt++) {
+      try {
+        s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+        return;
+      } catch (Exception e) {
+        lastException = e;
+        Thread.sleep(200);
+      }
+    }
+    throw lastException;
   }
 
   @Override

@@ -81,7 +81,6 @@ public class IndicesCommandTest extends ServerTestCase {
 
   private int runIndicesCommand() {
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
-    return cmd.execute(
-        "--hostname=localhost", "--port=" + getGrpcServer().getGlobalState().getPort(), "indices");
+    return cmd.execute("--hostname=localhost", "--port=" + getPort(), "indices");
   }
 }
