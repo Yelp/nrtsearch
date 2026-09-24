@@ -680,6 +680,40 @@ message CrossIndexQuery {
     uint32 max_terms = 6;
 }
 
+// Declares a cross-index lookup: acquires a searcher for a secondary index and materializes
+// field data from matched secondary documents. Used for cross-index field retrieval and
+// exposing secondary data to rescoring scripts. Filtering is handled separately via
+// CrossIndexQuery in the query tree.
+message CrossIndexLookup {
+    // Secondary index name (must be on the same nrtsearch node)
+    string index = 1;
+    // Join key field in the primary index (must have doc values)
+    string primary_field = 2;
+    // Join key field in the secondary index
+    string secondary_field = 3;
+    // Fields to retrieve from secondary docs (returned in cross_index_results on each hit)
+    repeated string retrieve_fields = 4;
+    // Fields to expose to scripts via SharedDocContext as a list of values.
+    // Accessible as _shared_cross_<index>_<field> in scripts.
+    repeated string expose_to_scripts = 5;
+    // Max secondary hits per primary doc (default: 3)
+    uint32 top_hits = 6;
+    // Max unique join key values allowed (OOM guard, 0 = unlimited)
+    uint32 max_keys = 7;
+}
+
+// Results from a cross-index lookup for a single primary hit.
+message CrossIndexResults {
+    // Matched secondary documents for this primary hit's join key
+    repeated SecondaryHit hits = 1;
+}
+
+// A single matched document from a secondary index.
+message SecondaryHit {
+    // Field values from the secondary document
+    map<string, SearchResponse.Hit.CompositeFieldValue> fields = 1;
+}
+
 // Deprecated: Defines different types of QueryNodes
 enum QueryType {
     NONE = 0;
@@ -846,6 +880,10 @@ message SearchRequest {
     // Only children matching both the nested path AND the filter will be included in aggregation.
     // If not specified for a path, all children at that path are included (default behavior).
     repeated ChildFilter childFilters = 34;
+    // Cross-index lookups: declare secondary indices whose data should be materialized
+    // for retrieval and/or rescoring. Searchers are acquired at request start and released
+    // at the end. Each lookup is keyed by its index name.
+    repeated CrossIndexLookup crossIndexLookups = 35;
 }
 
 // Filter applied to child documents before aggregation via _CHILDREN. prefix in scripts.
@@ -1241,6 +1279,8 @@ message SearchResponse {
         map<string, HitsResult> innerHits = 7;
         // Score per retriever in Multi-Retriever request
         map<string, double> retrieverScores = 8;
+        // Cross-index lookup results: secondary index name -> matched secondary hits
+        map<string, CrossIndexResults> crossIndexResults = 9;
     }
 
     // State for use in subsequent searches (search after)
