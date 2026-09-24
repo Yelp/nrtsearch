@@ -17,16 +17,28 @@ package com.yelp.nrtsearch.server.query;
 
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import javax.annotation.Nullable;
 
 /**
  * Context for query building. Bundles {@link DocLookup} (for field resolution and doc values) with
  * optional {@link GlobalState} (needed for cross-index queries like {@link
- * com.yelp.nrtsearch.server.grpc.CrossIndexQuery}) and optional {@link SharedDocContext} (for
- * scripts that access per-document shared values).
+ * com.yelp.nrtsearch.server.grpc.CrossIndexQuery}), optional {@link SharedDocContext} (for scripts
+ * that access per-document shared values), and optional {@link CrossIndexLookupManager} (for
+ * sharing secondary index searchers with CrossIndexQuery).
  */
 public record QueryContext(
     DocLookup docLookup,
     @Nullable GlobalState globalState,
-    @Nullable SharedDocContext sharedDocContext) {}
+    @Nullable SharedDocContext sharedDocContext,
+    @Nullable CrossIndexLookupManager crossIndexLookupManager) {
+
+  /** Convenience constructor without CrossIndexLookupManager. */
+  public QueryContext(
+      DocLookup docLookup,
+      @Nullable GlobalState globalState,
+      @Nullable SharedDocContext sharedDocContext) {
+    this(docLookup, globalState, sharedDocContext, null);
+  }
+}

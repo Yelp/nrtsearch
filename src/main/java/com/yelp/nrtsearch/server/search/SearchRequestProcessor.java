@@ -272,6 +272,17 @@ public class SearchRequestProcessor {
         IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
 
+    // Create cross-index lookup manager early so searchers are available during query building
+    CrossIndexLookupManager crossIndexLookupManager = null;
+    if (!searchRequest.getCrossIndexLookupsList().isEmpty()) {
+      crossIndexLookupManager =
+          CrossIndexLookupManager.create(
+              searchRequest.getCrossIndexLookupsList(),
+              indexState,
+              indexState.getGlobalState());
+      contextBuilder.setCrossIndexLookupManager(crossIndexLookupManager);
+    }
+
     Query query;
     if (searchRequest.hasMultiRetriever()) {
       validateMultiRetrieverRequest(searchRequest);
@@ -297,7 +308,8 @@ public class SearchRequestProcessor {
               searchRequest.getQuery(),
               rootQueryNestedPath,
               docLookup,
-              sharedDocContext);
+              sharedDocContext,
+              crossIndexLookupManager);
 
       if (profileResult != null) {
         profileResult.setParsedQuery(query.toString());
@@ -397,16 +409,8 @@ public class SearchRequestProcessor {
       }
     }
 
-    // Create cross-index lookup manager if lookups are configured
-    CrossIndexLookupManager crossIndexLookupManager = null;
     CrossIndexLookupFetchTask crossIndexLookupFetchTask = null;
-    if (!searchRequest.getCrossIndexLookupsList().isEmpty()) {
-      crossIndexLookupManager =
-          CrossIndexLookupManager.create(
-              searchRequest.getCrossIndexLookupsList(),
-              indexState,
-              indexState.getGlobalState());
-      contextBuilder.setCrossIndexLookupManager(crossIndexLookupManager);
+    if (crossIndexLookupManager != null) {
       crossIndexLookupFetchTask =
           new CrossIndexLookupFetchTask(
               crossIndexLookupManager, searchRequest.getCrossIndexLookupsList());
@@ -595,7 +599,8 @@ public class SearchRequestProcessor {
       com.yelp.nrtsearch.server.grpc.Query query,
       String queryNestedPath,
       DocLookup docLookup,
-      SharedDocContext sharedDocContext) {
+      SharedDocContext sharedDocContext,
+      CrossIndexLookupManager crossIndexLookupManager) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -608,7 +613,8 @@ public class SearchRequestProcessor {
       }
     } else {
       QueryContext queryContext =
-          new QueryContext(docLookup, state.getGlobalState(), sharedDocContext);
+          new QueryContext(
+              docLookup, state.getGlobalState(), sharedDocContext, crossIndexLookupManager);
       q = QUERY_NODE_MAPPER.getQuery(query, queryContext);
     }
 
@@ -767,7 +773,7 @@ public class SearchRequestProcessor {
     // Do not apply nestedPath here. This is query is used to create a shared
     // weight.
     Query childQuery =
-        extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup, null);
+        extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup, null, null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)
@@ -871,7 +877,8 @@ public class SearchRequestProcessor {
                   textRetriever.getQuery(),
                   nestedQueryPath,
                   docLookup,
-                  sharedDocContext);
+                  sharedDocContext,
+                  null);
           query = searcher.rewrite(extractedQuery);
           if (doProfile) {
             retrieverProfileResult.setParsedQuery(extractedQuery.toString());
