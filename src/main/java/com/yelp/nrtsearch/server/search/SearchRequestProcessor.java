@@ -40,6 +40,8 @@ import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
 import com.yelp.nrtsearch.server.query.QueryContext;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupFetchTask;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupManager;
 import com.yelp.nrtsearch.server.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
@@ -395,12 +397,28 @@ public class SearchRequestProcessor {
       }
     }
 
+    // Create cross-index lookup manager if lookups are configured
+    CrossIndexLookupManager crossIndexLookupManager = null;
+    CrossIndexLookupFetchTask crossIndexLookupFetchTask = null;
+    if (!searchRequest.getCrossIndexLookupsList().isEmpty()) {
+      crossIndexLookupManager =
+          CrossIndexLookupManager.create(
+              searchRequest.getCrossIndexLookupsList(),
+              indexState,
+              indexState.getGlobalState());
+      contextBuilder.setCrossIndexLookupManager(crossIndexLookupManager);
+      crossIndexLookupFetchTask =
+          new CrossIndexLookupFetchTask(
+              crossIndexLookupManager, searchRequest.getCrossIndexLookupsList());
+    }
+
     contextBuilder.setFetchTasks(
         new FetchTasks(
             searchRequest.getFetchTasksList(),
             highlightFetchTask,
             innerHitFetchTasks,
-            hitsLoggerFetchTask));
+            hitsLoggerFetchTask,
+            crossIndexLookupFetchTask));
 
     // Top-level rescorers are applied post-blending for multi-retriever requests
     // Each retriever has an optional L1 rescorer before blending
