@@ -120,13 +120,13 @@ public class AmazonS3Provider extends ExternalResource {
     // Retry createBucket: even after the HTTP probe succeeds, the PUT handler
     // for bucket creation may not be registered yet in Akka's routing tree.
     Exception lastException = null;
-    for (int attempt = 0; attempt < 10; attempt++) {
+    for (int attempt = 0; attempt < 50; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
         return;
       } catch (Exception e) {
         lastException = e;
-        Thread.sleep(200);
+        Thread.sleep(500);
       }
     }
     throw lastException;

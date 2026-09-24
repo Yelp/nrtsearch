@@ -33,7 +33,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -42,6 +45,23 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class GetResourceVersionCommandTest {
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
+
+  @BeforeClass
+  public static void initS3() throws IOException {
+    TestServer.initS3(s3Folder);
+  }
+
+  @AfterClass
+  public static void cleanupS3() {
+    TestServer.cleanupAll();
+  }
+
+  @Before
+  public void resetS3() {
+    TestServer.resetS3Bucket();
+  }
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   final PrintStream originalOut = System.out;
@@ -61,7 +81,7 @@ public class GetResourceVersionCommandTest {
   public void cleanup() {
     System.setOut(originalOut);
     System.setErr(originalErr);
-    TestServer.cleanupAll();
+    TestServer.stopServers();
   }
 
   private S3Client getS3() {
@@ -93,7 +113,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testNotSet_globalState() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
@@ -107,7 +126,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testNotSet_indexState() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
@@ -123,7 +141,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testNotSet_pointState() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
@@ -139,7 +156,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testNotSet_warmingQueries() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
@@ -155,7 +171,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testSet_globalState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend backend =
         new S3Backend(
             TEST_BUCKET,
@@ -178,7 +193,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testSet_indexState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend backend =
         new S3Backend(
             TEST_BUCKET,
@@ -205,7 +219,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testSet_pointState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend backend =
         new S3Backend(
             TEST_BUCKET,
@@ -232,7 +245,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testSet_warmingQueries() throws IOException {
-    TestServer.initS3(folder);
     S3Backend backend =
         new S3Backend(
             TEST_BUCKET,
@@ -289,7 +301,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testGetResourceFromGlobalState_notFound() throws IOException {
-    TestServer.initS3(folder);
     S3Backend backend =
         new S3Backend(
             TEST_BUCKET,
@@ -318,7 +329,6 @@ public class GetResourceVersionCommandTest {
 
   @Test
   public void testInvalidIndexResourceType() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =

@@ -37,7 +37,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
-import org.junit.Rule;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import picocli.CommandLine;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -56,10 +57,27 @@ public class SnapshotRestoreCommandTest {
   private static final String INDEX_STATE_FILE = "index_state.json";
   private static final String GLOBAL_STATE_RESOURCE = "global_state";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
+  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private S3Client getS3() {
     return s3Provider.getAmazonS3();
+  }
+
+  @Before
+  public void clearBucket() {
+    software.amazon.awssdk.services.s3.S3Client s3 = s3Provider.getS3Client();
+    s3.listObjectsV2(
+            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
+                .bucket(TEST_BUCKET)
+                .build())
+        .contents()
+        .forEach(
+            o ->
+                s3.deleteObject(
+                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                        .bucket(TEST_BUCKET)
+                        .key(o.key())
+                        .build()));
   }
 
   private CommandLine getInjectedSnapshotCommand() {

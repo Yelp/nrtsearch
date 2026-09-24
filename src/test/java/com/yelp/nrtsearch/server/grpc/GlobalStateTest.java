@@ -19,6 +19,9 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -26,9 +29,21 @@ import org.junit.rules.TemporaryFolder;
 public class GlobalStateTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
+
+  @BeforeClass
+  public static void initS3() throws java.io.IOException {
+    TestServer.initS3(s3Folder);
+  }
+
+  @AfterClass
+  public static void cleanupS3() {
+    TestServer.cleanupAll();
+  }
+
   @After
   public void cleanup() {
-    TestServer.cleanupAll();
+    TestServer.stopServers();
   }
 
   @Test

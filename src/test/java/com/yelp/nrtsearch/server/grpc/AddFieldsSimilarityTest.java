@@ -26,12 +26,17 @@ import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class AddFieldsSimilarityTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
 
   private static final List<Field> initialFields =
       List.of(
@@ -59,9 +64,19 @@ public class AddFieldsSimilarityTest {
               .setSimilarity("classic")
               .build());
 
+  @BeforeClass
+  public static void initS3() throws java.io.IOException {
+    TestServer.initS3(s3Folder);
+  }
+
+  @AfterClass
+  public static void cleanupS3() {
+    TestServer.cleanupAll();
+  }
+
   @After
   public void cleanup() {
-    TestServer.cleanupAll();
+    TestServer.stopServers();
   }
 
   private Similarity getSimilarity(TestServer server, String field) throws IOException {

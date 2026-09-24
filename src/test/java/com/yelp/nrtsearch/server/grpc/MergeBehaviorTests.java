@@ -28,9 +28,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -47,21 +47,21 @@ public class MergeBehaviorTests {
 
   private static final String TEST_INDEX = "test_index";
 
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
-  private TestServer server;
+  private static TestServer server;
 
   private final int segmentsBeforeMerge = 2;
   private final int segmentsAfterMerge = 1;
   private final int numDocs = 4;
 
-  @After
-  public void tearDown() {
+  @AfterClass
+  public static void tearDown() {
     TestServer.cleanupAll();
   }
 
-  @Before
-  public void setUp() throws Exception {
+  @BeforeClass
+  public static void setUp() throws Exception {
     server = TestServer.builder(folder).build();
     server.createIndex(TEST_INDEX);
     server

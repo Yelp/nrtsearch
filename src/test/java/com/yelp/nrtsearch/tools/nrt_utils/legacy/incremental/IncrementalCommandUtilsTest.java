@@ -26,7 +26,8 @@ import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.IOException;
 import java.util.Set;
 import java.util.UUID;
-import org.junit.Rule;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -37,10 +38,27 @@ public class IncrementalCommandUtilsTest {
   private static final String TEST_BUCKET = "test-bucket";
   private static final String SERVICE_NAME = "test_service";
 
-  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
+  @ClassRule public static AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private S3Client getS3() {
     return s3Provider.getAmazonS3();
+  }
+
+  @Before
+  public void clearBucket() {
+    software.amazon.awssdk.services.s3.S3Client s3 = s3Provider.getS3Client();
+    s3.listObjectsV2(
+            software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
+                .bucket(TEST_BUCKET)
+                .build())
+        .contents()
+        .forEach(
+            o ->
+                s3.deleteObject(
+                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                        .bucket(TEST_BUCKET)
+                        .key(o.key())
+                        .build()));
   }
 
   @Test
