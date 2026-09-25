@@ -1,0 +1,5 @@
+classname: ${classname}
+name: ${name}
+version: ${version}
+description: ${description}
+server_version: ${server_version}

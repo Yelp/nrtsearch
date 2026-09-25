@@ -7,4 +7,5 @@ pluginManagement {
     }
 }
 include('clientlib')
+include('nrtsearch-onnx-embedding')
 rootProject.name = 'nrtsearch'
