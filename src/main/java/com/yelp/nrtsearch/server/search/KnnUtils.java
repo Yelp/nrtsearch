@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
 import java.io.IOException;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -57,7 +58,7 @@ public class KnnUtils {
 
     // fill diagnostic info
     vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
-    setVectorTotalHits(knnQuery, vectorDiagnosticsBuilder);
+    setVectorTotalHits(knnQuery, rewrittenQuery, vectorDiagnosticsBuilder);
 
     if (boost != 1.0f) {
       rewrittenQuery = new BoostQuery(rewrittenQuery, boost);
@@ -67,6 +68,7 @@ public class KnnUtils {
 
   private static void setVectorTotalHits(
       Query knnQuery,
+      Query rewrittenQuery,
       SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder) {
     Query vectorQuery = knnQuery;
     if (vectorQuery instanceof MinThresholdQuery minThresholdQuery) {
@@ -74,6 +76,16 @@ public class KnnUtils {
     }
     if (vectorQuery instanceof WithVectorTotalHits withVectorTotalHits) {
       TotalHits vectorTotalHits = withVectorTotalHits.getTotalHits();
+      if (vectorTotalHits == null) {
+        if (rewrittenQuery instanceof MatchNoDocsQuery) {
+          // Lucene skips the vector search entirely when the filter rewrites to match no
+          // documents, so the per leaf results are never merged and total hits is not set
+          vectorTotalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+        } else {
+          throw new IllegalStateException(
+              "Vector total hits not available after rewrite of knn query: " + knnQuery);
+        }
+      }
       vectorDiagnosticsBuilder.setTotalHits(
           com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
               .setRelation(

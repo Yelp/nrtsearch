@@ -27,6 +27,7 @@ import static org.mockito.Mockito.mock;
 import com.google.common.primitives.Floats;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
+import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -180,6 +181,13 @@ public class VectorFieldDefTest extends ServerTestCase {
                         .build())
                 .putFields(
                     "filter", MultiValuedField.newBuilder().addValue("term" + j % 10).build())
+                // all docs are in the Boston area
+                .putFields(
+                    "lat_lon",
+                    MultiValuedField.newBuilder()
+                        .addValue(String.valueOf(42.35 + (j % 10) * 0.001))
+                        .addValue("-71.05")
+                        .build())
                 .build());
       }
 
@@ -798,6 +806,85 @@ public class VectorFieldDefTest extends ServerTestCase {
     for (Hit hit : searchResponse.getHitsList()) {
       assertEquals("term2", hit.getFieldsOrThrow("filter").getFieldValue(0).getTextValue());
     }
+  }
+
+  private SearchResponse geoBoxFilterVectorSearch(
+      KnnQuery.Builder knnQueryBuilder, LatLng topLeft, LatLng bottomRight) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                .setStartHit(0)
+                .setTopHits(10)
+                .addKnn(
+                    knnQueryBuilder
+                        .setNumCandidates(10)
+                        .setK(10)
+                        .setFilter(
+                            Query.newBuilder()
+                                .setGeoBoundingBoxQuery(
+                                    GeoBoundingBoxQuery.newBuilder()
+                                        .setField("lat_lon")
+                                        .setTopLeft(topLeft)
+                                        .setBottomRight(bottomRight)
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+  }
+
+  private static LatLng latLng(double lat, double lon) {
+    return LatLng.newBuilder().setLatitude(lat).setLongitude(lon).build();
+  }
+
+  private void assertNoVectorHits(SearchResponse searchResponse) {
+    assertEquals(0, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertEquals(0, vectorDiagnostics.getTotalHits().getValue());
+    assertEquals(
+        com.yelp.nrtsearch.server.grpc.TotalHits.Relation.EQUAL_TO,
+        vectorDiagnostics.getTotalHits().getRelation());
+  }
+
+  @Test
+  public void testVectorSearch_geoBoxFilterNoMatches() {
+    // Box in the Arctic, outside the range of all indexed points, so the filter rewrites to
+    // MatchNoDocsQuery
+    assertNoVectorHits(
+        geoBoxFilterVectorSearch(
+            KnnQuery.newBuilder()
+                .setField("vector_cosine")
+                .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f)),
+            latLng(82.9604965954353, -72.51178545089641),
+            latLng(82.66554224552333, -71.9024593372486)));
+  }
+
+  @Test
+  public void testByteVectorSearch_geoBoxFilterNoMatches() {
+    assertNoVectorHits(
+        geoBoxFilterVectorSearch(
+            KnnQuery.newBuilder()
+                .setField("byte_vector_cosine")
+                .setQueryByteVector(ByteString.copyFrom(new byte[] {10, -20, 30})),
+            latLng(82.9604965954353, -72.51178545089641),
+            latLng(82.66554224552333, -71.9024593372486)));
+  }
+
+  @Test
+  public void testVectorSearch_geoBoxFilterMatches() {
+    SearchResponse searchResponse =
+        geoBoxFilterVectorSearch(
+            KnnQuery.newBuilder()
+                .setField("vector_cosine")
+                .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f)),
+            latLng(42.40, -71.15),
+            latLng(42.30, -70.95));
+    assertEquals(10, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
   }
 
   @Test
