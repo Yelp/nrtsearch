@@ -48,7 +48,7 @@ public class NrtsearchSynonymParserTest {
     analyzer = getAnalyzer(map);
 
     assertAnalyzesTo(analyzer, "a", new String[] {"b", "a"}, new int[] {1, 0});
-    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0, 1});
+    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0});
     assertAnalyzesTo(analyzer, "plaza", new String[] {"pla", "plz", "plaza"}, new int[] {1, 0, 0});
     assertAnalyzesTo(
         analyzer,
@@ -117,7 +117,7 @@ public class NrtsearchSynonymParserTest {
     analyzer = getAnalyzer(map);
 
     assertAnalyzesTo(analyzer, "a", new String[] {"b", "a"}, new int[] {1, 0});
-    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0, 1});
+    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0});
     analyzer.close();
   }
 
