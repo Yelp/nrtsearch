@@ -129,7 +129,9 @@ public class TestServer {
           api = mock;
           S3_ENDPOINT = "http://127.0.0.1:" + port;
           // Wait until S3Mock's HTTP routing is live — any HTTP response proves it.
-          for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
+          // Extended to 100 attempts (10s max) to handle slower Akka initialization
+          // after a previous S3Mock was shut down in the same JVM run.
+          for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
             try {
               HttpURLConnection conn =
                   (HttpURLConnection) new URL(S3_ENDPOINT + "/").openConnection();
@@ -169,9 +171,26 @@ public class TestServer {
         });
     createdServers.clear();
     if (api != null) {
+      int shutdownPort = S3_ENDPOINT != null ? Integer.parseInt(S3_ENDPOINT.split(":")[2]) : -1;
       api.shutdown();
       api = null;
       S3_ENDPOINT = null;
+      // Wait up to 2s for Akka to fully release the port. When the old system is
+      // still cleaning up its threads, the new S3Mock's Akka starts slower, causing
+      // BindExceptions and createBucket failures. A clean port release means the
+      // next initS3() can start an Akka system without thread-pool contention.
+      if (shutdownPort > 0) {
+        for (int i = 0; i < 20; i++) {
+          try (java.net.Socket s = new java.net.Socket("127.0.0.1", shutdownPort)) {
+            Thread.sleep(100);
+          } catch (IOException e) {
+            break; // port closed — Akka done
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+          }
+        }
+      }
     }
   }
 
@@ -259,6 +278,15 @@ public class TestServer {
 
     if (writeDiscoveryFile) {
       writeDiscoveryFile(replicationServer.getPort());
+    }
+
+    // Brief pause between the two forPort(0) bindings. Without this, the OS can
+    // recycle the replication server's just-assigned port for the main server,
+    // causing gRPC channels to route to the wrong service (UNIMPLEMENTED errors).
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
     }
 
     NrtsearchMonitoringServerInterceptor monitoringInterceptor =
