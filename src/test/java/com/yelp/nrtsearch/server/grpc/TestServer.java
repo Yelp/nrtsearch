@@ -55,6 +55,8 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -126,6 +128,23 @@ public class TestServer {
           mock.start();
           api = mock;
           S3_ENDPOINT = "http://127.0.0.1:" + port;
+          // Wait until S3Mock's HTTP routing is live — any HTTP response proves it.
+          for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
+            try {
+              HttpURLConnection conn =
+                  (HttpURLConnection) new URL(S3_ENDPOINT + "/").openConnection();
+              conn.setConnectTimeout(500);
+              conn.setReadTimeout(500);
+              try {
+                conn.getResponseCode();
+                break;
+              } finally {
+                conn.disconnect();
+              }
+            } catch (IOException ignored) {
+              Thread.sleep(100);
+            }
+          }
           return;
         } catch (Exception e) {
           if (attempt == 4) {
@@ -184,9 +203,29 @@ public class TestServer {
     return prometheusRegistry;
   }
 
-  private RemoteBackend createRemoteBackend() {
+  private RemoteBackend createRemoteBackend() throws IOException {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+    // Retry createBucket: even after the HTTP probe, the PUT handler may not
+    // be registered in Akka's routing tree immediately.
+    Exception lastBucketException = null;
+    for (int attempt = 0; attempt < 10; attempt++) {
+      try {
+        s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+        lastBucketException = null;
+        break;
+      } catch (Exception e) {
+        lastBucketException = e;
+        try {
+          Thread.sleep(200);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          throw new IOException("Interrupted waiting for S3Mock bucket creation", ie);
+        }
+      }
+    }
+    if (lastBucketException != null) {
+      throw new IOException("S3 bucket creation failed after retries", lastBucketException);
+    }
     software.amazon.awssdk.services.s3.S3AsyncClient s3Async =
         AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
     software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
@@ -634,7 +673,7 @@ public class TestServer {
 
     private String additionalConfig = "";
     private List<Plugin> plugins = Collections.emptyList();
-    private final int serverPort = PortUtils.findAvailablePort();
+    private final int serverPort = 0;
 
     Builder(TemporaryFolder folder) {
       this.folder = folder;
