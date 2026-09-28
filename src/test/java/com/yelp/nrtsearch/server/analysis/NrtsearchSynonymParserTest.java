@@ -15,27 +15,29 @@
  */
 package com.yelp.nrtsearch.server.analysis;
 
-import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
-
-import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import java.io.IOException;
 import java.io.StringReader;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.junit.runner.RunWith;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.junit.Assert;
+import org.junit.Test;
 
-@RunWith(RandomizedRunner.class)
-public class NrtsearchSynonymParserTest extends LuceneTestCase {
+public class NrtsearchSynonymParserTest {
   public final String DEFAULT_SEPARATOR_PATTERN = "\\s*\\|\\s*";
 
+  @Test
   public void testParse() throws IOException, ParseException {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms =
@@ -58,8 +60,9 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
     analyzer.close();
   }
 
+  @Test
   public void testParseDedupFalse() throws IOException, ParseException {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser(
             DEFAULT_SEPARATOR_PATTERN, Boolean.FALSE, Boolean.TRUE, analyzer);
@@ -72,8 +75,9 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
     analyzer.close();
   }
 
+  @Test
   public void testParseExpandFalse() throws IOException, ParseException {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser(
             DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.FALSE, analyzer);
@@ -87,12 +91,13 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
     analyzer.close();
   }
 
+  @Test
   public void testInvalidMappings() {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms = "a, b, c, d, e";
-    expectThrows(
+    Assert.assertThrows(
         IllegalArgumentException.class,
         () -> {
           parser.parse(new StringReader(synonyms));
@@ -100,8 +105,9 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
     analyzer.close();
   }
 
+  @Test
   public void testParseCustomSeparator() throws IOException, ParseException {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser("\\s*\\$\\s*", Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms = "a         , b$ix,pie-ix";
@@ -115,8 +121,9 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
     analyzer.close();
   }
 
+  @Test
   public void testParseUnescape() throws IOException, ParseException {
-    Analyzer analyzer = new MockAnalyzer(random());
+    Analyzer analyzer = new WhitespaceAnalyzer();
     NrtsearchSynonymParser parser =
         new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms = "a         , \\b";
@@ -129,15 +136,37 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
   }
 
   private Analyzer getAnalyzer(SynonymMap map) {
-    Analyzer analyzer =
-        new Analyzer() {
-          @Override
-          protected TokenStreamComponents createComponents(String fieldName) {
-            Tokenizer tokenizer = new MockTokenizer();
-            return new TokenStreamComponents(
-                tokenizer, new SynonymGraphFilter(tokenizer, map, true));
-          }
-        };
-    return analyzer;
+    return new Analyzer() {
+      @Override
+      protected TokenStreamComponents createComponents(String fieldName) {
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(tokenizer, map, true));
+      }
+    };
+  }
+
+  private static void assertAnalyzesTo(
+      Analyzer analyzer, String input, String[] expectedTerms, int[] expectedPositions)
+      throws IOException {
+    try (TokenStream ts = analyzer.tokenStream("", input)) {
+      CharTermAttribute termAttr = ts.addAttribute(CharTermAttribute.class);
+      PositionIncrementAttribute posAttr = ts.addAttribute(PositionIncrementAttribute.class);
+      ts.reset();
+      List<String> actualTerms = new ArrayList<>();
+      List<Integer> actualPositions = new ArrayList<>();
+      while (ts.incrementToken()) {
+        actualTerms.add(termAttr.toString());
+        actualPositions.add(posAttr.getPositionIncrement());
+      }
+      ts.end();
+      Assert.assertArrayEquals(
+          "Terms mismatch for input: " + input, expectedTerms, actualTerms.toArray(new String[0]));
+      int[] actualPosArray = new int[actualPositions.size()];
+      for (int i = 0; i < actualPositions.size(); i++) {
+        actualPosArray[i] = actualPositions.get(i);
+      }
+      Assert.assertArrayEquals(
+          "Position increments mismatch for input: " + input, expectedPositions, actualPosArray);
+    }
   }
 }

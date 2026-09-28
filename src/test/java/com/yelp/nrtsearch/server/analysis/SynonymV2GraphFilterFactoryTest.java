@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.analysis;
 
-import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
@@ -30,12 +29,11 @@ import org.apache.lucene.analysis.*;
 import org.apache.lucene.analysis.classic.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.junit.Assert;
 import org.junit.Before;
-import org.junit.runner.RunWith;
+import org.junit.Test;
 
-@RunWith(RandomizedRunner.class)
-public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
+public class SynonymV2GraphFilterFactoryTest {
 
   private static final String STANDARD_ANALYZER = "standard";
 
@@ -53,15 +51,17 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
+  @Test
   public void testNoSynonymMappings() throws IOException, ParseException {
     try {
       new SynonymV2GraphFilterFactory(new HashMap<>());
-      fail();
+      Assert.fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Synonym mappings must be specified", e.getMessage());
+      Assert.assertEquals("Synonym mappings must be specified", e.getMessage());
     }
   }
 
+  @Test
   public void testNoSynonymsReturnsInputTokenStream() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory = getFactory("a,b");
     TokenStream tokenStream =
@@ -70,6 +70,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testSingleMappingWithDefaultAnalyzer() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory = getFactory("a, b");
     TokenStream tokenStream =
@@ -78,6 +79,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testMultipleMappingsWithDefaultAnalyzer() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory =
         getFactory("#, ste|a, b|c/, calle|plaza, plaça|p.o, po| v, väg");
@@ -90,6 +92,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testMultipleMappingsWithStandardAnalyzer() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory =
         getFactory("a, b|c/, calle|plaza, plaça|p.o, po| v, väg", STANDARD_ANALYZER);
@@ -101,6 +104,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testMultipleMappingsWithClassicAnalyzer() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory =
         getFactory("c/, calle|plaza, plaça", "classic");
@@ -111,18 +115,20 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testInvalidAnalyzer() throws IOException, ParseException {
     try {
       Map<String, String> params = new HashMap<>();
       params.put(SynonymV2GraphFilterFactory.SYNONYMS, "a, b");
       params.put("analyzerName", "invalid");
       new SynonymV2GraphFilterFactory(params);
-      fail();
+      Assert.fail();
     } catch (RuntimeException e) {
-      assertEquals("Unable to find predefined analyzer: invalid", e.getMessage());
+      Assert.assertEquals("Unable to find predefined analyzer: invalid", e.getMessage());
     }
   }
 
+  @Test
   public void testNrtsearchParserFormat() throws IOException, ParseException {
     SynonymV2GraphFilterFactory synonymV2GraphFilterFactory =
         getFactory("a, b", STANDARD_ANALYZER, "nrtsearch");
@@ -132,19 +138,21 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testInvalidParserFormat() throws IOException, ParseException {
     try {
       Map<String, String> params = new HashMap<>();
       params.put(SynonymV2GraphFilterFactory.SYNONYMS, "a, b");
       params.put("parserFormat", "invalid");
       new SynonymV2GraphFilterFactory(params);
-      fail();
+      Assert.fail();
     } catch (RuntimeException e) {
-      assertEquals(
+      Assert.assertEquals(
           "The parser format: invalid is not valid. It should be nrtsearch", e.getMessage());
     }
   }
 
+  @Test
   public void testSingleMappingWithExpandFalse() throws IOException, ParseException {
     Map<String, String> params = new HashMap<>();
     params.put(SynonymV2GraphFilterFactory.SYNONYMS, "a, b");
@@ -157,6 +165,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testMultipleMappingsWithCustomSeparator() throws IOException, ParseException {
     Map<String, String> params = new HashMap<>();
     params.put(
@@ -174,6 +183,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     assertTokenStream(synonymV2GraphFilterFactory, tokenStream, expectedTokens);
   }
 
+  @Test
   public void testSingleMappingIgnoreCase() throws IOException, ParseException {
     Map<String, String> params = new HashMap<>();
     params.put(SynonymV2GraphFilterFactory.SYNONYMS, "A, B");
@@ -196,7 +206,7 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
       int i = 0;
       output.reset();
       while (output.incrementToken()) {
-        assertEquals(expectedTokens[i], charTermAtt.toString());
+        Assert.assertEquals(expectedTokens[i], charTermAtt.toString());
         i += 1;
       }
       output.end();
