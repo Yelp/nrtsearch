@@ -135,10 +135,9 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getMetadataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    // Use the S3Mock's actual file backend directory so files written here are
+    // served by S3Mock. S3_BACKEND_DIR is set when S3Mock is initialized.
+    return TestServer.S3_BACKEND_DIR
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(BackupCommandUtils.SNAPSHOT_DIR)
@@ -147,10 +146,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getIndexSnapshotDataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    return TestServer.S3_BACKEND_DIR
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(BackupCommandUtils.SNAPSHOT_DIR)

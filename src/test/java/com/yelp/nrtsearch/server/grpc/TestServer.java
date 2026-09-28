@@ -71,6 +71,12 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -79,6 +85,12 @@ public class TestServer {
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static String S3_ENDPOINT = null;
+
+  /**
+   * Root directory of the S3Mock file backend — the same path S3Mock serves as the bucket store.
+   */
+  public static Path S3_BACKEND_DIR = null;
+
   public static final String DISCOVERY_FILE = "primary_node.json";
   public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
@@ -120,17 +132,21 @@ public class TestServer {
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
-      Path s3Directory = folder.newFolder("s3").toPath();
+      // Use a JVM-level temp directory so the S3Mock file backend persists across
+      // all test classes. Per-test TemporaryFolders are deleted when their class
+      // finishes, which would cause S3Mock 500 errors mid-run.
+      Path s3Directory =
+          java.nio.file.Files.createTempDirectory("nrtsearch-test-s3mock").toAbsolutePath();
+      s3Directory.toFile().deleteOnExit();
+      S3_BACKEND_DIR = s3Directory;
       for (int attempt = 0; attempt < 5; attempt++) {
         int port = PortUtils.findAvailablePort();
-        S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
+        S3Mock mock = S3Mock.create(port, s3Directory.toString());
         try {
           mock.start();
           api = mock;
           S3_ENDPOINT = "http://127.0.0.1:" + port;
           // Wait until S3Mock's HTTP routing is live — any HTTP response proves it.
-          // Extended to 100 attempts (10s max) to handle slower Akka initialization
-          // after a previous S3Mock was shut down in the same JVM run.
           for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
             try {
               HttpURLConnection conn =
@@ -170,26 +186,40 @@ public class TestServer {
           }
         });
     createdServers.clear();
-    if (api != null) {
-      int shutdownPort = S3_ENDPOINT != null ? Integer.parseInt(S3_ENDPOINT.split(":")[2]) : -1;
-      api.shutdown();
-      api = null;
-      S3_ENDPOINT = null;
-      // Wait up to 2s for Akka to fully release the port. When the old system is
-      // still cleaning up its threads, the new S3Mock's Akka starts slower, causing
-      // BindExceptions and createBucket failures. A clean port release means the
-      // next initS3() can start an Akka system without thread-pool contention.
-      if (shutdownPort > 0) {
-        for (int i = 0; i < 20; i++) {
-          try (java.net.Socket s = new java.net.Socket("127.0.0.1", shutdownPort)) {
-            Thread.sleep(100);
-          } catch (IOException e) {
-            break; // port closed — Akka done
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            break;
+    // S3Mock is kept alive for the full JVM lifetime. Restarting an Akka actor
+    // system on every cleanupAll() causes port-release races, slow startups,
+    // BindExceptions, and UNIMPLEMENTED gRPC routing errors. The JVM exit will
+    // terminate S3Mock naturally. (Previously this required @ThreadLeakScope to
+    // suppress Akka thread leaks in Lucene tests; those tests are now plain JUnit 4.)
+    // Clear the bucket so each test class starts with clean S3 state.
+    if (S3_ENDPOINT != null) {
+      try (S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT)) {
+        String token = null;
+        do {
+          ListObjectsV2Response resp =
+              s3.listObjectsV2(
+                  ListObjectsV2Request.builder()
+                      .bucket(TEST_BUCKET)
+                      .continuationToken(token)
+                      .build());
+          if (!resp.contents().isEmpty()) {
+            s3.deleteObjects(
+                DeleteObjectsRequest.builder()
+                    .bucket(TEST_BUCKET)
+                    .delete(
+                        Delete.builder()
+                            .objects(
+                                resp.contents().stream()
+                                    .map(o -> ObjectIdentifier.builder().key(o.key()).build())
+                                    .collect(Collectors.toList()))
+                            .build())
+                    .build());
           }
-        }
+          token = resp.isTruncated() ? resp.nextContinuationToken() : null;
+        } while (token != null);
+      } catch (NoSuchBucketException ignored) {
+        // Bucket not yet created — nothing to clear.
+      } catch (Exception ignored) {
       }
     }
   }
@@ -399,6 +429,13 @@ public class TestServer {
       } catch (InterruptedException ignore) {
       }
       replicationServer = null;
+    }
+    if (remoteBackend != null) {
+      try {
+        remoteBackend.close();
+      } catch (Exception ignore) {
+      }
+      remoteBackend = null;
     }
   }
 
