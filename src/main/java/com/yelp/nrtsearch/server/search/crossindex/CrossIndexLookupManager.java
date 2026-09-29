@@ -427,8 +427,17 @@ public class CrossIndexLookupManager implements AutoCloseable {
         LoadedDocValues<?> docValues = indexableDef.getDocValues(leaf);
         docValues.setDocId(segmentDocId);
         CompositeFieldValue.Builder cfv = CompositeFieldValue.newBuilder();
-        for (int i = 0; i < docValues.size(); i++) {
-          cfv.addFieldValue(docValues.toFieldValue(i));
+        if (docValues.size() > 0) {
+          for (int i = 0; i < docValues.size(); i++) {
+            cfv.addFieldValue(docValues.toFieldValue(i));
+          }
+        } else {
+          // For missing numeric doc values, emit a default of 0 to match the nrtsearch
+          // Document API behavior (which returns 0 for missing numeric fields, not null).
+          DocValuesType dvType = indexableDef.getDocValuesType();
+          if (dvType == DocValuesType.NUMERIC || dvType == DocValuesType.SORTED_NUMERIC) {
+            cfv.addFieldValue(FieldValue.newBuilder().setIntValue(0).build());
+          }
         }
         fieldValues.put(fieldName, cfv.build());
       }
