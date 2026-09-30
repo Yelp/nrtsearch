@@ -18,18 +18,26 @@ package org.apache.lucene.search;
 import java.io.IOException;
 import java.util.Collection;
 
+// TODO: Remove this file once we upgrade to a Lucene version that includes the fix for
+// https://github.com/apache/lucene/issues/15605 (PR https://github.com/apache/lucene/pull/15608).
+//
+// Problem: Lucene 10.4.0's TopFieldCollectorManager.newCollector() appends to an internal
+// ArrayList<TopFieldCollector> that is not thread-safe. In nrtsearch, NestedCollectorManagers
+// shares a single TopHitsCollectorManager (and its underlying TopFieldCollectorManager) across
+// parallel search slices via a ConcurrentHashMap. When multiple slices encounter the same bucket
+// value concurrently, they call newCollector() in parallel, causing
+// ArrayIndexOutOfBoundsException on the unsynchronized ArrayList.
+//
+// Fix: This local override backports Lucene commit 0f697211, which removes the unused internal
+// collector list and the getCollectors() method. The list was never consumed by reduce() (which
+// receives collectors as a parameter), so removing it is safe and eliminates the race.
+
 /**
  * Create a TopFieldCollectorManager which uses a shared hit counter to maintain number of hits and
  * a shared {@link MaxScoreAccumulator} to propagate the minimum score across segments if the
  * primary sort is by relevancy.
  *
  * <p>Note that a new collectorManager should be created for each search due to its internal states.
- *
- * <p>This is a local backport of the fix from <a
- * href="https://github.com/apache/lucene/issues/15605">LUCENE-15605</a> / <a
- * href="https://github.com/apache/lucene/commit/0f697211197d4d76da1e90a3ab9568ff05d7b8f0">commit
- * 0f697211</a>, which removes the unused internal collector list that caused
- * ArrayIndexOutOfBoundsException under concurrent newCollector() calls.
  */
 public class TopFieldCollectorManager implements CollectorManager<TopFieldCollector, TopFieldDocs> {
   private final Sort sort;
