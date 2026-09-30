@@ -17,8 +17,12 @@ package com.yelp.nrtsearch.server.search.crossindex;
 
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.SharedDocContext;
+import com.yelp.nrtsearch.server.field.AtomFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.field.IntFieldDef;
+import com.yelp.nrtsearch.server.field.LongFieldDef;
 import com.yelp.nrtsearch.server.grpc.CrossIndexLookup;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
@@ -58,6 +62,23 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
   private final Map<String, LookupState> lookupStates;
 
+  /** Check if a FieldDef is an allowed exact-key join field type. */
+  static boolean isAllowedJoinFieldType(FieldDef fd) {
+    return fd instanceof AtomFieldDef
+        || fd instanceof IdFieldDef
+        || fd instanceof IntFieldDef
+        || fd instanceof LongFieldDef;
+  }
+
+  /** Validated config holder used between validation pass and searcher acquisition pass. */
+  private record ValidatedLookup(
+      CrossIndexLookup config,
+      IndexState secondaryIndex,
+      ShardState secondaryShard,
+      IndexableFieldDef<?> primaryFieldDef,
+      IndexableFieldDef<?> secondaryFieldDef,
+      Map<String, FieldDef> fieldsToRead) {}
+
   /** Internal state for a single cross-index lookup. */
   private static class LookupState {
     final CrossIndexLookup config;
@@ -65,7 +86,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
     final ShardState secondaryShard;
     final SearcherAndTaxonomy searcher;
     final IndexableFieldDef<?> primaryFieldDef;
-    final FieldDef secondaryFieldDef;
+    final IndexableFieldDef<?> secondaryFieldDef;
     final Map<String, FieldDef> fieldsToRead; // union of retrieve_fields + expose_to_scripts
     // Materialized results: join key -> list of secondary hit field values
     Map<String, List<Map<String, CompositeFieldValue>>> materializedResults;
@@ -76,7 +97,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
         ShardState secondaryShard,
         SearcherAndTaxonomy searcher,
         IndexableFieldDef<?> primaryFieldDef,
-        FieldDef secondaryFieldDef,
+        IndexableFieldDef<?> secondaryFieldDef,
         Map<String, FieldDef> fieldsToRead) {
       this.config = config;
       this.secondaryIndex = secondaryIndex;
@@ -106,13 +127,16 @@ public class CrossIndexLookupManager implements AutoCloseable {
       return null;
     }
 
-    Map<String, LookupState> states = new LinkedHashMap<>();
+    // Pass 1: Validate all lookups before acquiring any searchers.
+    Set<String> seenIndexNames = new HashSet<>();
+    List<ValidatedLookup> validated = new ArrayList<>();
+
     for (CrossIndexLookup lookup : lookups) {
       String indexName = lookup.getIndex();
       if (indexName.isEmpty()) {
         throw new IllegalArgumentException("CrossIndexLookup.index must not be empty");
       }
-      if (states.containsKey(indexName)) {
+      if (!seenIndexNames.add(indexName)) {
         throw new IllegalArgumentException("Duplicate CrossIndexLookup for index: " + indexName);
       }
       if (lookup.getPrimaryField().isEmpty()) {
@@ -124,15 +148,32 @@ public class CrossIndexLookupManager implements AutoCloseable {
             "CrossIndexLookup.secondary_field must not be empty for index: " + indexName);
       }
 
-      // Validate primary field has doc values
+      // Validate primary field: allowed type, doc values, single-valued
       FieldDef primaryFieldDefRaw =
           primaryIndex.docLookup.getFieldDefOrThrow(lookup.getPrimaryField());
-      if (!(primaryFieldDefRaw instanceof IndexableFieldDef<?> primaryFieldDef)
-          || !primaryFieldDef.hasDocValues()) {
+      if (!(primaryFieldDefRaw instanceof IndexableFieldDef<?> primaryFieldDef)) {
         throw new IllegalArgumentException(
-            "CrossIndexLookup requires primary_field \""
+            "CrossIndexLookup: primary_field \""
                 + lookup.getPrimaryField()
-                + "\" to have doc values enabled");
+                + "\" must be an IndexableFieldDef");
+      }
+      if (!isAllowedJoinFieldType(primaryFieldDefRaw)) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: primary_field \""
+                + lookup.getPrimaryField()
+                + "\" is not a supported join field type (must be ATOM, ID, INT, or LONG)");
+      }
+      if (!primaryFieldDef.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: primary_field \""
+                + lookup.getPrimaryField()
+                + "\" must have doc values enabled");
+      }
+      if (primaryFieldDef.isMultiValue()) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: primary_field \""
+                + lookup.getPrimaryField()
+                + "\" must be single-valued");
       }
 
       // Resolve secondary index
@@ -144,23 +185,91 @@ public class CrossIndexLookupManager implements AutoCloseable {
             "CrossIndexLookup: secondary index \"" + indexName + "\" not found", e);
       }
 
-      FieldDef secondaryFieldDef =
+      // Validate secondary field: allowed type, same type as primary, searchable, doc values,
+      // single-valued
+      FieldDef secondaryFieldDefRaw =
           secondaryIndex.docLookup.getFieldDefOrThrow(lookup.getSecondaryField());
+      if (!(secondaryFieldDefRaw instanceof IndexableFieldDef<?> secondaryFieldDef)) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" must be an IndexableFieldDef");
+      }
+      if (!isAllowedJoinFieldType(secondaryFieldDefRaw)) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" is not a supported join field type (must be ATOM, ID, INT, or LONG)");
+      }
+      if (!primaryFieldDefRaw.getClass().equals(secondaryFieldDefRaw.getClass())) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: primary_field \""
+                + lookup.getPrimaryField()
+                + "\" and secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" must be the same field type");
+      }
+      if (!secondaryFieldDef.isSearchable()) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" must be searchable");
+      }
+      if (!secondaryFieldDef.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" must have doc values enabled");
+      }
+      if (secondaryFieldDef.isMultiValue()) {
+        throw new IllegalArgumentException(
+            "CrossIndexLookup: secondary_field \""
+                + lookup.getSecondaryField()
+                + "\" must be single-valued");
+      }
 
-      // Collect all fields to read (union of retrieve_fields + expose_to_scripts)
+      // Validate retrieve/expose fields: all must be IndexableFieldDef with doc values
       Map<String, FieldDef> fieldsToRead = new LinkedHashMap<>();
       for (String field : lookup.getRetrieveFieldsList()) {
-        fieldsToRead.put(field, secondaryIndex.docLookup.getFieldDefOrThrow(field));
+        FieldDef fd = secondaryIndex.docLookup.getFieldDefOrThrow(field);
+        if (!(fd instanceof IndexableFieldDef<?> ifd) || !ifd.hasDocValues()) {
+          throw new IllegalArgumentException(
+              "CrossIndexLookup: retrieve_field \""
+                  + field
+                  + "\" must be an IndexableFieldDef with doc values");
+        }
+        fieldsToRead.put(field, fd);
       }
       for (String field : lookup.getExposeToScriptsList()) {
-        fieldsToRead.putIfAbsent(field, secondaryIndex.docLookup.getFieldDefOrThrow(field));
+        if (!fieldsToRead.containsKey(field)) {
+          FieldDef fd = secondaryIndex.docLookup.getFieldDefOrThrow(field);
+          if (!(fd instanceof IndexableFieldDef<?> ifd) || !ifd.hasDocValues()) {
+            throw new IllegalArgumentException(
+                "CrossIndexLookup: expose_to_scripts field \""
+                    + field
+                    + "\" must be an IndexableFieldDef with doc values");
+          }
+          fieldsToRead.put(field, fd);
+        }
       }
 
-      // Acquire searcher
       ShardState secondaryShard = secondaryIndex.getShard(0);
+      validated.add(
+          new ValidatedLookup(
+              lookup,
+              secondaryIndex,
+              secondaryShard,
+              primaryFieldDef,
+              secondaryFieldDef,
+              fieldsToRead));
+    }
+
+    // Pass 2: Acquire searchers (all validation passed).
+    Map<String, LookupState> states = new LinkedHashMap<>();
+    for (ValidatedLookup v : validated) {
       SearcherAndTaxonomy searcher;
       try {
-        searcher = secondaryShard.acquire();
+        searcher = v.secondaryShard().acquire();
       } catch (Exception e) {
         // Release any already-acquired searchers before throwing
         for (LookupState state : states.values()) {
@@ -171,19 +280,22 @@ public class CrossIndexLookupManager implements AutoCloseable {
           }
         }
         throw new IllegalStateException(
-            "CrossIndexLookup: failed to acquire searcher for index \"" + indexName + "\"", e);
+            "CrossIndexLookup: failed to acquire searcher for index \""
+                + v.config().getIndex()
+                + "\"",
+            e);
       }
 
       states.put(
-          indexName,
+          v.config().getIndex(),
           new LookupState(
-              lookup,
-              secondaryIndex,
-              secondaryShard,
+              v.config(),
+              v.secondaryIndex(),
+              v.secondaryShard(),
               searcher,
-              (IndexableFieldDef<?>) primaryFieldDefRaw,
-              secondaryFieldDef,
-              fieldsToRead));
+              v.primaryFieldDef(),
+              v.secondaryFieldDef(),
+              v.fieldsToRead()));
     }
 
     return new CrossIndexLookupManager(states);

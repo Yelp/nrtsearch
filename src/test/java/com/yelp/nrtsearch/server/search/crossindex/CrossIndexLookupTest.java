@@ -36,10 +36,11 @@ import org.junit.Test;
 public class CrossIndexLookupTest extends ServerTestCase {
   private static final String PRIMARY_INDEX = "primary_index";
   private static final String SECONDARY_INDEX = "secondary_index";
+  private static final String VALIDATION_INDEX = "validation_index";
 
   @Override
   public List<String> getIndices() {
-    return Arrays.asList(PRIMARY_INDEX, SECONDARY_INDEX);
+    return Arrays.asList(PRIMARY_INDEX, SECONDARY_INDEX, VALIDATION_INDEX);
   }
 
   @Override
@@ -49,9 +50,14 @@ public class CrossIndexLookupTest extends ServerTestCase {
               getFieldsFromResourceFile("/registerFieldsCrossIndexPrimary.json"))
           .setIndexName(name)
           .build();
-    } else {
+    } else if (name.equals(SECONDARY_INDEX)) {
       return FieldDefRequest.newBuilder(
               getFieldsFromResourceFile("/registerFieldsCrossIndexSecondary.json"))
+          .setIndexName(name)
+          .build();
+    } else {
+      return FieldDefRequest.newBuilder(
+              getFieldsFromResourceFile("/registerFieldsCrossIndexValidation.json"))
           .setIndexName(name)
           .build();
     }
@@ -357,5 +363,133 @@ public class CrossIndexLookupTest extends ServerTestCase {
     }
     // If we didn't get an exception, that's also okay if fewer than max_keys unique keys
     // The test is mainly checking that the guard can trigger
+  }
+
+  /** Reject TEXT (tokenized) secondary join field. */
+  @Test
+  public void testRejectTokenizedSecondaryField() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(PRIMARY_INDEX)
+                  .setTopHits(1)
+                  .setQuery(Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                  .addCrossIndexLookups(
+                      CrossIndexLookup.newBuilder()
+                          .setIndex(VALIDATION_INDEX)
+                          .setPrimaryField("biz_id_primary")
+                          .setSecondaryField("text_field")
+                          .addRetrieveFields("atom_join_field")
+                          .setTopHits(1))
+                  .build());
+      throw new AssertionError("Expected exception for tokenized secondary field");
+    } catch (io.grpc.StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("not a supported join field type"));
+    }
+  }
+
+  /** Reject cross-type join (ATOM primary + INT secondary). */
+  @Test
+  public void testRejectCrossTypeJoin() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(PRIMARY_INDEX)
+                  .setTopHits(1)
+                  .setQuery(Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                  .addCrossIndexLookups(
+                      CrossIndexLookup.newBuilder()
+                          .setIndex(VALIDATION_INDEX)
+                          .setPrimaryField("biz_id_primary") // ATOM
+                          .setSecondaryField("int_join_field") // INT
+                          .addRetrieveFields("atom_join_field")
+                          .setTopHits(1))
+                  .build());
+      throw new AssertionError("Expected exception for cross-type join");
+    } catch (io.grpc.StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("same field type"));
+    }
+  }
+
+  /** Reject multi-valued secondary join field. */
+  @Test
+  public void testRejectMultiValuedSecondaryField() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(PRIMARY_INDEX)
+                  .setTopHits(1)
+                  .setQuery(Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                  .addCrossIndexLookups(
+                      CrossIndexLookup.newBuilder()
+                          .setIndex(VALIDATION_INDEX)
+                          .setPrimaryField("biz_id_primary")
+                          .setSecondaryField("multi_atom_field")
+                          .addRetrieveFields("atom_join_field")
+                          .setTopHits(1))
+                  .build());
+      throw new AssertionError("Expected exception for multi-valued join field");
+    } catch (io.grpc.StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("single-valued"));
+    }
+  }
+
+  /** Reject non-searchable secondary join field. */
+  @Test
+  public void testRejectNonSearchableSecondaryField() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(PRIMARY_INDEX)
+                  .setTopHits(1)
+                  .setQuery(Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                  .addCrossIndexLookups(
+                      CrossIndexLookup.newBuilder()
+                          .setIndex(VALIDATION_INDEX)
+                          .setPrimaryField("biz_id_primary")
+                          .setSecondaryField("stored_only_field")
+                          .addRetrieveFields("atom_join_field")
+                          .setTopHits(1))
+                  .build());
+      throw new AssertionError("Expected exception for non-searchable field");
+    } catch (io.grpc.StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage().contains("searchable")
+              || e.getMessage().contains("doc values")
+              || e.getMessage().contains("not a supported join field type"));
+    }
+  }
+
+  /** Reject retrieve field without doc values. */
+  @Test
+  public void testRejectRetrieveFieldWithoutDocValues() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(PRIMARY_INDEX)
+                  .setTopHits(1)
+                  .setQuery(Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                  .addCrossIndexLookups(
+                      CrossIndexLookup.newBuilder()
+                          .setIndex(VALIDATION_INDEX)
+                          .setPrimaryField("biz_id_primary")
+                          .setSecondaryField("atom_join_field")
+                          .addRetrieveFields("stored_only_field")
+                          .setTopHits(1))
+                  .build());
+      throw new AssertionError("Expected exception for retrieve field without doc values");
+    } catch (io.grpc.StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("doc values"));
+    }
   }
 }
