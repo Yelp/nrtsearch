@@ -883,6 +883,10 @@ message Retriever {
 
     // Optional L1 rescorer applied before blending
     Rescorer rescorer = 5;
+
+    // Optional sort fields. When set, the retriever collects top hits by sort order
+    // instead of relevance score.
+    SortFields sortedFields = 6;
 }
 
 // Text Retriever
