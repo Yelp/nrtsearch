@@ -158,6 +158,12 @@
       "storeDocValues": true
     },
     {
+      "name": "lat_lon",
+      "type": "LAT_LON",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
       "name": "vector_not_search",
       "type": "VECTOR",
       "storeDocValues": true,
