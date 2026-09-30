@@ -37,10 +37,13 @@ public class CrossIndexLookupTest extends ServerTestCase {
   private static final String PRIMARY_INDEX = "primary_index";
   private static final String SECONDARY_INDEX = "secondary_index";
   private static final String VALIDATION_INDEX = "validation_index";
+  private static final String INT_JOIN_INDEX = "int_join_index";
+  private static final String PRIMARY_V2_INDEX = "primary_v2_index";
 
   @Override
   public List<String> getIndices() {
-    return Arrays.asList(PRIMARY_INDEX, SECONDARY_INDEX, VALIDATION_INDEX);
+    return Arrays.asList(
+        PRIMARY_INDEX, SECONDARY_INDEX, VALIDATION_INDEX, INT_JOIN_INDEX, PRIMARY_V2_INDEX);
   }
 
   @Override
@@ -55,9 +58,19 @@ public class CrossIndexLookupTest extends ServerTestCase {
               getFieldsFromResourceFile("/registerFieldsCrossIndexSecondary.json"))
           .setIndexName(name)
           .build();
-    } else {
+    } else if (name.equals(VALIDATION_INDEX)) {
       return FieldDefRequest.newBuilder(
               getFieldsFromResourceFile("/registerFieldsCrossIndexValidation.json"))
+          .setIndexName(name)
+          .build();
+    } else if (name.equals(INT_JOIN_INDEX)) {
+      return FieldDefRequest.newBuilder(
+              getFieldsFromResourceFile("/registerFieldsCrossIndexIntJoin.json"))
+          .setIndexName(name)
+          .build();
+    } else {
+      return FieldDefRequest.newBuilder(
+              getFieldsFromResourceFile("/registerFieldsCrossIndexPrimaryV2.json"))
           .setIndexName(name)
           .build();
     }
@@ -65,10 +78,12 @@ public class CrossIndexLookupTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    if (name.equals(PRIMARY_INDEX)) {
-      initPrimaryIndex();
-    } else if (name.equals(SECONDARY_INDEX)) {
-      initSecondaryIndex();
+    switch (name) {
+      case PRIMARY_INDEX -> initPrimaryIndex();
+      case SECONDARY_INDEX -> initSecondaryIndex();
+      case INT_JOIN_INDEX -> initIntJoinIndex();
+      case PRIMARY_V2_INDEX -> initPrimaryV2Index();
+        // VALIDATION_INDEX: no docs needed
     }
   }
 
@@ -119,6 +134,51 @@ public class CrossIndexLookupTest extends ServerTestCase {
                   .putFields(
                       "covers",
                       AddDocumentRequest.MultiValuedField.newBuilder().addValue(doc[2]).build())
+                  .build()));
+    }
+  }
+
+  private void initIntJoinIndex() throws Exception {
+    // Multiple docs per key to test skewed distribution
+    int[][] docs = {
+      {100, 0}, {100, 1}, {100, 2}, {100, 3}, {100, 4}, // 5 docs for key 100
+      {200, 0}, // 1 doc for key 200
+      {300, 0}, // 1 doc for key 300
+    };
+    String[] values = {"a", "b", "c", "d", "e", "f", "g"};
+    for (int i = 0; i < docs.length; i++) {
+      addDocuments(
+          java.util.stream.Stream.of(
+              AddDocumentRequest.newBuilder()
+                  .setIndexName(INT_JOIN_INDEX)
+                  .putFields(
+                      "int_id",
+                      AddDocumentRequest.MultiValuedField.newBuilder()
+                          .addValue(String.valueOf(docs[i][0]))
+                          .build())
+                  .putFields(
+                      "value",
+                      AddDocumentRequest.MultiValuedField.newBuilder().addValue(values[i]).build())
+                  .build()));
+    }
+  }
+
+  private void initPrimaryV2Index() throws Exception {
+    int[] ids = {100, 200, 300, 400};
+    String[] names = {"Alice", "Bob", "Carol", "Dave"};
+    for (int i = 0; i < ids.length; i++) {
+      addDocuments(
+          java.util.stream.Stream.of(
+              AddDocumentRequest.newBuilder()
+                  .setIndexName(PRIMARY_V2_INDEX)
+                  .putFields(
+                      "int_id_primary",
+                      AddDocumentRequest.MultiValuedField.newBuilder()
+                          .addValue(String.valueOf(ids[i]))
+                          .build())
+                  .putFields(
+                      "name",
+                      AddDocumentRequest.MultiValuedField.newBuilder().addValue(names[i]).build())
                   .build()));
     }
   }
@@ -491,5 +551,122 @@ public class CrossIndexLookupTest extends ServerTestCase {
     } catch (io.grpc.StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("doc values"));
     }
+  }
+
+  /** INT-to-INT join: verify numeric keys work through TermQueryable. */
+  @Test
+  public void testNumericJoinKeys() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_V2_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("int_id_primary")
+                    .setQuery(
+                        Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                    .addCrossIndexLookups(
+                        CrossIndexLookup.newBuilder()
+                            .setIndex(INT_JOIN_INDEX)
+                            .setPrimaryField("int_id_primary")
+                            .setSecondaryField("int_id")
+                            .addRetrieveFields("value")
+                            .setTopHits(10))
+                    .build());
+
+    assertEquals(4, response.getHitsCount());
+
+    for (Hit hit : response.getHitsList()) {
+      int intId = hit.getFieldsMap().get("int_id_primary").getFieldValue(0).getIntValue();
+      Map<String, CrossIndexResults> crossResults = hit.getCrossIndexResultsMap();
+
+      switch (intId) {
+        case 100 -> {
+          assertTrue(crossResults.containsKey(INT_JOIN_INDEX));
+          assertEquals(5, crossResults.get(INT_JOIN_INDEX).getHitsCount());
+        }
+        case 200, 300 -> {
+          assertTrue(crossResults.containsKey(INT_JOIN_INDEX));
+          assertEquals(1, crossResults.get(INT_JOIN_INDEX).getHitsCount());
+        }
+        case 400 -> {
+          assertTrue(
+              !crossResults.containsKey(INT_JOIN_INDEX)
+                  || crossResults.get(INT_JOIN_INDEX).getHitsCount() == 0);
+        }
+      }
+    }
+  }
+
+  /** Skewed distribution: key 100 has 5 docs, topHits=2 caps it; keys 200/300 still get results. */
+  @Test
+  public void testSkewedDistributionTopHitsCap() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_V2_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("int_id_primary")
+                    .setQuery(
+                        Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder()).build())
+                    .addCrossIndexLookups(
+                        CrossIndexLookup.newBuilder()
+                            .setIndex(INT_JOIN_INDEX)
+                            .setPrimaryField("int_id_primary")
+                            .setSecondaryField("int_id")
+                            .addRetrieveFields("value")
+                            .setTopHits(2))
+                    .build());
+
+    for (Hit hit : response.getHitsList()) {
+      int intId = hit.getFieldsMap().get("int_id_primary").getFieldValue(0).getIntValue();
+      Map<String, CrossIndexResults> crossResults = hit.getCrossIndexResultsMap();
+
+      switch (intId) {
+        case 100 -> {
+          // 5 secondary docs but topHits=2 caps at 2
+          assertEquals(2, crossResults.get(INT_JOIN_INDEX).getHitsCount());
+        }
+        case 200, 300 -> {
+          // Must still get their 1 match despite key 100's dominance
+          assertTrue(crossResults.containsKey(INT_JOIN_INDEX));
+          assertEquals(1, crossResults.get(INT_JOIN_INDEX).getHitsCount());
+        }
+      }
+    }
+  }
+
+  /** Primary doc with no secondary match gets empty cross_index_results (no defaults). */
+  @Test
+  public void testNoSecondaryMatchReturnsEmpty() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(PRIMARY_V2_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("int_id_primary")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder().setField("int_id_primary").setIntValue(400)))
+                    .addCrossIndexLookups(
+                        CrossIndexLookup.newBuilder()
+                            .setIndex(INT_JOIN_INDEX)
+                            .setPrimaryField("int_id_primary")
+                            .setSecondaryField("int_id")
+                            .addRetrieveFields("value")
+                            .setTopHits(10))
+                    .build());
+
+    assertEquals(1, response.getHitsCount());
+    Hit hit = response.getHits(0);
+    assertTrue(
+        !hit.getCrossIndexResultsMap().containsKey(INT_JOIN_INDEX)
+            || hit.getCrossIndexResultsMap().get(INT_JOIN_INDEX).getHitsCount() == 0);
   }
 }
