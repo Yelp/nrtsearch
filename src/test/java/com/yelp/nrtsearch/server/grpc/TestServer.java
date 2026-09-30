@@ -628,6 +628,45 @@ public class TestServer {
     }
   }
 
+  /**
+   * Version-aware replication wait. Polls until the replica's searcher version reaches the
+   * primary's current version, avoiding the race in {@link #waitForReplication(String)} where the
+   * NRT notification may not have arrived yet when this method is called.
+   */
+  public void waitForReplication(String indexName, TestServer primaryServer) throws IOException {
+    waitForReplication(indexName, primaryServer, DEFAULT_REPLICATION_WAIT_TIMEOUT_MS);
+  }
+
+  public void waitForReplication(String indexName, TestServer primaryServer, long timeoutMs)
+      throws IOException {
+    ShardState replicaShardState = getGlobalState().getIndexOrThrow(indexName).getShard(0);
+    if (!replicaShardState.isReplica()) {
+      throw new IllegalStateException("Must be called on replica index");
+    }
+    long targetVersion =
+        primaryServer
+            .getGlobalState()
+            .getIndexOrThrow(indexName)
+            .getShard(0)
+            .nrtPrimaryNode
+            .getCurrentSearchingVersion();
+    long start = System.currentTimeMillis();
+    while ((System.currentTimeMillis() - start) < timeoutMs) {
+      if (replicaShardState.nrtReplicaNode.getCurrentSearchingVersion() >= targetVersion) {
+        return;
+      }
+      try {
+        Thread.sleep(20);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    throw new RuntimeException(
+        String.format(
+            "Timed out waiting for replication to version %d, replica at %d",
+            targetVersion, replicaShardState.nrtReplicaNode.getCurrentSearchingVersion()));
+  }
+
   public void registerWithPrimary(String indexName) throws IOException {
     registerWithPrimary(indexName, DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS);
   }

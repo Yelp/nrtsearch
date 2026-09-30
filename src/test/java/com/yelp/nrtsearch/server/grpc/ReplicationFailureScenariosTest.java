@@ -77,7 +77,7 @@ public class ReplicationFailureScenariosTest {
     primaryServer.refresh(TEST_INDEX);
 
     primaryServer.verifySimpleDocs(TEST_INDEX, 2);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 2);
 
     // stop replica instance
@@ -95,7 +95,7 @@ public class ReplicationFailureScenariosTest {
     primaryServer.refresh(TEST_INDEX);
 
     primaryServer.verifySimpleDocs(TEST_INDEX, 6);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 6);
   }
 
@@ -123,7 +123,7 @@ public class ReplicationFailureScenariosTest {
 
     // both primary and replica should have 2 docs
     primaryServer.verifySimpleDocs(TEST_INDEX, 2);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 2);
 
     // commit primary
@@ -139,7 +139,7 @@ public class ReplicationFailureScenariosTest {
     primaryServer.refresh(TEST_INDEX);
 
     primaryServer.verifySimpleDocs(TEST_INDEX, 4);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 4);
   }
 
@@ -196,7 +196,7 @@ public class ReplicationFailureScenariosTest {
 
     // both primary and replica should have 2 docs
     primaryServer.verifySimpleDocs(TEST_INDEX, 2);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 2);
 
     // backupIndex (with 2 docs)
@@ -209,7 +209,7 @@ public class ReplicationFailureScenariosTest {
     primaryServer.refresh(TEST_INDEX);
 
     primaryServer.verifySimpleDocs(TEST_INDEX, 8);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 8);
 
     // non-graceful primary restart (i.e. blow away index directory and stateDir)
@@ -223,7 +223,7 @@ public class ReplicationFailureScenariosTest {
     primaryServer.refresh(TEST_INDEX);
 
     primaryServer.verifySimpleDocs(TEST_INDEX, 4);
-    replicaServer.waitForReplication(TEST_INDEX);
+    replicaServer.waitForReplication(TEST_INDEX, primaryServer);
     replicaServer.verifySimpleDocs(TEST_INDEX, 4);
   }
 
