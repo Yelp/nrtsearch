@@ -47,7 +47,8 @@ public class DeleteByQueryCommand implements Callable<Integer> {
 
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.deleteByQuery(indexName, queryBuilder.build());
+      CliUtils.printMessage(
+          client.deleteByQuery(indexName, queryBuilder.build()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

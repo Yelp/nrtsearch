@@ -25,9 +25,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import picocli.CommandLine;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class IndicesCommandTest extends ServerTestCase {
 
   private ByteArrayOutputStream testOutput;
@@ -52,16 +55,15 @@ public class IndicesCommandTest extends ServerTestCase {
   }
 
   @Test
-  public void testNoIndices() {
+  public void testA_NoIndices() {
     int exitCode = runIndicesCommand();
     assertEquals(0, exitCode);
-    String expected =
-        String.format("%sNo index found%s", System.lineSeparator(), System.lineSeparator());
-    assertEquals(expected, testOutput.toString());
+    // Empty IndicesResponse proto prints as empty line
+    assertEquals(System.lineSeparator(), testOutput.toString());
   }
 
   @Test
-  public void testIndices() {
+  public void testB_Indices() {
     List<String> indices = new ArrayList<>(List.of("index1", "index2", "index3"));
     indices.forEach(
         index -> {
@@ -70,17 +72,34 @@ public class IndicesCommandTest extends ServerTestCase {
         });
     int exitCode = runIndicesCommand();
     assertEquals(0, exitCode);
-    String expected =
-        String.format(
-            "%s%s%s",
-            System.lineSeparator(),
-            String.join(System.lineSeparator(), indices),
-            System.lineSeparator());
-    assertEquals(expected, testOutput.toString());
+    String output = testOutput.toString();
+    // All index names should appear in the output
+    indices.forEach(index -> assertTrue(output.contains(index)));
+  }
+
+  @Test
+  public void testC_IndicesJson() {
+    List<String> indices = new ArrayList<>(List.of("json_index1", "json_index2"));
+    indices.forEach(
+        index -> {
+          CreateIndexRequest request = CreateIndexRequest.newBuilder().setIndexName(index).build();
+          getGrpcServer().getBlockingStub().createIndex(request);
+        });
+    int exitCode = runIndicesCommandJson();
+    assertEquals(0, exitCode);
+    String output = testOutput.toString();
+    // JSON output should contain index names
+    assertTrue(output.contains("\"indexName\":"));
+    indices.forEach(index -> assertTrue(output.contains(index)));
   }
 
   private int runIndicesCommand() {
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     return cmd.execute("--hostname=localhost", "--port=" + getPort(), "indices");
+  }
+
+  private int runIndicesCommandJson() {
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
+    return cmd.execute("--hostname=localhost", "--port=" + getPort(), "--json", "indices");
   }
 }

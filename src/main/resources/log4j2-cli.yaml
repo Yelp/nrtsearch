@@ -1,0 +1,17 @@
+# Logging config for the nrtsearch_client cli. Logs go to stderr so that command output
+# written to stdout (e.g. with --json) can be cleanly piped or redirected.
+Configuration:
+  name: Cli
+
+  Appenders:
+    Console:
+      name: Console_Appender
+      target: SYSTEM_ERR
+      PatternLayout:
+        pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+
+  Loggers:
+    Root:
+      level: info
+      AppenderRef:
+        - ref: Console_Appender
