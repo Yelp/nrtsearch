@@ -77,6 +77,9 @@ public class ImmutableIndexState extends IndexState {
   public static final String DEFAULT_DIRECTORY = "FSDirectory";
   public static final long DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS =
       500; // 500 milliseconds default
+  public static final boolean DEFAULT_USE_COMPOUND_FILE = true;
+  public static final double DEFAULT_NO_CFS_RATIO = 1.0;
+  public static final double DEFAULT_MAX_CFS_SEGMENT_SIZE_MB = 0.0; // 0 = unlimited
 
   // default settings as message, so they can be merged with saved settings
   public static final IndexSettings DEFAULT_INDEX_SETTINGS =
@@ -98,6 +101,7 @@ public class ImmutableIndexState extends IndexState {
           .setDirectory(StringValue.newBuilder().setValue(DEFAULT_DIRECTORY).build())
           .setMaxFullFlushMergeWaitMillis(
               UInt64Value.newBuilder().setValue(DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS).build())
+          .setUseCompoundFile(BoolValue.newBuilder().setValue(DEFAULT_USE_COMPOUND_FILE).build())
           .build();
 
   // Settings
@@ -109,6 +113,7 @@ public class ImmutableIndexState extends IndexState {
   private final boolean indexMergeSchedulerAutoThrottle;
   private final DirectoryFactory directoryFactory;
   private final long maxFullFlushMergeWaitMillis;
+  private final boolean useCompoundFile;
 
   public static final double DEFAULT_MAX_REFRESH_SEC = 1.0;
   public static final double DEFAULT_MIN_REFRESH_SEC = 0.05;
@@ -151,6 +156,9 @@ public class ImmutableIndexState extends IndexState {
           .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
           .setParallelFetchChunkSize(
               Int32Value.newBuilder().setValue(DEFAULT_PARALLEL_FETCH_CHUNK_SIZE).build())
+          .setNoCFSRatio(DoubleValue.newBuilder().setValue(DEFAULT_NO_CFS_RATIO).build())
+          .setMaxCFSSegmentSizeMB(
+              DoubleValue.newBuilder().setValue(DEFAULT_MAX_CFS_SEGMENT_SIZE_MB).build())
           .build();
 
   // Live Settings
@@ -165,6 +173,8 @@ public class ImmutableIndexState extends IndexState {
   private final int maxMergedSegmentMB;
   private final int segmentsPerTier;
   private final double deletePctAllowed;
+  private final double noCFSRatio;
+  private final double maxCFSSegmentSizeMB;
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
@@ -243,6 +253,7 @@ public class ImmutableIndexState extends IndexState {
         DirectoryFactory.get(
             mergedSettings.getDirectory().getValue(), globalState.getConfiguration());
     maxFullFlushMergeWaitMillis = mergedSettings.getMaxFullFlushMergeWaitMillis().getValue();
+    useCompoundFile = mergedSettings.getUseCompoundFile().getValue();
 
     // live settings
     mergedLiveSettings =
@@ -262,6 +273,8 @@ public class ImmutableIndexState extends IndexState {
     maxMergedSegmentMB = mergedLiveSettingsWithLocal.getMaxMergedSegmentMB().getValue();
     segmentsPerTier = mergedLiveSettingsWithLocal.getSegmentsPerTier().getValue();
     deletePctAllowed = mergedLiveSettingsWithLocal.getDeletePctAllowed().getValue();
+    noCFSRatio = mergedLiveSettingsWithLocal.getNoCFSRatio().getValue();
+    maxCFSSegmentSizeMB = mergedLiveSettingsWithLocal.getMaxCFSSegmentSizeMB().getValue();
     defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
@@ -600,6 +613,7 @@ public class ImmutableIndexState extends IndexState {
             IndexWriterConfig.OpenMode.CREATE_OR_APPEND));
 
     iwc.setCodec(new ServerCodec(indexStateManager));
+    iwc.setUseCompoundFile(useCompoundFile);
 
     // Set the maximum time in milliseconds to wait for merges when doing a full flush
     iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
@@ -614,6 +628,10 @@ public class ImmutableIndexState extends IndexState {
     mergePolicy.setMaxMergedSegmentMB(maxMergedSegmentMB);
     mergePolicy.setSegmentsPerTier(segmentsPerTier);
     mergePolicy.setDeletesPctAllowed(deletePctAllowed);
+    mergePolicy.setNoCFSRatio(noCFSRatio);
+    if (maxCFSSegmentSizeMB > 0.0) {
+      mergePolicy.setMaxCFSSegmentSizeMB(maxCFSSegmentSizeMB);
+    }
     iwc.setMergePolicy(mergePolicy);
 
     return iwc;
@@ -759,6 +777,21 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public boolean getUseCompoundFile() {
+    return useCompoundFile;
+  }
+
+  @Override
+  public double getNoCFSRatio() {
+    return noCFSRatio;
+  }
+
+  @Override
+  public double getMaxCFSSegmentSizeMB() {
+    return maxCFSSegmentSizeMB;
+  }
+
+  @Override
   public void initWarmer(RemoteBackend remoteBackend) {
     initWarmer(remoteBackend, uniqueName);
   }
@@ -831,6 +864,13 @@ public class ImmutableIndexState extends IndexState {
     if (liveSettings.getDeletePctAllowed().getValue() < 5.0
         || liveSettings.getDeletePctAllowed().getValue() > 50.0) {
       throw new IllegalArgumentException("deletePctAllowed must be between 5.0 and 50.0");
+    }
+    if (liveSettings.getNoCFSRatio().getValue() < 0.0
+        || liveSettings.getNoCFSRatio().getValue() > 1.0) {
+      throw new IllegalArgumentException("noCFSRatio must be between 0.0 and 1.0");
+    }
+    if (liveSettings.getMaxCFSSegmentSizeMB().getValue() < 0.0) {
+      throw new IllegalArgumentException("maxCFSSegmentSizeMB must be >= 0.0");
     }
     if (liveSettings.getDefaultSearchTimeoutSec().getValue() < 0.0) {
       throw new IllegalArgumentException("defaultSearchTimeoutSec must be >= 0.0");
