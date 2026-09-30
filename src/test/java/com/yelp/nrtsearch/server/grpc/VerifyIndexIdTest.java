@@ -257,7 +257,7 @@ public class VerifyIndexIdTest {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.verifySimpleDocs("test_index", 5);
     replicaServer.verifySimpleDocs("test_index", 5);

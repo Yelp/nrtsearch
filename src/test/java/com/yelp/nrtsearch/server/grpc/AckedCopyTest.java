@@ -108,7 +108,7 @@ public class AckedCopyTest {
     testServerPrimary.verifySimpleDocs("test_index", 4);
 
     // replica should too!
-    testServerReplica.waitForReplication("test_index");
+    testServerReplica.waitForReplication("test_index", testServerPrimary);
     testServerReplica.verifySimpleDocIds("test_index", 1, 2, 3, 4);
   }
 }

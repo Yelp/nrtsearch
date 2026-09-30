@@ -160,7 +160,7 @@ public class ReplicationServerTest {
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
 
     // replica should too!
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
   }
 
@@ -193,7 +193,7 @@ public class ReplicationServerTest {
     primaryServer.refresh("test_index");
 
     // search on replica: 4 documents!
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4);
   }
 

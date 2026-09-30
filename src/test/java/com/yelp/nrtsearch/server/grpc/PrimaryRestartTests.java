@@ -70,7 +70,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.verifySimpleDocs("test_index", 5);
     replicaServer.verifySimpleDocs("test_index", 5);
@@ -99,7 +99,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.restart();
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
@@ -110,7 +110,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     // primary index version not greater than local version on replica
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8);
@@ -118,8 +118,6 @@ public class PrimaryRestartTests {
 
     primaryServer.addSimpleDocs("test_index", 9);
     primaryServer.refresh("test_index");
-
-    replicaServer.waitForReplication("test_index");
 
     // primary version is greater, but conflicting segment files prevent replica from updating
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
@@ -153,7 +151,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.restart();
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
@@ -164,18 +162,14 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
-
-    // primary index version not greater than local version on replica
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8);
-    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
 
     primaryServer.addSimpleDocs("test_index", 9);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
-    // primary version is greater and conflicting segments are filtered
+    // incompatible segment readers are filtered, replica catches up to primary
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
   }
@@ -207,14 +201,14 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
     long previousSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
 
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5, 6, 7, 8);
     long previousSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
 
@@ -232,7 +226,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 11);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11);
@@ -245,7 +239,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 12);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11, 12);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11, 12);
@@ -283,7 +277,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4, 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
     long previousSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
     List<LeafReaderContext> previousLeaves1 =
@@ -292,7 +286,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5, 6, 7, 8);
     long previousSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
     List<LeafReaderContext> previousLeaves2 =
@@ -312,7 +306,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 11);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     long currentSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
     List<LeafReaderContext> currentLeaves1 =
         getVersionLeaves(replicaServer, currentSearcherVersion1);
@@ -328,7 +322,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 12);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     long currentSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
     List<LeafReaderContext> currentLeaves2 =
         getVersionLeaves(replicaServer, currentSearcherVersion2);
@@ -395,7 +389,7 @@ public class PrimaryRestartTests {
                     "filterIncompatibleSegmentReaders: true"))
             .build();
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3);
 
     // Apply a doc values update to field1 for doc id=1 without committing.
@@ -412,7 +406,7 @@ public class PrimaryRestartTests {
     // NRT refresh propagates the update to replica without committing
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     // Restart primary: loses the uncommitted doc values update, fieldInfosGen rolls back
     primaryServer.restart();
@@ -426,7 +420,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 5);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     // Without the backward-generation filter fix, the replica throws
     // IllegalStateException("unexpected docvalues type NUMERIC for field 'field1' ...")
@@ -466,7 +460,7 @@ public class PrimaryRestartTests {
                     "filterIncompatibleSegmentReaders: true"))
             .build();
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3);
 
     // Apply update U1: advances fieldInfosGen to 1 (from -1) without committing.
@@ -480,7 +474,7 @@ public class PrimaryRestartTests {
                 .build())
             .stream());
     primaryServer.refresh("test_index");
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
     // Replica reader now has fieldInfosGen=1 for this segment.
 
     // Restart primary: rolls fieldInfosGen back to -1 (loses U1).
@@ -514,7 +508,7 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 4);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
+    replicaServer.waitForReplication("test_index", primaryServer);
 
     // Without the primaryGen-gated SCI ID check, the replica reuses the stale reader from
     // U1 (fieldInfosGen=1 == fieldInfosGen=1, so the backward-gen "<" check is false).

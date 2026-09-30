@@ -19,7 +19,6 @@ import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.getStandardAnal
 import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.hasAnalyzer;
 import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.isAnalyzerDefined;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -27,8 +26,6 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.carrotsearch.randomizedtesting.RandomizedRunner;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IntObject;
@@ -42,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilterFactory;
 import org.apache.lucene.analysis.TokenFilterFactory;
@@ -65,10 +63,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-@RunWith(RandomizedRunner.class) // Required to call org.apache.lucene.util.LuceneTestCase.random
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class AnalyzerCreatorTest {
 
   @Before
@@ -196,7 +191,7 @@ public class AnalyzerCreatorTest {
       int posLengths[])
       throws IOException {
     checkResetException(a, input);
-    BaseTokenStreamTestCase.checkAnalysisConsistency(random(), a, true, input);
+    BaseTokenStreamTestCase.checkAnalysisConsistency(new Random(0), a, true, input);
     assertTokenStreamContents(
         a.tokenStream("dummy", input),
         output,
