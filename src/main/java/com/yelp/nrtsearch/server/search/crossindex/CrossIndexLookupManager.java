@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.IntFieldDef;
 import com.yelp.nrtsearch.server.field.LongFieldDef;
+import com.yelp.nrtsearch.server.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.grpc.CrossIndexLookup;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
@@ -38,13 +39,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -376,7 +373,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
       // Step 2: Scan secondary index to find matching docs and read fields
       int topHits = state.config.getTopHits() > 0 ? state.config.getTopHits() : DEFAULT_TOP_HITS;
-      state.materializedResults = scanSecondaryIndex(state, joinKeys, topHits);
+      state.materializedResults = searchSecondaryIndex(state, joinKeys, topHits);
 
       // Step 3: Populate SharedDocContext for expose_to_scripts
       if (!state.config.getExposeToScriptsList().isEmpty()) {
@@ -417,16 +414,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
       String joinKey = null;
       if (primaryDV.size() > 0) {
-        joinKey = primaryDV.toFieldValue(0).getTextValue();
-        if (joinKey.isEmpty()) {
-          // For numeric fields, try other value types
-          FieldValue fv = primaryDV.toFieldValue(0);
-          if (fv.hasIntValue()) {
-            joinKey = String.valueOf(fv.getIntValue());
-          } else if (fv.hasLongValue()) {
-            joinKey = String.valueOf(fv.getLongValue());
-          }
-        }
+        joinKey = toCanonicalKey(primaryDV.toFieldValue(0));
       }
 
       if (joinKey != null && !joinKey.isEmpty()) {
@@ -437,125 +425,119 @@ public class CrossIndexLookupManager implements AutoCloseable {
   }
 
   /**
-   * Scan secondary index doc values to find docs matching the join keys, then read field values.
+   * Search the secondary index for docs matching join keys, group by key, cap at topHits per key,
+   * then read requested field values from the retained docs.
    */
-  private Map<String, List<Map<String, CompositeFieldValue>>> scanSecondaryIndex(
+  private Map<String, List<Map<String, CompositeFieldValue>>> searchSecondaryIndex(
       LookupState state, Set<String> joinKeys, int topHits) throws IOException {
     Map<String, List<Map<String, CompositeFieldValue>>> results = new HashMap<>();
     if (joinKeys.isEmpty()) {
       return results;
     }
 
-    List<LeafReaderContext> leaves = state.searcher.searcher().getIndexReader().leaves();
+    IndexableFieldDef<?> secondaryFieldDef = state.secondaryFieldDef;
+    TermQueryable termQueryable = (TermQueryable) state.secondaryFieldDef;
 
-    for (LeafReaderContext leaf : leaves) {
-      int maxDoc = leaf.reader().maxDoc();
-      String secondaryField = state.config.getSecondaryField();
-      FieldDef secondaryFieldDef = state.secondaryFieldDef;
+    // Step 1: Build type-safe query via the field's TermQueryable implementation
+    org.apache.lucene.search.Query query =
+        termQueryable.getTermInSetQueryFromTextValues(new ArrayList<>(joinKeys));
 
-      // Determine doc values type and iterate
-      if (secondaryFieldDef instanceof IndexableFieldDef<?> indexable) {
-        DocValuesType dvType = indexable.getDocValuesType();
+    // Step 2: Collect matching doc IDs with per-key capping via inline DV reading
+    Map<String, List<Integer>> perKeyDocIds = new HashMap<>();
+    state
+        .searcher
+        .searcher()
+        .search(
+            query,
+            new SimpleCollector() {
+              int docBase;
+              LoadedDocValues<?> joinDV;
 
-        if (dvType == DocValuesType.SORTED) {
-          SortedDocValues sdv = leaf.reader().getSortedDocValues(secondaryField);
-          if (sdv == null) continue;
-          for (int doc = 0; doc < maxDoc; doc++) {
-            if (sdv.advanceExact(doc)) {
-              String val = sdv.lookupOrd(sdv.ordValue()).utf8ToString();
-              if (joinKeys.contains(val)) {
-                addSecondaryHit(results, val, leaf, doc, state, topHits);
+              @Override
+              protected void doSetNextReader(LeafReaderContext context) throws IOException {
+                docBase = context.docBase;
+                joinDV = secondaryFieldDef.getDocValues(context);
               }
-            }
-          }
-        } else if (dvType == DocValuesType.SORTED_SET) {
-          SortedSetDocValues ssdv = leaf.reader().getSortedSetDocValues(secondaryField);
-          if (ssdv == null) continue;
-          for (int doc = 0; doc < maxDoc; doc++) {
-            if (ssdv.advanceExact(doc)) {
-              boolean matched = false;
-              for (int i = 0; i < ssdv.docValueCount() && !matched; i++) {
-                String val = ssdv.lookupOrd(ssdv.nextOrd()).utf8ToString();
-                if (joinKeys.contains(val)) {
-                  addSecondaryHit(results, val, leaf, doc, state, topHits);
-                  matched = true;
+
+              @Override
+              public void collect(int doc) throws IOException {
+                joinDV.setDocId(doc);
+                if (joinDV.size() == 0) return;
+                String key = toCanonicalKey(joinDV.toFieldValue(0));
+
+                List<Integer> docs = perKeyDocIds.computeIfAbsent(key, k -> new ArrayList<>());
+                if (docs.size() < topHits) {
+                  docs.add(docBase + doc);
                 }
               }
-            }
-          }
-        } else if (dvType == DocValuesType.NUMERIC) {
-          NumericDocValues ndv = leaf.reader().getNumericDocValues(secondaryField);
-          if (ndv == null) continue;
-          for (int doc = 0; doc < maxDoc; doc++) {
-            if (ndv.advanceExact(doc)) {
-              String val = Long.toString(ndv.longValue());
-              if (joinKeys.contains(val)) {
-                addSecondaryHit(results, val, leaf, doc, state, topHits);
+
+              @Override
+              public org.apache.lucene.search.ScoreMode scoreMode() {
+                return org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
               }
-            }
-          }
-        } else if (dvType == DocValuesType.SORTED_NUMERIC) {
-          SortedNumericDocValues sndv = leaf.reader().getSortedNumericDocValues(secondaryField);
-          if (sndv == null) continue;
-          for (int doc = 0; doc < maxDoc; doc++) {
-            if (sndv.advanceExact(doc)) {
-              for (int i = 0; i < sndv.docValueCount(); i++) {
-                String val = Long.toString(sndv.nextValue());
-                if (joinKeys.contains(val)) {
-                  addSecondaryHit(results, val, leaf, doc, state, topHits);
-                  break;
-                }
-              }
-            }
-          }
-        }
+            });
+
+    if (perKeyDocIds.isEmpty()) {
+      return results;
+    }
+
+    // Step 3: Flatten retained doc IDs and sort for cache-friendly segment traversal
+    List<int[]> retained = new ArrayList<>(); // [globalDocId, keyIndex]
+    List<String> keyList = new ArrayList<>(perKeyDocIds.keySet());
+    Map<String, Integer> keyToIndex = new HashMap<>();
+    for (int i = 0; i < keyList.size(); i++) {
+      keyToIndex.put(keyList.get(i), i);
+    }
+    for (Map.Entry<String, List<Integer>> entry : perKeyDocIds.entrySet()) {
+      int keyIdx = keyToIndex.get(entry.getKey());
+      for (int docId : entry.getValue()) {
+        retained.add(new int[] {docId, keyIdx});
       }
+    }
+    retained.sort(java.util.Comparator.comparingInt(a -> a[0]));
+
+    // Step 4: Read fields from retained docs
+    List<LeafReaderContext> leaves = state.searcher.searcher().getIndexReader().leaves();
+    int leafIdx = 0;
+
+    for (int[] item : retained) {
+      int globalDocId = item[0];
+      String key = keyList.get(item[1]);
+
+      // Advance to correct leaf
+      while (leafIdx < leaves.size() - 1 && leaves.get(leafIdx + 1).docBase <= globalDocId) {
+        leafIdx++;
+      }
+      LeafReaderContext leaf = leaves.get(leafIdx);
+      int segmentDocId = globalDocId - leaf.docBase;
+
+      // Read requested fields — same pattern as SearchHandler.getFieldForHit()
+      Map<String, CompositeFieldValue> fieldValues = new LinkedHashMap<>();
+      for (Map.Entry<String, FieldDef> entry : state.fieldsToRead.entrySet()) {
+        IndexableFieldDef<?> fd = (IndexableFieldDef<?>) entry.getValue();
+        LoadedDocValues<?> dv = fd.getDocValues(leaf);
+        dv.setDocId(segmentDocId);
+        CompositeFieldValue.Builder cfv = CompositeFieldValue.newBuilder();
+        for (int i = 0; i < dv.size(); i++) {
+          cfv.addFieldValue(dv.toFieldValue(i));
+        }
+        fieldValues.put(entry.getKey(), cfv.build());
+      }
+
+      results.computeIfAbsent(key, k -> new ArrayList<>()).add(fieldValues);
     }
 
     return results;
   }
 
-  /** Add a secondary hit's field values to the results map. */
-  private void addSecondaryHit(
-      Map<String, List<Map<String, CompositeFieldValue>>> results,
-      String joinKey,
-      LeafReaderContext leaf,
-      int segmentDocId,
-      LookupState state,
-      int topHits)
-      throws IOException {
-    List<Map<String, CompositeFieldValue>> hitList =
-        results.computeIfAbsent(joinKey, k -> new ArrayList<>());
-    if (hitList.size() >= topHits) {
-      return; // already have enough hits for this key
-    }
-
-    Map<String, CompositeFieldValue> fieldValues = new LinkedHashMap<>();
-    for (Map.Entry<String, FieldDef> entry : state.fieldsToRead.entrySet()) {
-      String fieldName = entry.getKey();
-      FieldDef fieldDef = entry.getValue();
-
-      if (fieldDef instanceof IndexableFieldDef<?> indexableDef && indexableDef.hasDocValues()) {
-        LoadedDocValues<?> docValues = indexableDef.getDocValues(leaf);
-        docValues.setDocId(segmentDocId);
-        CompositeFieldValue.Builder cfv = CompositeFieldValue.newBuilder();
-        if (docValues.size() > 0) {
-          for (int i = 0; i < docValues.size(); i++) {
-            cfv.addFieldValue(docValues.toFieldValue(i));
-          }
-        } else {
-          // For missing numeric doc values, emit a default of 0 to match the nrtsearch
-          // Document API behavior (which returns 0 for missing numeric fields, not null).
-          DocValuesType dvType = indexableDef.getDocValuesType();
-          if (dvType == DocValuesType.NUMERIC || dvType == DocValuesType.SORTED_NUMERIC) {
-            cfv.addFieldValue(FieldValue.newBuilder().setIntValue(0).build());
-          }
-        }
-        fieldValues.put(fieldName, cfv.build());
-      }
-    }
-
-    hitList.add(fieldValues);
+  /** Convert a FieldValue to a canonical string key for join key matching. */
+  private static String toCanonicalKey(FieldValue fv) {
+    return switch (fv.getFieldValuesCase()) {
+      case TEXTVALUE -> fv.getTextValue();
+      case INTVALUE -> String.valueOf(fv.getIntValue());
+      case LONGVALUE -> String.valueOf(fv.getLongValue());
+      default -> fv.getTextValue();
+    };
   }
 
   /** Populate SharedDocContext with expose_to_scripts values for each primary hit. */
