@@ -119,8 +119,6 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 9);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index");
-
     // primary version is greater, but conflicting segment files prevent replica from updating
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
