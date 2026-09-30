@@ -1444,6 +1444,8 @@ message IndexSettings {
     google.protobuf.StringValue directory = 7;
     // Maximum time in milliseconds to wait for merges when doing a full flush
     google.protobuf.UInt64Value maxFullFlushMergeWaitMillis = 8;
+    // Whether to use compound segment files (.cfs); disabling reduces CFS overhead at cost of more open file handles, default: true
+    google.protobuf.BoolValue useCompoundFile = 9;
 }
 
 // Index live settings
@@ -1488,6 +1490,12 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultTerminateAfterMaxRecallCount = 18;
     // Controls the maximum percentage of deleted documents that is tolerated in the index, default: 20
     google.protobuf.DoubleValue deletePctAllowed = 19;
+    // Fraction of total merged index size below which a merged segment will be written as a compound file (CFS).
+    // 0.0 disables CFS in the merge policy; 1.0 (default) means all merged segments use CFS. Range: [0.0, 1.0].
+    google.protobuf.DoubleValue noCFSRatio = 20;
+    // Maximum size in MB for a merged segment to be written as a compound file (CFS). 0 means unlimited (default).
+    // Only applies when noCFSRatio > 0.
+    google.protobuf.DoubleValue maxCFSSegmentSizeMB = 21;
 }
 
 // Index state
