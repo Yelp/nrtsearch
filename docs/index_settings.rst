@@ -74,3 +74,13 @@ maxFullFlushMergeWaitMillis
 Maximum time in milliseconds to wait for background merges to complete when performing a full flush. If background merges are still running after this time, the flush will continue without waiting for them to finish, which may result in more segments in the index.
 
 Default: 500
+
+useCompoundFile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Controls whether Lucene writes small segment files as a compound file (``.cfs``). When enabled (default),
+segments below the ``noCFSRatio``/``maxCFSSegmentSizeMB`` thresholds are bundled into a single compound
+file, reducing open-file-handle pressure at the cost of some write overhead.
+Set to ``false`` to disable compound files entirely (requires index restart to take effect).
+
+Default: true

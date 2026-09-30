@@ -73,6 +73,7 @@ import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -1744,5 +1745,109 @@ public class ImmutableIndexStateTest {
                     UInt64Value.newBuilder().setValue(customValue).build())
                 .build());
     assertEquals(customValue, iwc.getMaxFullFlushMergeWaitMillis());
+  }
+
+  private IndexWriterConfig getWriterConfigForLiveSettings(IndexLiveSettings liveSettings)
+      throws IOException {
+    ImmutableIndexState indexState = getIndexState(getStateWithLiveSettings(liveSettings));
+    Directory mockDirectory = mock(Directory.class);
+    when(mockDirectory.listAll()).thenReturn(new String[0]);
+    return indexState.getIndexWriterConfig(OpenMode.CREATE_OR_APPEND, mockDirectory, 0);
+  }
+
+  @Test
+  public void testUseCompoundFile_default() throws IOException {
+    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
+    assertTrue(iwc.getUseCompoundFile());
+    assertEquals(
+        ImmutableIndexState.DEFAULT_USE_COMPOUND_FILE,
+        getIndexState(getEmptyState()).getUseCompoundFile());
+  }
+
+  @Test
+  public void testUseCompoundFile_set() throws IOException {
+    IndexWriterConfig iwc =
+        getWriterConfigForSettings(
+            IndexSettings.newBuilder()
+                .setUseCompoundFile(BoolValue.newBuilder().setValue(false).build())
+                .build());
+    assertFalse(iwc.getUseCompoundFile());
+  }
+
+  @Test
+  public void testNoCFSRatio_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_NO_CFS_RATIO,
+        getIndexState(getEmptyState()).getNoCFSRatio(),
+        0.0);
+  }
+
+  @Test
+  public void testNoCFSRatio_set() throws IOException {
+    verifyDoubleLiveSetting(
+        0.5, ImmutableIndexState::getNoCFSRatio, b -> b.setNoCFSRatio(wrap(0.5)));
+    verifyDoubleLiveSetting(
+        0.0, ImmutableIndexState::getNoCFSRatio, b -> b.setNoCFSRatio(wrap(0.0)));
+  }
+
+  @Test
+  public void testNoCFSRatio_invalid() throws IOException {
+    String expectedMsg = "noCFSRatio must be between 0.0 and 1.0";
+    assertLiveSettingException(expectedMsg, b -> b.setNoCFSRatio(wrap(-0.1)));
+    assertLiveSettingException(expectedMsg, b -> b.setNoCFSRatio(wrap(1.1)));
+  }
+
+  @Test
+  public void testNoCFSRatio_inWriterConfig() throws IOException {
+    // Default applied
+    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
+    TieredMergePolicy mp = (TieredMergePolicy) iwc.getMergePolicy();
+    assertEquals(ImmutableIndexState.DEFAULT_NO_CFS_RATIO, mp.getNoCFSRatio(), 0.0);
+
+    // Custom value applied
+    iwc =
+        getWriterConfigForLiveSettings(
+            IndexLiveSettings.newBuilder().setNoCFSRatio(wrap(0.3)).build());
+    mp = (TieredMergePolicy) iwc.getMergePolicy();
+    assertEquals(0.3, mp.getNoCFSRatio(), 0.0);
+  }
+
+  @Test
+  public void testMaxCFSSegmentSizeMB_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_MAX_CFS_SEGMENT_SIZE_MB,
+        getIndexState(getEmptyState()).getMaxCFSSegmentSizeMB(),
+        0.0);
+  }
+
+  @Test
+  public void testMaxCFSSegmentSizeMB_set() throws IOException {
+    verifyDoubleLiveSetting(
+        512.0,
+        ImmutableIndexState::getMaxCFSSegmentSizeMB,
+        b -> b.setMaxCFSSegmentSizeMB(wrap(512.0)));
+    verifyDoubleLiveSetting(
+        0.0, ImmutableIndexState::getMaxCFSSegmentSizeMB, b -> b.setMaxCFSSegmentSizeMB(wrap(0.0)));
+  }
+
+  @Test
+  public void testMaxCFSSegmentSizeMB_invalid() throws IOException {
+    String expectedMsg = "maxCFSSegmentSizeMB must be >= 0.0";
+    assertLiveSettingException(expectedMsg, b -> b.setMaxCFSSegmentSizeMB(wrap(-1.0)));
+  }
+
+  @Test
+  public void testMaxCFSSegmentSizeMB_inWriterConfig() throws IOException {
+    // Default (0.0 = unlimited): Lucene's own default applies
+    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
+    TieredMergePolicy mp = (TieredMergePolicy) iwc.getMergePolicy();
+    assertTrue(mp.getMaxCFSSegmentSizeMB() > 1_000_000.0);
+
+    // Custom value applied
+    iwc =
+        getWriterConfigForLiveSettings(
+            IndexLiveSettings.newBuilder().setMaxCFSSegmentSizeMB(wrap(256.0)).build());
+    mp = (TieredMergePolicy) iwc.getMergePolicy();
+    assertEquals(256.0, mp.getMaxCFSSegmentSizeMB(), 0.001);
   }
 }

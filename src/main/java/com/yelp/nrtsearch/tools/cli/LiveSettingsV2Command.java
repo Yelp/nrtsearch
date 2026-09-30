@@ -97,6 +97,18 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private Double deletePctAllowed;
 
   @CommandLine.Option(
+      names = {"--noCFSRatio"},
+      description =
+          "Fraction of total merged index size below which a merged segment will use CFS. 0.0 disables CFS; 1.0 (default) always uses CFS. Range: [0.0, 1.0]")
+  private Double noCFSRatio;
+
+  @CommandLine.Option(
+      names = {"--maxCFSSegmentSizeMB"},
+      description =
+          "Maximum size in MB for a merged segment to be written as CFS. 0 means unlimited (default). Only applies when noCFSRatio > 0.")
+  private Double maxCFSSegmentSizeMB;
+
+  @CommandLine.Option(
       names = {"--defaultSearchTimeoutSec"},
       description = "Search timeout to use when not provided by the request")
   private Double defaultSearchTimeoutSec;
@@ -193,6 +205,14 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (deletePctAllowed != null) {
         liveSettingsBuilder.setDeletePctAllowed(
             DoubleValue.newBuilder().setValue(deletePctAllowed).build());
+      }
+      if (noCFSRatio != null) {
+        liveSettingsBuilder.setNoCFSRatio(
+            DoubleValue.newBuilder().setValue(noCFSRatio).build());
+      }
+      if (maxCFSSegmentSizeMB != null) {
+        liveSettingsBuilder.setMaxCFSSegmentSizeMB(
+            DoubleValue.newBuilder().setValue(maxCFSSegmentSizeMB).build());
       }
       if (defaultSearchTimeoutSec != null) {
         liveSettingsBuilder.setDefaultSearchTimeoutSec(

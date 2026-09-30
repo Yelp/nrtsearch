@@ -159,3 +159,27 @@ When using parallelism to fetch field values, this setting determines the maximu
 Must be > 0
 
 Default: 50
+
+noCFSRatio
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fraction of the total merged index size below which a newly merged segment will be written as a
+compound file (``.cfs``). ``1.0`` means all merged segments use CFS; ``0.0`` disables CFS in the
+merge policy (segments are always written as individual files). Only meaningful when
+``useCompoundFile`` is ``true``.
+
+Must be between 0.0 and 1.0.
+
+Default: 1.0
+
+maxCFSSegmentSizeMB
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Maximum size in MB for a merged segment to be written as a compound file. Segments larger than this
+value skip CFS even when the ``noCFSRatio`` threshold would otherwise allow it. ``0`` means no size
+limit (all segments that pass the ratio check use CFS). Only meaningful when ``useCompoundFile`` is
+``true`` and ``noCFSRatio`` > 0.
+
+Must be >= 0.0.
+
+Default: 0.0 (unlimited)
