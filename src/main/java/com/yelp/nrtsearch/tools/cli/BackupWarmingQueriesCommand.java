@@ -68,8 +68,10 @@ public class BackupWarmingQueriesCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.backupWarmingQueries(
-          getIndex(), getServiceName(), getNumQueriesThreshold(), getUptimeMinutesThreshold());
+      CliUtils.printMessage(
+          client.backupWarmingQueries(
+              getIndex(), getServiceName(), getNumQueriesThreshold(), getUptimeMinutesThreshold()),
+          baseCmd.isJson());
     } finally {
       client.shutdown();
     }

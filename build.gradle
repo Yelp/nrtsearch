@@ -121,6 +121,8 @@ task luceneServerClient(type: CreateStartScripts) {
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
+    // Log to stderr so command output on stdout can be piped/redirected
+    defaultJvmOpts = ['-Dlog4j2.configurationFile=classpath:log4j2-cli.yaml']
 }
 
 task nrtsearchServer(type: CreateStartScripts) {
@@ -137,6 +139,8 @@ task nrtsearchServerClient(type: CreateStartScripts) {
     applicationName = 'nrtsearch_client'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
+    // Log to stderr so command output on stdout can be piped/redirected
+    defaultJvmOpts = ['-Dlog4j2.configurationFile=classpath:log4j2-cli.yaml']
 }
 
 task nrtUtils(type: CreateStartScripts) {
