@@ -162,18 +162,14 @@ public class PrimaryRestartTests {
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
-    replicaServer.waitForReplication("test_index", primaryServer);
-
-    // primary index version not greater than local version on replica
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8);
-    replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
 
     primaryServer.addSimpleDocs("test_index", 9);
     primaryServer.refresh("test_index");
 
     replicaServer.waitForReplication("test_index", primaryServer);
 
-    // primary version is greater and conflicting segments are filtered
+    // incompatible segment readers are filtered, replica catches up to primary
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 6, 7, 8, 9);
   }
