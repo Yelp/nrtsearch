@@ -194,6 +194,9 @@ public class TestServer {
           }
         });
     createdServers.clear();
+    // Reset S3 bucket between tests so committed index state from one test doesn't bleed into the
+    // next.
+    resetS3Bucket();
   }
 
   public static void cleanupAll() {
