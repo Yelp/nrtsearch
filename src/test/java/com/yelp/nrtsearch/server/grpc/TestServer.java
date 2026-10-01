@@ -157,7 +157,7 @@ public class TestServer {
           // After Phase 1 the HTTP layer is up but the storage actor may not have finished
           // registering its routes yet.
           S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-          for (int bucketAttempt = 0; bucketAttempt < 30; bucketAttempt++) {
+          for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
             try {
               probeS3.createBucket(
                   CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
