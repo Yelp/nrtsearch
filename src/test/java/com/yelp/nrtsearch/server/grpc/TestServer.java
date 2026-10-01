@@ -351,25 +351,41 @@ public class TestServer {
       writeDiscoveryFile(replicationServer.getPort());
     }
 
-    // Brief pause between the two forPort(0) bindings. Without this, the OS can
-    // recycle the replication server's just-assigned port for the main server,
-    // causing gRPC channels to route to the wrong service (UNIMPLEMENTED errors).
-    try {
-      Thread.sleep(50);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
-
     NrtsearchMonitoringServerInterceptor monitoringInterceptor =
         NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
-    server =
-        ServerBuilder.forPort(configuration.getPort())
-            .addService(
-                ServerInterceptors.intercept(
-                    serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
-            .build()
-            .start();
+    // On macOS/BSD, SO_REUSEADDR allows a second socket to bind to a port already in LISTEN
+    // state. Two rapid forPort(0) calls can therefore land on the same port, causing the OS
+    // to load-balance connections between the replication server (ReplicationServerImpl) and
+    // the main server (LuceneServerImpl). When the client's channel is routed to the
+    // replication server, createIndex gets UNIMPLEMENTED. Detect and retry until the main
+    // server is assigned a distinct port.
+    for (int attempt = 0; attempt < 10; attempt++) {
+      if (server != null) {
+        server.shutdown();
+        try {
+          server.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+        server = null;
+      }
+      try {
+        Thread.sleep(50);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      server =
+          ServerBuilder.forPort(configuration.getPort())
+              .addService(
+                  ServerInterceptors.intercept(
+                      serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
+              .build()
+              .start();
+      if (server.getPort() != replicationServer.getPort()) {
+        break;
+      }
+    }
     client = new NrtsearchClient("localhost", server.getPort());
     replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }
