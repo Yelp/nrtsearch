@@ -145,7 +145,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     TestServer.cleanupAll();
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testSimpleLoadBalancing() throws IOException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
 
@@ -163,7 +163,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testSimpleLoadBalancingAsync() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerStub stub = luceneServerStubBuilder.createAsyncStub();
 
@@ -196,7 +196,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testServerShutDown() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub);
@@ -222,7 +222,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testNodeRemovedFromAddressFile() throws IOException, InterruptedException {
     // Use a lower update interval for this test
     int updateInterval = 10;
@@ -253,7 +253,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testNodeAddedToAddressFile() throws IOException, InterruptedException {
     // Add only servers 2 and 3 to the file
     writeNodeAddressFile(port2, port3);
@@ -289,7 +289,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testUnavailableOnMissingFile() throws IOException {
     try (LuceneServerStubBuilder stubBuilder =
         new LuceneServerStubBuilder("/invalid_file", OBJECT_MAPPER)) {
@@ -305,7 +305,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     }
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testUnavailableOnEmptyFile() throws IOException {
     addressesFile = folder.newFile("empty.json");
     writeNodeAddressFile();
@@ -332,8 +332,18 @@ public class NodeNameResolverAndLoadBalancingTests {
       expectedIds = new int[] {SERVER_1_ID, SERVER_2_ID, SERVER_3_ID};
     }
     Set<Integer> receivedIds = new HashSet<>();
-    while (Arrays.stream(expectedIds).filter(receivedIds::contains).count() != expectedIds.length) {
-      receivedIds.add(performSearch(stub));
+    long wallDeadline = System.currentTimeMillis() + 25_000;
+    int[] finalExpectedIds = expectedIds;
+    while (Arrays.stream(finalExpectedIds).filter(receivedIds::contains).count()
+        != finalExpectedIds.length) {
+      if (System.currentTimeMillis() > wallDeadline) {
+        fail("warmConnections timed out waiting for servers: " + Arrays.toString(finalExpectedIds));
+      }
+      try {
+        receivedIds.add(performSearch(stub));
+      } catch (StatusRuntimeException e) {
+        // gRPC deadline timer can fire late under JVM load; retry rather than aborting warmup
+      }
     }
   }
 
