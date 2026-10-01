@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -39,6 +40,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -61,6 +65,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
   private static final int DEFAULT_TOP_HITS = 3;
 
   private final Map<String, LookupState> lookupStates;
+  private final Executor searchExecutor;
 
   /** Check if a FieldDef is an allowed exact-key join field type. */
   static boolean isAllowedJoinFieldType(FieldDef fd) {
@@ -109,8 +114,9 @@ public class CrossIndexLookupManager implements AutoCloseable {
     }
   }
 
-  private CrossIndexLookupManager(Map<String, LookupState> lookupStates) {
+  private CrossIndexLookupManager(Map<String, LookupState> lookupStates, Executor searchExecutor) {
     this.lookupStates = lookupStates;
+    this.searchExecutor = searchExecutor;
   }
 
   /**
@@ -298,7 +304,7 @@ public class CrossIndexLookupManager implements AutoCloseable {
               v.fieldsToRead()));
     }
 
-    return new CrossIndexLookupManager(states);
+    return new CrossIndexLookupManager(states, globalState.getSearchExecutor());
   }
 
   /**
@@ -352,17 +358,17 @@ public class CrossIndexLookupManager implements AutoCloseable {
       return;
     }
 
+    // Phase 1: Collect join keys from primary hits for each lookup (sequential, fast)
+    List<PreparedLookup> prepared = new ArrayList<>();
     for (LookupState state : lookupStates.values()) {
       if (state.fieldsToRead.isEmpty()) {
         continue;
       }
 
-      // Step 1: Collect join keys from primary hits
       Map<Integer, String> docIdToJoinKey = new HashMap<>();
       Set<String> joinKeys = new HashSet<>();
       collectJoinKeys(hits, primarySearcher, state, docIdToJoinKey, joinKeys);
 
-      // Check max_keys guard
       int maxKeys = state.config.getMaxKeys();
       if (maxKeys > 0 && joinKeys.size() > maxKeys) {
         throw new IllegalStateException(
@@ -374,14 +380,66 @@ public class CrossIndexLookupManager implements AutoCloseable {
                 + maxKeys);
       }
 
-      // Step 2: Scan secondary index to find matching docs and read fields
       int topHits = state.config.getTopHits() > 0 ? state.config.getTopHits() : DEFAULT_TOP_HITS;
-      state.materializedResults = searchSecondaryIndex(state, joinKeys, topHits);
+      prepared.add(new PreparedLookup(state, docIdToJoinKey, joinKeys, topHits));
+    }
 
-      // Step 3: Populate SharedDocContext for expose_to_scripts
-      if (!state.config.getExposeToScriptsList().isEmpty()) {
-        populateSharedDocContext(hits, state, docIdToJoinKey, sharedDocContext);
+    // Phase 2: Search secondary indices
+    if (prepared.size() == 1) {
+      // Single lookup: search directly, no parallelization overhead
+      PreparedLookup p = prepared.get(0);
+      p.state.materializedResults = searchSecondaryIndex(p.state, p.joinKeys, p.topHits);
+    } else if (prepared.size() > 1) {
+      // Multiple lookups: search in parallel when an executor is available
+      if (searchExecutor != null) {
+        searchSecondaryIndicesParallel(prepared, searchExecutor);
+      } else {
+        for (PreparedLookup p : prepared) {
+          p.state.materializedResults = searchSecondaryIndex(p.state, p.joinKeys, p.topHits);
+        }
       }
+    }
+
+    // Phase 3: Populate SharedDocContext sequentially (inner map is not thread-safe)
+    for (PreparedLookup p : prepared) {
+      if (!p.state.config.getExposeToScriptsList().isEmpty()) {
+        populateSharedDocContext(hits, p.state, p.docIdToJoinKey, sharedDocContext);
+      }
+    }
+  }
+
+  /** Intermediate state between join key collection and secondary search. */
+  private record PreparedLookup(
+      LookupState state, Map<Integer, String> docIdToJoinKey, Set<String> joinKeys, int topHits) {}
+
+  /** Search multiple secondary indices concurrently using the provided executor. */
+  private void searchSecondaryIndicesParallel(List<PreparedLookup> prepared, Executor executor)
+      throws IOException {
+    List<CompletableFuture<Void>> futures = new ArrayList<>(prepared.size());
+    for (PreparedLookup p : prepared) {
+      futures.add(
+          CompletableFuture.runAsync(
+              () -> {
+                try {
+                  p.state.materializedResults =
+                      searchSecondaryIndex(p.state, p.joinKeys, p.topHits);
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+              },
+              executor));
+    }
+    try {
+      CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+    } catch (CompletionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof UncheckedIOException uio) {
+        throw uio.getCause();
+      }
+      if (cause instanceof RuntimeException re) {
+        throw re;
+      }
+      throw new IOException("Parallel cross-index search failed", cause);
     }
   }
 
