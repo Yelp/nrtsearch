@@ -38,6 +38,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -47,10 +51,27 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 public class GetRemoteStateCommandTest {
 
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+
+  @BeforeClass
+  public static void setUpS3() throws Exception {
+    TestServer.initS3(s3Folder);
+  }
+
+  @Before
+  public void resetBucket() {
+    TestServer.resetS3Bucket();
+  }
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
@@ -82,7 +103,6 @@ public class GetRemoteStateCommandTest {
 
   @Test
   public void testGetGlobalStateNotExists() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     File stateFile = Paths.get(folder.getRoot().getPath(), "state_file.json").toFile();
 
@@ -98,7 +118,6 @@ public class GetRemoteStateCommandTest {
 
   @Test
   public void testGetIndexStateNotExists() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     File stateFile = Paths.get(folder.getRoot().getPath(), "state_file.json").toFile();
 

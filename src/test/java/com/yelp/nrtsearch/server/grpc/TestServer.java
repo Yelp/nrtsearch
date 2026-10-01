@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -193,6 +194,43 @@ public class TestServer {
             Thread.currentThread().interrupt();
             break;
           }
+        }
+      }
+    }
+  }
+
+  /**
+   * Deletes all objects from TEST_BUCKET and recreates it. Call from @Before to give each test
+   * a clean bucket without restarting S3Mock.
+   */
+  public static void resetS3Bucket() {
+    if (S3_ENDPOINT == null) return;
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    try {
+      List<ObjectIdentifier> objects =
+          s3.listObjectsV2(r -> r.bucket(TEST_BUCKET)).contents().stream()
+              .map(o -> ObjectIdentifier.builder().key(o.key()).build())
+              .collect(Collectors.toList());
+      if (!objects.isEmpty()) {
+        s3.deleteObjects(r -> r.bucket(TEST_BUCKET).delete(d -> d.objects(objects)));
+      }
+    } catch (Exception ignored) {
+    }
+    try {
+      s3.deleteBucket(r -> r.bucket(TEST_BUCKET));
+    } catch (Exception ignored) {
+    }
+    for (int attempt = 0; attempt < 10; attempt++) {
+      try {
+        s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+        return;
+      } catch (Exception e) {
+        if (attempt == 9) {
+          throw new RuntimeException("Failed to recreate S3 test bucket", e);
+        }
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException ignored) {
         }
       }
     }

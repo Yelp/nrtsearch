@@ -137,6 +137,11 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder.close();
     luceneServerStubBuilder.waitUntilClosed(100, TimeUnit.MILLISECONDS);
     luceneServerStubBuilder = null;
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
