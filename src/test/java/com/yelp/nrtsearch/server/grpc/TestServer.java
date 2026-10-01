@@ -253,16 +253,16 @@ public class TestServer {
       s3.deleteBucket(r -> r.bucket(TEST_BUCKET));
     } catch (Exception ignored) {
     }
-    for (int attempt = 0; attempt < 10; attempt++) {
+    for (int attempt = 0; attempt < 30; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         return;
       } catch (Exception e) {
-        if (attempt == 9) {
+        if (attempt == 29) {
           throw new RuntimeException("Failed to recreate S3 test bucket", e);
         }
         try {
-          Thread.sleep(100);
+          Thread.sleep(200);
         } catch (InterruptedException ignored) {
         }
       }
@@ -304,7 +304,7 @@ public class TestServer {
     // HeadBucket is not implemented in S3Mock 0.2.6. Use listBuckets() to distinguish
     // "not ready" (listBuckets also fails) from "already exists" (listBuckets succeeds).
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 10; attempt++) {
+    for (int attempt = 0; attempt < 30; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
