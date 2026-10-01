@@ -91,9 +91,20 @@ public class AmazonS3Provider extends ExternalResource {
   protected void before() throws Throwable {
     temporaryFolder.create();
     s3Path = temporaryFolder.newFolder("s3").toString();
-    int port = PortUtils.findAvailablePort();
-    api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
-    api.start();
+    // Retry S3Mock startup: PortUtils.findAvailablePort() has a TOCTOU race —
+    // the port is free when we check but may be taken by the time Akka binds it.
+    int port = -1;
+    for (int startAttempt = 0; startAttempt < 5; startAttempt++) {
+      port = PortUtils.findAvailablePort();
+      api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
+      try {
+        api.start();
+        break;
+      } catch (Exception e) {
+        api = null;
+        if (startAttempt == 4) throw e;
+      }
+    }
     // Wait until S3Mock's HTTP server is ready to respond to requests. A TCP
     // connection succeeding is not enough — Akka HTTP routing may not be set up
     // yet. We send a real HTTP GET with short timeouts and retry until we get
