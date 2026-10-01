@@ -239,6 +239,9 @@ public class TestServer {
   public static void resetS3Bucket() {
     if (S3_ENDPOINT == null) return;
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    // Only delete objects — do NOT delete/recreate the bucket. Deleting and recreating
+    // the bucket causes S3Mock to transiently return 404 on the next createBucket call
+    // under JVM load, which cascades into failures across all subsequent test classes.
     try {
       List<ObjectIdentifier> objects =
           s3.listObjectsV2(r -> r.bucket(TEST_BUCKET)).contents().stream()
@@ -248,24 +251,6 @@ public class TestServer {
         s3.deleteObjects(r -> r.bucket(TEST_BUCKET).delete(d -> d.objects(objects)));
       }
     } catch (Exception ignored) {
-    }
-    try {
-      s3.deleteBucket(r -> r.bucket(TEST_BUCKET));
-    } catch (Exception ignored) {
-    }
-    for (int attempt = 0; attempt < 30; attempt++) {
-      try {
-        s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
-        return;
-      } catch (Exception e) {
-        if (attempt == 29) {
-          throw new RuntimeException("Failed to recreate S3 test bucket", e);
-        }
-        try {
-          Thread.sleep(200);
-        } catch (InterruptedException ignored) {
-        }
-      }
     }
   }
 
