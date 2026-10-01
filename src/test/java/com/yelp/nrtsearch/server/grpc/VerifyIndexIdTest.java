@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -37,6 +38,11 @@ public class VerifyIndexIdTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 

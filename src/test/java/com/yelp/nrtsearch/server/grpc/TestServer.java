@@ -157,7 +157,7 @@ public class TestServer {
     }
   }
 
-  public static void cleanupAll() {
+  public static void cleanupServers() {
     createdServers.forEach(TestServer::stop);
     createdServers.forEach(
         s -> {
@@ -170,6 +170,10 @@ public class TestServer {
           }
         });
     createdServers.clear();
+  }
+
+  public static void cleanupAll() {
+    cleanupServers();
     if (api != null) {
       int shutdownPort = S3_ENDPOINT != null ? Integer.parseInt(S3_ENDPOINT.split(":")[2]) : -1;
       api.shutdown();

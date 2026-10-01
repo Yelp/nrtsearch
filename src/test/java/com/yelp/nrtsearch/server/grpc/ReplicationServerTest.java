@@ -25,6 +25,7 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Iterator;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,6 +50,11 @@ public class ReplicationServerTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
