@@ -200,8 +200,8 @@ public class TestServer {
   }
 
   /**
-   * Deletes all objects from TEST_BUCKET and recreates it. Call from @Before to give each test
-   * a clean bucket without restarting S3Mock.
+   * Deletes all objects from TEST_BUCKET and recreates it. Call from @Before to give each test a
+   * clean bucket without restarting S3Mock.
    */
   public static void resetS3Bucket() {
     if (S3_ENDPOINT == null) return;
