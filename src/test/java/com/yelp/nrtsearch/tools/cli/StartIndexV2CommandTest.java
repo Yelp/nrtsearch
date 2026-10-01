@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import java.io.IOException;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -34,6 +35,11 @@ public class StartIndexV2CommandTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
