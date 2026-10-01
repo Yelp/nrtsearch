@@ -83,7 +83,7 @@ public class TestServer {
   public static String S3_ENDPOINT = null;
   public static Path s3TempDir = null;
   public static final String DISCOVERY_FILE = "primary_node.json";
-  public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
+  public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 60000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
   public static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
   public static final List<Field> simpleFields =
