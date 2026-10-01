@@ -48,7 +48,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -334,16 +339,38 @@ public class NodeNameResolverAndLoadBalancingTests {
     Set<Integer> receivedIds = new HashSet<>();
     long wallDeadline = System.currentTimeMillis() + 25_000;
     int[] finalExpectedIds = expectedIds;
-    while (Arrays.stream(finalExpectedIds).filter(receivedIds::contains).count()
-        != finalExpectedIds.length) {
-      if (System.currentTimeMillis() > wallDeadline) {
-        fail("warmConnections timed out waiting for servers: " + Arrays.toString(finalExpectedIds));
+    // Use a single-thread executor to run each search call so we can force-cancel it if gRPC's
+    // deadline timer fires late (common under high JVM thread load during the test suite).
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      while (Arrays.stream(finalExpectedIds).filter(receivedIds::contains).count()
+          != finalExpectedIds.length) {
+        if (System.currentTimeMillis() > wallDeadline) {
+          fail(
+              "warmConnections timed out waiting for servers: "
+                  + Arrays.toString(finalExpectedIds));
+        }
+        Future<Integer> future = executor.submit(() -> performSearch(stub));
+        try {
+          receivedIds.add(future.get(5, TimeUnit.SECONDS));
+        } catch (TimeoutException e) {
+          // gRPC deadline didn't fire in time; cancel and retry to let the load balancer catch up
+          future.cancel(true);
+          try {
+            Thread.sleep(50);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            fail("warmConnections interrupted");
+          }
+        } catch (ExecutionException e) {
+          // StatusRuntimeException from performSearch; retry
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          fail("warmConnections interrupted");
+        }
       }
-      try {
-        receivedIds.add(performSearch(stub));
-      } catch (StatusRuntimeException e) {
-        // gRPC deadline timer can fire late under JVM load; retry rather than aborting warmup
-      }
+    } finally {
+      executor.shutdownNow();
     }
   }
 
