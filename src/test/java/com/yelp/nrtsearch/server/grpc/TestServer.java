@@ -71,7 +71,6 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
@@ -151,10 +150,14 @@ public class TestServer {
           // After Phase 1 the HTTP layer is up but the storage actor may not have finished
           // registering its routes yet. With a properly-sized Akka thread pool this
           // completes in under a second; 60s is a generous upper bound.
+          // Use a separate probe bucket — FileProvider.createBucket throws
+          // FileAlreadyExistsException (→ 500) for duplicate names, so we must not use
+          // TEST_BUCKET here or createRemoteBackend() can never create it fresh.
           S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
           for (int bucketAttempt = 0; bucketAttempt < 60; bucketAttempt++) {
             try {
-              probeS3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+              probeS3.createBucket(
+                  CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
               break;
             } catch (Exception ignored) {
               // createBucket failed — S3Mock not yet ready
@@ -284,9 +287,10 @@ public class TestServer {
 
   private RemoteBackend createRemoteBackend() throws IOException {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    // S3Mock returns 500 for both "not ready" and "bucket already exists". After each
-    // createBucket failure we probe headBucket: success means the bucket already exists
-    // (created by initS3's readiness probe) so we proceed; failure means retry.
+    // S3Mock 0.2.6 FileProvider.createBucket uses createDirectory(), which throws
+    // FileAlreadyExistsException (wrapped as 500) when the bucket already exists.
+    // HeadBucket is not implemented in S3Mock 0.2.6. Use listBuckets() to distinguish
+    // "not ready" (listBuckets also fails) from "already exists" (listBuckets succeeds).
     Exception lastBucketException = null;
     for (int attempt = 0; attempt < 10; attempt++) {
       try {
@@ -295,9 +299,12 @@ public class TestServer {
         break;
       } catch (Exception e) {
         try {
-          s3.headBucket(HeadBucketRequest.builder().bucket(TEST_BUCKET).build());
-          lastBucketException = null;
-          break;
+          boolean exists =
+              s3.listBuckets().buckets().stream().anyMatch(b -> b.name().equals(TEST_BUCKET));
+          if (exists) {
+            lastBucketException = null;
+            break;
+          }
         } catch (Exception ignored) {
         }
         lastBucketException = e;
