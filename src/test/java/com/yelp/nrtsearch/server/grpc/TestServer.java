@@ -289,7 +289,7 @@ public class TestServer {
     // HeadBucket is not implemented in S3Mock 0.2.6. Use listBuckets() to distinguish
     // "not ready" (listBuckets also fails) from "already exists" (listBuckets succeeds).
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 30; attempt++) {
+    for (int attempt = 0; attempt < 100; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
