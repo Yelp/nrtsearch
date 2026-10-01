@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
@@ -266,18 +267,27 @@ public class TestServer {
 
   private RemoteBackend createRemoteBackend() throws IOException {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    // Retry createBucket: even after the HTTP probe, the PUT handler may not
-    // be registered in Akka's routing tree immediately.
+    // On a cold JVM, S3Mock's Akka actor system can take several minutes to fully
+    // initialize its bucket-creation routes. Retry for up to 5 minutes total.
+    // S3Mock returns 500 for both "not ready" and "bucket already exists", so after
+    // each createBucket failure we probe headBucket: success means the bucket is
+    // already there and we can proceed; failure means S3Mock is genuinely not ready.
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 10; attempt++) {
+    for (int attempt = 0; attempt < 300; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
         break;
       } catch (Exception e) {
+        try {
+          s3.headBucket(HeadBucketRequest.builder().bucket(TEST_BUCKET).build());
+          lastBucketException = null;
+          break;
+        } catch (Exception ignored) {
+        }
         lastBucketException = e;
         try {
-          Thread.sleep(200);
+          Thread.sleep(1000);
         } catch (InterruptedException ie) {
           Thread.currentThread().interrupt();
           throw new IOException("Interrupted waiting for S3Mock bucket creation", ie);
