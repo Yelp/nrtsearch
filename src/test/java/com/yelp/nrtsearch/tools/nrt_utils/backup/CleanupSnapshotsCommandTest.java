@@ -156,10 +156,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getMetadataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    return TestServer.s3TempDir
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(BackupCommandUtils.SNAPSHOT_DIR)
@@ -168,10 +165,7 @@ public class CleanupSnapshotsCommandTest {
   }
 
   private Path getIndexSnapshotDataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    return TestServer.s3TempDir
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(BackupCommandUtils.SNAPSHOT_DIR)

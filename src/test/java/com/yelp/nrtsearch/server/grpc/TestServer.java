@@ -57,6 +57,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -80,6 +81,7 @@ public class TestServer {
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static String S3_ENDPOINT = null;
+  public static Path s3TempDir = null;
   public static final String DISCOVERY_FILE = "primary_node.json";
   public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
@@ -121,7 +123,12 @@ public class TestServer {
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
-      Path s3Directory = folder.newFolder("s3").toPath();
+      // Use an independent temp dir (not the per-test @Rule folder) so that
+      // S3Mock's FileProvider storage survives across multiple tests in the same
+      // class.  The per-test folder is deleted by @Rule after each test, which
+      // was silently breaking S3Mock for every test after the first.
+      s3TempDir = Files.createTempDirectory("nrtsearch-s3mock-");
+      Path s3Directory = s3TempDir;
       for (int attempt = 0; attempt < 5; attempt++) {
         int port = PortUtils.findAvailablePort();
         S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
@@ -148,25 +155,20 @@ public class TestServer {
           }
           // Phase 2: wait for the bucket-creation route to be registered.
           // After Phase 1 the HTTP layer is up but the storage actor may not have finished
-          // registering its routes yet. With a properly-sized Akka thread pool this
-          // completes in under a second; 60s is a generous upper bound.
-          // Use a separate probe bucket — FileProvider.createBucket throws
-          // FileAlreadyExistsException (→ 500) for duplicate names, so we must not use
-          // TEST_BUCKET here or createRemoteBackend() can never create it fresh.
+          // registering its routes yet.
           S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-          for (int bucketAttempt = 0; bucketAttempt < 60; bucketAttempt++) {
+          for (int bucketAttempt = 0; bucketAttempt < 30; bucketAttempt++) {
             try {
               probeS3.createBucket(
                   CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
               break;
-            } catch (Exception ignored) {
-              // createBucket failed — S3Mock not yet ready
-            }
-            try {
-              Thread.sleep(1000);
-            } catch (InterruptedException ie) {
-              Thread.currentThread().interrupt();
-              break;
+            } catch (Exception e) {
+              try {
+                Thread.sleep(200);
+              } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+              }
             }
           }
           return;
@@ -216,6 +218,13 @@ public class TestServer {
             break;
           }
         }
+      }
+      if (s3TempDir != null) {
+        try {
+          FileUtils.deleteAllFiles(s3TempDir);
+        } catch (IOException ignored) {
+        }
+        s3TempDir = null;
       }
     }
   }
