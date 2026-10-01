@@ -151,15 +151,14 @@ public class TestServer {
           // Verify bucket creation is ready. The HTTP probe only confirms Akka's
           // HTTP server is up; the PUT/bucket route registers asynchronously and
           // may not be live yet — especially on the first cold-JVM startup.
+          // Use TEST_BUCKET directly so createRemoteBackend() finds it already
+          // exists (idempotent) instead of racing against Akka's route init.
+          // Do NOT delete it here: deleteBucket corrupts S3Mock's internal state,
+          // causing all subsequent createBucket calls to return 500.
           S3Client readinessS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-          for (int i = 0; i < 60; i++) {
+          for (int i = 0; i < 150; i++) {
             try {
-              readinessS3.createBucket(
-                  CreateBucketRequest.builder().bucket("readiness-check").build());
-              try {
-                readinessS3.deleteBucket(b -> b.bucket("readiness-check"));
-              } catch (Exception ignored) {
-              }
+              readinessS3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
               break;
             } catch (Exception e) {
               Thread.sleep(100);
