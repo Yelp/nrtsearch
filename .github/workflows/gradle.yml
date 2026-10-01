@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: ['21']
+        java: ['21', '25']
     name: Java ${{ matrix.Java }} build
     steps:
     - name: Checkout
@@ -34,9 +34,9 @@ jobs:
         ref: ${{ inputs.badge_branch }}
         path: badges
     - name: Setup java
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v4
       with:
-        distribution: 'adopt'
+        distribution: 'corretto'
         java-version: ${{ matrix.java }}
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
