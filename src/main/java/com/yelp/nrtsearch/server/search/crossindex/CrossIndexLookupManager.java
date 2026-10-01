@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -41,6 +42,7 @@ import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TopDocs;
@@ -427,17 +429,16 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
   /**
    * Search the secondary index for docs matching join keys, reading field values inline during
-   * collection. Per-key results are capped at topHits, and collection terminates early once all
-   * keys are saturated.
+   * collection. Per-key results are capped at topHits, and collection terminates early per-slice
+   * once all keys are saturated. Uses CollectorManager to leverage parallel segment search when the
+   * searcher has an executor.
    */
   private Map<String, List<Map<String, CompositeFieldValue>>> searchSecondaryIndex(
       LookupState state, Set<String> joinKeys, int topHits) throws IOException {
-    Map<String, List<Map<String, CompositeFieldValue>>> results = new HashMap<>();
     if (joinKeys.isEmpty()) {
-      return results;
+      return new HashMap<>();
     }
 
-    IndexableFieldDef<?> secondaryFieldDef = state.secondaryFieldDef;
     TermQueryable termQueryable = (TermQueryable) state.secondaryFieldDef;
 
     // Build type-safe query via the field's TermQueryable implementation
@@ -446,71 +447,118 @@ public class CrossIndexLookupManager implements AutoCloseable {
 
     // Prepare field def list for inline reading in collector
     List<Map.Entry<String, FieldDef>> fieldEntries = new ArrayList<>(state.fieldsToRead.entrySet());
-
-    // Collect matching docs, read fields inline, cap per key, and terminate early when saturated
     int totalKeys = joinKeys.size();
-    state
+
+    // Use CollectorManager for parallel segment search
+    return state
         .searcher
         .searcher()
         .search(
             query,
-            new SimpleCollector() {
-              int docBase;
-              LoadedDocValues<?> joinDV;
-              // Doc values for each retrieve/expose field, loaded once per segment
-              final LoadedDocValues<?>[] fieldDVs = new LoadedDocValues<?>[fieldEntries.size()];
-              int saturatedKeys = 0;
-
+            new CollectorManager<
+                InlineFieldCollector, Map<String, List<Map<String, CompositeFieldValue>>>>() {
               @Override
-              protected void doSetNextReader(LeafReaderContext context) throws IOException {
-                docBase = context.docBase;
-                joinDV = secondaryFieldDef.getDocValues(context);
-                for (int i = 0; i < fieldEntries.size(); i++) {
-                  IndexableFieldDef<?> fd = (IndexableFieldDef<?>) fieldEntries.get(i).getValue();
-                  fieldDVs[i] = fd.getDocValues(context);
-                }
+              public InlineFieldCollector newCollector() {
+                return new InlineFieldCollector(
+                    state.secondaryFieldDef, fieldEntries, topHits, totalKeys);
               }
 
               @Override
-              public void collect(int doc) throws IOException {
-                joinDV.setDocId(doc);
-                if (joinDV.size() == 0) return;
-                String key = toCanonicalKey(joinDV.toFieldValue(0));
-
-                List<Map<String, CompositeFieldValue>> keyResults =
-                    results.computeIfAbsent(key, k -> new ArrayList<>());
-                if (keyResults.size() >= topHits) {
-                  return;
-                }
-
-                // Read all requested fields inline while DV is warm for this segment
-                Map<String, CompositeFieldValue> fieldValues = new LinkedHashMap<>();
-                for (int i = 0; i < fieldEntries.size(); i++) {
-                  fieldDVs[i].setDocId(doc);
-                  CompositeFieldValue.Builder cfv = CompositeFieldValue.newBuilder();
-                  for (int j = 0; j < fieldDVs[i].size(); j++) {
-                    cfv.addFieldValue(fieldDVs[i].toFieldValue(j));
-                  }
-                  fieldValues.put(fieldEntries.get(i).getKey(), cfv.build());
-                }
-                keyResults.add(fieldValues);
-
-                // Early termination: stop once all keys have reached topHits
-                if (keyResults.size() == topHits) {
-                  saturatedKeys++;
-                  if (saturatedKeys == totalKeys) {
-                    throw new CollectionTerminatedException();
+              public Map<String, List<Map<String, CompositeFieldValue>>> reduce(
+                  Collection<InlineFieldCollector> collectors) {
+                Map<String, List<Map<String, CompositeFieldValue>>> merged = new HashMap<>();
+                for (InlineFieldCollector collector : collectors) {
+                  for (Map.Entry<String, List<Map<String, CompositeFieldValue>>> entry :
+                      collector.localResults.entrySet()) {
+                    List<Map<String, CompositeFieldValue>> existing =
+                        merged.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+                    for (Map<String, CompositeFieldValue> hit : entry.getValue()) {
+                      if (existing.size() < topHits) {
+                        existing.add(hit);
+                      }
+                    }
                   }
                 }
-              }
-
-              @Override
-              public org.apache.lucene.search.ScoreMode scoreMode() {
-                return org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+                return merged;
               }
             });
+  }
 
-    return results;
+  /**
+   * Collector that reads join field and retrieve/expose field doc values inline during collection.
+   * Each instance maintains its own local results map, making it safe for parallel use across
+   * segments.
+   */
+  private static class InlineFieldCollector extends SimpleCollector {
+    private final IndexableFieldDef<?> secondaryFieldDef;
+    private final List<Map.Entry<String, FieldDef>> fieldEntries;
+    private final int topHits;
+    private final int totalKeys;
+
+    final Map<String, List<Map<String, CompositeFieldValue>>> localResults = new HashMap<>();
+
+    private LoadedDocValues<?> joinDV;
+    private final LoadedDocValues<?>[] fieldDVs;
+    private int saturatedKeys = 0;
+
+    InlineFieldCollector(
+        IndexableFieldDef<?> secondaryFieldDef,
+        List<Map.Entry<String, FieldDef>> fieldEntries,
+        int topHits,
+        int totalKeys) {
+      this.secondaryFieldDef = secondaryFieldDef;
+      this.fieldEntries = fieldEntries;
+      this.topHits = topHits;
+      this.totalKeys = totalKeys;
+      this.fieldDVs = new LoadedDocValues<?>[fieldEntries.size()];
+    }
+
+    @Override
+    protected void doSetNextReader(LeafReaderContext context) throws IOException {
+      joinDV = secondaryFieldDef.getDocValues(context);
+      for (int i = 0; i < fieldEntries.size(); i++) {
+        IndexableFieldDef<?> fd = (IndexableFieldDef<?>) fieldEntries.get(i).getValue();
+        fieldDVs[i] = fd.getDocValues(context);
+      }
+    }
+
+    @Override
+    public void collect(int doc) throws IOException {
+      joinDV.setDocId(doc);
+      if (joinDV.size() == 0) return;
+      String key = toCanonicalKey(joinDV.toFieldValue(0));
+
+      List<Map<String, CompositeFieldValue>> keyResults =
+          localResults.computeIfAbsent(key, k -> new ArrayList<>());
+      if (keyResults.size() >= topHits) {
+        return;
+      }
+
+      // Read all requested fields inline while DV is warm for this segment
+      Map<String, CompositeFieldValue> fieldValues = new LinkedHashMap<>();
+      for (int i = 0; i < fieldEntries.size(); i++) {
+        fieldDVs[i].setDocId(doc);
+        CompositeFieldValue.Builder cfv = CompositeFieldValue.newBuilder();
+        for (int j = 0; j < fieldDVs[i].size(); j++) {
+          cfv.addFieldValue(fieldDVs[i].toFieldValue(j));
+        }
+        fieldValues.put(fieldEntries.get(i).getKey(), cfv.build());
+      }
+      keyResults.add(fieldValues);
+
+      // Early termination per slice: stop once all keys have reached topHits
+      if (keyResults.size() == topHits) {
+        saturatedKeys++;
+        if (saturatedKeys == totalKeys) {
+          throw new CollectionTerminatedException();
+        }
+      }
+    }
+
+    @Override
+    public org.apache.lucene.search.ScoreMode scoreMode() {
+      return org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+    }
   }
 
   /** Convert a FieldValue to a canonical string key for join key matching. */
