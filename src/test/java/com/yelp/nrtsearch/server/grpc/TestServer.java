@@ -130,9 +130,7 @@ public class TestServer {
           mock.start();
           api = mock;
           S3_ENDPOINT = "http://127.0.0.1:" + port;
-          // Wait until S3Mock's HTTP routing is live — any HTTP response proves it.
-          // Extended to 100 attempts (10s max) to handle slower Akka initialization
-          // after a previous S3Mock was shut down in the same JVM run.
+          // Phase 1: wait for Akka's HTTP layer to accept any connection.
           for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
             try {
               HttpURLConnection conn =
@@ -147,6 +145,25 @@ public class TestServer {
               }
             } catch (IOException ignored) {
               Thread.sleep(100);
+            }
+          }
+          // Phase 2: wait for the bucket-creation route to be registered.
+          // After Phase 1 the HTTP layer is up but the storage actor may not have finished
+          // registering its routes yet. With a properly-sized Akka thread pool this
+          // completes in under a second; 60s is a generous upper bound.
+          S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+          for (int bucketAttempt = 0; bucketAttempt < 60; bucketAttempt++) {
+            try {
+              probeS3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
+              break;
+            } catch (Exception ignored) {
+              // createBucket failed — S3Mock not yet ready
+            }
+            try {
+              Thread.sleep(1000);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              break;
             }
           }
           return;
@@ -267,13 +284,11 @@ public class TestServer {
 
   private RemoteBackend createRemoteBackend() throws IOException {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    // On a cold JVM, S3Mock's Akka actor system can take several minutes to fully
-    // initialize its bucket-creation routes. Retry for up to 5 minutes total.
-    // S3Mock returns 500 for both "not ready" and "bucket already exists", so after
-    // each createBucket failure we probe headBucket: success means the bucket is
-    // already there and we can proceed; failure means S3Mock is genuinely not ready.
+    // S3Mock returns 500 for both "not ready" and "bucket already exists". After each
+    // createBucket failure we probe headBucket: success means the bucket already exists
+    // (created by initS3's readiness probe) so we proceed; failure means retry.
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 300; attempt++) {
+    for (int attempt = 0; attempt < 10; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
@@ -287,7 +302,7 @@ public class TestServer {
         }
         lastBucketException = e;
         try {
-          Thread.sleep(1000);
+          Thread.sleep(200);
         } catch (InterruptedException ie) {
           Thread.currentThread().interrupt();
           throw new IOException("Interrupted waiting for S3Mock bucket creation", ie);
