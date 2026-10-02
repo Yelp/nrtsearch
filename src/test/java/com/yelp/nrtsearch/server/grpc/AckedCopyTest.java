@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -37,6 +38,11 @@ public class AckedCopyTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 

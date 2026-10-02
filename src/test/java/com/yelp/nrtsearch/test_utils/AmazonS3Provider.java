@@ -53,6 +53,9 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
  */
 public class AmazonS3Provider extends ExternalResource {
 
+  /** Holds a successfully started S3Mock instance and its base endpoint URL. */
+  public record StartedMock(S3Mock api, String endpoint) {}
+
   private final String bucketName;
   private final TemporaryFolder temporaryFolder;
   private S3Mock api;
@@ -60,6 +63,93 @@ public class AmazonS3Provider extends ExternalResource {
   private S3AsyncClient s3Async;
   private S3TransferManager transferManager;
   private String s3Path;
+
+  /**
+   * Starts an S3Mock instance with two-phase readiness probing and restart-on-failure.
+   *
+   * <p>Handles two failure modes:
+   *
+   * <ol>
+   *   <li>BindException — {@link PortUtils#findAvailablePort()} TOCTOU race; retries on a new port.
+   *   <li>Phase 2 exhaustion — Akka accepts connections (Phase 1 ok) but its PUT routing never
+   *       becomes functional; shuts down the stuck instance and starts fresh.
+   * </ol>
+   *
+   * @param s3Path file-backend directory for S3Mock
+   * @return a {@link StartedMock} with the running instance and its endpoint URL
+   * @throws IOException if all 5 startup attempts fail
+   */
+  public static StartedMock startS3Mock(String s3Path) throws IOException {
+    Exception lastException = null;
+    for (int attempt = 0; attempt < 5; attempt++) {
+      int port = PortUtils.findAvailablePort();
+      S3Mock mockApi = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
+      try {
+        mockApi.start();
+      } catch (Exception e) {
+        lastException = e;
+        continue;
+      }
+      String endpoint = String.format("http://127.0.0.1:%d", port);
+      // Phase 1: wait for Akka's HTTP layer to accept any connection.
+      for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
+        try {
+          HttpURLConnection conn = (HttpURLConnection) new URL(endpoint + "/").openConnection();
+          conn.setConnectTimeout(500);
+          conn.setReadTimeout(500);
+          try {
+            conn.getResponseCode();
+            break;
+          } finally {
+            conn.disconnect();
+          }
+        } catch (IOException ignored) {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+          }
+        }
+      }
+      // Phase 2: wait for the bucket-creation route to be registered.
+      // Per-attempt probe bucket name avoids stale-state 500s if s3Path is reused across
+      // attempts (each attempt's partial directory is left in place after shutdown).
+      S3Client probeS3 = createTestS3Client(endpoint);
+      String probeBucket = "s3mock-readiness-probe-" + attempt;
+      boolean phase2Ok = false;
+      for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
+        try {
+          probeS3.createBucket(CreateBucketRequest.builder().bucket(probeBucket).build());
+          phase2Ok = true;
+          break;
+        } catch (Exception e) {
+          lastException = e;
+          try {
+            Thread.sleep(200);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            break;
+          }
+        }
+      }
+      if (phase2Ok) {
+        return new StartedMock(mockApi, endpoint);
+      }
+      // Phase 2 exhausted: shut down the stuck instance, wait for port release, retry.
+      mockApi.shutdown();
+      for (int i = 0; i < 30; i++) {
+        try (java.net.Socket sock = new java.net.Socket("127.0.0.1", port)) {
+          Thread.sleep(100);
+        } catch (IOException e) {
+          break;
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    }
+    throw new IOException("Failed to start S3Mock after 5 attempts", lastException);
+  }
 
   public static S3Client createTestS3Client(String endpoint) {
     return S3Client.builder()
@@ -91,45 +181,12 @@ public class AmazonS3Provider extends ExternalResource {
   protected void before() throws Throwable {
     temporaryFolder.create();
     s3Path = temporaryFolder.newFolder("s3").toString();
-    int port = PortUtils.findAvailablePort();
-    api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
-    api.start();
-    // Wait until S3Mock's HTTP server is ready to respond to requests. A TCP
-    // connection succeeding is not enough — Akka HTTP routing may not be set up
-    // yet. We send a real HTTP GET with short timeouts and retry until we get
-    // any HTTP response (even 404), which proves the routing is live.
-    String endpoint = String.format("http://127.0.0.1:%d", port);
-    for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
-      try {
-        HttpURLConnection conn = (HttpURLConnection) new URL(endpoint + "/").openConnection();
-        conn.setConnectTimeout(500);
-        conn.setReadTimeout(500);
-        try {
-          conn.getResponseCode();
-          break; // got a response — server is live
-        } finally {
-          conn.disconnect();
-        }
-      } catch (IOException ignored) {
-        Thread.sleep(100);
-      }
-    }
-    s3 = createTestS3Client(endpoint);
-    s3Async = createTestS3AsyncClient(endpoint);
+    StartedMock sm = startS3Mock(s3Path);
+    api = sm.api();
+    s3 = createTestS3Client(sm.endpoint());
+    s3Async = createTestS3AsyncClient(sm.endpoint());
     transferManager = S3TransferManager.builder().s3Client(s3Async).build();
-    // Retry createBucket: even after the HTTP probe succeeds, the PUT handler
-    // for bucket creation may not be registered yet in Akka's routing tree.
-    Exception lastException = null;
-    for (int attempt = 0; attempt < 10; attempt++) {
-      try {
-        s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-        return;
-      } catch (Exception e) {
-        lastException = e;
-        Thread.sleep(200);
-      }
-    }
-    throw lastException;
+    s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
   }
 
   @Override

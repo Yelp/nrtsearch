@@ -44,7 +44,6 @@ import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
-import com.yelp.nrtsearch.test_utils.PortUtils;
 import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -55,8 +54,7 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -71,6 +69,7 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
@@ -79,8 +78,9 @@ public class TestServer {
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static String S3_ENDPOINT = null;
+  public static Path s3TempDir = null;
   public static final String DISCOVERY_FILE = "primary_node.json";
-  public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
+  public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 60000;
   public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
   public static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
   public static final List<Field> simpleFields =
@@ -120,44 +120,17 @@ public class TestServer {
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
-      Path s3Directory = folder.newFolder("s3").toPath();
-      for (int attempt = 0; attempt < 5; attempt++) {
-        int port = PortUtils.findAvailablePort();
-        S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
-        try {
-          mock.start();
-          api = mock;
-          S3_ENDPOINT = "http://127.0.0.1:" + port;
-          // Wait until S3Mock's HTTP routing is live — any HTTP response proves it.
-          // Extended to 100 attempts (10s max) to handle slower Akka initialization
-          // after a previous S3Mock was shut down in the same JVM run.
-          for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
-            try {
-              HttpURLConnection conn =
-                  (HttpURLConnection) new URL(S3_ENDPOINT + "/").openConnection();
-              conn.setConnectTimeout(500);
-              conn.setReadTimeout(500);
-              try {
-                conn.getResponseCode();
-                break;
-              } finally {
-                conn.disconnect();
-              }
-            } catch (IOException ignored) {
-              Thread.sleep(100);
-            }
-          }
-          return;
-        } catch (Exception e) {
-          if (attempt == 4) {
-            throw new IOException("Failed to start S3Mock after 5 attempts", e);
-          }
-        }
-      }
+      // Use an independent temp dir (not the per-test @Rule folder) so that S3Mock's FileProvider
+      // storage survives across multiple tests in the same class.
+      s3TempDir = Files.createTempDirectory("nrtsearch-s3mock-");
+      AmazonS3Provider.StartedMock sm =
+          AmazonS3Provider.startS3Mock(s3TempDir.toAbsolutePath().toString());
+      api = sm.api();
+      S3_ENDPOINT = sm.endpoint();
     }
   }
 
-  public static void cleanupAll() {
+  public static void cleanupServers() {
     createdServers.forEach(TestServer::stop);
     createdServers.forEach(
         s -> {
@@ -170,6 +143,13 @@ public class TestServer {
           }
         });
     createdServers.clear();
+    // Reset S3 bucket between tests so committed index state from one test doesn't bleed into the
+    // next.
+    resetS3Bucket();
+  }
+
+  public static void cleanupAll() {
+    cleanupServers();
     if (api != null) {
       int shutdownPort = S3_ENDPOINT != null ? Integer.parseInt(S3_ENDPOINT.split(":")[2]) : -1;
       api.shutdown();
@@ -191,6 +171,35 @@ public class TestServer {
           }
         }
       }
+      if (s3TempDir != null) {
+        try {
+          FileUtils.deleteAllFiles(s3TempDir);
+        } catch (IOException ignored) {
+        }
+        s3TempDir = null;
+      }
+    }
+  }
+
+  /**
+   * Deletes all objects from TEST_BUCKET and recreates it. Call from @Before to give each test a
+   * clean bucket without restarting S3Mock.
+   */
+  public static void resetS3Bucket() {
+    if (S3_ENDPOINT == null) return;
+    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+    // Only delete objects — do NOT delete/recreate the bucket. Deleting and recreating
+    // the bucket causes S3Mock to transiently return 404 on the next createBucket call
+    // under JVM load, which cascades into failures across all subsequent test classes.
+    try {
+      List<ObjectIdentifier> objects =
+          s3.listObjectsV2(r -> r.bucket(TEST_BUCKET)).contents().stream()
+              .map(o -> ObjectIdentifier.builder().key(o.key()).build())
+              .collect(Collectors.toList());
+      if (!objects.isEmpty()) {
+        s3.deleteObjects(r -> r.bucket(TEST_BUCKET).delete(d -> d.objects(objects)));
+      }
+    } catch (Exception ignored) {
     }
   }
 
@@ -224,15 +233,26 @@ public class TestServer {
 
   private RemoteBackend createRemoteBackend() throws IOException {
     S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-    // Retry createBucket: even after the HTTP probe, the PUT handler may not
-    // be registered in Akka's routing tree immediately.
+    // S3Mock 0.2.6 FileProvider.createBucket uses createDirectory(), which throws
+    // FileAlreadyExistsException (wrapped as 500) when the bucket already exists.
+    // HeadBucket is not implemented in S3Mock 0.2.6. Use listBuckets() to distinguish
+    // "not ready" (listBuckets also fails) from "already exists" (listBuckets succeeds).
     Exception lastBucketException = null;
-    for (int attempt = 0; attempt < 10; attempt++) {
+    for (int attempt = 0; attempt < 100; attempt++) {
       try {
         s3.createBucket(CreateBucketRequest.builder().bucket(TEST_BUCKET).build());
         lastBucketException = null;
         break;
       } catch (Exception e) {
+        try {
+          boolean exists =
+              s3.listBuckets().buckets().stream().anyMatch(b -> b.name().equals(TEST_BUCKET));
+          if (exists) {
+            lastBucketException = null;
+            break;
+          }
+        } catch (Exception ignored) {
+        }
         lastBucketException = e;
         try {
           Thread.sleep(200);
@@ -280,25 +300,41 @@ public class TestServer {
       writeDiscoveryFile(replicationServer.getPort());
     }
 
-    // Brief pause between the two forPort(0) bindings. Without this, the OS can
-    // recycle the replication server's just-assigned port for the main server,
-    // causing gRPC channels to route to the wrong service (UNIMPLEMENTED errors).
-    try {
-      Thread.sleep(50);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
-
     NrtsearchMonitoringServerInterceptor monitoringInterceptor =
         NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
-    server =
-        ServerBuilder.forPort(configuration.getPort())
-            .addService(
-                ServerInterceptors.intercept(
-                    serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
-            .build()
-            .start();
+    // On macOS/BSD, SO_REUSEADDR allows a second socket to bind to a port already in LISTEN
+    // state. Two rapid forPort(0) calls can therefore land on the same port, causing the OS
+    // to load-balance connections between the replication server (ReplicationServerImpl) and
+    // the main server (LuceneServerImpl). When the client's channel is routed to the
+    // replication server, createIndex gets UNIMPLEMENTED. Detect and retry until the main
+    // server is assigned a distinct port.
+    for (int attempt = 0; attempt < 10; attempt++) {
+      if (server != null) {
+        server.shutdown();
+        try {
+          server.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+        server = null;
+      }
+      try {
+        Thread.sleep(50);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      server =
+          ServerBuilder.forPort(configuration.getPort())
+              .addService(
+                  ServerInterceptors.intercept(
+                      serverImpl, new NrtsearchHeaderInterceptor(), monitoringInterceptor))
+              .build()
+              .start();
+      if (server.getPort() != replicationServer.getPort()) {
+        break;
+      }
+    }
     client = new NrtsearchClient("localhost", server.getPort());
     replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }

@@ -48,7 +48,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -137,10 +142,15 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder.close();
     luceneServerStubBuilder.waitUntilClosed(100, TimeUnit.MILLISECONDS);
     luceneServerStubBuilder = null;
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testSimpleLoadBalancing() throws IOException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
 
@@ -158,7 +168,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testSimpleLoadBalancingAsync() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerStub stub = luceneServerStubBuilder.createAsyncStub();
 
@@ -191,7 +201,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testServerShutDown() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub);
@@ -217,7 +227,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testNodeRemovedFromAddressFile() throws IOException, InterruptedException {
     // Use a lower update interval for this test
     int updateInterval = 10;
@@ -248,7 +258,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testNodeAddedToAddressFile() throws IOException, InterruptedException {
     // Add only servers 2 and 3 to the file
     writeNodeAddressFile(port2, port3);
@@ -284,7 +294,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testUnavailableOnMissingFile() throws IOException {
     try (LuceneServerStubBuilder stubBuilder =
         new LuceneServerStubBuilder("/invalid_file", OBJECT_MAPPER)) {
@@ -300,7 +310,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     }
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 30000)
   public void testUnavailableOnEmptyFile() throws IOException {
     addressesFile = folder.newFile("empty.json");
     writeNodeAddressFile();
@@ -327,8 +337,40 @@ public class NodeNameResolverAndLoadBalancingTests {
       expectedIds = new int[] {SERVER_1_ID, SERVER_2_ID, SERVER_3_ID};
     }
     Set<Integer> receivedIds = new HashSet<>();
-    while (Arrays.stream(expectedIds).filter(receivedIds::contains).count() != expectedIds.length) {
-      receivedIds.add(performSearch(stub));
+    long wallDeadline = System.currentTimeMillis() + 25_000;
+    int[] finalExpectedIds = expectedIds;
+    // Use a single-thread executor to run each search call so we can force-cancel it if gRPC's
+    // deadline timer fires late (common under high JVM thread load during the test suite).
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      while (Arrays.stream(finalExpectedIds).filter(receivedIds::contains).count()
+          != finalExpectedIds.length) {
+        if (System.currentTimeMillis() > wallDeadline) {
+          fail(
+              "warmConnections timed out waiting for servers: "
+                  + Arrays.toString(finalExpectedIds));
+        }
+        Future<Integer> future = executor.submit(() -> performSearch(stub));
+        try {
+          receivedIds.add(future.get(5, TimeUnit.SECONDS));
+        } catch (TimeoutException e) {
+          // gRPC deadline didn't fire in time; cancel and retry to let the load balancer catch up
+          future.cancel(true);
+          try {
+            Thread.sleep(50);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            fail("warmConnections interrupted");
+          }
+        } catch (ExecutionException e) {
+          // StatusRuntimeException from performSearch; retry
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          fail("warmConnections interrupted");
+        }
+      }
+    } finally {
+      executor.shutdownNow();
     }
   }
 

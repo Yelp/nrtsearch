@@ -34,7 +34,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -45,12 +48,19 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class ListResourceVersionsTest {
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   final PrintStream originalOut = System.out;
   final PrintStream originalErr = System.err;
   final ByteArrayOutputStream out = new ByteArrayOutputStream();
   final ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+  @BeforeClass
+  public static void setUpS3() throws Exception {
+    TestServer.initS3(s3Folder);
+  }
 
   @Before
   public void setUpStreams() {
@@ -60,10 +70,20 @@ public class ListResourceVersionsTest {
     System.setErr(new PrintStream(err));
   }
 
+  @Before
+  public void resetBucket() {
+    TestServer.resetS3Bucket();
+  }
+
   @After
   public void cleanup() {
     System.setOut(originalOut);
     System.setErr(originalErr);
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
@@ -96,7 +116,6 @@ public class ListResourceVersionsTest {
 
   @Test
   public void testListResourceVersions() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     String prefix =
         S3Backend.getIndexResourcePrefix(
@@ -131,7 +150,6 @@ public class ListResourceVersionsTest {
 
   @Test
   public void testListResourceVersions_versionPrefix() throws IOException, InterruptedException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     String prefix =
         S3Backend.getIndexResourcePrefix(
@@ -170,7 +188,6 @@ public class ListResourceVersionsTest {
 
   @Test
   public void testListResourceVersions_unexpectedFormat() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     String prefix =
         S3Backend.getIndexResourcePrefix(
@@ -205,7 +222,6 @@ public class ListResourceVersionsTest {
 
   @Test
   public void testListResourceNoVersions() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
