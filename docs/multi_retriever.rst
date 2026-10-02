@@ -149,7 +149,7 @@ A custom blending strategy provided by a plugin::
 Minimum Score
 ^^^^^^^^^^^^^
 
-Any blender except ``scorelessRawMerge`` accepts an optional ``minScore`` threshold on the blended score. Hits whose blended score falls below the threshold are dropped before sorting and pagination, so ``startHit`` offsets into the filtered ranking and ``totalHits`` reports the number of hits that passed. The threshold is inclusive by default; set ``minExcluded`` to also drop hits scoring exactly ``minScore``. The fields follow the same convention as ``MultiFunctionScoreQuery``.
+Any blender except ``scorelessRawMerge`` accepts an optional ``minScore`` threshold on the blended score. When set, hits whose blended score is below the threshold are dropped before sorting and pagination, so ``startHit`` offsets into the filtered ranking and ``totalHits`` reports the number of hits that passed. The threshold is inclusive: a hit scoring exactly ``minScore`` is kept, so an explicit ``minScore`` of ``0`` keeps hits that legitimately score ``0`` (for example from a boolean query with only ``FILTER`` clauses).
 
 ::
 
@@ -157,9 +157,10 @@ Any blender except ``scorelessRawMerge`` accepts an optional ``minScore`` thresh
       "weightedScoreOrder": {
         "scoreMode": "MAX"
       },
-      "minScore": 0.7,
-      "minExcluded": false
+      "minScore": 0.7
     }
+
+``minScore`` filters the ranked hits produced by the blender. It does not affect facet counts or collector results, which are computed over the full union query; when facets or collectors are requested, ``totalHits`` likewise reflects the union match count rather than the filtered hit count.
 
 With RRF the blended score is rank-derived, so a threshold is mostly useful to require presence in more than one retriever: a doc found by a single retriever scores at most ``1 / (rankConstant + 1)``, while a doc found by two retrievers always scores above that. ``minScore`` must be non-negative, and is rejected for ``scorelessRawMerge`` because every hit there scores 0.
 

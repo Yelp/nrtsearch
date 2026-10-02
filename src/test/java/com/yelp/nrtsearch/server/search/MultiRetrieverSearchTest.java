@@ -24,6 +24,8 @@ import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.Blender;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
+import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -64,6 +66,9 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   private static final double SCORE_DELTA = 1e-5;
   // Max RRF score a doc can get from a single retriever with k=60: 1/(60+1)
   private static final double RRF_RANK1_K60 = 1.0 / 61.0;
+
+  /** Above any single-retriever RRF score (max 1/61) and below any two-retriever score. */
+  private static final float RRF_TWO_RETRIEVER_MIN_SCORE = 0.02f;
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
@@ -142,6 +147,19 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
         .setBlender(
             Blender.newBuilder()
                 .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                .build())
+        .build();
+  }
+
+  /** Text (10 hits) + KNN (k=5) with WeightedRRF at rankConstant=60 and the given min_score. */
+  private MultiRetrieverRequest twoRetrieverRrfWithMinScore(float minScore) {
+    return MultiRetrieverRequest.newBuilder()
+        .addRetrievers(textRetriever(10))
+        .addRetrievers(knnRetriever(5))
+        .setBlender(
+            Blender.newBuilder()
+                .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60).build())
+                .setMinScore(minScore)
                 .build())
         .build();
   }
@@ -285,7 +303,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                     .setBlender(
                         Blender.newBuilder()
                             .setScorelessRawMerge(ScorelessRawMergeBlender.newBuilder().build())
-                            .setMinExcluded(true)
+                            .setMinScore(0f)
                             .build())
                     .build())
             .build(),
@@ -560,30 +578,19 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   }
 
   /**
-   * Text (10 hits) + KNN (k=5) under RRF. Docs in both retrievers score above 1/(60+1); text-only
-   * docs score at most 1/(60+1). An exclusive min_score at exactly 1/(60+1) keeps only the 5 docs
-   * present in both retrievers, and totalHits reflects the filtered count.
+   * Text (10 hits) + KNN (k=5) under RRF. Docs in both retrievers score at least 1/70 + 1/65
+   * (~0.0297); text-only docs score at most 1/61 (~0.0164). A min_score of 0.02 keeps only the 5
+   * docs present in both retrievers, and totalHits reflects the filtered count.
    */
   @Test
-  public void testMinScoreExclusiveKeepsOnlyMultiRetrieverHits() {
+  public void testMinScoreKeepsOnlyMultiRetrieverHits() {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
             .search(
                 baseRequest()
                     .setTopHits(10)
-                    .setMultiRetriever(
-                        MultiRetrieverRequest.newBuilder()
-                            .addRetrievers(textRetriever(10))
-                            .addRetrievers(knnRetriever(5))
-                            .setBlender(
-                                Blender.newBuilder()
-                                    .setWeightedRrf(
-                                        WeightedRrfBlender.newBuilder().setRankConstant(60))
-                                    .setMinScore((float) RRF_RANK1_K60)
-                                    .setMinExcluded(true)
-                                    .build())
-                            .build())
+                    .setMultiRetriever(twoRetrieverRrfWithMinScore(RRF_TWO_RETRIEVER_MIN_SCORE))
                     .build());
 
     assertEquals(5, response.getHitsCount());
@@ -606,18 +613,7 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                 baseRequest()
                     .setStartHit(2)
                     .setTopHits(10)
-                    .setMultiRetriever(
-                        MultiRetrieverRequest.newBuilder()
-                            .addRetrievers(textRetriever(10))
-                            .addRetrievers(knnRetriever(5))
-                            .setBlender(
-                                Blender.newBuilder()
-                                    .setWeightedRrf(
-                                        WeightedRrfBlender.newBuilder().setRankConstant(60))
-                                    .setMinScore((float) RRF_RANK1_K60)
-                                    .setMinExcluded(true)
-                                    .build())
-                            .build())
+                    .setMultiRetriever(twoRetrieverRrfWithMinScore(RRF_TWO_RETRIEVER_MIN_SCORE))
                     .build());
 
     assertEquals(3, response.getHitsCount());
@@ -626,12 +622,85 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
   }
 
   /**
-   * KNN-only WeightedScoreOrder MAX gives every hit a blended score of exactly 1.0. A min_score of
-   * 1.0 keeps all 5 hits when inclusive and drops all of them when excluded.
+   * min_score filters only the ranked hits. Facets run over the full union query, so counts still
+   * cover all 10 docs, and totalHits reflects the aggregation pass rather than the filtered hits.
    */
   @Test
-  public void testMinScoreInclusiveVsExclusiveBoundary() {
-    for (boolean minExcluded : new boolean[] {false, true}) {
+  public void testMinScoreDoesNotAffectFacets() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(twoRetrieverRrfWithMinScore(RRF_TWO_RETRIEVER_MIN_SCORE))
+                    .addFacets(categoryFacet(5))
+                    .build());
+
+    assertEquals(5, response.getHitsCount());
+    assertEquals(1, response.getFacetResultCount());
+    assertEquals(2, response.getFacetResult(0).getLabelValuesCount());
+    assertEquals(5, response.getFacetResult(0).getLabelValues(0).getValue(), 0);
+    assertEquals(5, response.getFacetResult(0).getLabelValues(1).getValue(), 0);
+    assertEquals(10, response.getTotalHits().getValue());
+  }
+
+  /** A min_score above every blended score drops all hits and reports totalHits = 0. */
+  @Test
+  public void testMinScoreAboveAllScoresDropsAllHits() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(knnRetriever(5))
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
+                                            .build())
+                                    .setMinScore(1.5f)
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(0, response.getHitsCount());
+    assertEquals(0, response.getTotalHits().getValue());
+  }
+
+  /**
+   * A FILTER-only boolean query scores every hit 0. Because min_score is inclusive, an explicit
+   * min_score of 0 keeps all of them, while any positive threshold drops them all.
+   */
+  @Test
+  public void testMinScoreZeroKeepsZeroScoreHits() {
+    Retriever filterOnlyRetriever =
+        Retriever.newBuilder()
+            .setName("filter")
+            .setTextRetriever(
+                TextRetriever.newBuilder()
+                    .setQuery(
+                        Query.newBuilder()
+                            .setBooleanQuery(
+                                BooleanQuery.newBuilder()
+                                    .addClauses(
+                                        BooleanClause.newBuilder()
+                                            .setOccur(BooleanClause.Occur.FILTER)
+                                            .setQuery(
+                                                Query.newBuilder()
+                                                    .setMatchQuery(
+                                                        MatchQuery.newBuilder()
+                                                            .setField("text_field")
+                                                            .setQuery("test")
+                                                            .build())
+                                                    .build()))))
+                    .setTopHits(10)
+                    .build())
+            .build();
+
+    for (float minScore : new float[] {0f, 0.01f}) {
       SearchResponse response =
           getGrpcServer()
               .getBlockingStub()
@@ -639,23 +708,22 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                   baseRequest()
                       .setMultiRetriever(
                           MultiRetrieverRequest.newBuilder()
-                              .addRetrievers(knnRetriever(5))
+                              .addRetrievers(filterOnlyRetriever)
                               .setBlender(
                                   Blender.newBuilder()
                                       .setWeightedScoreOrder(
                                           WeightedScoreOrderBlender.newBuilder()
                                               .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
                                               .build())
-                                      .setMinScore(1.0f)
-                                      .setMinExcluded(minExcluded)
+                                      .setMinScore(minScore)
                                       .build())
                               .build())
                       .build());
 
-      int expected = minExcluded ? 0 : 5;
+      int expected = minScore == 0f ? 10 : 0;
       assertEquals(expected, response.getHitsCount());
       assertEquals(expected, response.getTotalHits().getValue());
-      for (Hit hit : response.getHitsList()) assertEquals(1.0, hit.getScore(), SCORE_DELTA);
+      for (Hit hit : response.getHitsList()) assertEquals(0.0, hit.getScore(), SCORE_DELTA);
     }
   }
 

@@ -795,16 +795,15 @@ public class SearchRequestProcessor {
       throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
     }
     Blender blender = searchRequest.getMultiRetriever().getBlender();
-    if (blender.getMinScore() < 0) {
-      throw new IllegalArgumentException("Blender min_score must be a non-negative number");
-    }
-    // Scoreless raw merge assigns score 0 to every hit, so any effective threshold would drop all
-    // of them. min_score == 0 with min_excluded == false is the no-op default and is allowed.
-    boolean hasMinScoreThreshold = blender.getMinScore() > 0 || blender.getMinExcluded();
-    if (hasMinScoreThreshold
-        && blender.getBlenderTypeCase() == Blender.BlenderTypeCase.SCORELESSRAWMERGE) {
-      throw new IllegalArgumentException(
-          "Blender min_score is not supported with scorelessRawMerge blender");
+    if (blender.hasMinScore()) {
+      if (blender.getMinScore() < 0) {
+        throw new IllegalArgumentException("Blender min_score must be a non-negative number");
+      }
+      // Scoreless raw merge assigns score 0 to every hit, so a threshold is meaningless there.
+      if (blender.getBlenderTypeCase() == Blender.BlenderTypeCase.SCORELESSRAWMERGE) {
+        throw new IllegalArgumentException(
+            "Blender min_score is not supported with scorelessRawMerge blender");
+      }
     }
   }
 

@@ -913,12 +913,11 @@ message Blender {
         PluginBlender plugin = 3;
         ScorelessRawMergeBlender scorelessRawMerge = 4;
     }
-    // Optional minimal blended score to match a document. Hits whose blended score is below this
-    // value are dropped before sorting and pagination, and are not counted in totalHits.
-    // Not supported with scorelessRawMerge, which assigns score 0 to every hit. By default, it's 0.
-    float min_score = 5;
-    // Determine minimal score is excluded or not. By default, it's false.
-    bool min_excluded = 6;
+    // Optional minimal blended score (inclusive) to match a document. When set, hits whose blended
+    // score is below this value are dropped before sorting and pagination, and are not counted in
+    // totalHits. Does not affect facet counts or collector results, which are computed over the
+    // full union query. Not supported with scorelessRawMerge, which assigns score 0 to every hit.
+    optional float min_score = 5;
 }
 
 // Weighted Reciprocal Rank Fusion Blender. Uses retriever boost as weight

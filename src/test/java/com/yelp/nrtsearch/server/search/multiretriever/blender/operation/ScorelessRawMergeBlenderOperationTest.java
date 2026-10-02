@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.search.multiretriever.blender.operation;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -146,7 +147,8 @@ public class ScorelessRawMergeBlenderOperationTest {
     contexts.put("text", retriever("text"));
 
     TopDocs result =
-        new ScorelessRawMergeBlenderOperation().blend(results, contexts, 2, 2, 0f, false);
+        new ScorelessRawMergeBlenderOperation()
+            .blend(results, contexts, 2, 2, BlenderOperation.NO_MIN_SCORE);
 
     // All 5 hits returned despite startHit=2 topHits=2
     assertEquals(5, result.scoreDocs.length);
@@ -163,7 +165,8 @@ public class ScorelessRawMergeBlenderOperationTest {
     contexts.put("knn", retriever("knn"));
 
     TopDocs result =
-        new ScorelessRawMergeBlenderOperation().blend(results, contexts, 0, 10, 0f, false);
+        new ScorelessRawMergeBlenderOperation()
+            .blend(results, contexts, 0, 10, BlenderOperation.NO_MIN_SCORE);
 
     assertEquals(1, result.scoreDocs.length);
     assertEquals(0f, result.scoreDocs[0].score, DELTA);

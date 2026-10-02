@@ -48,6 +48,9 @@ import org.apache.lucene.search.TotalHits;
  */
 public interface BlenderOperation {
 
+  /** {@code minScore} value that disables threshold filtering in {@link #blend}. */
+  float NO_MIN_SCORE = Float.NEGATIVE_INFINITY;
+
   /**
    * Merge per-retriever hits into an unsorted, unpaginated flat list. Implementations deduplicate
    * hits that appear in multiple retrievers and assign each a combined {@link
@@ -71,9 +74,8 @@ public interface BlenderOperation {
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by retriever name
    * @param startHit 0-based offset of the first blended hit to include in the result
    * @param topHits maximum number of blended hits to return; {@code 0} returns empty; must be >= 0
-   * @param minScore minimum blended score a hit must have to be kept; {@code 0} with {@code
-   *     minExcluded == false} keeps every hit
-   * @param minExcluded if {@code true}, a hit scoring exactly {@code minScore} is dropped
+   * @param minScore minimum blended score (inclusive) a hit must have to be kept; {@link
+   *     #NO_MIN_SCORE} keeps every hit
    * @return blended, sorted, paginated {@link TopDocs}
    */
   default TopDocs blend(
@@ -81,28 +83,13 @@ public interface BlenderOperation {
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
       int topHits,
-      float minScore,
-      boolean minExcluded) {
+      float minScore) {
     if (topHits == 0 || startHit > topHits) {
       return new TopDocs(
           new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
     }
     Collection<BlendedScoreDoc> merged = mergeHits(retrieverResults, retrieverContexts);
-    return sortAndPaginate(merged, startHit, topHits, minScore, minExcluded);
-  }
-
-  /**
-   * Whether a blended score passes the minimum score threshold. Mirrors the semantics of {@code
-   * MultiFunctionScoreQuery.min_score} / {@code min_excluded}: scores above the threshold always
-   * pass, a score equal to the threshold passes only when it is not excluded.
-   *
-   * @param score blended score to test
-   * @param minScore minimum score threshold
-   * @param minExcluded whether a score equal to {@code minScore} is excluded
-   * @return true if the score should be kept
-   */
-  static boolean passesMinScore(float score, float minScore, boolean minExcluded) {
-    return score > minScore || (!minExcluded && score == minScore);
+    return sortAndPaginate(merged, startHit, topHits, minScore);
   }
 
   /**
@@ -114,16 +101,12 @@ public interface BlenderOperation {
    * @param merged unsorted merged hits from {@link #mergeHits}
    * @param startHit 0-based offset of the first hit to include in the returned page
    * @param topHits maximum number of hits to return; must be >= 0
-   * @param minScore minimum blended score a hit must have to be kept, see {@link #passesMinScore}
-   * @param minExcluded if {@code true}, a hit scoring exactly {@code minScore} is dropped
+   * @param minScore minimum blended score (inclusive) a hit must have to be kept; {@link
+   *     #NO_MIN_SCORE} keeps every hit
    * @return paginated {@link TopDocs}
    */
   static TopDocs sortAndPaginate(
-      Collection<BlendedScoreDoc> merged,
-      int startHit,
-      int topHits,
-      float minScore,
-      boolean minExcluded) {
+      Collection<BlendedScoreDoc> merged, int startHit, int topHits, float minScore) {
     // Heap capacity is bounded by topHits to avoid materializing docs outside the window.
     int capacity = Math.min(topHits, merged.size());
 
@@ -135,7 +118,7 @@ public interface BlenderOperation {
     // True deduplicated count of hits passing the threshold, for TotalHits reporting.
     int total = 0;
     for (BlendedScoreDoc doc : merged) {
-      if (!passesMinScore(doc.score, minScore, minExcluded)) {
+      if (doc.score < minScore) {
         continue;
       }
       total++;
