@@ -136,8 +136,7 @@ public class AmazonS3Provider extends ExternalResource {
           // Also accept bucket already-existing (500 from FileProvider) as "ready".
           try {
             boolean exists =
-                probeS3.listBuckets().buckets().stream()
-                    .anyMatch(b -> b.name().equals(bucketName));
+                probeS3.listBuckets().buckets().stream().anyMatch(b -> b.name().equals(bucketName));
             if (exists) {
               phase2Ok = true;
               break;
