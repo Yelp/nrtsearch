@@ -103,6 +103,7 @@ import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounter
 import com.yelp.nrtsearch.server.plugins.IngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
+import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.script.ScriptService;
@@ -493,6 +494,7 @@ public class NrtsearchServer {
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
+      FileCompressorCreator.initialize(plugins);
       HighlighterService.initialize(configuration, plugins);
       HitsLoggerCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);

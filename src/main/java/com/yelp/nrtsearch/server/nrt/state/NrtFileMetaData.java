@@ -43,6 +43,8 @@ public class NrtFileMetaData {
   public long checksum;
   public String primaryId;
   public String timeString;
+  public String compressionType;
+  public Long compressedLength;
 
   /**
    * Constructor for NrtFileMetaData.
@@ -92,6 +94,8 @@ public class NrtFileMetaData {
           && checksum == other.checksum
           && Objects.equals(primaryId, other.primaryId)
           && Objects.equals(timeString, other.timeString)
+          && Objects.equals(compressionType, other.compressionType)
+          && Objects.equals(compressedLength, other.compressedLength)
           && Arrays.equals(header, other.header)
           && Arrays.equals(footer, other.footer);
     }
@@ -123,7 +127,17 @@ public class NrtFileMetaData {
       long checksum = node.get("checksum").longValue();
       String pid = node.get("primaryId").textValue();
       String timeString = node.get("timeString").textValue();
-      return new NrtFileMetaData(header, footer, length, checksum, pid, timeString);
+      NrtFileMetaData metadata =
+          new NrtFileMetaData(header, footer, length, checksum, pid, timeString);
+      JsonNode compressionNode = node.get("compressionType");
+      if (compressionNode != null && !compressionNode.isNull()) {
+        metadata.compressionType = compressionNode.textValue();
+      }
+      JsonNode compressedLengthNode = node.get("compressedLength");
+      if (compressedLengthNode != null && !compressedLengthNode.isNull()) {
+        metadata.compressedLength = compressedLengthNode.longValue();
+      }
+      return metadata;
     }
   }
 }
