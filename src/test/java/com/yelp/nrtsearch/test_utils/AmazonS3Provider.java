@@ -91,56 +91,86 @@ public class AmazonS3Provider extends ExternalResource {
   protected void before() throws Throwable {
     temporaryFolder.create();
     s3Path = temporaryFolder.newFolder("s3").toString();
-    // Retry S3Mock startup: PortUtils.findAvailablePort() has a TOCTOU race —
-    // the port is free when we check but may be taken by the time Akka binds it.
-    int port = -1;
-    for (int startAttempt = 0; startAttempt < 5; startAttempt++) {
-      port = PortUtils.findAvailablePort();
-      api = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
-      try {
-        api.start();
-        break;
-      } catch (Exception e) {
-        api = null;
-        if (startAttempt == 4) throw e;
-      }
-    }
-    // Wait until S3Mock's HTTP server is ready to respond to requests. A TCP
-    // connection succeeding is not enough — Akka HTTP routing may not be set up
-    // yet. We send a real HTTP GET with short timeouts and retry until we get
-    // any HTTP response (even 404), which proves the routing is live.
-    String endpoint = String.format("http://127.0.0.1:%d", port);
-    for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
-      try {
-        HttpURLConnection conn = (HttpURLConnection) new URL(endpoint + "/").openConnection();
-        conn.setConnectTimeout(500);
-        conn.setReadTimeout(500);
-        try {
-          conn.getResponseCode();
-          break; // got a response — server is live
-        } finally {
-          conn.disconnect();
-        }
-      } catch (IOException ignored) {
-        Thread.sleep(100);
-      }
-    }
-    s3 = createTestS3Client(endpoint);
-    s3Async = createTestS3AsyncClient(endpoint);
-    transferManager = S3TransferManager.builder().s3Client(s3Async).build();
-    // Retry createBucket: even after the HTTP probe succeeds, the PUT handler
-    // for bucket creation may not be registered yet in Akka's routing tree.
+    // Retry S3Mock startup. Two failure modes handled:
+    // 1. BindException: PortUtils.findAvailablePort() TOCTOU race — try a different port.
+    // 2. Phase 2 exhaustion: Akka accepts connections (Phase 1 ok) but its PUT routing
+    //    never becomes functional — shut down the stuck instance and start a fresh one.
     Exception lastException = null;
-    for (int attempt = 0; attempt < 100; attempt++) {
+    for (int startAttempt = 0; startAttempt < 5; startAttempt++) {
+      int port = PortUtils.findAvailablePort();
+      S3Mock mockApi = new S3Mock.Builder().withPort(port).withFileBackend(s3Path).build();
       try {
-        s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-        return;
+        mockApi.start();
       } catch (Exception e) {
         lastException = e;
-        Thread.sleep(200);
+        continue; // BindException or similar — try a new port
+      }
+      api = mockApi;
+      String endpoint = String.format("http://127.0.0.1:%d", port);
+      // Phase 1: wait for Akka's HTTP layer to accept any connection.
+      for (int readyAttempt = 0; readyAttempt < 50; readyAttempt++) {
+        try {
+          HttpURLConnection conn = (HttpURLConnection) new URL(endpoint + "/").openConnection();
+          conn.setConnectTimeout(500);
+          conn.setReadTimeout(500);
+          try {
+            conn.getResponseCode();
+            break;
+          } finally {
+            conn.disconnect();
+          }
+        } catch (IOException ignored) {
+          Thread.sleep(100);
+        }
+      }
+      // Phase 2: wait for the bucket-creation route to be registered. If it never
+      // responds (Phase 2 exhausts), shut down the stuck instance and retry.
+      S3Client probeS3 = createTestS3Client(endpoint);
+      boolean phase2Ok = false;
+      for (int attempt = 0; attempt < 100; attempt++) {
+        try {
+          probeS3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+          phase2Ok = true;
+          break;
+        } catch (Exception e) {
+          // Also accept bucket already-existing (500 from FileProvider) as "ready".
+          try {
+            boolean exists =
+                probeS3.listBuckets().buckets().stream()
+                    .anyMatch(b -> b.name().equals(bucketName));
+            if (exists) {
+              phase2Ok = true;
+              break;
+            }
+          } catch (Exception ignored) {
+          }
+          lastException = e;
+          Thread.sleep(200);
+        }
+      }
+      if (phase2Ok) {
+        s3 = createTestS3Client(endpoint);
+        s3Async = createTestS3AsyncClient(endpoint);
+        transferManager = S3TransferManager.builder().s3Client(s3Async).build();
+        return;
+      }
+      // Phase 2 exhausted: S3Mock stuck. Shut it down, wait for port release, retry.
+      api.shutdown();
+      api = null;
+      for (int i = 0; i < 30; i++) {
+        try (java.net.Socket sock = new java.net.Socket("127.0.0.1", port)) {
+          Thread.sleep(100);
+        } catch (IOException e) {
+          break; // port released
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
       }
     }
-    throw lastException;
+    throw lastException != null
+        ? lastException
+        : new IOException("Failed to start S3Mock after 5 attempts");
   }
 
   @Override
