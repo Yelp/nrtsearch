@@ -168,12 +168,14 @@ public class TestServer {
         // registering its routes yet. If Phase 2 exhausts all retries the S3Mock is stuck
         // (Akka accepted connections but its routing never became functional) — shut it down
         // and start fresh rather than proceeding with a broken instance.
+        // Use a per-attempt bucket name so that reuse of s3TempDir across attempts doesn't
+        // produce spurious "bucket already exists" errors from a previous attempt's partial state.
         S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+        String probeBucket = "s3mock-readiness-probe-" + attempt;
         boolean phase2Ok = false;
         for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
           try {
-            probeS3.createBucket(
-                CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
+            probeS3.createBucket(CreateBucketRequest.builder().bucket(probeBucket).build());
             phase2Ok = true;
             break;
           } catch (Exception e) {
