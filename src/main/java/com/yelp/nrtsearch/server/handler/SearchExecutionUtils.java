@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
+import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
@@ -268,10 +269,17 @@ public class SearchExecutionUtils {
     retrieverResults.forEach((name, result) -> retrieverTopDocs.put(name, result.topDocs()));
 
     long blendStartTime = System.nanoTime();
+    Blender blender = multiRetrieverContext.getBlender();
     TopDocs blendedHits =
         multiRetrieverContext
             .getBlenderOperation()
-            .blend(retrieverTopDocs, retrieverContexts, 0, blendTopHits);
+            .blend(
+                retrieverTopDocs,
+                retrieverContexts,
+                0,
+                blendTopHits,
+                blender.getMinScore(),
+                blender.getMinExcluded());
     double blenderTimeMs = (System.nanoTime() - blendStartTime) / 1_000_000.0;
 
     // Populate per-retriever diagnostics

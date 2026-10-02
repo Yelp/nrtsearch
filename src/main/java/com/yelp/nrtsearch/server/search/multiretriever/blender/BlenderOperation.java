@@ -37,8 +37,8 @@ import org.apache.lucene.search.TotalHits;
  *   <li>{@link #mergeHits} — implementation-defined: deduplicate across retrievers and assign a
  *       blended {@link BlendedScoreDoc#score}.
  *   <li>{@link #blend} — framework default: calls {@link #mergeHits}, then {@link
- *       #sortAndPaginate}. Implementations may override {@link #blend} to skip sorting/pagination
- *       (e.g. {@link
+ *       #sortAndPaginate}, which also drops hits below the request's minimum blended score.
+ *       Implementations may override {@link #blend} to skip sorting/pagination (e.g. {@link
  *       com.yelp.nrtsearch.server.search.multiretriever.blender.operation.ScorelessRawMergeBlenderOperation}).
  * </ol>
  *
@@ -71,43 +71,74 @@ public interface BlenderOperation {
    * @param retrieverContexts per-retriever contexts in declaration order, keyed by retriever name
    * @param startHit 0-based offset of the first blended hit to include in the result
    * @param topHits maximum number of blended hits to return; {@code 0} returns empty; must be >= 0
+   * @param minScore minimum blended score a hit must have to be kept; {@code 0} with {@code
+   *     minExcluded == false} keeps every hit
+   * @param minExcluded if {@code true}, a hit scoring exactly {@code minScore} is dropped
    * @return blended, sorted, paginated {@link TopDocs}
    */
   default TopDocs blend(
       LinkedHashMap<String, TopDocs> retrieverResults,
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
-      int topHits) {
+      int topHits,
+      float minScore,
+      boolean minExcluded) {
     if (topHits == 0 || startHit > topHits) {
       return new TopDocs(
           new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]);
     }
     Collection<BlendedScoreDoc> merged = mergeHits(retrieverResults, retrieverContexts);
-    return sortAndPaginate(merged, startHit, topHits);
+    return sortAndPaginate(merged, startHit, topHits, minScore, minExcluded);
   }
 
   /**
-   * Selects the top-k window from merged hits in O(n log k) time using a min-heap, then returns
-   * them in descending score order. The heap entries are drained in O(k log k) to produce the final
-   * page without a full sort of all merged hits.
+   * Whether a blended score passes the minimum score threshold. Mirrors the semantics of {@code
+   * MultiFunctionScoreQuery.min_score} / {@code min_excluded}: scores above the threshold always
+   * pass, a score equal to the threshold passes only when it is not excluded.
+   *
+   * @param score blended score to test
+   * @param minScore minimum score threshold
+   * @param minExcluded whether a score equal to {@code minScore} is excluded
+   * @return true if the score should be kept
+   */
+  static boolean passesMinScore(float score, float minScore, boolean minExcluded) {
+    return score > minScore || (!minExcluded && score == minScore);
+  }
+
+  /**
+   * Drops hits below the minimum score, then selects the top-k window from the remaining hits in
+   * O(n log k) time using a min-heap and returns them in descending score order. The heap entries
+   * are drained in O(k log k) to produce the final page without a full sort of all merged hits. The
+   * reported total is the number of hits that passed the threshold.
    *
    * @param merged unsorted merged hits from {@link #mergeHits}
    * @param startHit 0-based offset of the first hit to include in the returned page
    * @param topHits maximum number of hits to return; must be >= 0
+   * @param minScore minimum blended score a hit must have to be kept, see {@link #passesMinScore}
+   * @param minExcluded if {@code true}, a hit scoring exactly {@code minScore} is dropped
    * @return paginated {@link TopDocs}
    */
-  static TopDocs sortAndPaginate(Collection<BlendedScoreDoc> merged, int startHit, int topHits) {
-    int total = merged.size();
+  static TopDocs sortAndPaginate(
+      Collection<BlendedScoreDoc> merged,
+      int startHit,
+      int topHits,
+      float minScore,
+      boolean minExcluded) {
     // Heap capacity is bounded by topHits to avoid materializing docs outside the window.
-    // `total` is preserved as the true deduplicated hit count for TotalHits reporting.
-    int capacity = Math.min(topHits, total);
+    int capacity = Math.min(topHits, merged.size());
 
     // Min-heap of size capacity ordered by score ascending: the root is always the
     // smallest score in the heap, so any incoming doc that beats the root displaces it.
     PriorityQueue<BlendedScoreDoc> heap =
         new PriorityQueue<>(capacity + 1, (a, b) -> Float.compare(a.score, b.score));
 
+    // True deduplicated count of hits passing the threshold, for TotalHits reporting.
+    int total = 0;
     for (BlendedScoreDoc doc : merged) {
+      if (!passesMinScore(doc.score, minScore, minExcluded)) {
+        continue;
+      }
+      total++;
       if (heap.size() < capacity) {
         heap.offer(doc);
       } else if (doc.score > heap.peek().score) {

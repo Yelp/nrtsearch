@@ -145,7 +145,8 @@ public class ScorelessRawMergeBlenderOperationTest {
     LinkedHashMap<String, RetrieverContext> contexts = new LinkedHashMap<>();
     contexts.put("text", retriever("text"));
 
-    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(results, contexts, 2, 2);
+    TopDocs result =
+        new ScorelessRawMergeBlenderOperation().blend(results, contexts, 2, 2, 0f, false);
 
     // All 5 hits returned despite startHit=2 topHits=2
     assertEquals(5, result.scoreDocs.length);
@@ -161,7 +162,8 @@ public class ScorelessRawMergeBlenderOperationTest {
     contexts.put("text", retriever("text"));
     contexts.put("knn", retriever("knn"));
 
-    TopDocs result = new ScorelessRawMergeBlenderOperation().blend(results, contexts, 0, 10);
+    TopDocs result =
+        new ScorelessRawMergeBlenderOperation().blend(results, contexts, 0, 10, 0f, false);
 
     assertEquals(1, result.scoreDocs.length);
     assertEquals(0f, result.scoreDocs[0].score, DELTA);

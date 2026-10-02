@@ -251,6 +251,45 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
                     .build())
             .build(),
         "Unsupported blender type");
+    assertSearchError(
+        baseRequest()
+            .setMultiRetriever(
+                MultiRetrieverRequest.newBuilder()
+                    .addRetrievers(textRetriever(5))
+                    .setBlender(
+                        Blender.newBuilder()
+                            .setWeightedRrf(WeightedRrfBlender.newBuilder().setRankConstant(60))
+                            .setMinScore(-0.1f)
+                            .build())
+                    .build())
+            .build(),
+        "Blender min_score must be a non-negative number");
+    assertSearchError(
+        baseRequest()
+            .setMultiRetriever(
+                MultiRetrieverRequest.newBuilder()
+                    .addRetrievers(textRetriever(5))
+                    .setBlender(
+                        Blender.newBuilder()
+                            .setScorelessRawMerge(ScorelessRawMergeBlender.newBuilder().build())
+                            .setMinScore(0.5f)
+                            .build())
+                    .build())
+            .build(),
+        "Blender min_score is not supported with scorelessRawMerge blender");
+    assertSearchError(
+        baseRequest()
+            .setMultiRetriever(
+                MultiRetrieverRequest.newBuilder()
+                    .addRetrievers(textRetriever(5))
+                    .setBlender(
+                        Blender.newBuilder()
+                            .setScorelessRawMerge(ScorelessRawMergeBlender.newBuilder().build())
+                            .setMinExcluded(true)
+                            .build())
+                    .build())
+            .build(),
+        "Blender min_score is not supported with scorelessRawMerge blender");
   }
 
   @Test
@@ -518,6 +557,106 @@ public class MultiRetrieverSearchTest extends ServerTestCase {
     assertEquals(5, response.getHitsCount());
     assertEquals(5, docIds(response).size());
     for (Hit hit : response.getHitsList()) assertEquals(1.0, hit.getScore(), SCORE_DELTA);
+  }
+
+  /**
+   * Text (10 hits) + KNN (k=5) under RRF. Docs in both retrievers score above 1/(60+1); text-only
+   * docs score at most 1/(60+1). An exclusive min_score at exactly 1/(60+1) keeps only the 5 docs
+   * present in both retrievers, and totalHits reflects the filtered count.
+   */
+  @Test
+  public void testMinScoreExclusiveKeepsOnlyMultiRetrieverHits() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setTopHits(10)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(textRetriever(10))
+                            .addRetrievers(knnRetriever(5))
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedRrf(
+                                        WeightedRrfBlender.newBuilder().setRankConstant(60))
+                                    .setMinScore((float) RRF_RANK1_K60)
+                                    .setMinExcluded(true)
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(5, response.getHitsCount());
+    assertEquals(5, response.getTotalHits().getValue());
+    assertEquals(5, docIds(response).size());
+    for (Hit hit : response.getHitsList()) {
+      assertTrue(hit.getScore() > RRF_RANK1_K60);
+      assertTrue(hit.getRetrieverScoresMap().containsKey("text"));
+      assertTrue(hit.getRetrieverScoresMap().containsKey("knn"));
+    }
+  }
+
+  /** The blender applies min_score before pagination, so startHit offsets into the filtered set. */
+  @Test
+  public void testMinScoreAppliedBeforePagination() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                baseRequest()
+                    .setStartHit(2)
+                    .setTopHits(10)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(textRetriever(10))
+                            .addRetrievers(knnRetriever(5))
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedRrf(
+                                        WeightedRrfBlender.newBuilder().setRankConstant(60))
+                                    .setMinScore((float) RRF_RANK1_K60)
+                                    .setMinExcluded(true)
+                                    .build())
+                            .build())
+                    .build());
+
+    assertEquals(3, response.getHitsCount());
+    assertEquals(5, response.getTotalHits().getValue());
+    for (Hit hit : response.getHitsList()) assertTrue(hit.getScore() > RRF_RANK1_K60);
+  }
+
+  /**
+   * KNN-only WeightedScoreOrder MAX gives every hit a blended score of exactly 1.0. A min_score of
+   * 1.0 keeps all 5 hits when inclusive and drops all of them when excluded.
+   */
+  @Test
+  public void testMinScoreInclusiveVsExclusiveBoundary() {
+    for (boolean minExcluded : new boolean[] {false, true}) {
+      SearchResponse response =
+          getGrpcServer()
+              .getBlockingStub()
+              .search(
+                  baseRequest()
+                      .setMultiRetriever(
+                          MultiRetrieverRequest.newBuilder()
+                              .addRetrievers(knnRetriever(5))
+                              .setBlender(
+                                  Blender.newBuilder()
+                                      .setWeightedScoreOrder(
+                                          WeightedScoreOrderBlender.newBuilder()
+                                              .setScoreMode(WeightedScoreOrderBlender.ScoreMode.MAX)
+                                              .build())
+                                      .setMinScore(1.0f)
+                                      .setMinExcluded(minExcluded)
+                                      .build())
+                              .build())
+                      .build());
+
+      int expected = minExcluded ? 0 : 5;
+      assertEquals(expected, response.getHitsCount());
+      assertEquals(expected, response.getTotalHits().getValue());
+      for (Hit hit : response.getHitsList()) assertEquals(1.0, hit.getScore(), SCORE_DELTA);
+    }
   }
 
   /** Deduplicates across retrievers and assigns score=0 to all hits. */
