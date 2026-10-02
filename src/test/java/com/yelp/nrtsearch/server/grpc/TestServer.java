@@ -129,55 +129,83 @@ public class TestServer {
       // was silently breaking S3Mock for every test after the first.
       s3TempDir = Files.createTempDirectory("nrtsearch-s3mock-");
       Path s3Directory = s3TempDir;
+      Exception lastException = null;
       for (int attempt = 0; attempt < 5; attempt++) {
         int port = PortUtils.findAvailablePort();
         S3Mock mock = S3Mock.create(port, s3Directory.toAbsolutePath().toString());
         try {
           mock.start();
-          api = mock;
-          S3_ENDPOINT = "http://127.0.0.1:" + port;
-          // Phase 1: wait for Akka's HTTP layer to accept any connection.
-          for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
-            try {
-              HttpURLConnection conn =
-                  (HttpURLConnection) new URL(S3_ENDPOINT + "/").openConnection();
-              conn.setConnectTimeout(500);
-              conn.setReadTimeout(500);
-              try {
-                conn.getResponseCode();
-                break;
-              } finally {
-                conn.disconnect();
-              }
-            } catch (IOException ignored) {
-              Thread.sleep(100);
-            }
-          }
-          // Phase 2: wait for the bucket-creation route to be registered.
-          // After Phase 1 the HTTP layer is up but the storage actor may not have finished
-          // registering its routes yet.
-          S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
-          for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
-            try {
-              probeS3.createBucket(
-                  CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
-              break;
-            } catch (Exception e) {
-              try {
-                Thread.sleep(200);
-              } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                break;
-              }
-            }
-          }
-          return;
         } catch (Exception e) {
-          if (attempt == 4) {
-            throw new IOException("Failed to start S3Mock after 5 attempts", e);
+          // BindException or similar — try a different port
+          lastException = e;
+          continue;
+        }
+        api = mock;
+        S3_ENDPOINT = "http://127.0.0.1:" + port;
+        // Phase 1: wait for Akka's HTTP layer to accept any connection.
+        for (int readyAttempt = 0; readyAttempt < 100; readyAttempt++) {
+          try {
+            HttpURLConnection conn =
+                (HttpURLConnection) new URL(S3_ENDPOINT + "/").openConnection();
+            conn.setConnectTimeout(500);
+            conn.setReadTimeout(500);
+            try {
+              conn.getResponseCode();
+              break;
+            } finally {
+              conn.disconnect();
+            }
+          } catch (IOException ignored) {
+            try {
+              Thread.sleep(100);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+            }
+          }
+        }
+        // Phase 2: wait for the bucket-creation route to be registered.
+        // After Phase 1 the HTTP layer is up but the storage actor may not have finished
+        // registering its routes yet. If Phase 2 exhausts all retries the S3Mock is stuck
+        // (Akka accepted connections but its routing never became functional) — shut it down
+        // and start fresh rather than proceeding with a broken instance.
+        S3Client probeS3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
+        boolean phase2Ok = false;
+        for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
+          try {
+            probeS3.createBucket(
+                CreateBucketRequest.builder().bucket("s3mock-readiness-probe").build());
+            phase2Ok = true;
+            break;
+          } catch (Exception e) {
+            lastException = e;
+            try {
+              Thread.sleep(200);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              break;
+            }
+          }
+        }
+        if (phase2Ok) {
+          return;
+        }
+        // Phase 2 exhausted: S3Mock is in a permanently broken state. Shut it down,
+        // wait for the port to close, then retry with a new instance on a fresh port.
+        api.shutdown();
+        api = null;
+        S3_ENDPOINT = null;
+        for (int i = 0; i < 30; i++) {
+          try (java.net.Socket s = new java.net.Socket("127.0.0.1", port)) {
+            Thread.sleep(100);
+          } catch (IOException e) {
+            break; // port released — old Akka fully stopped
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            break;
           }
         }
       }
+      throw new IOException("Failed to start S3Mock after 5 attempts", lastException);
     }
   }
 
