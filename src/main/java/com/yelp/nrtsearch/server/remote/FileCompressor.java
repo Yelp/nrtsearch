@@ -24,8 +24,9 @@ public interface FileCompressor {
 
   /**
    * Wrap an output stream to produce compressed output. Data written to the returned stream is
-   * compressed and written to the underlying {@code output}. The returned stream must be closed to
-   * flush and finalize the compressed output.
+   * compressed and written to the underlying {@code output}. The caller is responsible for closing
+   * the returned stream, which flushes and finalizes the compressed output and also closes {@code
+   * output}.
    *
    * @param output underlying output stream to write compressed bytes to
    * @return wrapping output stream that compresses data on write
@@ -35,7 +36,8 @@ public interface FileCompressor {
 
   /**
    * Wrap an input stream to produce decompressed output. Data read from the returned stream is
-   * decompressed from the underlying {@code compressed} stream.
+   * decompressed from the underlying {@code compressed} stream. The caller is responsible for
+   * closing the returned stream, which also closes {@code compressed}.
    *
    * @param compressed underlying input stream containing compressed bytes
    * @return wrapping input stream that decompresses data on read

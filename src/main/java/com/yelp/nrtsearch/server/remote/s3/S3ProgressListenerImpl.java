@@ -81,6 +81,17 @@ public class S3ProgressListenerImpl implements TransferListener {
     long current = context.progressSnapshot().transferredBytes();
     Long prev = lastSeenBytes.put(context.request(), current);
     long delta = prev == null ? current : current - prev;
+    recordBytes(delta);
+  }
+
+  /**
+   * Record newly transferred bytes. Used directly by transfers that are not driven by the
+   * TransferManager (e.g. streaming downloads), so they contribute to progress logging and to the
+   * delta callback in the same way as TransferManager transfers.
+   *
+   * @param delta number of bytes transferred since the last call
+   */
+  public void recordBytes(long delta) {
     long total = totalBytesTransferred.addAndGet(delta);
     LongConsumer cb = deltaCallback;
     if (cb != null && delta > 0) {

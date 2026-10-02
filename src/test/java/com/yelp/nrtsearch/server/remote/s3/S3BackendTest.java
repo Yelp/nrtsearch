@@ -15,9 +15,11 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -28,6 +30,7 @@ import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
+import com.yelp.nrtsearch.server.remote.LZ4FileCompressor;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
@@ -36,18 +39,26 @@ import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -57,8 +68,13 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
@@ -67,6 +83,7 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
@@ -2037,9 +2054,256 @@ public class S3BackendTest {
     assertEquals("LZ4", config.getCompressionType());
   }
 
-  private S3Backend createLz4Backend() throws IOException {
+  // The streaming compressed upload sends a request body of unknown length, which S3Mock cannot
+  // accept (it fails identically for an uncompressed forBlockingInputStream upload). These tests
+  // use a fake S3AsyncClient so the request body handling can be controlled and inspected.
+
+  private interface PutHandler {
+    CompletableFuture<PutObjectResponse> handle(AsyncRequestBody body);
+  }
+
+  /** Create an async client whose putObject calls are answered by the given handler. */
+  private static S3AsyncClient fakeAsyncClient(PutHandler handler) {
+    return mock(
+        S3AsyncClient.class,
+        invocation -> {
+          if (!CompletableFuture.class.isAssignableFrom(invocation.getMethod().getReturnType())) {
+            return Mockito.RETURNS_DEFAULTS.answer(invocation);
+          }
+          for (Object arg : invocation.getArguments()) {
+            if (arg instanceof AsyncRequestBody body) {
+              return handler.handle(body);
+            }
+          }
+          return CompletableFuture.failedFuture(
+              new RuntimeException("unexpected call: " + invocation.getMethod().getName()));
+        });
+  }
+
+  private S3Backend createStreamingLz4Backend(S3AsyncClient asyncClient) throws IOException {
     String configStr =
-        "bucketName: " + BUCKET_NAME + "\nremoteConfig:\n  s3:\n    compressionType: LZ4";
+        "bucketName: "
+            + BUCKET_NAME
+            + "\nremoteConfig:\n  s3:\n    compressionType: LZ4"
+            + "\n    compressionInMemoryThresholdBytes: 0";
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    return new S3Backend(config, new S3Util.S3ClientBundle(s3, asyncClient));
+  }
+
+  private NrtFileMetaData writeStreamingTestFile(File dir, String name, byte[] data)
+      throws IOException {
+    Files.write(new File(dir, name).toPath(), data);
+    return new NrtFileMetaData(new byte[0], new byte[0], data.length, 0, "pid_" + name, "ts");
+  }
+
+  private void assertStreamingUploadFails(
+      S3Backend backend, File dir, String name, NrtFileMetaData meta) {
+    try {
+      backend.uploadIndexFiles("stream_service", "stream_index", dir.toPath(), Map.of(name, meta));
+      fail("Expected IOException from failed streaming upload");
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains("Error while uploading index files to s3"));
+    }
+    assertNull(meta.compressionType);
+    assertNull(meta.compressedLength);
+  }
+
+  @Test(timeout = 30000)
+  public void testUploadIndexFiles_streamingCompressedUploadS3NeverConsumesBody()
+      throws IOException {
+    // Fails the request without ever subscribing to the body. The file is larger than any internal
+    // buffer, so a producer that is not released after the failure would block forever.
+    S3Backend backend =
+        createStreamingLz4Backend(
+            fakeAsyncClient(
+                body -> CompletableFuture.failedFuture(new RuntimeException("simulated failure"))));
+    File dir = folder.newFolder("streaming_no_consume_dir");
+    byte[] data = new byte[2 * 1024 * 1024];
+    new Random(2).nextBytes(data);
+    assertStreamingUploadFails(
+        backend, dir, "big_file", writeStreamingTestFile(dir, "big_file", data));
+  }
+
+  @Test(timeout = 30000)
+  public void testUploadIndexFiles_streamingCompressedUploadS3FailsWhileConsumingBody()
+      throws IOException {
+    // Reads the first chunk of the body, then cancels and fails the request.
+    S3Backend backend =
+        createStreamingLz4Backend(
+            fakeAsyncClient(
+                body -> {
+                  CompletableFuture<PutObjectResponse> result = new CompletableFuture<>();
+                  body.subscribe(
+                      new Subscriber<ByteBuffer>() {
+                        private Subscription subscription;
+
+                        @Override
+                        public void onSubscribe(Subscription s) {
+                          subscription = s;
+                          s.request(1);
+                        }
+
+                        @Override
+                        public void onNext(ByteBuffer buffer) {
+                          subscription.cancel();
+                          result.completeExceptionally(new RuntimeException("simulated failure"));
+                        }
+
+                        @Override
+                        public void onError(Throwable t) {
+                          result.completeExceptionally(t);
+                        }
+
+                        @Override
+                        public void onComplete() {
+                          result.complete(PutObjectResponse.builder().build());
+                        }
+                      });
+                  return result;
+                }));
+    File dir = folder.newFolder("streaming_fail_consuming_dir");
+    byte[] data = new byte[2 * 1024 * 1024];
+    new Random(4).nextBytes(data);
+    assertStreamingUploadFails(
+        backend, dir, "big_file", writeStreamingTestFile(dir, "big_file", data));
+  }
+
+  @Test(timeout = 60000)
+  public void testUploadIndexFiles_streamingCompressedUploadSendsCompressedData()
+      throws IOException {
+    AtomicReference<byte[]> sent = new AtomicReference<>();
+    S3Backend backend =
+        createStreamingLz4Backend(
+            fakeAsyncClient(
+                body -> {
+                  CompletableFuture<PutObjectResponse> result = new CompletableFuture<>();
+                  ByteArrayOutputStream received = new ByteArrayOutputStream();
+                  body.subscribe(
+                      new Subscriber<ByteBuffer>() {
+                        @Override
+                        public void onSubscribe(Subscription s) {
+                          s.request(Long.MAX_VALUE);
+                        }
+
+                        @Override
+                        public void onNext(ByteBuffer buffer) {
+                          byte[] bytes = new byte[buffer.remaining()];
+                          buffer.get(bytes);
+                          received.write(bytes, 0, bytes.length);
+                        }
+
+                        @Override
+                        public void onError(Throwable t) {
+                          result.completeExceptionally(t);
+                        }
+
+                        @Override
+                        public void onComplete() {
+                          sent.set(received.toByteArray());
+                          result.complete(PutObjectResponse.builder().build());
+                        }
+                      });
+                  return result;
+                }));
+    File dir = folder.newFolder("streaming_sends_dir");
+    // half compressible, half incompressible, spanning more than one LZ4 block
+    byte[] data = new byte[12 * 1024 * 1024];
+    new Random(5).nextBytes(data);
+    Arrays.fill(data, 0, data.length / 2, (byte) 7);
+    NrtFileMetaData meta = writeStreamingTestFile(dir, "big_file", data);
+
+    backend.uploadIndexFiles(
+        "stream_service", "stream_index", dir.toPath(), Map.of("big_file", meta));
+
+    assertEquals("LZ4", meta.compressionType);
+    assertNotNull(sent.get());
+    assertEquals(sent.get().length, meta.compressedLength.longValue());
+    assertTrue(meta.compressedLength < data.length);
+    try (InputStream decompressed =
+        new LZ4FileCompressor().decompressStream(new ByteArrayInputStream(sent.get()))) {
+      assertArrayEquals(data, IOUtils.toByteArray(decompressed));
+    }
+  }
+
+  @Test
+  public void testCountBytes_reportsEveryByteRead() throws IOException {
+    AtomicLong total = new AtomicLong();
+    try (InputStream in =
+        S3Backend.countBytes(new ByteArrayInputStream(new byte[1000]), total::addAndGet)) {
+      assertTrue(in.read() != -2);
+      assertEquals(1, total.get());
+      assertEquals(100, in.read(new byte[100]));
+      assertEquals(101, total.get());
+      IOUtils.toByteArray(in);
+    }
+    assertEquals(1000, total.get());
+  }
+
+  @Test
+  public void testCountBytes_endOfStreamReportsNothing() throws IOException {
+    AtomicLong calls = new AtomicLong();
+    try (InputStream in =
+        S3Backend.countBytes(
+            new ByteArrayInputStream(new byte[0]), delta -> calls.incrementAndGet())) {
+      assertEquals(-1, in.read());
+      assertEquals(-1, in.read(new byte[8]));
+    }
+    assertEquals(0, calls.get());
+  }
+
+  @Test
+  public void testCompressedDownload_reportsCompressedBytesToProgressListener()
+      throws IOException, InterruptedException {
+    File uploadDir = folder.newFolder("compressed_progress_up");
+    File downloadDir = folder.newFolder("compressed_progress_down");
+    byte[] data = new byte[256 * 1024];
+    new Random(9).nextBytes(data);
+    Files.write(new File(uploadDir, "progress_file").toPath(), data);
+    NrtFileMetaData meta =
+        new NrtFileMetaData(new byte[0], new byte[0], data.length, 0, "pid_progress", "ts_prog");
+    S3Backend backend = createLz4Backend();
+    String service = "progress_service";
+    String index = "progress_index";
+    backend.uploadIndexFiles(service, index, uploadDir.toPath(), Map.of("progress_file", meta));
+    assertNotNull(meta.compressedLength);
+
+    AtomicLong reported = new AtomicLong();
+    S3ProgressListenerImpl listener =
+        new S3ProgressListenerImpl(service, index, "download_index_files", meta.compressedLength);
+    listener.setDeltaCallback(reported::addAndGet);
+    S3Backend.FileNamePair pair = S3Backend.getFileNamePairs(Map.of("progress_file", meta)).get(0);
+    ConcurrencyLimiter limiter = new StaticConcurrencyLimiter(4);
+    limiter.acquire();
+    ConcurrentLinkedQueue<S3Backend.FailedDownload> failures = new ConcurrentLinkedQueue<>();
+
+    backend
+        .submitCompressedDownload(
+            pair,
+            downloadDir.toPath().resolve("progress_file"),
+            S3Backend.getIndexDataPrefix(service, index) + pair.backendFileName(),
+            limiter,
+            listener,
+            failures)
+        .join();
+
+    assertTrue(failures.isEmpty());
+    assertArrayEquals(data, Files.readAllBytes(downloadDir.toPath().resolve("progress_file")));
+    // the bytes reported are the compressed (network) bytes, matching the expected download size
+    assertEquals(meta.compressedLength.longValue(), reported.get());
+  }
+
+  private S3Backend createLz4Backend() throws IOException {
+    return createLz4Backend(
+        S3Backend.S3BackendConfig.DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES);
+  }
+
+  private S3Backend createLz4Backend(long inMemoryThresholdBytes) throws IOException {
+    String configStr =
+        "bucketName: "
+            + BUCKET_NAME
+            + "\nremoteConfig:\n  s3:\n    compressionType: LZ4"
+            + "\n    compressionInMemoryThresholdBytes: "
+            + inMemoryThresholdBytes;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     return new S3Backend(config, new S3Util.S3ClientBundle(s3, S3_PROVIDER.getS3AsyncClient()));
   }

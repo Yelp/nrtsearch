@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.remote.CompressingInputStream;
 import com.yelp.nrtsearch.server.remote.FileCompressor;
 import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -35,10 +36,10 @@ import com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.server.utils.ZipUtils;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,12 +54,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.output.CountingOutputStream;
+import org.apache.commons.io.input.ProxyInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -126,6 +132,7 @@ public class S3Backend implements RemoteBackend {
   private final FileCompressor fileCompressor;
   private final String fileCompressorName;
   private final long compressionInMemoryThresholdBytes;
+  private final ExecutorService transferExecutor;
 
   /**
    * Pair of file names, one for the local file and one for the backend file.
@@ -625,6 +632,18 @@ public class S3Backend implements RemoteBackend {
     this.fileCompressorName = s3BackendConfig.getCompressionType();
     this.fileCompressor = resolveCompressor(this.fileCompressorName);
     this.compressionInMemoryThresholdBytes = s3BackendConfig.getCompressionInMemoryThresholdBytes();
+    // Runs blocking compressed transfers. Concurrency is already bounded by the upload semaphore
+    // and the download limiter, so an unbounded cached pool is sufficient. The common pool is not
+    // used because it is sized for CPU-bound work.
+    AtomicInteger threadCount = new AtomicInteger();
+    this.transferExecutor =
+        Executors.newCachedThreadPool(
+            runnable -> {
+              Thread thread =
+                  new Thread(runnable, "s3-compressed-transfer-" + threadCount.incrementAndGet());
+              thread.setDaemon(true);
+              return thread;
+            });
 
     this.s3Metrics = s3BackendConfig.metrics;
     if (s3BackendConfig.getRateLimitBytes() > 0) {
@@ -824,6 +843,7 @@ public class S3Backend implements RemoteBackend {
 
   @Override
   public void close() {
+    transferExecutor.shutdownNow();
     if (transferManager != null) {
       transferManager.close();
     }
@@ -1030,8 +1050,8 @@ public class S3Backend implements RemoteBackend {
       Semaphore semaphore,
       AtomicReference<Throwable> failure)
       throws IOException {
-    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-    try (java.io.OutputStream compStream = fileCompressor.compressStream(baos);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (OutputStream compStream = fileCompressor.compressStream(baos);
         InputStream source = Files.newInputStream(localFile)) {
       IOUtils.copy(source, compStream);
     }
@@ -1058,24 +1078,22 @@ public class S3Backend implements RemoteBackend {
   }
 
   /**
-   * Submit a compressed upload that streams through a pipe into a {@link
+   * Submit a compressed upload that compresses lazily while the SDK reads the file through a {@link
    * BlockingInputStreamAsyncRequestBody}, allowing the SDK to auto-multipart the upload. Multiple
    * parts can be in-flight simultaneously (controlled by {@code
    * remoteConfig.s3.java.maxInFlightParts}); memory per upload is bounded to approximately {@code
    * partSize × maxInFlightParts} regardless of total file size. Suitable for files above {@link
    * #compressionInMemoryThresholdBytes}.
+   *
+   * <p>Compression runs on the single writer task, so if S3 stops consuming data there is no second
+   * producer left blocked. The request body is cancelled on any failure to release the writer.
    */
   private CompletableFuture<?> submitStreamingCompressedUpload(
       String backendKey,
       Path localFile,
       NrtFileMetaData meta,
       Semaphore semaphore,
-      AtomicReference<Throwable> failure)
-      throws IOException {
-    PipedInputStream pipedIn = new PipedInputStream(65536);
-    PipedOutputStream pipedOut = new PipedOutputStream(pipedIn);
-    AtomicLong compressedBytes = new AtomicLong();
-
+      AtomicReference<Throwable> failure) {
     BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(null);
     Upload upload =
         transferManager.upload(
@@ -1084,39 +1102,33 @@ public class S3Backend implements RemoteBackend {
                     PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .requestBody(body)
                 .build());
-
-    // Compression thread: read source file, compress, write to pipe.
-    CompletableFuture<Void> compressionFuture =
-        CompletableFuture.runAsync(
-            () -> {
-              try {
-                CountingOutputStream counter = new CountingOutputStream(pipedOut);
-                try (java.io.OutputStream compStream = fileCompressor.compressStream(counter)) {
-                  IOUtils.copy(Files.newInputStream(localFile), compStream);
-                }
-                compressedBytes.set(counter.getByteCount());
-              } catch (Exception e) {
-                try {
-                  pipedOut.close();
-                } catch (Exception ignored) {
-                }
-                throw new RuntimeException("Compression failed for " + localFile.getFileName(), e);
+    // If S3 fails before consuming the whole body, release the writer blocked on it.
+    upload
+        .completionFuture()
+        .whenComplete(
+            (r, t) -> {
+              if (t != null) {
+                body.cancel();
               }
             });
 
-    // Feeder thread: pump the compressed pipe into the S3 request body.
-    CompletableFuture<Void> feederFuture =
+    AtomicLong compressedBytes = new AtomicLong();
+    CompletableFuture<Void> writeFuture =
         CompletableFuture.runAsync(
             () -> {
-              try {
-                body.writeInputStream(pipedIn);
-              } catch (Exception e) {
-                throw new RuntimeException(
-                    "S3 upload feed failed for " + localFile.getFileName(), e);
+              try (CompressingInputStream compressedStream =
+                  new CompressingInputStream(Files.newInputStream(localFile), fileCompressor)) {
+                body.writeInputStream(compressedStream);
+                compressedBytes.set(compressedStream.getCompressedBytes());
+              } catch (Throwable t) {
+                body.cancel();
+                throw new CompletionException(
+                    "Streaming compressed upload failed for " + localFile.getFileName(), t);
               }
-            });
+            },
+            transferExecutor);
 
-    return CompletableFuture.allOf(compressionFuture, feederFuture, upload.completionFuture())
+    return CompletableFuture.allOf(writeFuture, upload.completionFuture())
         .whenComplete(
             (r, t) -> {
               semaphore.release();
@@ -1280,7 +1292,8 @@ public class S3Backend implements RemoteBackend {
 
       CompletableFuture<?> future =
           pair.compressionType() != null
-              ? submitCompressedDownload(pair, localFile, backendKey, limiter, failures)
+              ? submitCompressedDownload(
+                  pair, localFile, backendKey, limiter, progressListener, failures)
               : submitUncompressedDownload(
                   pair, localFile, backendKey, limiter, progressListener, failures);
       futures.add(future);
@@ -1297,18 +1310,27 @@ public class S3Backend implements RemoteBackend {
     return new ArrayList<>(failures);
   }
 
-  /** Submit a compressed file download. Streams from S3 through decompression directly to disk. */
-  private CompletableFuture<?> submitCompressedDownload(
+  /**
+   * Submit a compressed file download. Streams from S3 through decompression directly to disk. The
+   * compressed bytes read from S3 are reported to the progress listener, which also feeds the
+   * concurrency limiter, as happens for TransferManager downloads.
+   */
+  @VisibleForTesting
+  CompletableFuture<?> submitCompressedDownload(
       FileNamePair pair,
       Path localFile,
       String backendKey,
       ConcurrencyLimiter limiter,
+      S3ProgressListenerImpl progressListener,
       ConcurrentLinkedQueue<FailedDownload> failures) {
     return CompletableFuture.runAsync(
         () -> {
           try {
             FileCompressor compressor = resolveCompressor(pair.compressionType());
-            try (InputStream s3Stream = downloadFromS3Path(serviceBucket, backendKey, false);
+            try (InputStream s3Stream =
+                    countBytes(
+                        downloadFromS3Path(serviceBucket, backendKey, false),
+                        progressListener::recordBytes);
                 InputStream decompressed = compressor.decompressStream(s3Stream)) {
               Files.copy(decompressed, localFile);
             }
@@ -1318,7 +1340,26 @@ public class S3Backend implements RemoteBackend {
             logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
             failures.add(new FailedDownload(pair, t));
           }
-        });
+        },
+        transferExecutor);
+  }
+
+  /**
+   * Wrap a stream so that the number of bytes read from it is reported as it is consumed.
+   *
+   * @param in stream to wrap
+   * @param onBytes called with the number of bytes returned by each successful read
+   */
+  @VisibleForTesting
+  static InputStream countBytes(InputStream in, LongConsumer onBytes) {
+    return new ProxyInputStream(in) {
+      @Override
+      protected void afterRead(int n) {
+        if (n > 0) {
+          onBytes.accept(n);
+        }
+      }
+    };
   }
 
   /** Submit an uncompressed file download using the TransferManager. */
@@ -1393,7 +1434,7 @@ public class S3Backend implements RemoteBackend {
    * @param pair the file name pair that failed to download
    * @param error the exception that caused the failure
    */
-  private record FailedDownload(FileNamePair pair, Throwable error) {}
+  record FailedDownload(FileNamePair pair, Throwable error) {}
 
   /**
    * Calculate the exponential backoff delay for a retry attempt.

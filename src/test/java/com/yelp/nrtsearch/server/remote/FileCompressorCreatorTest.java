@@ -22,6 +22,8 @@ import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.plugins.FileCompressorPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import org.junit.Before;
@@ -60,12 +62,12 @@ public class FileCompressorCreatorTest {
     FileCompressor customCompressor =
         new FileCompressor() {
           @Override
-          public java.io.OutputStream compressStream(java.io.OutputStream output) {
+          public OutputStream compressStream(OutputStream output) {
             return output;
           }
 
           @Override
-          public java.io.InputStream decompressStream(java.io.InputStream compressed) {
+          public InputStream decompressStream(InputStream compressed) {
             return compressed;
           }
         };
