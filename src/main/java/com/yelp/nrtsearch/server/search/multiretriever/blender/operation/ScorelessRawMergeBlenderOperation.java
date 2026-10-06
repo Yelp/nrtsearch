@@ -66,14 +66,17 @@ public class ScorelessRawMergeBlenderOperation implements BlenderOperation {
 
   /**
    * Returns all merged hits without sorting or pagination. The {@code startHit} and {@code topHits}
-   * parameters are ignored; an L2 rescorer is expected to produce the final ordering.
+   * parameters are ignored; an L2 rescorer is expected to produce the final ordering. The {@code
+   * minScore} parameter is also ignored: every hit scores {@code 0}, so a threshold is meaningless
+   * here and is rejected at request validation time.
    */
   @Override
   public TopDocs blend(
       LinkedHashMap<String, TopDocs> retrieverResults,
       LinkedHashMap<String, RetrieverContext> retrieverContexts,
       int startHit,
-      int topHits) {
+      int topHits,
+      float minScore) {
     Collection<BlendedScoreDoc> merged = mergeHits(retrieverResults, retrieverContexts);
     return new TopDocs(
         new TotalHits(merged.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),

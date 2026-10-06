@@ -34,14 +34,17 @@ public class BlenderOperationSortAndPaginateTest {
 
   @Test
   public void testEmpty() {
-    TopDocs result = BlenderOperation.sortAndPaginate(List.of(), 0, 10);
+    TopDocs result =
+        BlenderOperation.sortAndPaginate(List.of(), 0, 10, BlenderOperation.NO_MIN_SCORE);
     assertEquals(0, result.scoreDocs.length);
     assertEquals(0, result.totalHits.value());
   }
 
   @Test
   public void testSingleDoc() {
-    TopDocs result = BlenderOperation.sortAndPaginate(List.of(doc(1, 1.0f)), 0, 10);
+    TopDocs result =
+        BlenderOperation.sortAndPaginate(
+            List.of(doc(1, 1.0f)), 0, 10, BlenderOperation.NO_MIN_SCORE);
     assertEquals(1, result.scoreDocs.length);
     assertEquals(1, result.scoreDocs[0].doc);
     assertEquals(1, result.totalHits.value());
@@ -54,7 +57,7 @@ public class BlenderOperationSortAndPaginateTest {
     merged.add(doc(1, 1.0f));
     merged.add(doc(2, 0.5f));
 
-    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10);
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10, BlenderOperation.NO_MIN_SCORE);
 
     assertEquals(3, result.scoreDocs.length);
     assertEquals(1, result.scoreDocs[0].doc); // score 1.0
@@ -70,7 +73,7 @@ public class BlenderOperationSortAndPaginateTest {
     merged.add(doc(3, 0.6f));
     merged.add(doc(4, 0.4f));
 
-    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 2);
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 2, BlenderOperation.NO_MIN_SCORE);
 
     assertEquals(2, result.scoreDocs.length);
     assertEquals(4, result.totalHits.value()); // total is deduplicated count, not page size
@@ -85,7 +88,7 @@ public class BlenderOperationSortAndPaginateTest {
     merged.add(doc(2, 0.8f));
     merged.add(doc(3, 0.6f));
 
-    TopDocs result = BlenderOperation.sortAndPaginate(merged, 1, 10);
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 1, 10, BlenderOperation.NO_MIN_SCORE);
 
     assertEquals(2, result.scoreDocs.length);
     assertEquals(2, result.scoreDocs[0].doc); // doc 1 was skipped
@@ -95,8 +98,69 @@ public class BlenderOperationSortAndPaginateTest {
   @Test
   public void testStartHitBeyondResults() {
     List<BlendedScoreDoc> merged = List.of(doc(1, 1.0f), doc(2, 0.5f));
-    TopDocs result = BlenderOperation.sortAndPaginate(merged, 5, 10);
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 5, 10, BlenderOperation.NO_MIN_SCORE);
     assertEquals(0, result.scoreDocs.length);
+    assertEquals(2, result.totalHits.value());
+  }
+
+  @Test
+  public void testMinScoreInclusive() {
+    List<BlendedScoreDoc> merged = List.of(doc(1, 1.0f), doc(2, 0.5f), doc(3, 0.3f));
+
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10, 0.5f);
+
+    assertEquals(2, result.scoreDocs.length);
+    assertEquals(1, result.scoreDocs[0].doc);
+    assertEquals(2, result.scoreDocs[1].doc); // score == minScore is kept
+    assertEquals(2, result.totalHits.value()); // total reflects the filtered count
+  }
+
+  @Test
+  public void testMinScoreZeroKeepsZeroScores() {
+    List<BlendedScoreDoc> merged = List.of(doc(1, 0.0f), doc(2, 0.2f), doc(3, 0.0f));
+
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10, 0f);
+
+    assertEquals(3, result.scoreDocs.length);
+    assertEquals(2, result.scoreDocs[0].doc);
+    assertEquals(3, result.totalHits.value());
+  }
+
+  @Test
+  public void testMinScoreDropsAll() {
+    List<BlendedScoreDoc> merged = List.of(doc(1, 0.4f), doc(2, 0.2f));
+
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10, 0.5f);
+
+    assertEquals(0, result.scoreDocs.length);
+    assertEquals(0, result.totalHits.value());
+  }
+
+  @Test
+  public void testMinScoreWithPagination() {
+    List<BlendedScoreDoc> merged = new ArrayList<>();
+    merged.add(doc(1, 1.0f));
+    merged.add(doc(2, 0.8f));
+    merged.add(doc(3, 0.6f));
+    merged.add(doc(4, 0.4f));
+    merged.add(doc(5, 0.2f));
+
+    // Threshold keeps docs 1-3; page of 2 starting at offset 1 within the filtered ranking.
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 1, 3, 0.5f);
+
+    assertEquals(2, result.scoreDocs.length);
+    assertEquals(2, result.scoreDocs[0].doc);
+    assertEquals(3, result.scoreDocs[1].doc);
+    assertEquals(3, result.totalHits.value());
+  }
+
+  @Test
+  public void testNoMinScoreKeepsNegativeScores() {
+    List<BlendedScoreDoc> merged = List.of(doc(1, -1.0f), doc(2, 0.0f));
+
+    TopDocs result = BlenderOperation.sortAndPaginate(merged, 0, 10, BlenderOperation.NO_MIN_SCORE);
+
+    assertEquals(2, result.scoreDocs.length);
     assertEquals(2, result.totalHits.value());
   }
 }

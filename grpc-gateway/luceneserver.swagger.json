@@ -2675,6 +2675,11 @@
         },
         "scorelessRawMerge": {
           "$ref": "#/definitions/luceneserverScorelessRawMergeBlender"
+        },
+        "minScore": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional minimal blended score (inclusive) to match a document. When set, hits whose blended\nscore is below this value are dropped before sorting and pagination. Does not affect facet\ncounts or collector results, which are computed over the full union query. Without facets or\ncollectors, totalHits counts only hits that passed the threshold; with them, totalHits\nreports the union match count. Not supported with scorelessRawMerge, which assigns score 0\nto every hit."
         }
       },
       "title": "Blender to merge Multi-Retriever topDocs"
@@ -5600,6 +5605,10 @@
         "rescorer": {
           "$ref": "#/definitions/luceneserverRescorer",
           "title": "Optional L1 rescorer applied before blending"
+        },
+        "sortedFields": {
+          "$ref": "#/definitions/luceneserverSortFields",
+          "description": "Optional sort fields. When set, the retriever collects top hits by sort order\ninstead of relevance score."
         }
       },
       "title": "Single Retriever"
