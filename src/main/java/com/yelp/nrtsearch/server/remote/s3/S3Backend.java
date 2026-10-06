@@ -1009,9 +1009,10 @@ public class S3Backend implements RemoteBackend {
           NrtFileMetaData meta = files.get(pair.fileName());
           future =
               Files.size(localFile) <= compressionInMemoryThresholdBytes
-                  ? submitInMemoryCompressedUpload(backendKey, localFile, meta, semaphore, failure)
+                  ? submitInMemoryCompressedUpload(
+                      backendKey, localFile, meta, uploadProgressListener, semaphore, failure)
                   : submitStreamingCompressedUpload(
-                      backendKey, localFile, meta, semaphore, failure);
+                      backendKey, localFile, meta, uploadProgressListener, semaphore, failure);
         } else {
           future =
               submitUncompressedUpload(
@@ -1047,6 +1048,7 @@ public class S3Backend implements RemoteBackend {
       String backendKey,
       Path localFile,
       NrtFileMetaData meta,
+      S3ProgressListenerImpl progressListener,
       Semaphore semaphore,
       AtomicReference<Throwable> failure)
       throws IOException {
@@ -1062,6 +1064,7 @@ public class S3Backend implements RemoteBackend {
                 .putObjectRequest(
                     PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .requestBody(AsyncRequestBody.fromBytes(compressedData))
+                .addTransferListener(progressListener)
                 .build());
     return upload
         .completionFuture()
@@ -1092,6 +1095,7 @@ public class S3Backend implements RemoteBackend {
       String backendKey,
       Path localFile,
       NrtFileMetaData meta,
+      S3ProgressListenerImpl progressListener,
       Semaphore semaphore,
       AtomicReference<Throwable> failure) {
     BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(null);
@@ -1101,6 +1105,7 @@ public class S3Backend implements RemoteBackend {
                 .putObjectRequest(
                     PutObjectRequest.builder().bucket(serviceBucket).key(backendKey).build())
                 .requestBody(body)
+                .addTransferListener(progressListener)
                 .build());
     // If S3 fails before consuming the whole body, release the writer blocked on it.
     upload
@@ -1325,6 +1330,7 @@ public class S3Backend implements RemoteBackend {
       ConcurrentLinkedQueue<FailedDownload> failures) {
     return CompletableFuture.runAsync(
         () -> {
+          boolean copySucceeded = false;
           try {
             FileCompressor compressor = resolveCompressor(pair.compressionType());
             try (InputStream s3Stream =
@@ -1334,11 +1340,14 @@ public class S3Backend implements RemoteBackend {
                 InputStream decompressed = compressor.decompressStream(s3Stream)) {
               Files.copy(decompressed, localFile);
             }
-            verifyFileSize(pair, localFile, pair.length(), limiter, failures);
+            copySucceeded = true;
           } catch (Throwable t) {
             limiter.onError();
             logger.warn("Failed to download file: {}, error: {}", pair.fileName(), t.getMessage());
             failures.add(new FailedDownload(pair, t));
+          }
+          if (copySucceeded) {
+            verifyFileSize(pair, localFile, pair.length(), limiter, failures);
           }
         },
         transferExecutor);

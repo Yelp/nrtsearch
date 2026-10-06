@@ -102,6 +102,15 @@ public class NrtFileMetaData {
     return false;
   }
 
+  @Override
+  public int hashCode() {
+    int result =
+        Objects.hash(length, checksum, primaryId, timeString, compressionType, compressedLength);
+    result = 31 * result + Arrays.hashCode(header);
+    result = 31 * result + Arrays.hashCode(footer);
+    return result;
+  }
+
   public FileMetaData toFileMetaData() {
     return new FileMetaData(header, footer, length, checksum);
   }

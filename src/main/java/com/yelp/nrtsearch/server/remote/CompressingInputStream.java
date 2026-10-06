@@ -97,6 +97,8 @@ public class CompressingInputStream extends InputStream {
         compressor.close();
       } else if (read > 0) {
         compressor.write(chunk, 0, read);
+      } else {
+        Thread.yield();
       }
     }
     return true;
