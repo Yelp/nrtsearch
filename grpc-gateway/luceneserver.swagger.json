@@ -2679,7 +2679,7 @@
         "minScore": {
           "type": "number",
           "format": "float",
-          "description": "Optional minimal blended score (inclusive) to match a document. When set, hits whose blended\nscore is below this value are dropped before sorting and pagination, and are not counted in\ntotalHits. Does not affect facet counts or collector results, which are computed over the\nfull union query. Not supported with scorelessRawMerge, which assigns score 0 to every hit."
+          "description": "Optional minimal blended score (inclusive) to match a document. When set, hits whose blended\nscore is below this value are dropped before sorting and pagination. Does not affect facet\ncounts or collector results, which are computed over the full union query. Without facets or\ncollectors, totalHits counts only hits that passed the threshold; with them, totalHits\nreports the union match count. Not supported with scorelessRawMerge, which assigns score 0\nto every hit."
         }
       },
       "title": "Blender to merge Multi-Retriever topDocs"

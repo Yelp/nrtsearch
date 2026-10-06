@@ -914,9 +914,11 @@ message Blender {
         ScorelessRawMergeBlender scorelessRawMerge = 4;
     }
     // Optional minimal blended score (inclusive) to match a document. When set, hits whose blended
-    // score is below this value are dropped before sorting and pagination, and are not counted in
-    // totalHits. Does not affect facet counts or collector results, which are computed over the
-    // full union query. Not supported with scorelessRawMerge, which assigns score 0 to every hit.
+    // score is below this value are dropped before sorting and pagination. Does not affect facet
+    // counts or collector results, which are computed over the full union query. Without facets or
+    // collectors, totalHits counts only hits that passed the threshold; with them, totalHits
+    // reports the union match count. Not supported with scorelessRawMerge, which assigns score 0
+    // to every hit.
     optional float min_score = 5;
 }
 
