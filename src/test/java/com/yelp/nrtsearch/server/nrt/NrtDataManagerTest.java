@@ -24,10 +24,15 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -49,6 +54,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import org.apache.lucene.replicator.nrt.CopyState;
@@ -57,6 +63,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 public class NrtDataManagerTest {
   private static final String SERVICE_NAME = "test_service";
@@ -448,6 +455,32 @@ public class NrtDataManagerTest {
 
     verify(mockPrimaryNode, times(1)).releaseCopyState(copyState2);
     verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
+  public void testMergeTasks_notifyReplicas() throws IOException {
+    CopyState copyState = new CopyState(Map.of(), 5, 6, new byte[0], Set.of(), 7, null);
+    CopyState copyState2 = new CopyState(Map.of(), 6, 6, new byte[0], Set.of(), 7, null);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+
+    assertTrue(
+        NrtDataManager.mergeTasks(
+                new NrtDataManager.UploadTask(copyState, List.of(), true),
+                new NrtDataManager.UploadTask(copyState2, List.of(), false),
+                mockPrimaryNode)
+            .notifyReplicas());
+    assertTrue(
+        NrtDataManager.mergeTasks(
+                new NrtDataManager.UploadTask(copyState, List.of(), false),
+                new NrtDataManager.UploadTask(copyState2, List.of(), true),
+                mockPrimaryNode)
+            .notifyReplicas());
+    assertFalse(
+        NrtDataManager.mergeTasks(
+                new NrtDataManager.UploadTask(copyState, List.of(), false),
+                new NrtDataManager.UploadTask(copyState2, List.of(), false),
+                mockPrimaryNode)
+            .notifyReplicas());
   }
 
   @Test
@@ -843,6 +876,178 @@ public class NrtDataManagerTest {
     verifyNoMoreInteractions(mockPrimaryNode, mockRemoteBackend);
   }
 
+  @Test
+  public void testUploadManagerThread_notifyReplicasAfterUpload()
+      throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager = createNotifyAfterUploadManager(mockRemoteBackend);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
+
+    CopyState copyState = createNotifyTestCopyState(5);
+    RefreshUploadFuture refreshUploadFuture = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(copyState, List.of(refreshUploadFuture), true);
+
+    refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
+    verify(mockPrimaryNode, timeout(10000)).sendNewNRTPointToReplicas(5);
+
+    // replicas must only be notified once the point state is available in S3
+    InOrder inOrder = inOrder(mockRemoteBackend, mockPrimaryNode);
+    inOrder
+        .verify(mockRemoteBackend)
+        .uploadIndexFiles(eq(SERVICE_NAME), eq(INDEX_NAME), eq(folder.getRoot().toPath()), any());
+    inOrder
+        .verify(mockRemoteBackend)
+        .uploadPointState(
+            eq(SERVICE_NAME), eq(INDEX_NAME), any(NrtPointState.class), any(byte[].class));
+    inOrder.verify(mockPrimaryNode).sendNewNRTPointToReplicas(5);
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode, mockRemoteBackend);
+    nrtDataManager.close();
+  }
+
+  @Test
+  public void testUploadManagerThread_slowReplicaNotify_doesNotBlockUploads() throws Exception {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager = createNotifyAfterUploadManager(mockRemoteBackend);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    CountDownLatch notifyStarted = new CountDownLatch(1);
+    CountDownLatch releaseNotify = new CountDownLatch(1);
+    // simulate a replica that does not respond to the first notification
+    doAnswer(
+            invocation -> {
+              notifyStarted.countDown();
+              releaseNotify.await();
+              return null;
+            })
+        .when(mockPrimaryNode)
+        .sendNewNRTPointToReplicas(5);
+    nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
+
+    RefreshUploadFuture future5 = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(createNotifyTestCopyState(5), List.of(future5), true);
+    future5.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    assertTrue(notifyStarted.await(30, java.util.concurrent.TimeUnit.SECONDS));
+
+    // uploads and commit watchers keep completing while the notification is stuck
+    RefreshUploadFuture future6 = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(createNotifyTestCopyState(6), List.of(future6), true);
+    future6.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    RefreshUploadFuture future7 = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(createNotifyTestCopyState(7), List.of(future7), true);
+    future7.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
+    assertEquals(7, nrtDataManager.getLastPointState().version);
+
+    // pending notifications are collapsed, only the latest version is sent
+    releaseNotify.countDown();
+    verify(mockPrimaryNode, timeout(10000)).sendNewNRTPointToReplicas(7);
+    verify(mockPrimaryNode, never()).sendNewNRTPointToReplicas(6);
+    nrtDataManager.close();
+  }
+
+  @Test
+  public void testUploadManagerThread_noNotifyReplicas()
+      throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager = createNotifyAfterUploadManager(mockRemoteBackend);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
+
+    CopyState copyState = createNotifyTestCopyState(5);
+    RefreshUploadFuture refreshUploadFuture = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(copyState, List.of(refreshUploadFuture), false);
+
+    refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
+
+    verify(mockPrimaryNode, never()).sendNewNRTPointToReplicas(anyLong());
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
+  public void testUploadManagerThread_uploadError_noNotifyReplicas()
+      throws InterruptedException, TimeoutException, IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    doThrow(new IOException("error"))
+        .when(mockRemoteBackend)
+        .uploadPointState(
+            eq(SERVICE_NAME), eq(INDEX_NAME), any(NrtPointState.class), any(byte[].class));
+    NrtDataManager nrtDataManager = createNotifyAfterUploadManager(mockRemoteBackend);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
+
+    CopyState copyState = createNotifyTestCopyState(5);
+    RefreshUploadFuture refreshUploadFuture = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(copyState, List.of(refreshUploadFuture), true);
+
+    try {
+      refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      fail();
+    } catch (ExecutionException e) {
+      assertEquals("java.io.IOException: error", e.getMessage());
+    }
+    waitUntilDone(nrtDataManager);
+
+    // version is not in S3, so replicas must not be told about it
+    verify(mockPrimaryNode, never()).sendNewNRTPointToReplicas(anyLong());
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
+  public void testUploadManagerThread_notifyReplicasError_watchersSucceed()
+      throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager = createNotifyAfterUploadManager(mockRemoteBackend);
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    doThrow(new RuntimeException("notify error"))
+        .when(mockPrimaryNode)
+        .sendNewNRTPointToReplicas(anyLong());
+    nrtDataManager.startUploadManager(mockPrimaryNode, folder.getRoot().toPath());
+
+    CopyState copyState = createNotifyTestCopyState(5);
+    RefreshUploadFuture refreshUploadFuture = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(copyState, List.of(refreshUploadFuture), true);
+
+    // upload succeeded, so the watcher must complete normally
+    refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
+    assertEquals(5, nrtDataManager.getLastPointState().version);
+
+    verify(mockPrimaryNode, timeout(10000)).sendNewNRTPointToReplicas(5);
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode);
+
+    // notify thread keeps working after a failure
+    doAnswer(invocation -> null).when(mockPrimaryNode).sendNewNRTPointToReplicas(anyLong());
+    RefreshUploadFuture refreshUploadFuture2 = new RefreshUploadFuture();
+    nrtDataManager.enqueueUpload(createNotifyTestCopyState(6), List.of(refreshUploadFuture2), true);
+    refreshUploadFuture2.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    verify(mockPrimaryNode, timeout(10000)).sendNewNRTPointToReplicas(6);
+    nrtDataManager.close();
+  }
+
+  private NrtDataManager createNotifyAfterUploadManager(RemoteBackend remoteBackend) {
+    return new NrtDataManager(
+        SERVICE_NAME, INDEX_NAME, PRIMARY_ID, remoteBackend, null, true, true, true);
+  }
+
+  private static CopyState createNotifyTestCopyState(long version) {
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 15, 16);
+    return new CopyState(
+        Map.of("file1", fileMetaData),
+        version,
+        6,
+        new byte[] {1, 2, 3},
+        Set.of("merged_file"),
+        7,
+        null);
+  }
+
   private void waitUntilDone(NrtDataManager nrtDataManager) {
     int count = 0;
     while (nrtDataManager.getCurrentUploadTask() != null) {
@@ -885,6 +1090,51 @@ public class NrtDataManagerTest {
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("s3RefreshUpload requires remoteCommit to be enabled", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testDoNotifyReplicasAfterUpload_true() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, true, true);
+    assertTrue(nrtDataManager.doNotifyReplicasAfterUpload());
+  }
+
+  @Test
+  public void testDoNotifyReplicasAfterUpload_false() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, true);
+    assertFalse(nrtDataManager.doNotifyReplicasAfterUpload());
+  }
+
+  @Test
+  public void testNotifyReplicasAfterUpload_requiresS3RefreshUpload() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    try {
+      new NrtDataManager(
+          SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, false, true);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "s3RefreshNotifyAfterUpload requires s3RefreshUpload to be enabled", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testEnqueueNotifyReplicas_notEnabled() {
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true, true);
+    try {
+      nrtDataManager.enqueueUpload(mock(CopyState.class), List.of(), true);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Replica notify after upload is not enabled", e.getMessage());
     }
   }
 

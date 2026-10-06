@@ -42,6 +42,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -68,6 +71,7 @@ public class NrtDataManager implements Closeable {
   private final RestoreIndex restoreIndex;
   private final boolean remoteCommit;
   private final boolean s3RefreshUpload;
+  private final boolean notifyReplicasAfterUpload;
 
   // Files uploaded during merge precopy, keyed by file name. Consumed by uploadDiff to avoid
   // re-uploading. Size-bounded to handle cases where merged segments are re-merged before
@@ -79,6 +83,11 @@ public class NrtDataManager implements Closeable {
   private NRTPrimaryNode primaryNode;
   private Path shardDataDir;
   private UploadManagerThread uploadManagerThread = null;
+  // Sends new NRT points to replicas after upload, so slow replicas do not block the upload thread.
+  // Only created when notifyReplicasAfterUpload is enabled.
+  private ExecutorService replicaNotifyExecutor = null;
+  // Latest uploaded version waiting to be sent to replicas, or -1 if none is pending
+  private final AtomicLong pendingNotifyVersion = new AtomicLong(-1);
 
   // Set during restoreIfNeeded, then only accessed by UploadManagerThread
   private volatile NrtPointState lastPointState = null;
@@ -97,8 +106,14 @@ public class NrtDataManager implements Closeable {
    *
    * @param copyState CopyState to upload
    * @param watchers List of RefreshUploadFuture objects to notify when the upload is complete
+   * @param notifyReplicas Whether to send the new NRT point to replicas when the upload is complete
    */
-  record UploadTask(CopyState copyState, List<RefreshUploadFuture> watchers) {}
+  record UploadTask(
+      CopyState copyState, List<RefreshUploadFuture> watchers, boolean notifyReplicas) {
+    UploadTask(CopyState copyState, List<RefreshUploadFuture> watchers) {
+      this(copyState, watchers, false);
+    }
+  }
 
   /**
    * Create a new NrtDataManager.
@@ -119,8 +134,45 @@ public class NrtDataManager implements Closeable {
       RestoreIndex restoreIndex,
       boolean remoteCommit,
       boolean s3RefreshUpload) {
+    this(
+        serviceName,
+        indexIdentifier,
+        ephemeralId,
+        remoteBackend,
+        restoreIndex,
+        remoteCommit,
+        s3RefreshUpload,
+        false);
+  }
+
+  /**
+   * Create a new NrtDataManager.
+   *
+   * @param serviceName Name of the service
+   * @param indexIdentifier Unique identifier for the index
+   * @param ephemeralId Ephemeral ID for the node
+   * @param remoteBackend Remote backend to use for uploading and downloading index files
+   * @param restoreIndex RestoreIndex object to use for restoring index files, or null if no restore
+   * @param remoteCommit Whether to commit to the remote backend
+   * @param s3RefreshUpload Whether to upload index data to S3 on every refresh
+   * @param notifyReplicasAfterUpload Whether the primary should only send a new NRT point to
+   *     replicas after it is uploaded to S3
+   */
+  public NrtDataManager(
+      String serviceName,
+      String indexIdentifier,
+      String ephemeralId,
+      RemoteBackend remoteBackend,
+      RestoreIndex restoreIndex,
+      boolean remoteCommit,
+      boolean s3RefreshUpload,
+      boolean notifyReplicasAfterUpload) {
     if (s3RefreshUpload && !remoteCommit) {
       throw new IllegalArgumentException("s3RefreshUpload requires remoteCommit to be enabled");
+    }
+    if (notifyReplicasAfterUpload && !s3RefreshUpload) {
+      throw new IllegalArgumentException(
+          "s3RefreshNotifyAfterUpload requires s3RefreshUpload to be enabled");
     }
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
@@ -129,6 +181,7 @@ public class NrtDataManager implements Closeable {
     this.restoreIndex = restoreIndex;
     this.remoteCommit = remoteCommit;
     this.s3RefreshUpload = s3RefreshUpload;
+    this.notifyReplicasAfterUpload = notifyReplicasAfterUpload;
   }
 
   /**
@@ -188,6 +241,15 @@ public class NrtDataManager implements Closeable {
     }
     this.primaryNode = primaryNode;
     this.shardDataDir = shardDataDir;
+    if (notifyReplicasAfterUpload) {
+      replicaNotifyExecutor =
+          Executors.newSingleThreadExecutor(
+              r -> {
+                Thread t = new Thread(r, "ReplicaNotifyThread");
+                t.setDaemon(true);
+                return t;
+              });
+    }
     uploadManagerThread = new UploadManagerThread();
     uploadManagerThread.start();
     logger.info("Upload manager started");
@@ -221,6 +283,16 @@ public class NrtDataManager implements Closeable {
    */
   public boolean doS3RefreshUpload() {
     return s3RefreshUpload;
+  }
+
+  /**
+   * Check if new NRT points should only be sent to replicas after they are uploaded to S3. This is
+   * needed when replicas download refreshes from S3, so they do not load an older version.
+   *
+   * @return true if replicas are notified after upload, false otherwise
+   */
+  public boolean doNotifyReplicasAfterUpload() {
+    return notifyReplicasAfterUpload;
   }
 
   /**
@@ -401,14 +473,29 @@ public class NrtDataManager implements Closeable {
    * @param copyState CopyState of data to upload
    * @param watchers List of RefreshUploadFuture objects to notify when the upload is complete
    */
-  public synchronized void enqueueUpload(CopyState copyState, List<RefreshUploadFuture> watchers) {
+  public void enqueueUpload(CopyState copyState, List<RefreshUploadFuture> watchers) {
+    enqueueUpload(copyState, watchers, false);
+  }
+
+  /**
+   * Enqueue an upload task to be processed by the UploadManagerThread.
+   *
+   * @param copyState CopyState of data to upload
+   * @param watchers List of RefreshUploadFuture objects to notify when the upload is complete
+   * @param notifyReplicas Whether to send the new NRT point to replicas once it is uploaded
+   */
+  public synchronized void enqueueUpload(
+      CopyState copyState, List<RefreshUploadFuture> watchers, boolean notifyReplicas) {
     if (!remoteCommit) {
       throw new IllegalStateException("Remote commit is not available for this configuration");
     }
     if (closed) {
       throw new IllegalStateException("NrtDataManager is closed");
     }
-    UploadTask uploadTask = new UploadTask(copyState, watchers);
+    if (notifyReplicas && !notifyReplicasAfterUpload) {
+      throw new IllegalArgumentException("Replica notify after upload is not enabled");
+    }
+    UploadTask uploadTask = new UploadTask(copyState, watchers, notifyReplicas);
     if (currentUploadTask == null) {
       currentUploadTask = uploadTask;
       notifyAll();
@@ -494,7 +581,37 @@ public class NrtDataManager implements Closeable {
       logger.warn("Failed to release copy state", t);
     }
 
-    return new UploadTask(taskCopyState, combinedWatchers);
+    return new UploadTask(
+        taskCopyState, combinedWatchers, previous.notifyReplicas || next.notifyReplicas);
+  }
+
+  /**
+   * Send an uploaded version to replicas on the notify thread. If a notification is already
+   * pending, its version is replaced, since replicas only need the latest version.
+   *
+   * @param version uploaded index version
+   */
+  private void scheduleReplicaNotify(long version) {
+    // must not throw, the upload watchers are already complete
+    try {
+      if (pendingNotifyVersion.getAndSet(version) == -1) {
+        replicaNotifyExecutor.execute(this::notifyReplicas);
+      }
+    } catch (Throwable t) {
+      logger.warn("Failed to schedule new NRT point notification, version: {}", version, t);
+    }
+  }
+
+  private void notifyReplicas() {
+    long version = pendingNotifyVersion.getAndSet(-1);
+    if (version < 0) {
+      return;
+    }
+    try {
+      primaryNode.sendNewNRTPointToReplicas(version);
+    } catch (Throwable t) {
+      logger.warn("Failed to send new NRT point to replicas, version: {}", version, t);
+    }
   }
 
   /** Background thread that processes upload tasks. */
@@ -522,6 +639,7 @@ public class NrtDataManager implements Closeable {
           task = currentUploadTask;
         }
 
+        long notifyVersion = -1;
         try {
           if (isLaterVersion(task.copyState, lastPointState)) {
             logger.info(
@@ -534,6 +652,9 @@ public class NrtDataManager implements Closeable {
             byte[] data = RemoteUtils.pointStateToUtf8(pointState);
             remoteBackend.uploadPointState(serviceName, indexIdentifier, pointState, data);
             lastPointState = pointState;
+            if (task.notifyReplicas) {
+              notifyVersion = pointState.version;
+            }
           } else {
             logger.info(
                 "Later version committed, skipping. Committed version: {}, Task version: {}",
@@ -542,6 +663,9 @@ public class NrtDataManager implements Closeable {
           }
           for (RefreshUploadFuture watcher : task.watchers) {
             watcher.setDone(null);
+          }
+          if (notifyVersion >= 0) {
+            scheduleReplicaNotify(notifyVersion);
           }
         } catch (Throwable t) {
           for (RefreshUploadFuture watcher : task.watchers) {
@@ -620,6 +744,10 @@ public class NrtDataManager implements Closeable {
       } catch (InterruptedException e) {
         throw new IOException(e);
       }
+    }
+    if (replicaNotifyExecutor != null) {
+      // replica connections are already closed by the primary, pending notifications are dropped
+      replicaNotifyExecutor.shutdownNow();
     }
     synchronized (this) {
       if (currentUploadTask != null) {
