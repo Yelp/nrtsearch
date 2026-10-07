@@ -22,6 +22,8 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
+import com.yelp.nrtsearch.server.embedding.EmbeddingCreator;
+import com.yelp.nrtsearch.server.embedding.EmbeddingProvider;
 import com.yelp.nrtsearch.server.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.grpc.ExactVectorQuery;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -98,7 +100,40 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   protected final int vectorDimensions;
   protected final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
+  private final String embeddingProviderName;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+
+  /**
+   * Checks if a string looks like a JSON numeric array (e.g., "[1.0, -2, 3.5e10]"). Uses character
+   * scanning instead of regex to avoid StackOverflowError on large vectors. This is a heuristic
+   * gate — actual parsing and validation is handled by GSON downstream.
+   */
+  @VisibleForTesting
+  static boolean looksLikeVectorJson(String value) {
+    String trimmed = value.trim();
+    int len = trimmed.length();
+    if (len < 3 || trimmed.charAt(0) != '[' || trimmed.charAt(len - 1) != ']') {
+      return false;
+    }
+    boolean hasDigit = false;
+    for (int i = 1; i < len - 1; i++) {
+      char c = trimmed.charAt(i);
+      if (c >= '0' && c <= '9') {
+        hasDigit = true;
+      } else if (c == '.'
+          || c == '-'
+          || c == '+'
+          || c == 'e'
+          || c == 'E'
+          || c == ','
+          || Character.isWhitespace(c)) {
+        // allowed characters in numeric array
+      } else {
+        return false;
+      }
+    }
+    return hasDigit;
+  }
 
   protected FloatFieldDef magnitudeField;
   private Map<String, IndexableFieldDef<?>> childFieldsWithMagnitude;
@@ -292,6 +327,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       VectorFieldDef<?> previousField) {
     super(name, requestField, context, docValuesClass, previousField);
     this.vectorDimensions = requestField.getVectorDimensions();
+    this.embeddingProviderName =
+        requestField.getEmbeddingProvider().isEmpty() ? null : requestField.getEmbeddingProvider();
     if (isSearchable()) {
       VectorSearchType vectorSearchType = getSearchType(requestField.getVectorIndexingOptions());
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
@@ -344,6 +381,15 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   public int getVectorDimensions() {
     return vectorDimensions;
+  }
+
+  /**
+   * Get the configured embedding provider name for this field, or null if not set.
+   *
+   * @return embedding provider name, or null
+   */
+  public String getEmbeddingProviderName() {
+    return embeddingProviderName;
   }
 
   @Override
@@ -434,6 +480,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   /** Field class for 'FLOAT' vector field type. */
   public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
+    private final EmbeddingProvider embeddingProvider;
+
     public FloatVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       this(name, requestField, context, null);
@@ -454,6 +502,27 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         FieldDefCreator.FieldDefCreatorContext context,
         FloatVectorFieldDef previousField) {
       super(name, requestField, context, FloatVectorType.class, previousField);
+      if (getEmbeddingProviderName() != null) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        if (provider.dimensions() != vectorDimensions) {
+          throw new IllegalArgumentException(
+              "Embedding provider '"
+                  + getEmbeddingProviderName()
+                  + "' dimensions ("
+                  + provider.dimensions()
+                  + ") don't match field vectorDimensions ("
+                  + vectorDimensions
+                  + ")");
+        }
+        this.embeddingProvider = provider;
+      } else {
+        this.embeddingProvider = null;
+      }
     }
 
     @Override
@@ -494,16 +563,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
     @Override
     void parseVectorField(String value, Document document) {
-      float[] floatArr = null;
-      if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
+      float[] floatArr;
+      if (!looksLikeVectorJson(value)) {
+        if (embeddingProvider == null) {
+          throw new IllegalStateException(
+              "No embedding provider configured for field: " + getName());
+        }
+        floatArr = embeddingProvider.embed(value);
+      } else {
         floatArr = parseVectorFieldToFloatArr(value);
+      }
+      if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
         byte[] floatBytes = convertFloatArrToBytes(floatArr);
         document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
       }
       if (isSearchable()) {
-        if (floatArr == null) {
-          floatArr = parseVectorFieldToFloatArr(value);
-        }
         float magnitude2 = validateVectorForSearch(floatArr);
         if (magnitudeField != null) {
           float magnitude = (float) Math.sqrt(magnitude2);
@@ -675,6 +749,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
   /** Field class for 'BYTE' vector field type. */
   public static class ByteVectorFieldDef extends VectorFieldDef<ByteVectorType> {
+    private final EmbeddingProvider embeddingProvider;
+
     public ByteVectorFieldDef(
         String name, Field requestField, FieldDefCreator.FieldDefCreatorContext context) {
       this(name, requestField, context, null);
@@ -698,6 +774,27 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       if (NORMALIZED_COSINE.equals(requestField.getVectorSimilarity())) {
         throw new IllegalArgumentException(
             "Normalized cosine similarity is not supported for byte vectors");
+      }
+      if (getEmbeddingProviderName() != null && EmbeddingCreator.getInstance() != null) {
+        EmbeddingProvider provider =
+            EmbeddingCreator.getInstance().getProvider(getEmbeddingProviderName());
+        if (provider == null) {
+          throw new IllegalArgumentException(
+              "Embedding provider not found: " + getEmbeddingProviderName());
+        }
+        if (provider.dimensions() != vectorDimensions) {
+          throw new IllegalArgumentException(
+              "Embedding provider '"
+                  + getEmbeddingProviderName()
+                  + "' dimensions ("
+                  + provider.dimensions()
+                  + ") don't match field vectorDimensions ("
+                  + vectorDimensions
+                  + ")");
+        }
+        this.embeddingProvider = provider;
+      } else {
+        this.embeddingProvider = null;
       }
     }
 
@@ -738,15 +835,20 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
 
     @Override
     void parseVectorField(String value, Document document) {
-      byte[] byteArr = null;
-      if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
+      byte[] byteArr;
+      if (!looksLikeVectorJson(value)) {
+        if (embeddingProvider == null) {
+          throw new IllegalStateException(
+              "No embedding provider configured for field: " + getName());
+        }
+        byteArr = embeddingProvider.embedBytes(value);
+      } else {
         byteArr = parseVectorFieldToByteArr(value);
+      }
+      if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
         document.add(new BinaryDocValuesField(getName(), new BytesRef(byteArr)));
       }
       if (isSearchable()) {
-        if (byteArr == null) {
-          byteArr = parseVectorFieldToByteArr(value);
-        }
         validateVectorForSearch(byteArr);
         document.add(new KnnByteVectorField(getName(), byteArr, similarityFunction));
       }

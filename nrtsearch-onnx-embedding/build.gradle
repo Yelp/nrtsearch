@@ -1,0 +1,90 @@
+plugins {
+    alias(libs.plugins.spotless)
+    id 'distribution'
+    id 'idea'
+    id 'java'
+}
+
+repositories {
+    maven {
+        url 'https://maven-central.storage-download.googleapis.com/repos/central/data/'
+    }
+    mavenLocal()
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+group 'com.yelp.nrtsearch.plugins'
+version '0.0.1'
+
+dependencies {
+    compileOnly project(':')
+
+    implementation 'com.microsoft.onnxruntime:onnxruntime:1.29.0'
+    implementation 'ai.djl.huggingface:tokenizers:0.36.0'
+    implementation 'ai.djl:api:0.36.0'
+
+    testImplementation project(':')
+    testImplementation project(path: ':', configuration: 'archives')
+    testImplementation libs.assertj.core
+    testImplementation libs.grpc.testing
+    testImplementation libs.junit
+    testImplementation libs.protobuf.java
+}
+
+distributions {
+    main {
+        contents {
+            from(jar)
+            from(this.project.configurations.runtimeClasspath)
+            from('src/main/plugin-metadata/plugin-metadata.yaml') {
+                expand(
+                    classname: 'com.yelp.nrtsearch.plugins.onnx.OnnxEmbeddingPlugin',
+                    name: "nrtsearch-onnx-embedding",
+                    version: project.version,
+                    description: 'ONNX-based embedding provider for nrtsearch',
+                    server_version: rootProject.version
+                )
+            }
+        }
+    }
+}
+
+// Task to download the all-MiniLM-L6-v2 ONNX model for testing
+task downloadTestModel {
+    def modelDir = file("${rootProject.projectDir}/models/all-MiniLM-L6-v2")
+    outputs.dir modelDir
+
+    doLast {
+        modelDir.mkdirs()
+        def baseUrl = 'https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx'
+
+        if (!new File(modelDir, 'model.onnx').exists()) {
+            ant.get(src: "${baseUrl}/model.onnx", dest: new File(modelDir, 'model.onnx'))
+        }
+        if (!new File(modelDir, 'tokenizer.json').exists()) {
+            ant.get(
+                src: 'https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json',
+                dest: new File(modelDir, 'tokenizer.json'))
+        }
+    }
+}
+
+test {
+    dependsOn downloadTestModel
+    finalizedBy 'spotlessJavaCheck'
+}
+
+spotless {
+    java {
+        licenseHeaderFile '../license_header'
+        removeUnusedImports()
+        endWithNewline()
+        trimTrailingWhitespace()
+        googleJavaFormat()
+    }
+}
