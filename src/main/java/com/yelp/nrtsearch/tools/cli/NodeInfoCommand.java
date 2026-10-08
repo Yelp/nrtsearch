@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.NodeInfoRequest;
 import com.yelp.nrtsearch.server.grpc.NodeInfoResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -28,7 +26,6 @@ import picocli.CommandLine;
     description = "Get node information for the server")
 public class NodeInfoCommand implements Callable<Integer> {
   public static final String NODE_INFO = "nodeInfo";
-  private static final Logger logger = LoggerFactory.getLogger(NodeInfoCommand.class);
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
@@ -38,7 +35,7 @@ public class NodeInfoCommand implements Callable<Integer> {
     try {
       NodeInfoResponse response =
           client.getBlockingStub().nodeInfo(NodeInfoRequest.newBuilder().build());
-      logger.info("Server returned node info: {}", response);
+      CliUtils.printMessage(response, baseCmd.isJson());
     } finally {
       client.shutdown();
     }

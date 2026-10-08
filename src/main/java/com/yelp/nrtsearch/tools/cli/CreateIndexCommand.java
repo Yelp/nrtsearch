@@ -89,13 +89,15 @@ public class CreateIndexCommand implements Callable<Integer> {
         fieldDefRequest =
             CliUtils.mergeBuilderFromParam(fields, FieldDefRequest.newBuilder()).build();
       }
-      client.createIndex(
-          getIndexName(),
-          getExistsWithId(),
-          indexSettings,
-          indexLiveSettings,
-          fieldDefRequest,
-          start);
+      CliUtils.printMessage(
+          client.createIndex(
+              getIndexName(),
+              getExistsWithId(),
+              indexSettings,
+              indexLiveSettings,
+              fieldDefRequest,
+              start),
+          baseCmd.isJson());
     } finally {
       client.shutdown();
     }
