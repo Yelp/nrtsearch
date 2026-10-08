@@ -114,6 +114,7 @@ public class NrtsearchConfig {
   private final boolean requireIdField;
   private final boolean s3RefreshUpload;
   private final boolean s3ReplicaRefreshDownload;
+  private final boolean s3RefreshNotifyAfterUpload;
   private final IsolatedReplicaConfig isolatedReplicaConfig;
 
   @Inject
@@ -195,6 +196,7 @@ public class NrtsearchConfig {
     requireIdField = configReader.getBoolean("requireIdField", false);
     s3RefreshUpload = configReader.getBoolean("s3RefreshUpload", false);
     s3ReplicaRefreshDownload = configReader.getBoolean("s3ReplicaRefreshDownload", false);
+    s3RefreshNotifyAfterUpload = configReader.getBoolean("s3RefreshNotifyAfterUpload", false);
     isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
@@ -399,6 +401,14 @@ public class NrtsearchConfig {
 
   public boolean getS3ReplicaRefreshDownload() {
     return s3ReplicaRefreshDownload;
+  }
+
+  /**
+   * Get if the primary should notify replicas of a new NRT point only after it is uploaded to S3.
+   * This is needed when replicas use s3ReplicaRefreshDownload, and requires s3RefreshUpload.
+   */
+  public boolean getS3RefreshNotifyAfterUpload() {
+    return s3RefreshNotifyAfterUpload;
   }
 
   public IsolatedReplicaConfig getIsolatedReplicaConfig() {
