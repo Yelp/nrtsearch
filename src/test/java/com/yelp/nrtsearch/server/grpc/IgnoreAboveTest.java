@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,6 +51,11 @@ public class IgnoreAboveTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
