@@ -91,6 +91,7 @@ dependencies {
     implementation libs.jakarta.xml.bind.api
     implementation libs.lz4.java
     implementation libs.snakeyaml
+    implementation libs.zstd.jni
 
     // test deps
     testImplementation libs.junit

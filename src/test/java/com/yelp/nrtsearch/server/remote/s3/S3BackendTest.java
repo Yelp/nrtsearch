@@ -29,11 +29,13 @@ import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.remote.FileCompressor;
 import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.LZ4FileCompressor;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
+import com.yelp.nrtsearch.server.remote.ZstdFileCompressor;
 import com.yelp.nrtsearch.server.utils.GlobalThrottledInputStream;
 import com.yelp.nrtsearch.server.utils.GlobalWindowRateLimiter;
 import com.yelp.nrtsearch.server.utils.TimeStringUtils;
@@ -101,7 +103,9 @@ public class S3BackendTest {
 
   @BeforeClass
   public static void setup() throws IOException {
-    FileCompressorCreator.initialize(java.util.List.of());
+    FileCompressorCreator.initialize(
+        new NrtsearchConfig(new ByteArrayInputStream(("bucketName: " + BUCKET_NAME).getBytes())),
+        java.util.List.of());
     String configStr = "bucketName: " + BUCKET_NAME;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = S3_PROVIDER.getS3Client();
@@ -1980,6 +1984,119 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testUploadIndexFiles_withZstdCompression() throws IOException {
+    File indexDir = folder.newFolder("index_dir_zstd_upload");
+    String testContent = "index file content for zstd compression test";
+    Files.write(
+        new File(indexDir, "zstd_file1").toPath(), testContent.getBytes(StandardCharsets.UTF_8));
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(
+            new byte[0], new byte[0], testContent.length(), 0, "pid_zstd", "ts_zstd");
+
+    createCompressedBackend("ZSTD")
+        .uploadIndexFiles(
+            "zstd_upload_service", "zstd_index", indexDir.toPath(), Map.of("zstd_file1", meta1));
+
+    assertEquals("ZSTD", meta1.compressionType);
+    assertNotNull(meta1.compressedLength);
+    assertTrue(meta1.compressedLength > 0);
+  }
+
+  @Test
+  public void testDownloadIndexFiles_withZstdCompression() throws IOException {
+    File uploadDir = folder.newFolder("zstd_upload_dir");
+    File downloadDir = folder.newFolder("zstd_download_dir");
+    byte[] data = new byte[512 * 1024];
+    new Random(11).nextBytes(data);
+    Arrays.fill(data, 0, data.length / 2, (byte) 3);
+    Files.write(new File(uploadDir, "zstd_dl_file1").toPath(), data);
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(new byte[0], new byte[0], data.length, 0, "pid_zstd_dl", "ts_zstd");
+
+    S3Backend zstdBackend = createCompressedBackend("ZSTD");
+    zstdBackend.uploadIndexFiles(
+        "zstd_dl_service", "zstd_dl_index", uploadDir.toPath(), Map.of("zstd_dl_file1", meta1));
+    assertEquals("ZSTD", meta1.compressionType);
+    assertTrue(meta1.compressedLength < data.length);
+
+    zstdBackend.downloadIndexFiles(
+        "zstd_dl_service", "zstd_dl_index", downloadDir.toPath(), Map.of("zstd_dl_file1", meta1));
+    assertArrayEquals(data, Files.readAllBytes(downloadDir.toPath().resolve("zstd_dl_file1")));
+  }
+
+  @Test
+  public void testDownloadIndexFile_withZstdCompression() throws IOException {
+    File uploadDir = folder.newFolder("zstd_stream_upload_dir");
+    String testContent = "stream download content with zstd compression";
+    Files.write(
+        new File(uploadDir, "zstd_stream_file1").toPath(),
+        testContent.getBytes(StandardCharsets.UTF_8));
+    NrtFileMetaData meta1 =
+        new NrtFileMetaData(
+            new byte[0], new byte[0], testContent.length(), 0, "pid_zstd_stream", "ts_zstd");
+
+    S3Backend zstdBackend = createCompressedBackend("ZSTD");
+    zstdBackend.uploadIndexFiles(
+        "zstd_stream_service",
+        "zstd_stream_index",
+        uploadDir.toPath(),
+        Map.of("zstd_stream_file1", meta1));
+
+    InputStream stream =
+        zstdBackend.downloadIndexFile(
+            "zstd_stream_service", "zstd_stream_index", "zstd_stream_file1", meta1);
+    assertEquals(testContent, convertToString(stream));
+  }
+
+  @Test
+  public void testDownloadIndexFiles_mixedLz4AndZstd() throws IOException {
+    File uploadDirLz4 = folder.newFolder("mixed_codec_upload_lz4");
+    File uploadDirZstd = folder.newFolder("mixed_codec_upload_zstd");
+    File downloadDir = folder.newFolder("mixed_codec_download");
+    String lz4Content = "file previously uploaded with lz4";
+    String zstdContent = "file uploaded after switching to zstd";
+    Files.write(
+        new File(uploadDirLz4, "lz4_file").toPath(), lz4Content.getBytes(StandardCharsets.UTF_8));
+    Files.write(
+        new File(uploadDirZstd, "zstd_file").toPath(),
+        zstdContent.getBytes(StandardCharsets.UTF_8));
+    NrtFileMetaData lz4Meta =
+        new NrtFileMetaData(new byte[0], new byte[0], lz4Content.length(), 0, "pid_mc1", "ts");
+    NrtFileMetaData zstdMeta =
+        new NrtFileMetaData(new byte[0], new byte[0], zstdContent.length(), 0, "pid_mc2", "ts");
+
+    createLz4Backend()
+        .uploadIndexFiles(
+            "mixed_codec_service",
+            "mixed_codec_index",
+            uploadDirLz4.toPath(),
+            Map.of("lz4_file", lz4Meta));
+    S3Backend zstdBackend = createCompressedBackend("ZSTD");
+    zstdBackend.uploadIndexFiles(
+        "mixed_codec_service",
+        "mixed_codec_index",
+        uploadDirZstd.toPath(),
+        Map.of("zstd_file", zstdMeta));
+    assertEquals("LZ4", lz4Meta.compressionType);
+    assertEquals("ZSTD", zstdMeta.compressionType);
+
+    // the zstd configured backend decompresses each file using its recorded compression type
+    zstdBackend.downloadIndexFiles(
+        "mixed_codec_service",
+        "mixed_codec_index",
+        downloadDir.toPath(),
+        Map.of("lz4_file", lz4Meta, "zstd_file", zstdMeta));
+    assertEquals(
+        lz4Content,
+        new String(
+            Files.readAllBytes(downloadDir.toPath().resolve("lz4_file")), StandardCharsets.UTF_8));
+    assertEquals(
+        zstdContent,
+        new String(
+            Files.readAllBytes(downloadDir.toPath().resolve("zstd_file")), StandardCharsets.UTF_8));
+  }
+
+  @Test
   public void testDownloadIndexFiles_mixedCompressedAndUncompressed() throws IOException {
     File uploadDirLz4 = folder.newFolder("mixed_upload_lz4");
     File uploadDirPlain = folder.newFolder("mixed_upload_plain");
@@ -2054,6 +2171,15 @@ public class S3BackendTest {
     assertEquals("LZ4", config.getCompressionType());
   }
 
+  @Test
+  public void testS3BackendConfig_compressionType_ZSTD() {
+    String configStr = "bucketName: test-bucket\nremoteConfig:\n  s3:\n    compressionType: ZSTD";
+    NrtsearchConfig nrtsearchConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
+    S3Backend.S3BackendConfig config = S3Backend.S3BackendConfig.fromConfig(nrtsearchConfig);
+    assertEquals("ZSTD", config.getCompressionType());
+  }
+
   // The streaming compressed upload sends a request body of unknown length, which S3Mock cannot
   // accept (it fails identically for an uncompressed forBlockingInputStream upload). These tests
   // use a fake S3AsyncClient so the request body handling can be controlled and inspected.
@@ -2081,10 +2207,16 @@ public class S3BackendTest {
   }
 
   private S3Backend createStreamingLz4Backend(S3AsyncClient asyncClient) throws IOException {
+    return createStreamingBackend("LZ4", asyncClient);
+  }
+
+  private S3Backend createStreamingBackend(String compressionType, S3AsyncClient asyncClient)
+      throws IOException {
     String configStr =
         "bucketName: "
             + BUCKET_NAME
-            + "\nremoteConfig:\n  s3:\n    compressionType: LZ4"
+            + "\nremoteConfig:\n  s3:\n    compressionType: "
+            + compressionType
             + "\n    compressionInMemoryThresholdBytes: 0";
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     return new S3Backend(config, new S3Util.S3ClientBundle(s3, asyncClient));
@@ -2171,9 +2303,24 @@ public class S3BackendTest {
   @Test(timeout = 60000)
   public void testUploadIndexFiles_streamingCompressedUploadSendsCompressedData()
       throws IOException {
+    assertStreamingUploadSendsCompressedData("LZ4", new LZ4FileCompressor(), "streaming_sends_dir");
+  }
+
+  @Test(timeout = 60000)
+  public void testUploadIndexFiles_streamingZstdUploadSendsCompressedData() throws IOException {
+    assertStreamingUploadSendsCompressedData(
+        "ZSTD",
+        new ZstdFileCompressor(
+            ZstdFileCompressor.DEFAULT_LEVEL, ZstdFileCompressor.DEFAULT_WORKERS),
+        "streaming_zstd_sends_dir");
+  }
+
+  private void assertStreamingUploadSendsCompressedData(
+      String compressionType, FileCompressor decompressor, String dirName) throws IOException {
     AtomicReference<byte[]> sent = new AtomicReference<>();
     S3Backend backend =
-        createStreamingLz4Backend(
+        createStreamingBackend(
+            compressionType,
             fakeAsyncClient(
                 body -> {
                   CompletableFuture<PutObjectResponse> result = new CompletableFuture<>();
@@ -2205,8 +2352,8 @@ public class S3BackendTest {
                       });
                   return result;
                 }));
-    File dir = folder.newFolder("streaming_sends_dir");
-    // half compressible, half incompressible, spanning more than one LZ4 block
+    File dir = folder.newFolder(dirName);
+    // half compressible, half incompressible, spanning more than one compression block
     byte[] data = new byte[12 * 1024 * 1024];
     new Random(5).nextBytes(data);
     Arrays.fill(data, 0, data.length / 2, (byte) 7);
@@ -2215,12 +2362,12 @@ public class S3BackendTest {
     backend.uploadIndexFiles(
         "stream_service", "stream_index", dir.toPath(), Map.of("big_file", meta));
 
-    assertEquals("LZ4", meta.compressionType);
+    assertEquals(compressionType, meta.compressionType);
     assertNotNull(sent.get());
     assertEquals(sent.get().length, meta.compressedLength.longValue());
     assertTrue(meta.compressedLength < data.length);
     try (InputStream decompressed =
-        new LZ4FileCompressor().decompressStream(new ByteArrayInputStream(sent.get()))) {
+        decompressor.decompressStream(new ByteArrayInputStream(sent.get()))) {
       assertArrayEquals(data, IOUtils.toByteArray(decompressed));
     }
   }
@@ -2298,10 +2445,21 @@ public class S3BackendTest {
   }
 
   private S3Backend createLz4Backend(long inMemoryThresholdBytes) throws IOException {
+    return createCompressedBackend("LZ4", inMemoryThresholdBytes);
+  }
+
+  private S3Backend createCompressedBackend(String compressionType) throws IOException {
+    return createCompressedBackend(
+        compressionType, S3Backend.S3BackendConfig.DEFAULT_COMPRESSION_IN_MEMORY_THRESHOLD_BYTES);
+  }
+
+  private S3Backend createCompressedBackend(String compressionType, long inMemoryThresholdBytes)
+      throws IOException {
     String configStr =
         "bucketName: "
             + BUCKET_NAME
-            + "\nremoteConfig:\n  s3:\n    compressionType: LZ4"
+            + "\nremoteConfig:\n  s3:\n    compressionType: "
+            + compressionType
             + "\n    compressionInMemoryThresholdBytes: "
             + inMemoryThresholdBytes;
     NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
