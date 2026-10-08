@@ -114,21 +114,22 @@ public class AmazonS3Provider extends ExternalResource {
       // Phase 2: wait for the bucket-creation route to be registered.
       // Per-attempt probe bucket name avoids stale-state 500s if s3Path is reused across
       // attempts (each attempt's partial directory is left in place after shutdown).
-      S3Client probeS3 = createTestS3Client(endpoint);
       String probeBucket = "s3mock-readiness-probe-" + attempt;
       boolean phase2Ok = false;
-      for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
-        try {
-          probeS3.createBucket(CreateBucketRequest.builder().bucket(probeBucket).build());
-          phase2Ok = true;
-          break;
-        } catch (Exception e) {
-          lastException = e;
+      try (S3Client probeS3 = createTestS3Client(endpoint)) {
+        for (int bucketAttempt = 0; bucketAttempt < 100; bucketAttempt++) {
           try {
-            Thread.sleep(200);
-          } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
+            probeS3.createBucket(CreateBucketRequest.builder().bucket(probeBucket).build());
+            phase2Ok = true;
             break;
+          } catch (Exception e) {
+            lastException = e;
+            try {
+              Thread.sleep(200);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              break;
+            }
           }
         }
       }

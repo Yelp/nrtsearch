@@ -69,6 +69,8 @@ import java.util.stream.Stream;
 import org.junit.rules.TemporaryFolder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class TestServer {
@@ -187,19 +189,30 @@ public class TestServer {
    */
   public static void resetS3Bucket() {
     if (S3_ENDPOINT == null) return;
-    S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT);
     // Only delete objects — do NOT delete/recreate the bucket. Deleting and recreating
     // the bucket causes S3Mock to transiently return 404 on the next createBucket call
     // under JVM load, which cascades into failures across all subsequent test classes.
-    try {
-      List<ObjectIdentifier> objects =
-          s3.listObjectsV2(r -> r.bucket(TEST_BUCKET)).contents().stream()
-              .map(o -> ObjectIdentifier.builder().key(o.key()).build())
-              .collect(Collectors.toList());
-      if (!objects.isEmpty()) {
-        s3.deleteObjects(r -> r.bucket(TEST_BUCKET).delete(d -> d.objects(objects)));
+    try (S3Client s3 = AmazonS3Provider.createTestS3Client(S3_ENDPOINT)) {
+      List<ObjectIdentifier> objects;
+      try {
+        objects =
+            s3.listObjectsV2Paginator(r -> r.bucket(TEST_BUCKET)).contents().stream()
+                .map(o -> ObjectIdentifier.builder().key(o.key()).build())
+                .collect(Collectors.toList());
+      } catch (NoSuchBucketException e) {
+        // Bucket is created lazily by the first TestServer, so nothing to clean yet.
+        return;
       }
-    } catch (Exception ignored) {
+      // DeleteObjects accepts at most 1000 keys per request.
+      for (int i = 0; i < objects.size(); i += 1000) {
+        List<ObjectIdentifier> batch = objects.subList(i, Math.min(i + 1000, objects.size()));
+        DeleteObjectsResponse response =
+            s3.deleteObjects(r -> r.bucket(TEST_BUCKET).delete(d -> d.objects(batch)));
+        if (response.hasErrors() && !response.errors().isEmpty()) {
+          throw new IllegalStateException(
+              "Failed to delete objects from " + TEST_BUCKET + ": " + response.errors());
+        }
+      }
     }
   }
 
