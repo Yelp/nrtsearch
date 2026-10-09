@@ -60,6 +60,7 @@ protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "p
 protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version = "2.0.16" }
 snakeyaml = { module = "org.yaml:snakeyaml", version = "2.2" }
+zstd-jni = { module = "com.github.luben:zstd-jni", version = "1.5.7-19" }
 
 assertj-core = { module = "org.assertj:assertj-core", version = "3.26.3" }
 grpc-inprocess = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }

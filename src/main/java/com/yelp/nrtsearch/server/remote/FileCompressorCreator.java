@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.remote;
 
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.FileCompressorPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
@@ -31,8 +32,9 @@ public class FileCompressorCreator {
 
   private final Map<String, FileCompressor> compressors = new HashMap<>();
 
-  private FileCompressorCreator() {
+  private FileCompressorCreator(NrtsearchConfig configuration) {
     compressors.put("LZ4", new LZ4FileCompressor());
+    compressors.put("ZSTD", ZstdFileCompressor.fromConfig(configuration));
   }
 
   /**
@@ -65,10 +67,11 @@ public class FileCompressorCreator {
    * Initialize the singleton instance. Registers any additional {@link FileCompressor}
    * implementations provided by {@link FileCompressorPlugin}s.
    *
+   * @param configuration server configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(Iterable<Plugin> plugins) {
-    instance = new FileCompressorCreator();
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
+    instance = new FileCompressorCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof FileCompressorPlugin compressorPlugin) {
         compressorPlugin.getFileCompressors().forEach(instance::register);

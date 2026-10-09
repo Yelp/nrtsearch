@@ -494,7 +494,7 @@ public class NrtsearchServer {
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
-      FileCompressorCreator.initialize(plugins);
+      FileCompressorCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
       HitsLoggerCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);

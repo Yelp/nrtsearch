@@ -635,6 +635,16 @@ Example server configuration
      - If enabled, the download concurrency limit is halved on each retry round. Has no effect when ``adaptiveConcurrency.enabled`` is true, since the adaptive limiter manages its own concurrency.
      - true
 
+   * - compressionType
+     - str
+     - Compression applied to index data files uploaded to S3. Built-in options are ``NONE``, ``LZ4``, and ``ZSTD``; plugins implementing ``FileCompressorPlugin`` may register additional names. The type used is recorded per file in the index metadata, so files are always decompressed with the codec they were written with, and this value may be changed at any time.
+     - NONE
+
+   * - compressionInMemoryThresholdBytes
+     - long
+     - Files at or below this size are compressed into memory and uploaded with a known length. Larger files are compressed while streaming to S3 using a multipart upload, bounding memory usage to roughly one part per file.
+     - 134217728 (128 MB)
+
 .. list-table:: `S3 Adaptive Concurrency Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Backend.java>`_ (``remoteConfig.s3.adaptiveConcurrency.*``)
    :widths: 25 10 50 25
    :header-rows: 1
@@ -693,6 +703,25 @@ Example server configuration
      - int
      - Number of initial measurement windows during which only increases are allowed. This prevents premature decreases during connection pool warm-up at the start of a download batch.
      - 3
+
+.. list-table:: `S3 ZSTD Compression Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/ZstdFileCompressor.java>`_ (``remoteConfig.s3.zstd.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - level
+     - int
+     - Compression level used when ``compressionType`` is ``ZSTD``. Higher levels compress better but use more CPU. Negative values select the faster, lower-ratio levels. Must be within the range supported by the zstd library (``-131072`` to ``22``). Only affects compression; files written at any level can be decompressed.
+     - 3
+
+   * - workers
+     - int
+     - Number of zstd worker threads used to compress each file. ``0`` compresses in the uploading thread. Values above ``0`` enable multithreaded compression of each file, which mostly benefits large files since multiple files are already uploaded in parallel.
+     - 0
 
 .. list-table:: `S3 Java Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.java.*``)
    :widths: 25 10 50 25
