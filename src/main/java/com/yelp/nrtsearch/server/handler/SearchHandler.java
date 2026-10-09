@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.handler;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
@@ -739,6 +740,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
             ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
           }
         }
+        // retrieve stored fields, preferred over doc values since they preserve value order
+        case IndexableFieldDef<?> indexableFieldDef when indexableFieldDef.isStored() -> {
+          IndexableField[] values =
+              storedFields.document(hit.getLuceneDocId(), Set.of(field)).getFields(field);
+          for (IndexableField fieldValue : values) {
+            compositeFieldValue.addFieldValue(
+                indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
+          }
+        }
         case IndexableFieldDef<?> fieldDef when fieldDef.hasDocValues() -> {
           int docID = hit.getLuceneDocId() - leaf.docBase;
           // it may be possible to cache this if there are multiple hits in the same segment
@@ -746,16 +756,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           docValues.setDocId(docID);
           for (int i = 0; i < docValues.size(); ++i) {
             compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
-          }
-        }
-
-        // retrieve stored fields
-        case IndexableFieldDef<?> indexableFieldDef when indexableFieldDef.isStored() -> {
-          IndexableField[] values =
-              storedFields.document(hit.getLuceneDocId(), Set.of(field)).getFields(field);
-          for (IndexableField fieldValue : values) {
-            compositeFieldValue.addFieldValue(
-                indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
           }
         }
         default ->
@@ -793,8 +793,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       for (Map.Entry<String, FieldDef> fieldDefEntry :
           fieldFetchContext.getRetrieveFields().entrySet()) {
         if (fieldDefEntry.getValue() instanceof IndexableFieldDef<?> indexableFieldDef
-            && indexableFieldDef.isStored()
-            && !indexableFieldDef.hasDocValues()) {
+            && indexableFieldDef.isStored()) {
           storedFieldEntries.add(new NameAndFieldDef(fieldDefEntry.getKey(), indexableFieldDef));
           storedFieldNames.add(fieldDefEntry.getKey());
         }
@@ -877,7 +876,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
      * @param sliceSegment lucene segment context for slice
      * @throws IOException on issue reading document data
      */
-    private static void fetchSlice(
+    @VisibleForTesting
+    static void fetchSlice(
         FieldFetchContext context,
         Query explainQuery,
         List<SearchResponse.Hit.Builder> sliceHits,
@@ -893,9 +893,14 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
               fetchRuntimeFromSegmentFactory(
                   sliceHits, sliceSegment, fieldDefEntry.getKey(), runtimeFieldDef);
           case IndexableFieldDef<?> indexableFieldDef -> {
+            // stored fields are read below from the stored document, which also takes priority
+            // over doc values since it preserves the original value order
+            if (indexableFieldDef.isStored()) {
+              continue;
+            }
             if (indexableFieldDef.hasDocValues()) {
               fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
-            } else if (!indexableFieldDef.isStored()) {
+            } else {
               throw new IllegalStateException(
                   "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
             }

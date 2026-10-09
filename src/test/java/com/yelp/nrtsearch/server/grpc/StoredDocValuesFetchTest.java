@@ -33,8 +33,9 @@ import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
- * Fields that are both stored and have doc values are retrieved from doc values, whichever fetch
- * path is used. Subclasses run the same assertions with parallel fetch configurations.
+ * Fields that are both stored and have doc values are retrieved from stored fields, which keep the
+ * original value order, whichever fetch path is used. Subclasses run the same assertions with
+ * parallel fetch configurations.
  */
 public class StoredDocValuesFetchTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
@@ -109,13 +110,14 @@ public class StoredDocValuesFetchTest extends ServerTestCase {
   }
 
   @Test
-  public void testStoredAndDocValuesFieldReturnsDocValues() {
-    // sorted set doc values are de-duplicated and sorted; the stored values are b, a, b and d, c
+  public void testStoredAndDocValuesFieldReturnsStoredValues() {
+    // sorted set doc values would be de-duplicated and sorted: a, b and c, d
     Map<String, SearchResponse.Hit> hits = searchHitsByDocId();
     assertEquals(
-        List.of("a", "b"), textValues(hits.get("1").getFieldsOrThrow("stored_and_doc_values")));
+        List.of("b", "a", "b"),
+        textValues(hits.get("1").getFieldsOrThrow("stored_and_doc_values")));
     assertEquals(
-        List.of("c", "d"), textValues(hits.get("2").getFieldsOrThrow("stored_and_doc_values")));
+        List.of("d", "c"), textValues(hits.get("2").getFieldsOrThrow("stored_and_doc_values")));
   }
 
   @Test
@@ -172,7 +174,7 @@ public class StoredDocValuesFetchTest extends ServerTestCase {
     }
   }
 
-  /** Fetch by field chunks in parallel (FillFieldsTask, which always preferred doc values). */
+  /** Fetch by field chunks in parallel (FillFieldsTask). */
   public static class ParallelFieldsFetchTest extends ParallelFetchBase {
     @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
