@@ -793,7 +793,8 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       for (Map.Entry<String, FieldDef> fieldDefEntry :
           fieldFetchContext.getRetrieveFields().entrySet()) {
         if (fieldDefEntry.getValue() instanceof IndexableFieldDef<?> indexableFieldDef
-            && indexableFieldDef.isStored()) {
+            && indexableFieldDef.isStored()
+            && !indexableFieldDef.hasDocValues()) {
           storedFieldEntries.add(new NameAndFieldDef(fieldDefEntry.getKey(), indexableFieldDef));
           storedFieldNames.add(fieldDefEntry.getKey());
         }
