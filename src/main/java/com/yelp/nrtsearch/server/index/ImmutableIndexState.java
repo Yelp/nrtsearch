@@ -78,7 +78,7 @@ public class ImmutableIndexState extends IndexState {
   public static final long DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS =
       500; // 500 milliseconds default
   public static final boolean DEFAULT_USE_COMPOUND_FILE = true;
-  public static final double DEFAULT_NO_CFS_RATIO = 1.0;
+  public static final double DEFAULT_NO_CFS_RATIO = TieredMergePolicy.DEFAULT_NO_CFS_RATIO;
   public static final double DEFAULT_MAX_CFS_SEGMENT_SIZE_MB = 0.0; // 0 = unlimited
 
   // default settings as message, so they can be merged with saved settings

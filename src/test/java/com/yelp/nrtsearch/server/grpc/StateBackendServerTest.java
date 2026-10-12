@@ -1346,7 +1346,7 @@ public class StateBackendServerTest {
             .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
             .setParallelFetchChunkSize(Int32Value.newBuilder().setValue(50).build())
             .setDeletePctAllowed(DoubleValue.newBuilder().setValue(20.0).build())
-            .setNoCFSRatio(DoubleValue.newBuilder().setValue(1.0).build())
+            .setNoCFSRatio(DoubleValue.newBuilder().setValue(0.1).build())
             .setMaxCFSSegmentSizeMB(DoubleValue.newBuilder().setValue(0.0).build())
             .build();
 

@@ -99,13 +99,13 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   @CommandLine.Option(
       names = {"--noCFSRatio"},
       description =
-          "Fraction of total merged index size below which a merged segment will use CFS. 0.0 disables CFS; 1.0 (default) always uses CFS. Range: [0.0, 1.0]")
+          "Maximum fraction of the total index size for a merged segment to be written as a compound file. 0.0 means never, 1.0 means always. Must be in [0.0, 1.0], default: 0.1")
   private Double noCFSRatio;
 
   @CommandLine.Option(
       names = {"--maxCFSSegmentSizeMB"},
       description =
-          "Maximum size in MB for a merged segment to be written as CFS. 0 means unlimited (default). Only applies when noCFSRatio > 0.")
+          "Maximum size in MB of a merged segment that can be written as a compound file, or 0 for no limit, default: 0")
   private Double maxCFSSegmentSizeMB;
 
   @CommandLine.Option(
@@ -207,8 +207,7 @@ public class LiveSettingsV2Command implements Callable<Integer> {
             DoubleValue.newBuilder().setValue(deletePctAllowed).build());
       }
       if (noCFSRatio != null) {
-        liveSettingsBuilder.setNoCFSRatio(
-            DoubleValue.newBuilder().setValue(noCFSRatio).build());
+        liveSettingsBuilder.setNoCFSRatio(DoubleValue.newBuilder().setValue(noCFSRatio).build());
       }
       if (maxCFSSegmentSizeMB != null) {
         liveSettingsBuilder.setMaxCFSSegmentSizeMB(

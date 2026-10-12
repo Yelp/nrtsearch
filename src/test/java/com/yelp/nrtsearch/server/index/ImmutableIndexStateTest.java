@@ -1780,6 +1780,9 @@ public class ImmutableIndexStateTest {
         ImmutableIndexState.DEFAULT_NO_CFS_RATIO,
         getIndexState(getEmptyState()).getNoCFSRatio(),
         0.0);
+    // default must preserve the behavior of an unconfigured TieredMergePolicy
+    assertEquals(
+        new TieredMergePolicy().getNoCFSRatio(), ImmutableIndexState.DEFAULT_NO_CFS_RATIO, 0.0);
   }
 
   @Test

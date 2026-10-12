@@ -565,19 +565,16 @@ public abstract class IndexState implements Closeable {
   /** Maximum time in milliseconds to wait for merges when doing a full flush. */
   public abstract long getMaxFullFlushMergeWaitMillis();
 
-  /** Whether to use compound segment files (.cfs). */
+  /** Whether newly flushed segments are written as a compound file (.cfs). */
   public abstract boolean getUseCompoundFile();
 
   /**
-   * Fraction of total merged index size below which a merged segment uses CFS. 0.0 disables CFS in
-   * the merge policy; 1.0 means all merged segments use CFS.
+   * Maximum fraction of the total index size for a merged segment to be written as a compound file.
+   * 0.0 means merged segments never use a compound file.
    */
   public abstract double getNoCFSRatio();
 
-  /**
-   * Maximum size in MB for a merged segment to be written as CFS. 0.0 means unlimited (Lucene
-   * default applies).
-   */
+  /** Maximum size in MB of a merged segment that can be written as a compound file, 0 for none. */
   public abstract double getMaxCFSSegmentSizeMB();
 
   @Override

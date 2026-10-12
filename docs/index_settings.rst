@@ -78,9 +78,8 @@ Default: 500
 useCompoundFile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Controls whether Lucene writes small segment files as a compound file (``.cfs``). When enabled (default),
-segments below the ``noCFSRatio``/``maxCFSSegmentSizeMB`` thresholds are bundled into a single compound
-file, reducing open-file-handle pressure at the cost of some write overhead.
-Set to ``false`` to disable compound files entirely (requires index restart to take effect).
+Controls whether newly flushed segments are written as a compound file (``.cfs``). A compound file packs a segment's files into one file, which reduces the number of open file handles but adds some write overhead.
+
+This setting only applies to flushed segments. Merged segments are controlled by the ``noCFSRatio`` and ``maxCFSSegmentSizeMB`` live settings. To stop using compound files completely, set this to ``false`` and set ``noCFSRatio`` to ``0.0``.
 
 Default: true
