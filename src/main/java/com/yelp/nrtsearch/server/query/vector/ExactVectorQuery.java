@@ -178,6 +178,7 @@ public abstract class ExactVectorQuery extends Query {
    */
   public static class ExactFloatVectorQuery extends ExactVectorQuery {
     private final float[] queryVector;
+    private final boolean fullPrecision;
 
     /**
      * Constructor.
@@ -186,18 +187,36 @@ public abstract class ExactVectorQuery extends Query {
      * @param queryVector the query vector
      */
     public ExactFloatVectorQuery(String field, float[] queryVector) {
+      this(field, queryVector, false);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param field the field to search
+     * @param queryVector the query vector
+     * @param fullPrecision if similarity should be computed with the full precision vectors,
+     *     instead of the quantized vectors for fields using a quantized vector format
+     */
+    public ExactFloatVectorQuery(String field, float[] queryVector, boolean fullPrecision) {
       super(
           field,
           reader -> {
             var vectorValues = reader.getFloatVectorValues(field);
-            return vectorValues == null ? null : vectorValues.scorer(queryVector);
+            if (vectorValues == null) {
+              return null;
+            }
+            return fullPrecision
+                ? vectorValues.rescorer(queryVector)
+                : vectorValues.scorer(queryVector);
           });
       this.queryVector = queryVector;
+      this.fullPrecision = fullPrecision;
     }
 
     @Override
     public String toString(String field) {
-      return "ExactFloatVectorQuery";
+      return fullPrecision ? "ExactFloatVectorQuery(fullPrecision)" : "ExactFloatVectorQuery";
     }
 
     @Override
@@ -214,12 +233,14 @@ public abstract class ExactVectorQuery extends Query {
         return false;
       }
       ExactFloatVectorQuery other = (ExactFloatVectorQuery) obj;
-      return Objects.equals(field, other.field) && Arrays.equals(queryVector, other.queryVector);
+      return Objects.equals(field, other.field)
+          && Arrays.equals(queryVector, other.queryVector)
+          && fullPrecision == other.fullPrecision;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(classHash(), field, Arrays.hashCode(queryVector));
+      return Objects.hash(classHash(), field, Arrays.hashCode(queryVector), fullPrecision);
     }
   }
 

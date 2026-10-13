@@ -33,6 +33,7 @@ import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenByteKnnVect
 import com.yelp.nrtsearch.server.query.vector.NrtDiversifyingChildrenFloatKnnVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnByteVectorQuery;
 import com.yelp.nrtsearch.server.query.vector.NrtKnnFloatVectorQuery;
+import com.yelp.nrtsearch.server.query.vector.VectorRescoreQuery;
 import com.yelp.nrtsearch.server.vector.ByteVectorType;
 import com.yelp.nrtsearch.server.vector.FloatVectorType;
 import java.io.IOException;
@@ -59,6 +60,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.FullPrecisionFloatVectorSimilarityValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -129,6 +131,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    *
    * @param knnQuery knn query definition
    * @param k number of nearest neighbors to return
+   * @param searchK number of nearest neighbors to collect from the vector search, before rescoring.
+   *     This is the same as k when rescoring is not enabled.
    * @param filterQuery filter query
    * @param numCandidates number of candidates to search per segment
    * @param parentBitSetProducer parent bit set producer for searching nested fields, or null
@@ -137,6 +141,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   abstract Query getTypeKnnQuery(
       KnnQuery knnQuery,
       int k,
+      int searchK,
       Query filterQuery,
       int numCandidates,
       BitSetProducer parentBitSetProducer,
@@ -420,8 +425,34 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
+    int searchK = k;
+    if (isRescoreEnabled(knnQuery)) {
+      float oversample = knnQuery.getRescoreVector().getOversample();
+      if (!(oversample >= 1.0f)) {
+        throw new IllegalArgumentException("Vector search rescore oversample must be >= 1.0");
+      }
+      searchK = (int) Math.min(Math.ceil((double) k * oversample), NUM_CANDIDATES_LIMIT);
+      numCandidates = Math.max(numCandidates, searchK);
+    }
+
     return getTypeKnnQuery(
-        knnQuery, k, filterQuery, numCandidates, parentBitSetProducer, similarityThreshold);
+        knnQuery,
+        k,
+        searchK,
+        filterQuery,
+        numCandidates,
+        parentBitSetProducer,
+        similarityThreshold);
+  }
+
+  /**
+   * Get if the knn query hits should be rescored using the full precision vectors.
+   *
+   * @param knnQuery knn query definition
+   * @return if rescoring is enabled
+   */
+  static boolean isRescoreEnabled(KnnQuery knnQuery) {
+    return knnQuery.hasRescoreVector() && knnQuery.getRescoreVector().getOversample() != 0;
   }
 
   @Override
@@ -550,6 +581,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     Query getTypeKnnQuery(
         KnnQuery knnQuery,
         int k,
+        int searchK,
         Query filterQuery,
         int numCandidates,
         BitSetProducer parentBitSetProducer,
@@ -579,14 +611,21 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                 getName(),
                 queryVector,
                 filterQuery,
-                k,
+                searchK,
                 numCandidates,
                 parentBitSetProducer,
                 searchStrategy);
       } else {
         query =
             new NrtKnnFloatVectorQuery(
-                getName(), queryVector, k, filterQuery, numCandidates, searchStrategy);
+                getName(), queryVector, searchK, filterQuery, numCandidates, searchStrategy);
+      }
+      if (isRescoreEnabled(knnQuery)) {
+        query =
+            new VectorRescoreQuery(
+                query,
+                new FullPrecisionFloatVectorSimilarityValuesSource(queryVector, getName()),
+                k);
       }
       if (similarityThreshold != Float.NEGATIVE_INFINITY) {
         float similarityScore = similarityToScore(similarityThreshold, similarityFunction);
@@ -615,7 +654,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         normalizeVector(queryVector, magnitude);
       }
       return new com.yelp.nrtsearch.server.query.vector.ExactVectorQuery.ExactFloatVectorQuery(
-          getName(), queryVector);
+          getName(), queryVector, exactVectorQuery.getFullPrecision());
     }
 
     /**
@@ -789,6 +828,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     Query getTypeKnnQuery(
         KnnQuery knnQuery,
         int k,
+        int searchK,
         Query filterQuery,
         int numCandidates,
         BitSetProducer parentBitSetProducer,
@@ -799,6 +839,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                 + getVectorDimensions()
                 + ", found: "
                 + knnQuery.getQueryByteVector().size());
+      }
+      if (isRescoreEnabled(knnQuery)) {
+        throw new IllegalArgumentException(
+            "Vector search rescore is only supported for float vector fields");
       }
       byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);
@@ -836,6 +880,10 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
                 + getVectorDimensions()
                 + ", found: "
                 + exactVectorQuery.getQueryByteVector().size());
+      }
+      if (exactVectorQuery.getFullPrecision()) {
+        throw new IllegalArgumentException(
+            "Exact vector query full precision is only supported for float vector fields");
       }
       byte[] queryVector = exactVectorQuery.getQueryByteVector().toByteArray();
       validateVectorForSearch(queryVector);

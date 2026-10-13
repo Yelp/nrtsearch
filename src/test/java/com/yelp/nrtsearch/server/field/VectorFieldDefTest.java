@@ -2997,4 +2997,406 @@ public class VectorFieldDefTest extends ServerTestCase {
           "Hit score should be >= threshold score", hit.getScore() >= expectedMinScore - 0.0001f);
     }
   }
+
+  // Tests for rescoring vector search hits with full precision vectors
+
+  private SearchResponse quantizedKnnSearch(
+      String field, List<Float> queryVector, int k, int numCandidates, float oversample) {
+    KnnQuery.Builder knnQueryBuilder =
+        KnnQuery.newBuilder()
+            .setField(field)
+            .addAllQueryVector(queryVector)
+            .setNumCandidates(numCandidates)
+            .setK(k);
+    if (oversample > 0) {
+      knnQueryBuilder.setRescoreVector(RescoreVector.newBuilder().setOversample(oversample));
+    }
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                .addRetrieveFields(field)
+                .setStartHit(0)
+                .setTopHits(k)
+                .addKnn(knnQueryBuilder.build())
+                .build());
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_noRescore_quantizedScores() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    SearchResponse searchResponse = quantizedKnnSearch("quantized_vector_4", queryVector, 5, 10, 0);
+    assertEquals(5, searchResponse.getHitsCount());
+    // scores come from the 4 bit quantized vectors, so they should not all match full precision
+    float[] queryVectorArray = floatListToArray(queryVector);
+    boolean hasQuantizedScore = false;
+    for (Hit hit : searchResponse.getHitsList()) {
+      float similarity =
+          VectorSimilarityFunction.COSINE.compare(
+              queryVectorArray,
+              floatListToArray(
+                  hit.getFieldsOrThrow("quantized_vector_4")
+                      .getFieldValue(0)
+                      .getVectorValue()
+                      .getValueList()));
+      if (Math.abs(similarity - hit.getScore()) > 0.00001) {
+        hasQuantizedScore = true;
+      }
+    }
+    assertTrue(hasQuantizedScore);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescore() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse = quantizedKnnSearch(field, queryVector, 5, 10, 4.0f);
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+
+    // hits must be sorted by full precision score
+    for (int i = 1; i < searchResponse.getHitsCount(); ++i) {
+      assertTrue(searchResponse.getHits(i - 1).getScore() >= searchResponse.getHits(i).getScore());
+    }
+
+    List<VectorSearchResult> trueTopHits =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.COSINE, null);
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.00001);
+    }
+
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreNoOversample() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse = quantizedKnnSearch(field, queryVector, 5, 10, 1.0f);
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreNormCosine() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "quantized_vector_7.normalized";
+    SearchResponse searchResponse = quantizedKnnSearch(field, queryVector, 5, 10, 2.0f);
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreBoost() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setBoost(2.0f)
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(3.0f))
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 2.0f, 0.0001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreWithSimilarityThreshold() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    float similarityThreshold = 0.99f;
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(100)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(100)
+                            .setK(100)
+                            .setSimilarityThreshold(similarityThreshold)
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(2.0f))
+                            .build())
+                    .build());
+    float expectedMinScore =
+        VectorFieldDef.FloatVectorFieldDef.similarityToScore(
+            similarityThreshold, VectorSimilarityFunction.COSINE);
+    assertTrue(searchResponse.getHitsCount() > 0);
+    assertTrue(searchResponse.getHitsCount() < 100);
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertTrue(hit.getScore() >= expectedMinScore);
+    }
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreWithFilter() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .addRetrieveFields("filter")
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter")
+                                            .setTextValue("term1")))
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(4.0f))
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    for (Hit hit : searchResponse.getHitsList()) {
+      assertEquals("term1", hit.getFieldsOrThrow("filter").getFieldValue(0).getTextValue());
+    }
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreFilterNoMatch() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("quantized_vector_4")
+                            .addAllQueryVector(queryVector)
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setFilter(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("filter")
+                                            .setTextValue("not_a_term")))
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(2.0f))
+                            .build())
+                    .build());
+    assertEquals(0, searchResponse.getHitsCount());
+    assertEquals(
+        0, searchResponse.getDiagnostics().getVectorDiagnostics(0).getTotalHits().getValue());
+  }
+
+  @Test
+  public void testVectorSearch_rescoreNonQuantized() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    String field = "vector_l2_norm";
+    SearchResponse searchResponse = quantizedKnnSearch(field, queryVector, 5, 10, 2.0f);
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.EUCLIDEAN, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testNestedFloatVectorSearch_rescore() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(NESTED_VECTOR_SEARCH_INDEX_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("id")
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("nested_object.float_vector")
+                            .addAllQueryVector(List.of(0.6f, 0.5f, 0.75f))
+                            .setNumCandidates(10)
+                            .setK(1)
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(2.0f))
+                            .build())
+                    .build());
+    assertEquals(1, response.getHitsCount());
+    assertEquals("1", response.getHits(0).getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+    assertEquals(
+        VectorSimilarityFunction.COSINE.compare(
+            new float[] {0.6f, 0.5f, 0.75f}, new float[] {0.7f, 0.8f, 0.9f}),
+        response.getHits(0).getScore(),
+        0.0001);
+  }
+
+  @Test
+  public void testVectorSearch_rescoreInvalidOversample() {
+    for (float oversample : new float[] {0.5f, -1.0f, Float.NaN}) {
+      try {
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setTopHits(5)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField("quantized_vector_4")
+                            .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f, 0.1f))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setRescoreVector(RescoreVector.newBuilder().setOversample(oversample)))
+                    .build());
+        fail();
+      } catch (StatusRuntimeException e) {
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("Vector search rescore oversample must be >= 1.0"));
+      }
+    }
+  }
+
+  @Test
+  public void testVectorSearch_rescoreOversampleCapped() {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse = quantizedKnnSearch(field, queryVector, 5000, 10000, 10.0f);
+    assertEquals(5000, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testByteVectorSearch_rescoreNotSupported() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setTopHits(5)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("byte_vector_l2_norm")
+                          .setQueryByteVector(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                          .setNumCandidates(10)
+                          .setK(5)
+                          .setRescoreVector(RescoreVector.newBuilder().setOversample(2.0f)))
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage(),
+          e.getMessage()
+              .contains("Vector search rescore is only supported for float vector fields"));
+    }
+  }
+
+  @Test
+  public void testFloatExactSearch_fullPrecision() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    List<VectorSearchResult> trueTopHits =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.COSINE, null);
+
+    SearchResponse fullPrecisionResponse = exactVectorSearch(field, queryVector, true);
+    assertEquals(5, fullPrecisionResponse.getHitsCount());
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, fullPrecisionResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, fullPrecisionResponse.getHits(i).getScore(), 0.00001);
+    }
+
+    // default exact search uses the quantized vectors
+    SearchResponse quantizedResponse = exactVectorSearch(field, queryVector, false);
+    assertEquals(5, quantizedResponse.getHitsCount());
+    boolean hasQuantizedScore = false;
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      if (Math.abs(trueTopHits.get(i).score - quantizedResponse.getHits(i).getScore()) > 0.00001) {
+        hasQuantizedScore = true;
+      }
+    }
+    assertTrue(hasQuantizedScore);
+  }
+
+  @Test
+  public void testByteExactSearch_fullPrecisionNotSupported() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setTopHits(5)
+                  .setQuery(
+                      Query.newBuilder()
+                          .setExactVectorQuery(
+                              ExactVectorQuery.newBuilder()
+                                  .setField("byte_vector_l2_norm")
+                                  .setQueryByteVector(ByteString.copyFrom(new byte[] {1, 2, 3}))
+                                  .setFullPrecision(true)))
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage(),
+          e.getMessage()
+              .contains(
+                  "Exact vector query full precision is only supported for float vector fields"));
+    }
+  }
+
+  private SearchResponse exactVectorSearch(
+      String field, List<Float> queryVector, boolean fullPrecision) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                .setStartHit(0)
+                .setTopHits(5)
+                .setQuery(
+                    Query.newBuilder()
+                        .setExactVectorQuery(
+                            ExactVectorQuery.newBuilder()
+                                .setField(field)
+                                .addAllQueryFloatVector(queryVector)
+                                .setFullPrecision(fullPrecision)))
+                .build());
+  }
 }

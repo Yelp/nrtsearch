@@ -3271,6 +3271,10 @@
           "type": "string",
           "format": "byte",
           "title": "Query vector for fields with the byte element type"
+        },
+        "fullPrecision": {
+          "type": "boolean",
+          "description": "If true, compute similarity using the full precision vectors for fields with float element\ntype. By default, fields using a quantized vector search type compute similarity using the\nquantized vectors."
         }
       },
       "title": "A query that does a brute force search for documents with a vector most similar to the query vector"
@@ -4450,6 +4454,10 @@
         "filterStrategy": {
           "$ref": "#/definitions/KnnQueryFilterStrategy",
           "title": "Strategy to use when applying filter"
+        },
+        "rescoreVector": {
+          "$ref": "#/definitions/luceneserverRescoreVector",
+          "description": "Optional rescoring of vector search hits using the full precision vectors. This is useful for\nfields that use a quantized vector search type, where the search scores are computed from the\nquantized vectors. Only supported for fields with float element type."
         }
       },
       "title": "Specification for kNN vector search query"
@@ -5538,6 +5546,17 @@
     "luceneserverReloadStateResponse": {
       "type": "object",
       "title": "Response from Server for reloadState"
+    },
+    "luceneserverRescoreVector": {
+      "type": "object",
+      "properties": {
+        "oversample": {
+          "type": "number",
+          "format": "float",
+          "description": "Oversampling factor for the vector search. The search collects ceil(k * oversample) hits\n(capped at the num_candidates limit), which are rescored using the full precision vectors to\nproduce the final top k. num_candidates is increased to this value if needed. Must be \u003e= 1.0,\nor 0 to disable rescoring."
+        }
+      },
+      "title": "Options for rescoring knn vector search hits using the full precision vectors"
     },
     "luceneserverRescorer": {
       "type": "object",
