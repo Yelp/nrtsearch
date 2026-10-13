@@ -24,12 +24,22 @@ public class WarmerConfig {
   private static final int DEFAULT_WARM_BASIC_QUERY_ONLY_PERC = 0;
   private static final boolean DEFAULT_WARM_ON_STARTUP = false;
   private static final boolean DEFAULT_PAD_WITH_DOWNLOADED_REQUESTS = false;
+  private static final boolean DEFAULT_FILTER_MATCH_ALL_QUERIES = false;
+  private static final int DEFAULT_MAX_QUERY_TOP_HITS = 0;
+  private static final int DEFAULT_MAX_QUERY_LATENCY_MS = 0;
+  private static final int DEFAULT_QUERY_TIMEOUT_MS = 0;
+  private static final int DEFAULT_MAX_WARMING_DURATION_MS = 0;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
   private final int warmBasicQueryOnlyPerc;
   private final boolean warmOnStartup;
   private final boolean padWithDownloadedRequests;
+  private final boolean filterMatchAllQueries;
+  private final int maxQueryTopHits;
+  private final int maxQueryLatencyMs;
+  private final int queryTimeoutMs;
+  private final int maxWarmingDurationMs;
 
   /**
    * Configuration for warmer.
@@ -48,11 +58,57 @@ public class WarmerConfig {
       int warmBasicQueryOnlyPerc,
       boolean warmOnStartup,
       boolean padWithDownloadedRequests) {
+    this(
+        maxWarmingQueries,
+        warmingParallelism,
+        warmBasicQueryOnlyPerc,
+        warmOnStartup,
+        padWithDownloadedRequests,
+        DEFAULT_FILTER_MATCH_ALL_QUERIES,
+        DEFAULT_MAX_QUERY_TOP_HITS,
+        DEFAULT_MAX_QUERY_LATENCY_MS,
+        DEFAULT_QUERY_TIMEOUT_MS,
+        DEFAULT_MAX_WARMING_DURATION_MS);
+  }
+
+  /**
+   * Configuration for warmer, including warming query guardrails.
+   *
+   * @param maxWarmingQueries maximum queries to store for warming
+   * @param warmingParallelism number of parallel queries while warming on startup
+   * @param warmBasicQueryOnlyPerc percentage of warming queries that should be basic queries for
+   *     the fast boostrap
+   * @param warmOnStartup if true will try to download queries from S3 and use them to warm
+   * @param padWithDownloadedRequests if true, backup will be padded with the most recent downloaded
+   *     queries when fewer than maxWarmingQueries have been observed
+   * @param filterMatchAllQueries if true, match all queries are not collected or backed up
+   * @param maxQueryTopHits queries with startHit + topHits above this are not collected or backed
+   *     up, 0 to disable
+   * @param maxQueryLatencyMs queries that took longer than this are not collected, 0 to disable
+   * @param queryTimeoutMs timeout for each query replayed during warming, 0 to disable
+   * @param maxWarmingDurationMs maximum total time to spend warming on startup, 0 to disable
+   */
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      int warmBasicQueryOnlyPerc,
+      boolean warmOnStartup,
+      boolean padWithDownloadedRequests,
+      boolean filterMatchAllQueries,
+      int maxQueryTopHits,
+      int maxQueryLatencyMs,
+      int queryTimeoutMs,
+      int maxWarmingDurationMs) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
     this.warmOnStartup = warmOnStartup;
     this.padWithDownloadedRequests = padWithDownloadedRequests;
+    this.filterMatchAllQueries = filterMatchAllQueries;
+    this.maxQueryTopHits = maxQueryTopHits;
+    this.maxQueryLatencyMs = maxQueryLatencyMs;
+    this.queryTimeoutMs = queryTimeoutMs;
+    this.maxWarmingDurationMs = maxWarmingDurationMs;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -68,13 +124,30 @@ public class WarmerConfig {
     boolean padWithDownloadedRequests =
         configReader.getBoolean(
             CONFIG_PREFIX + "padWithDownloadedRequests", DEFAULT_PAD_WITH_DOWNLOADED_REQUESTS);
+    boolean filterMatchAllQueries =
+        configReader.getBoolean(
+            CONFIG_PREFIX + "filterMatchAllQueries", DEFAULT_FILTER_MATCH_ALL_QUERIES);
+    int maxQueryTopHits =
+        configReader.getInteger(CONFIG_PREFIX + "maxQueryTopHits", DEFAULT_MAX_QUERY_TOP_HITS);
+    int maxQueryLatencyMs =
+        configReader.getInteger(CONFIG_PREFIX + "maxQueryLatencyMs", DEFAULT_MAX_QUERY_LATENCY_MS);
+    int queryTimeoutMs =
+        configReader.getInteger(CONFIG_PREFIX + "queryTimeoutMs", DEFAULT_QUERY_TIMEOUT_MS);
+    int maxWarmingDurationMs =
+        configReader.getInteger(
+            CONFIG_PREFIX + "maxWarmingDurationMs", DEFAULT_MAX_WARMING_DURATION_MS);
 
     return new WarmerConfig(
         maxWarmingQueries,
         warmingParallelism,
         warmBasicQueryOnlyPerc,
         warmOnStartup,
-        padWithDownloadedRequests);
+        padWithDownloadedRequests,
+        filterMatchAllQueries,
+        maxQueryTopHits,
+        maxQueryLatencyMs,
+        queryTimeoutMs,
+        maxWarmingDurationMs);
   }
 
   public int getMaxWarmingQueries() {
@@ -95,5 +168,25 @@ public class WarmerConfig {
 
   public boolean isPadWithDownloadedRequests() {
     return padWithDownloadedRequests;
+  }
+
+  public boolean isFilterMatchAllQueries() {
+    return filterMatchAllQueries;
+  }
+
+  public int getMaxQueryTopHits() {
+    return maxQueryTopHits;
+  }
+
+  public int getMaxQueryLatencyMs() {
+    return maxQueryLatencyMs;
+  }
+
+  public int getQueryTimeoutMs() {
+    return queryTimeoutMs;
+  }
+
+  public int getMaxWarmingDurationMs() {
+    return maxWarmingDurationMs;
   }
 }

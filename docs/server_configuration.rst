@@ -509,6 +509,36 @@ Example server configuration
      - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100.
      - 0
 
+   * - padWithDownloadedRequests
+     - bool
+     - When backing up, pad the corpus with the most recently downloaded warming queries if fewer than ``maxWarmingQueries`` have been observed. Downloaded queries that timed out or failed during replay are not used.
+     - false
+
+   * - filterMatchAllQueries
+     - bool
+     - Do not collect or back up queries that match all documents (no query, or a match all query, with no query text, knn or multi retriever). Large scans are cheap under warm caches, but can stall warming on a cold index.
+     - false
+
+   * - maxQueryTopHits
+     - int
+     - Do not collect or back up queries where ``startHit + topHits`` exceeds this value. 0 disables the filter.
+     - 0
+
+   * - maxQueryLatencyMs
+     - int
+     - Do not collect queries that took longer than this many milliseconds to execute. 0 disables the filter.
+     - 0
+
+   * - queryTimeoutMs
+     - int
+     - Timeout for each query replayed during warming. Collection stops at the timeout (the query's own ``timeoutSec`` is kept if shorter), and the request deadline also applies to later phases when ``deadlineCancellation`` is enabled. Queries that time out or fail are skipped and do not stop warming. 0 disables the timeout.
+     - 0
+
+   * - maxWarmingDurationMs
+     - int
+     - Maximum time to spend warming on startup. Once reached, no new warming queries are started and startup continues, even if a query is still running. Should be set below the startup probe limit, so slow warming cannot cause a restart loop. 0 disables the limit.
+     - 0
+
 .. list-table:: `State Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/StateConfig.java>`_ (``stateConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1

@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.warming.Warmer;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.warming.WarmingQueryFilter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -293,7 +294,13 @@ public abstract class IndexState implements Closeable {
               indexName,
               warmerConfig.getMaxWarmingQueries(),
               warmerConfig.getWarmBasicQueryOnlyPerc(),
-              warmerConfig.isPadWithDownloadedRequests());
+              warmerConfig.isPadWithDownloadedRequests(),
+              new WarmingQueryFilter(
+                  indexName,
+                  warmerConfig.isFilterMatchAllQueries(),
+                  warmerConfig.getMaxQueryTopHits(),
+                  warmerConfig.getMaxQueryLatencyMs()),
+              warmerConfig.getQueryTimeoutMs());
     }
   }
 

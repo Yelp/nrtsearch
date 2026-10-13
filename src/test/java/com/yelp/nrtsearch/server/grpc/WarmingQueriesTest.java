@@ -146,4 +146,108 @@ public class WarmingQueriesTest {
                 .build());
     replica.restart();
   }
+
+  @Test
+  public void testCollectionFilter() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 1, false)
+            .withAdditionalWarmingConfig("filterMatchAllQueries: true", "maxQueryTopHits: 100")
+            .build();
+
+    SearchRequest termRequest = termSearchRequest(10);
+    SearchRequest matchAllRequest =
+        SearchRequest.newBuilder()
+            .setIndexName("test_index")
+            .setTopHits(10)
+            .addAllRetrieveFields(Arrays.asList("id", "field1", "field2"))
+            .build();
+    SearchRequest largeTopHitsRequest = termSearchRequest(1000);
+    replica.getClient().getBlockingStub().search(termRequest);
+    replica.getClient().getBlockingStub().search(matchAllRequest);
+    replica.getClient().getBlockingStub().search(largeTopHitsRequest);
+    backupWarmingQueries(replica);
+
+    List<String> lines = downloadWarmingQueries(server, replica);
+    assertEquals(1, lines.size());
+    assertEquals(
+        JsonFormat.printer().omittingInsignificantWhitespace().print(termRequest), lines.get(0));
+  }
+
+  @Test
+  public void testWarmOnStartupWithGuardrails() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 2, true)
+            .withAdditionalWarmingConfig("queryTimeoutMs: 5000", "maxWarmingDurationMs: 30000")
+            .build();
+
+    replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    backupWarmingQueries(replica);
+    replica.restart();
+
+    SearchResponse response = replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  private TestServer startPrimaryWithDocs() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    return server;
+  }
+
+  private static SearchRequest termSearchRequest(int topHits) {
+    return SearchRequest.newBuilder()
+        .setIndexName("test_index")
+        .setTopHits(topHits)
+        .setQuery(
+            Query.newBuilder()
+                .setTermQuery(TermQuery.newBuilder().setField("id").setTextValue("2").build())
+                .build())
+        .addAllRetrieveFields(Arrays.asList("id", "field1", "field2"))
+        .build();
+  }
+
+  private static void backupWarmingQueries(TestServer replica) {
+    replica
+        .getClient()
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex("test_index")
+                .setUptimeMinutesThreshold(0)
+                .setServiceName(SERVICE_NAME)
+                .setNumQueriesThreshold(0)
+                .build());
+  }
+
+  private static List<String> downloadWarmingQueries(TestServer server, TestServer replica)
+      throws IOException {
+    InputStream queriesStream =
+        replica
+            .getRemoteBackend()
+            .downloadWarmingQueries(
+                SERVICE_NAME, server.getGlobalState().getDataResourceForIndex("test_index"));
+    List<String> lines = new ArrayList<>();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        lines.add(line);
+      }
+    }
+    return lines;
+  }
 }

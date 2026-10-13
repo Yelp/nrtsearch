@@ -47,6 +47,7 @@ import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScor
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
+import com.yelp.nrtsearch.server.warming.Warmer;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -133,6 +134,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
+    long requestStartNs = System.nanoTime();
     // this request may have been waiting in the grpc queue too long
     DeadlineUtils.checkDeadline("SearchHandler: start", "SEARCH");
 
@@ -344,10 +346,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       }
     }
 
-    // Add searchRequest to warmer if needed
+    // Add searchRequest to warmer if needed, skipping queries that would be expensive to replay
+    // against a cold index
     try {
-      if (!warming && indexState.getWarmer() != null) {
-        indexState.getWarmer().addSearchRequest(searchRequest);
+      Warmer warmer = indexState.getWarmer();
+      if (!warming && warmer != null) {
+        double latencyMs = (System.nanoTime() - requestStartNs) / 1000000.0;
+        if (warmer.getQueryFilter().checkCollected(searchRequest, latencyMs) == null) {
+          warmer.addSearchRequest(searchRequest);
+        }
       }
     } catch (Exception e) {
       logger.error("Unable to add warming query", e);
