@@ -34,6 +34,11 @@ import org.apache.lucene.search.TotalHits;
  *
  * <p>The {@link TotalHits} of the wrapped vector query are available through the {@link
  * WithVectorTotalHits} interface after rewrite.
+ *
+ * <p>This wraps {@link RescoreTopNQuery} instead of using {@link
+ * RescoreTopNQuery#createFullPrecisionRescorerQuery}, so that the vector total hits of the inner
+ * query remain accessible, and a {@link MatchNoDocsQuery} from the inner query rewrite is passed
+ * through. Both are needed to populate the vector diagnostics.
  */
 public class VectorRescoreQuery extends Query implements WithVectorTotalHits {
   private final Query knnQuery;
@@ -91,11 +96,13 @@ public class VectorRescoreQuery extends Query implements WithVectorTotalHits {
 
   @Override
   public String toString(String field) {
+    // Use the values source class name, FullPrecisionFloatVectorSimilarityValuesSource.toString()
+    // throws a NullPointerException when created without a similarity function
     return getClass().getSimpleName()
         + ":"
         + knnQuery.toString(field)
         + ":"
-        + valuesSource
+        + valuesSource.getClass().getSimpleName()
         + "["
         + n
         + "]";

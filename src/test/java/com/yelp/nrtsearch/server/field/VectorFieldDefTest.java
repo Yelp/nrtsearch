@@ -36,6 +36,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnosti
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.query.vector.NrtKnnFloatVectorQuery;
+import com.yelp.nrtsearch.server.query.vector.VectorRescoreQuery;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -3300,6 +3302,156 @@ public class VectorFieldDefTest extends ServerTestCase {
     assertEquals(5000, searchResponse.getHitsCount());
     verifyHitsSimilarity(
         field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreProfile() {
+    KnnQuery knnQuery =
+        KnnQuery.newBuilder()
+            .setField("quantized_vector_4")
+            .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f, 0.1f))
+            .setNumCandidates(10)
+            .setK(5)
+            .setRescoreVector(RescoreVector.newBuilder().setOversample(2.0f))
+            .build();
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setTopHits(5)
+                    .setProfile(true)
+                    .addKnn(knnQuery)
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    assertTrue(searchResponse.hasProfileResult());
+
+    searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .setTopHits(5)
+                    .setProfile(true)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(
+                                Retriever.newBuilder()
+                                    .setName("knn")
+                                    .setKnnRetriever(
+                                        KnnRetriever.newBuilder().setKnnQuery(knnQuery)))
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(
+                                                WeightedScoreOrderBlender.ScoreMode.MAX))))
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    assertTrue(searchResponse.hasProfileResult());
+  }
+
+  @Test
+  public void testVectorSearch_rescoreSearchKAndNumCandidates() throws IOException {
+    // capped at the num candidates limit
+    assertRescoreQuery(5000, 10000, 10.0f, 10000, 10000);
+    // num candidates raised to oversampled k
+    assertRescoreQuery(10, 20, 3.0f, 30, 30);
+    // num candidates already large enough
+    assertRescoreQuery(10, 100, 3.0f, 30, 100);
+    // oversampled k rounded up
+    assertRescoreQuery(10, 100, 1.05f, 11, 100);
+
+    // rescoring disabled
+    org.apache.lucene.search.Query query = buildQuantizedKnnQuery(10, 20, 0);
+    NrtKnnFloatVectorQuery knnQuery = (NrtKnnFloatVectorQuery) query;
+    assertEquals(10, knnQuery.getTopHits());
+    assertEquals(20, knnQuery.getK());
+  }
+
+  private org.apache.lucene.search.Query buildQuantizedKnnQuery(
+      int k, int numCandidates, float oversample) throws IOException {
+    VectorFieldDef<?> fieldDef =
+        (VectorFieldDef<?>) getFieldDef(VECTOR_SEARCH_INDEX_NAME, "quantized_vector_4");
+    KnnQuery.Builder knnQueryBuilder =
+        KnnQuery.newBuilder()
+            .setField("quantized_vector_4")
+            .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f, 0.1f))
+            .setNumCandidates(numCandidates)
+            .setK(k);
+    if (oversample > 0) {
+      knnQueryBuilder.setRescoreVector(RescoreVector.newBuilder().setOversample(oversample));
+    }
+    return fieldDef.getKnnQuery(knnQueryBuilder.build(), null, null);
+  }
+
+  private void assertRescoreQuery(
+      int k, int numCandidates, float oversample, int expectedSearchK, int expectedNumCandidates)
+      throws IOException {
+    org.apache.lucene.search.Query query = buildQuantizedKnnQuery(k, numCandidates, oversample);
+    VectorRescoreQuery rescoreQuery = (VectorRescoreQuery) query;
+    assertEquals(k, rescoreQuery.getN());
+    NrtKnnFloatVectorQuery knnQuery = (NrtKnnFloatVectorQuery) rescoreQuery.getKnnQuery();
+    assertEquals(expectedSearchK, knnQuery.getTopHits());
+    assertEquals(expectedNumCandidates, knnQuery.getK());
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_rescoreKnnRetriever() throws IOException {
+    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f, 0.1f);
+    String field = "quantized_vector_4";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .setMultiRetriever(
+                        MultiRetrieverRequest.newBuilder()
+                            .addRetrievers(
+                                Retriever.newBuilder()
+                                    .setName("knn")
+                                    .setKnnRetriever(
+                                        KnnRetriever.newBuilder()
+                                            .setKnnQuery(
+                                                KnnQuery.newBuilder()
+                                                    .setField(field)
+                                                    .addAllQueryVector(queryVector)
+                                                    .setNumCandidates(10)
+                                                    .setK(5)
+                                                    .setRescoreVector(
+                                                        RescoreVector.newBuilder()
+                                                            .setOversample(4.0f)))))
+                            .setBlender(
+                                Blender.newBuilder()
+                                    .setWeightedScoreOrder(
+                                        WeightedScoreOrderBlender.newBuilder()
+                                            .setScoreMode(
+                                                WeightedScoreOrderBlender.ScoreMode.MAX))))
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.00001);
+
+    List<VectorSearchResult> trueTopHits =
+        getTrueFloatTopHits(field, 5, queryVector, VectorSimilarityFunction.COSINE, null);
+    for (int i = 0; i < trueTopHits.size(); ++i) {
+      assertEquals(trueTopHits.get(i).docId, searchResponse.getHits(i).getLuceneDocId());
+      assertEquals(trueTopHits.get(i).score, searchResponse.getHits(i).getScore(), 0.00001);
+    }
+
+    SearchResponse.Diagnostics.RetrieverDiagnostics knnDiagnostics =
+        searchResponse
+            .getDiagnostics()
+            .getMultiRetrieverDiagnostics()
+            .getRetrieverDiagnosticsOrThrow("knn");
+    assertTrue(knnDiagnostics.hasVectorDiagnostics());
+    assertTrue(knnDiagnostics.getVectorDiagnostics().getTotalHits().getValue() > 0);
   }
 
   @Test
