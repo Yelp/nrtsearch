@@ -121,7 +121,7 @@ public class WarmingQueryFilter {
 
   private Reason record(Stage stage, Reason reason) {
     if (reason != null) {
-      WarmingMetrics.warmingQueryRejectedCount
+      WarmingMetrics.warmingQueriesFilteredCount
           .labelValues(index, stage.label(), reason.label())
           .inc();
     }

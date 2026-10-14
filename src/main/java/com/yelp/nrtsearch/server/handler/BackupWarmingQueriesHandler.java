@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.handler;
 import com.yelp.nrtsearch.server.grpc.BackupWarmingQueriesRequest;
 import com.yelp.nrtsearch.server.grpc.BackupWarmingQueriesResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.warming.Warmer;
 import io.grpc.Status;
@@ -29,6 +30,12 @@ public class BackupWarmingQueriesHandler
     extends Handler<BackupWarmingQueriesRequest, BackupWarmingQueriesResponse> {
   private static final Logger logger = LoggerFactory.getLogger(BackupWarmingQueriesHandler.class);
 
+  // reason label values for WarmingMetrics.warmingBackupFailureCount
+  static final String FAILURE_BELOW_UPTIME_THRESHOLD = "below_uptime_threshold";
+  static final String FAILURE_BELOW_QUERY_THRESHOLD = "below_query_threshold";
+  static final String FAILURE_UPLOAD_ERROR = "upload_error";
+  static final String FAILURE_OTHER = "other";
+
   public BackupWarmingQueriesHandler(GlobalState globalState) {
     super(globalState);
   }
@@ -37,9 +44,16 @@ public class BackupWarmingQueriesHandler
   public BackupWarmingQueriesResponse handle(BackupWarmingQueriesRequest request) throws Exception {
     logger.info("Received backup warming queries request: {}", request);
     String index = request.getIndex();
-    IndexState indexState = getIndexState(index);
+    IndexState indexState;
+    try {
+      indexState = getIndexState(index);
+    } catch (Exception e) {
+      recordFailure(index, FAILURE_OTHER);
+      throw e;
+    }
     Warmer warmer = indexState.getWarmer();
     if (warmer == null) {
+      recordFailure(index, FAILURE_OTHER);
       logger.warn("Unable to backup warming queries as warmer not found for index: {}", index);
       throw Status.UNKNOWN
           .withDescription(
@@ -49,6 +63,7 @@ public class BackupWarmingQueriesHandler
     int numQueriesThreshold = request.getNumQueriesThreshold();
     int numWarmingRequests = warmer.getNumWarmingRequests();
     if (numQueriesThreshold > 0 && numWarmingRequests < numQueriesThreshold) {
+      recordFailure(index, FAILURE_BELOW_QUERY_THRESHOLD);
       logger.warn(
           "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
           numWarmingRequests,
@@ -63,6 +78,7 @@ public class BackupWarmingQueriesHandler
     int uptimeMinutesThreshold = request.getUptimeMinutesThreshold();
     int currUptimeMinutes = (int) (ManagementFactory.getRuntimeMXBean().getUptime() / 1000L / 60L);
     if (uptimeMinutesThreshold > 0 && currUptimeMinutes < uptimeMinutesThreshold) {
+      recordFailure(index, FAILURE_BELOW_UPTIME_THRESHOLD);
       logger.warn(
           "Unable to backup warming queries since uptime is {} minutes, which is less than threshold {}",
           currUptimeMinutes,
@@ -74,7 +90,17 @@ public class BackupWarmingQueriesHandler
                   currUptimeMinutes, uptimeMinutesThreshold))
           .asRuntimeException();
     }
-    warmer.backupWarmingQueriesToS3(request.getServiceName());
+    try {
+      warmer.backupWarmingQueriesToS3(request.getServiceName());
+    } catch (Exception e) {
+      recordFailure(index, FAILURE_UPLOAD_ERROR);
+      throw e;
+    }
+    WarmingMetrics.warmingBackupSuccessCount.labelValues(index).inc();
     return BackupWarmingQueriesResponse.newBuilder().build();
+  }
+
+  private static void recordFailure(String index, String reason) {
+    WarmingMetrics.warmingBackupFailureCount.labelValues(index, reason).inc();
   }
 }

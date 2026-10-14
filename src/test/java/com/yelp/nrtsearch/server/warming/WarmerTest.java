@@ -36,10 +36,12 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import io.prometheus.metrics.model.snapshots.HistogramSnapshot.HistogramDataPointSnapshot;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -466,6 +468,62 @@ public class WarmerTest {
     timeoutWarmer.backupWarmingQueriesToS3(service);
     Assertions.assertThat(readBackedUpLines())
         .containsExactly(getTestSearchRequestsAsJsonStrings().get(3));
+  }
+
+  @Test
+  public void testReplayQueryMetrics() throws Exception {
+    Warmer timeoutWarmer = newTimeoutWarmer(100);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    // slow query
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(0)))))
+        .thenAnswer(
+            invocation -> {
+              Thread.sleep(300);
+              return SearchResponse.getDefaultInstance();
+            });
+    // query that failed
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(1)))))
+        .thenThrow(new SearchHandler.SearchHandlerException("bad query"));
+    // query that hit the collection timeout
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(2)))))
+        .thenReturn(SearchResponse.newBuilder().setHitTimeout(true).build());
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(3)))))
+        .thenReturn(SearchResponse.getDefaultInstance());
+
+    double successBefore = replayCount("full", "success");
+    double errorBefore = replayCount("full", "error");
+    double timeoutBefore = replayCount("full", "timeout");
+    long latencyBefore = replayLatencyCount("full");
+
+    timeoutWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    assertEquals(1, replayCount("full", "success") - successBefore, 0);
+    assertEquals(1, replayCount("full", "error") - errorBefore, 0);
+    assertEquals(2, replayCount("full", "timeout") - timeoutBefore, 0);
+    assertEquals(4, replayLatencyCount("full") - latencyBefore);
+  }
+
+  private double replayCount(String type, String outcome) {
+    return WarmingMetrics.warmingQueryCount.labelValues(index, type, outcome).get();
+  }
+
+  private long replayLatencyCount(String type) {
+    return WarmingMetrics.warmingQueryLatency.collect().getDataPoints().stream()
+        .filter(
+            dataPoint ->
+                index.equals(dataPoint.getLabels().get("index"))
+                    && type.equals(dataPoint.getLabels().get("type")))
+        .mapToLong(HistogramDataPointSnapshot::getCount)
+        .sum();
   }
 
   @Test

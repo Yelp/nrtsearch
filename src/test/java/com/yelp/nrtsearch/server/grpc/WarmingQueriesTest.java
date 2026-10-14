@@ -17,9 +17,12 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
+import io.grpc.StatusRuntimeException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -249,5 +252,65 @@ public class WarmingQueriesTest {
       }
     }
     return lines;
+  }
+
+  @Test
+  public void testBackupWarmingQueriesMetrics() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 1, false)
+            .build();
+    replica
+        .getClient()
+        .getBlockingStub()
+        .search(SearchRequest.newBuilder().setIndexName("test_index").setTopHits(10).build());
+
+    double successBefore = backupSuccessCount();
+    double belowUptimeBefore = backupFailureCount("below_uptime_threshold");
+    double belowQueriesBefore = backupFailureCount("below_query_threshold");
+
+    // replica just started, so a one day uptime threshold is not met
+    assertThrows(StatusRuntimeException.class, () -> backupWarmingQueries(replica, 24 * 60, 0));
+    // only one query has been collected
+    assertThrows(StatusRuntimeException.class, () -> backupWarmingQueries(replica, 0, 100));
+    backupWarmingQueries(replica, 0, 0);
+
+    assertEquals(1, backupFailureCount("below_uptime_threshold") - belowUptimeBefore, 0);
+    assertEquals(1, backupFailureCount("below_query_threshold") - belowQueriesBefore, 0);
+    assertEquals(1, backupSuccessCount() - successBefore, 0);
+  }
+
+  private static void backupWarmingQueries(
+      TestServer replica, int uptimeMinutesThreshold, int numQueriesThreshold) {
+    replica
+        .getClient()
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex("test_index")
+                .setUptimeMinutesThreshold(uptimeMinutesThreshold)
+                .setServiceName(SERVICE_NAME)
+                .setNumQueriesThreshold(numQueriesThreshold)
+                .build());
+  }
+
+  private static double backupSuccessCount() {
+    return WarmingMetrics.warmingBackupSuccessCount.labelValues("test_index").get();
+  }
+
+  private static double backupFailureCount(String reason) {
+    return WarmingMetrics.warmingBackupFailureCount.labelValues("test_index", reason).get();
   }
 }

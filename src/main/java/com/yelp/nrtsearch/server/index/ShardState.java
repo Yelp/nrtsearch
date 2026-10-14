@@ -1075,7 +1075,7 @@ public class ShardState implements Closeable {
               });
       warmingFuture.get(maxDurationMs, TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
-      WarmingMetrics.warmingDurationCapExceededCount.labelValues(indexState.getName()).inc();
+      WarmingMetrics.warmingDurationCapReachedCount.labelValues(indexState.getName()).inc();
       logger.warn(
           "Warming index: {} did not finish within max warming duration of {} ms, continuing"
               + " startup",

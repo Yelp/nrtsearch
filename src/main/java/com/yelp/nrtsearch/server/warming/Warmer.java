@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.state.StateUtils;
@@ -391,7 +392,13 @@ public class Warmer {
     Runnable replay =
         () ->
             replayQuery(
-                indexState, searchHandler, deadlineScheduler, searchRequest, position, replayStats);
+                indexState,
+                searchHandler,
+                deadlineScheduler,
+                searchRequest,
+                warmBasicQuery,
+                position,
+                replayStats);
     if (threadPoolExecutor == null) {
       replay.run();
     } else {
@@ -425,6 +432,7 @@ public class Warmer {
       SearchHandler searchHandler,
       ScheduledExecutorService deadlineScheduler,
       SearchRequest searchRequest,
+      boolean basicQuery,
       int position,
       ReplayStats replayStats) {
     long startNs = System.nanoTime();
@@ -456,6 +464,7 @@ public class Warmer {
         logger.warn("Warming query failed for index: {}", index, e);
       }
     }
+    recordReplayMetrics(basicQuery, reason, System.nanoTime() - startNs);
     if (reason != null) {
       if (reason == Reason.TIMEOUT) {
         replayStats.timedOut.incrementAndGet();
@@ -465,6 +474,15 @@ public class Warmer {
       replayStats.rejectedPositions.add(position);
       queryFilter.recordReplayRejection(reason);
     }
+  }
+
+  private void recordReplayMetrics(boolean basicQuery, Reason reason, long elapsedNs) {
+    String type = basicQuery ? "basic" : "full";
+    String outcome = reason == null ? "success" : (reason == Reason.TIMEOUT ? "timeout" : "error");
+    WarmingMetrics.warmingQueryCount.labelValues(index, type, outcome).inc();
+    WarmingMetrics.warmingQueryLatency
+        .labelValues(index, type)
+        .observe(elapsedNs / (double) TimeUnit.SECONDS.toNanos(1));
   }
 
   /** Deadline cancellation may be wrapped when it happens in a parallel search thread. */
