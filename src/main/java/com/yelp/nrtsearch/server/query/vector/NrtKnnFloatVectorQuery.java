@@ -51,6 +51,11 @@ public class NrtKnnFloatVectorQuery extends KnnFloatVectorQuery implements WithV
     this.topHits = k;
   }
 
+  /** Get the number of top hits to return. */
+  public int getTopHits() {
+    return topHits;
+  }
+
   @Override
   public TotalHits getTotalHits() {
     return totalHits;
