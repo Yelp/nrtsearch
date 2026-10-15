@@ -159,3 +159,25 @@ When using parallelism to fetch field values, this setting determines the maximu
 Must be > 0
 
 Default: 50
+
+noCFSRatio
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A merged segment is written as a compound file (``.cfs``) only if its size is no more than this fraction of the total index size. ``0.0`` means merged segments are never written as compound files, and ``1.0`` means they always can be. Flushed segments are controlled by the ``useCompoundFile`` index setting.
+
+Changes take effect the next time the index writer is opened.
+
+Must be between 0.0 and 1.0.
+
+Default: 0.1
+
+maxCFSSegmentSizeMB
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Maximum size in MB of a merged segment that can be written as a compound file (``.cfs``). Larger merged segments are written as separate files, even if they are within the ``noCFSRatio`` limit. ``0`` means no size limit.
+
+Changes take effect the next time the index writer is opened.
+
+Must be >= 0.0.
+
+Default: 0.0 (unlimited)

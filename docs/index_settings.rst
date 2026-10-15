@@ -74,3 +74,12 @@ maxFullFlushMergeWaitMillis
 Maximum time in milliseconds to wait for background merges to complete when performing a full flush. If background merges are still running after this time, the flush will continue without waiting for them to finish, which may result in more segments in the index.
 
 Default: 500
+
+useCompoundFile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Controls whether newly flushed segments are written as a compound file (``.cfs``). A compound file packs a segment's files into one file, which reduces the number of open file handles but adds some write overhead.
+
+This setting only applies to flushed segments. Merged segments are controlled by the ``noCFSRatio`` and ``maxCFSSegmentSizeMB`` live settings. To stop using compound files completely, set this to ``false`` and set ``noCFSRatio`` to ``0.0``.
+
+Default: true

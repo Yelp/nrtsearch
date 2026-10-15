@@ -97,6 +97,18 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private Double deletePctAllowed;
 
   @CommandLine.Option(
+      names = {"--noCFSRatio"},
+      description =
+          "Maximum fraction of the total index size for a merged segment to be written as a compound file. 0.0 means never, 1.0 means always. Must be in [0.0, 1.0], default: 0.1")
+  private Double noCFSRatio;
+
+  @CommandLine.Option(
+      names = {"--maxCFSSegmentSizeMB"},
+      description =
+          "Maximum size in MB of a merged segment that can be written as a compound file, or 0 for no limit, default: 0")
+  private Double maxCFSSegmentSizeMB;
+
+  @CommandLine.Option(
       names = {"--defaultSearchTimeoutSec"},
       description = "Search timeout to use when not provided by the request")
   private Double defaultSearchTimeoutSec;
@@ -193,6 +205,13 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (deletePctAllowed != null) {
         liveSettingsBuilder.setDeletePctAllowed(
             DoubleValue.newBuilder().setValue(deletePctAllowed).build());
+      }
+      if (noCFSRatio != null) {
+        liveSettingsBuilder.setNoCFSRatio(DoubleValue.newBuilder().setValue(noCFSRatio).build());
+      }
+      if (maxCFSSegmentSizeMB != null) {
+        liveSettingsBuilder.setMaxCFSSegmentSizeMB(
+            DoubleValue.newBuilder().setValue(maxCFSSegmentSizeMB).build());
       }
       if (defaultSearchTimeoutSec != null) {
         liveSettingsBuilder.setDefaultSearchTimeoutSec(
