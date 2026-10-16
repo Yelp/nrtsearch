@@ -15,24 +15,34 @@
  */
 package com.yelp.nrtsearch.server.warming;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import io.prometheus.metrics.model.snapshots.HistogramSnapshot.HistogramDataPointSnapshot;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -48,6 +58,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class WarmerTest {
@@ -331,6 +342,314 @@ public class WarmerTest {
     Assertions.assertThat(backedUpLines).hasSize(4);
     Assertions.assertThat(backedUpLines)
         .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testBackupFilterEvictsPathologicalQueries() throws IOException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            0,
+            false,
+            new WarmingQueryFilter(index, true, 100, 0, 0),
+            0);
+    SearchRequest termRequest = getTestSearchRequests().get(0);
+    // addSearchRequest does not filter, as if collected before the filter was configured
+    filteringWarmer.addSearchRequest(SearchRequest.newBuilder().setIndexName(index).build());
+    filteringWarmer.addSearchRequest(termRequest.toBuilder().setTopHits(1000).build());
+    filteringWarmer.addSearchRequest(termRequest);
+
+    filteringWarmer.backupWarmingQueriesToS3(service);
+
+    List<String> backedUpLines = readBackedUpLines();
+    Assertions.assertThat(backedUpLines)
+        .containsExactly(getTestSearchRequestsAsJsonStrings().get(0));
+  }
+
+  @Test
+  public void testBackupFilterAppliesToPadding()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            0,
+            true,
+            new WarmingQueryFilter(index, true, 0, 0, 0),
+            0);
+    List<String> downloadedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
+    downloadedJson.set(1, "{\"indexName\":\"test_index\",\"topHits\":10}");
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(downloadedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+    filteringWarmer.backupWarmingQueriesToS3(service);
+
+    List<String> expected = getTestSearchRequestsAsJsonStrings();
+    Assertions.assertThat(readBackedUpLines())
+        .containsExactly(expected.get(0), expected.get(2), expected.get(3));
+  }
+
+  @Test
+  public void testReplayFilterSkipsStoredPathologicalQueries()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            0,
+            true,
+            new WarmingQueryFilter(index, true, 100, 0, 0),
+            0);
+    // corpus stored before the filter was configured
+    List<SearchRequest> testRequests = getTestSearchRequests();
+    List<String> storedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
+    storedJson.set(1, "{\"indexName\":\"test_index\",\"topHits\":10}");
+    storedJson.set(
+        2,
+        JsonFormat.printer()
+            .omittingInsignificantWhitespace()
+            .print(testRequests.get(2).toBuilder().setStartHit(990).setTopHits(1000).build()));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(storedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double matchAllBefore = replayFilteredCount("match_all");
+    double topHitsBefore = replayFilteredCount("top_hits");
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    verify(mockSearchHandler).handle(mockIndexState, testRequests.get(0));
+    verify(mockSearchHandler).handle(mockIndexState, testRequests.get(3));
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, replayFilteredCount("match_all") - matchAllBefore, 0);
+    assertEquals(1, replayFilteredCount("top_hits") - topHitsBefore, 0);
+
+    // filtered queries are not used for padding
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    List<String> expected = getTestSearchRequestsAsJsonStrings();
+    Assertions.assertThat(readBackedUpLines()).containsExactly(expected.get(0), expected.get(3));
+  }
+
+  @Test
+  public void testReplayFilterChecksSimplifiedBasicQuery()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            100,
+            true,
+            new WarmingQueryFilter(index, true, 0, 0, 0),
+            0);
+    // simplifying a top level function filter query leaves a match all query
+    SearchRequest functionFilterRequest =
+        SearchRequest.newBuilder()
+            .setIndexName(index)
+            .setQuery(
+                Query.newBuilder()
+                    .setFunctionFilterQuery(
+                        FunctionFilterQuery.newBuilder()
+                            .setScript(Script.newBuilder().setLang("js").setSource("10"))))
+            .build();
+    List<String> storedJson =
+        List.of(
+            JsonFormat.printer().omittingInsignificantWhitespace().print(functionFilterRequest),
+            getTestSearchRequestsAsJsonStrings().get(0));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(storedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    verify(mockSearchHandler).handle(mockIndexState, getTestBasicSearchRequests().get(0));
+    verifyNoMoreInteractions(mockSearchHandler);
+
+    // the original query is not match all, so it may still be used for padding
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines()).containsExactlyElementsOf(storedJson);
+  }
+
+  @Test
+  public void testApplyQueryTimeout() {
+    SearchRequest.Builder builder = SearchRequest.newBuilder();
+    Warmer.applyQueryTimeout(builder, 2500);
+    assertEquals(2.5, builder.getTimeoutSec(), 0);
+    assertEquals(Warmer.REPLAY_TIMEOUT_CHECK_EVERY, builder.getTimeoutCheckEvery());
+
+    // a shorter timeout and explicit check interval from the original query are kept
+    builder = SearchRequest.newBuilder().setTimeoutSec(0.5).setTimeoutCheckEvery(10);
+    Warmer.applyQueryTimeout(builder, 2500);
+    assertEquals(0.5, builder.getTimeoutSec(), 0);
+    assertEquals(10, builder.getTimeoutCheckEvery());
+
+    builder = SearchRequest.newBuilder().setTimeoutSec(10);
+    Warmer.applyQueryTimeout(builder, 2500);
+    assertEquals(2.5, builder.getTimeoutSec(), 0);
+  }
+
+  @Test
+  public void testReplayUsesQueryTimeout()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer timeoutWarmer = newTimeoutWarmer(2000);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    timeoutWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+    verify(mockSearchHandler, times(4)).handle(any(IndexState.class), captor.capture());
+    for (SearchRequest replayed : captor.getAllValues()) {
+      assertEquals(2.0, replayed.getTimeoutSec(), 0);
+      assertEquals(Warmer.REPLAY_TIMEOUT_CHECK_EVERY, replayed.getTimeoutCheckEvery());
+    }
+  }
+
+  @Test
+  public void testSlowAndFailedReplayQueriesNotUsedForPadding() throws Exception {
+    Warmer timeoutWarmer = newTimeoutWarmer(100);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    // slow query
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(0)))))
+        .thenAnswer(
+            invocation -> {
+              Thread.sleep(300);
+              return SearchResponse.getDefaultInstance();
+            });
+    // query that failed
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(1)))))
+        .thenThrow(new SearchHandler.SearchHandlerException("bad query"));
+    // query that hit the collection timeout
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(2)))))
+        .thenReturn(SearchResponse.newBuilder().setHitTimeout(true).build());
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(3)))))
+        .thenReturn(SearchResponse.getDefaultInstance());
+
+    // failures must not stop warming
+    timeoutWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+    verify(mockSearchHandler, times(4)).handle(any(IndexState.class), any(SearchRequest.class));
+
+    timeoutWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines())
+        .containsExactly(getTestSearchRequestsAsJsonStrings().get(3));
+  }
+
+  @Test
+  public void testReplayQueryMetrics() throws Exception {
+    Warmer timeoutWarmer = newTimeoutWarmer(100);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    // slow query
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(0)))))
+        .thenAnswer(
+            invocation -> {
+              Thread.sleep(300);
+              return SearchResponse.getDefaultInstance();
+            });
+    // query that failed
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(1)))))
+        .thenThrow(new SearchHandler.SearchHandlerException("bad query"));
+    // query that hit the collection timeout
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(2)))))
+        .thenReturn(SearchResponse.newBuilder().setHitTimeout(true).build());
+    when(mockSearchHandler.handle(
+            any(IndexState.class), argThat((SearchRequest r) -> sameQuery(r, requests.get(3)))))
+        .thenReturn(SearchResponse.getDefaultInstance());
+
+    double successBefore = replayCount("full", "success");
+    double errorBefore = replayCount("full", "error");
+    double timeoutBefore = replayCount("full", "timeout");
+    long latencyBefore = replayLatencyCount("full");
+
+    timeoutWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    assertEquals(1, replayCount("full", "success") - successBefore, 0);
+    assertEquals(1, replayCount("full", "error") - errorBefore, 0);
+    assertEquals(2, replayCount("full", "timeout") - timeoutBefore, 0);
+    assertEquals(4, replayLatencyCount("full") - latencyBefore);
+  }
+
+  private double replayCount(String type, String outcome) {
+    return WarmingMetrics.warmingQueryCount.labelValues(index, type, outcome).get();
+  }
+
+  private double replayFilteredCount(String reason) {
+    return WarmingMetrics.warmingQueriesFilteredCount.labelValues(index, "replay", reason).get();
+  }
+
+  private long replayLatencyCount(String type) {
+    return WarmingMetrics.warmingQueryLatency.collect().getDataPoints().stream()
+        .filter(
+            dataPoint ->
+                index.equals(dataPoint.getLabels().get("index"))
+                    && type.equals(dataPoint.getLabels().get("type")))
+        .mapToLong(HistogramDataPointSnapshot::getCount)
+        .sum();
+  }
+
+  @Test
+  public void testMaxWarmingDuration() throws Exception {
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    when(mockSearchHandler.handle(any(IndexState.class), any(SearchRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              Thread.sleep(200);
+              return SearchResponse.getDefaultInstance();
+            });
+
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 300);
+
+    // queries started at 0ms and 200ms, the cap is reached before the third
+    verify(mockSearchHandler, atLeastOnce())
+        .handle(any(IndexState.class), any(SearchRequest.class));
+    Assertions.assertThat(mockingDetails(mockSearchHandler).getInvocations().size()).isLessThan(4);
+  }
+
+  private Warmer newTimeoutWarmer(int queryTimeoutMs) {
+    return new Warmer(
+        remoteBackend,
+        service,
+        index,
+        4,
+        0,
+        true,
+        WarmingQueryFilter.acceptAll(index),
+        queryTimeoutMs);
+  }
+
+  private static boolean sameQuery(SearchRequest request, SearchRequest expected) {
+    return request != null && request.getQuery().equals(expected.getQuery());
   }
 
   private List<String> readBackedUpLines() throws IOException {

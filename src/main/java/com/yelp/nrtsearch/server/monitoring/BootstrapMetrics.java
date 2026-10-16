@@ -66,7 +66,7 @@ public class BootstrapMetrics {
   public static final Gauge warmingQueryTimer =
       Gauge.builder()
           .name("warming_time_seconds")
-          .help("timer to record the boostrap time spent on plugin initialization.")
+          .help("timer to record the bootstrap time spent on replaying warming queries.")
           .constLabels(Labels.of("nrtsearch_version", Version.CURRENT.toString()))
           .labelNames("service", "index")
           .unit(Unit.SECONDS)

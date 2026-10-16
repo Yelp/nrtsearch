@@ -757,6 +757,7 @@ public class TestServer {
     private int maxWarmingQueries = 0;
     private int warmingParallelism = 1;
     private boolean warmOnStartup = false;
+    private List<String> additionalWarmingConfig = List.of();
     private boolean writeDiscoveryFile = false;
 
     private String additionalConfig = "";
@@ -819,6 +820,12 @@ public class TestServer {
       this.maxWarmingQueries = maxWarmingQueries;
       this.warmingParallelism = warmingParallelism;
       this.warmOnStartup = warmOnStartup;
+      return this;
+    }
+
+    /** Additional warmer config lines, e.g. "maxQueryTopHits: 100" */
+    public Builder withAdditionalWarmingConfig(String... configLines) {
+      this.additionalWarmingConfig = List.of(configLines);
       return this;
     }
 
@@ -885,12 +892,13 @@ public class TestServer {
     }
 
     private String warmingConfig() {
-      return String.join(
-          "\n",
-          "warmer:",
-          "  maxWarmingQueries: " + maxWarmingQueries,
-          "  warmingParallelism: " + warmingParallelism,
-          "  warmOnStartup: " + warmOnStartup);
+      List<String> lines = new ArrayList<>();
+      lines.add("warmer:");
+      lines.add("  maxWarmingQueries: " + maxWarmingQueries);
+      lines.add("  warmingParallelism: " + warmingParallelism);
+      lines.add("  warmOnStartup: " + warmOnStartup);
+      additionalWarmingConfig.forEach(line -> lines.add("  " + line));
+      return String.join("\n", lines);
     }
 
     private String baseConfig() {
