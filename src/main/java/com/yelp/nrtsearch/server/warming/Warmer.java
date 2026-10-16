@@ -328,15 +328,17 @@ public class Warmer {
       }
       logger.info(
           "Warmed index: {} with {} full and {} basic warming queries in {} seconds, timed out: {},"
-              + " failed: {}.",
+              + " failed: {}, filtered: {}.",
           index,
           count - basicCount,
           basicCount,
           (System.currentTimeMillis() - startMS) / 1000.0,
           replayStats.timedOut.get(),
-          replayStats.failed.get());
+          replayStats.failed.get(),
+          replayStats.filtered.get());
       if (downloadedQueries != null) {
-        // queries that timed out or failed during replay are not used to pad the next backup
+        // queries that were filtered, timed out or failed during replay are not used to pad the
+        // next backup
         List<SearchRequest> replayable = new ArrayList<>(downloadedQueries.size());
         for (int i = 0; i < downloadedQueries.size(); ++i) {
           if (!replayStats.rejectedPositions.contains(i)) {
@@ -365,7 +367,8 @@ public class Warmer {
   private static class ReplayStats {
     final AtomicInteger timedOut = new AtomicInteger();
     final AtomicInteger failed = new AtomicInteger();
-    // position in the downloaded corpus of queries that timed out or failed
+    final AtomicInteger filtered = new AtomicInteger();
+    // position in the downloaded corpus of queries that were filtered, timed out or failed
     final Set<Integer> rejectedPositions = ConcurrentHashMap.newKeySet();
   }
 
@@ -382,8 +385,21 @@ public class Warmer {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
     JsonFormat.parser().merge(line, builder);
     SearchRequest originalRequest = builder.build();
+    // The stored corpus may predate the filter, so check it before replay. A query that fails is
+    // also not used to pad the next backup.
+    if (queryFilter.checkReplay(originalRequest) != null) {
+      replayStats.filtered.incrementAndGet();
+      replayStats.rejectedPositions.add(position);
+      return originalRequest;
+    }
     if (warmBasicQuery) {
       WarmingUtils.simplifySearchRequestForWarming(builder);
+      // Simplifying can turn a query into a match all scan, such as a top level function filter
+      // query, check what will actually be executed. The original query is still fine as padding.
+      if (queryFilter.checkReplay(builder.build()) != null) {
+        replayStats.filtered.incrementAndGet();
+        return originalRequest;
+      }
     }
     if (queryTimeoutMs > 0) {
       applyQueryTimeout(builder, queryTimeoutMs);

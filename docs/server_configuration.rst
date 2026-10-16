@@ -516,17 +516,22 @@ Example server configuration
 
    * - filterMatchAllQueries
      - bool
-     - Do not collect or back up queries that match all documents (no query, or a match all query, with no query text, knn or multi retriever). Large scans are cheap under warm caches, but can stall warming on a cold index.
+     - Do not collect, back up or replay queries that match all documents: no query or a match all query (with no query text, knn or multi retriever), a multi retriever text retriever with no query or a match all query, or a match phrase query anywhere in the query tree with ``zeroTermsQuery: ALL_ZERO_TERMS``. Large scans are cheap under warm caches, but can stall warming on a cold index. Basic warming queries are checked after simplification, since removing a top level function filter query leaves a match all query.
      - false
 
    * - maxQueryTopHits
      - int
-     - Do not collect or back up queries where ``startHit + topHits`` exceeds this value. 0 disables the filter.
+     - Do not collect, back up or replay queries where ``topHits`` or ``startHit`` exceeds this value, or where any multi retriever text retriever ``topHits`` exceeds it. ``topHits`` already includes ``startHit``, so this also filters deep pagination, which holds every hit up to the requested page in memory. 0 disables the filter.
      - 0
 
    * - maxQueryLatencyMs
      - int
      - Do not collect queries that took longer than this many milliseconds to execute. 0 disables the filter.
+     - 0
+
+   * - maxVectorCandidates
+     - int
+     - Do not collect, back up or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
      - 0
 
    * - queryTimeoutMs

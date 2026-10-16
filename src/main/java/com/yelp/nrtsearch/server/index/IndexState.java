@@ -299,7 +299,8 @@ public abstract class IndexState implements Closeable {
                   indexName,
                   warmerConfig.isFilterMatchAllQueries(),
                   warmerConfig.getMaxQueryTopHits(),
-                  warmerConfig.getMaxQueryLatencyMs()),
+                  warmerConfig.getMaxQueryLatencyMs(),
+                  warmerConfig.getMaxVectorCandidates()),
               warmerConfig.getQueryTimeoutMs());
     }
   }

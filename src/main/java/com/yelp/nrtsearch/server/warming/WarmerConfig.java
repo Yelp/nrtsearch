@@ -29,6 +29,7 @@ public class WarmerConfig {
   private static final int DEFAULT_MAX_QUERY_LATENCY_MS = 0;
   private static final int DEFAULT_QUERY_TIMEOUT_MS = 0;
   private static final int DEFAULT_MAX_WARMING_DURATION_MS = 0;
+  private static final int DEFAULT_MAX_VECTOR_CANDIDATES = 0;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -40,6 +41,7 @@ public class WarmerConfig {
   private final int maxQueryLatencyMs;
   private final int queryTimeoutMs;
   private final int maxWarmingDurationMs;
+  private final int maxVectorCandidates;
 
   /**
    * Configuration for warmer.
@@ -68,7 +70,8 @@ public class WarmerConfig {
         DEFAULT_MAX_QUERY_TOP_HITS,
         DEFAULT_MAX_QUERY_LATENCY_MS,
         DEFAULT_QUERY_TIMEOUT_MS,
-        DEFAULT_MAX_WARMING_DURATION_MS);
+        DEFAULT_MAX_WARMING_DURATION_MS,
+        DEFAULT_MAX_VECTOR_CANDIDATES);
   }
 
   /**
@@ -81,12 +84,15 @@ public class WarmerConfig {
    * @param warmOnStartup if true will try to download queries from S3 and use them to warm
    * @param padWithDownloadedRequests if true, backup will be padded with the most recent downloaded
    *     queries when fewer than maxWarmingQueries have been observed
-   * @param filterMatchAllQueries if true, match all queries are not collected or backed up
-   * @param maxQueryTopHits queries with startHit + topHits above this are not collected or backed
-   *     up, 0 to disable
+   * @param filterMatchAllQueries if true, match all queries are not collected, backed up or
+   *     replayed
+   * @param maxQueryTopHits queries with topHits or startHit above this are not collected, backed up
+   *     or replayed, 0 to disable
    * @param maxQueryLatencyMs queries that took longer than this are not collected, 0 to disable
    * @param queryTimeoutMs timeout for each query replayed during warming, 0 to disable
    * @param maxWarmingDurationMs maximum total time to spend warming on startup, 0 to disable
+   * @param maxVectorCandidates queries with a knn query that has numCandidates above this are not
+   *     collected, backed up or replayed, 0 to disable
    */
   public WarmerConfig(
       int maxWarmingQueries,
@@ -98,7 +104,8 @@ public class WarmerConfig {
       int maxQueryTopHits,
       int maxQueryLatencyMs,
       int queryTimeoutMs,
-      int maxWarmingDurationMs) {
+      int maxWarmingDurationMs,
+      int maxVectorCandidates) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
@@ -109,6 +116,7 @@ public class WarmerConfig {
     this.maxQueryLatencyMs = maxQueryLatencyMs;
     this.queryTimeoutMs = queryTimeoutMs;
     this.maxWarmingDurationMs = maxWarmingDurationMs;
+    this.maxVectorCandidates = maxVectorCandidates;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -136,6 +144,9 @@ public class WarmerConfig {
     int maxWarmingDurationMs =
         configReader.getInteger(
             CONFIG_PREFIX + "maxWarmingDurationMs", DEFAULT_MAX_WARMING_DURATION_MS);
+    int maxVectorCandidates =
+        configReader.getInteger(
+            CONFIG_PREFIX + "maxVectorCandidates", DEFAULT_MAX_VECTOR_CANDIDATES);
 
     return new WarmerConfig(
         maxWarmingQueries,
@@ -147,7 +158,8 @@ public class WarmerConfig {
         maxQueryTopHits,
         maxQueryLatencyMs,
         queryTimeoutMs,
-        maxWarmingDurationMs);
+        maxWarmingDurationMs,
+        maxVectorCandidates);
   }
 
   public int getMaxWarmingQueries() {
@@ -188,5 +200,9 @@ public class WarmerConfig {
 
   public int getMaxWarmingDurationMs() {
     return maxWarmingDurationMs;
+  }
+
+  public int getMaxVectorCandidates() {
+    return maxVectorCandidates;
   }
 }

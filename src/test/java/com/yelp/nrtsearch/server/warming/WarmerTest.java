@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.Script;
@@ -353,7 +354,7 @@ public class WarmerTest {
             4,
             0,
             false,
-            new WarmingQueryFilter(index, true, 100, 0),
+            new WarmingQueryFilter(index, true, 100, 0, 0),
             0);
     SearchRequest termRequest = getTestSearchRequests().get(0);
     // addSearchRequest does not filter, as if collected before the filter was configured
@@ -379,7 +380,7 @@ public class WarmerTest {
             4,
             0,
             true,
-            new WarmingQueryFilter(index, true, 0, 0),
+            new WarmingQueryFilter(index, true, 0, 0, 0),
             0);
     List<String> downloadedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
     downloadedJson.set(1, "{\"indexName\":\"test_index\",\"topHits\":10}");
@@ -393,6 +394,89 @@ public class WarmerTest {
     List<String> expected = getTestSearchRequestsAsJsonStrings();
     Assertions.assertThat(readBackedUpLines())
         .containsExactly(expected.get(0), expected.get(2), expected.get(3));
+  }
+
+  @Test
+  public void testReplayFilterSkipsStoredPathologicalQueries()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            0,
+            true,
+            new WarmingQueryFilter(index, true, 100, 0, 0),
+            0);
+    // corpus stored before the filter was configured
+    List<SearchRequest> testRequests = getTestSearchRequests();
+    List<String> storedJson = new ArrayList<>(getTestSearchRequestsAsJsonStrings());
+    storedJson.set(1, "{\"indexName\":\"test_index\",\"topHits\":10}");
+    storedJson.set(
+        2,
+        JsonFormat.printer()
+            .omittingInsignificantWhitespace()
+            .print(testRequests.get(2).toBuilder().setStartHit(990).setTopHits(1000).build()));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(storedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double matchAllBefore = replayFilteredCount("match_all");
+    double topHitsBefore = replayFilteredCount("top_hits");
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    verify(mockSearchHandler).handle(mockIndexState, testRequests.get(0));
+    verify(mockSearchHandler).handle(mockIndexState, testRequests.get(3));
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, replayFilteredCount("match_all") - matchAllBefore, 0);
+    assertEquals(1, replayFilteredCount("top_hits") - topHitsBefore, 0);
+
+    // filtered queries are not used for padding
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    List<String> expected = getTestSearchRequestsAsJsonStrings();
+    Assertions.assertThat(readBackedUpLines()).containsExactly(expected.get(0), expected.get(3));
+  }
+
+  @Test
+  public void testReplayFilterChecksSimplifiedBasicQuery()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            100,
+            true,
+            new WarmingQueryFilter(index, true, 0, 0, 0),
+            0);
+    // simplifying a top level function filter query leaves a match all query
+    SearchRequest functionFilterRequest =
+        SearchRequest.newBuilder()
+            .setIndexName(index)
+            .setQuery(
+                Query.newBuilder()
+                    .setFunctionFilterQuery(
+                        FunctionFilterQuery.newBuilder()
+                            .setScript(Script.newBuilder().setLang("js").setSource("10"))))
+            .build();
+    List<String> storedJson =
+        List.of(
+            JsonFormat.printer().omittingInsignificantWhitespace().print(functionFilterRequest),
+            getTestSearchRequestsAsJsonStrings().get(0));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(storedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    verify(mockSearchHandler).handle(mockIndexState, getTestBasicSearchRequests().get(0));
+    verifyNoMoreInteractions(mockSearchHandler);
+
+    // the original query is not match all, so it may still be used for padding
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines()).containsExactlyElementsOf(storedJson);
   }
 
   @Test
@@ -514,6 +598,10 @@ public class WarmerTest {
 
   private double replayCount(String type, String outcome) {
     return WarmingMetrics.warmingQueryCount.labelValues(index, type, outcome).get();
+  }
+
+  private double replayFilteredCount(String reason) {
+    return WarmingMetrics.warmingQueriesFilteredCount.labelValues(index, "replay", reason).get();
   }
 
   private long replayLatencyCount(String type) {
