@@ -39,7 +39,7 @@ public class StatsCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.stats(getIndexName());
+      CliUtils.printMessage(client.stats(getIndexName()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

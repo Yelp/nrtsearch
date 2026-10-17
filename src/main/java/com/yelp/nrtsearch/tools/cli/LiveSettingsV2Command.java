@@ -232,7 +232,8 @@ public class LiveSettingsV2Command implements Callable<Integer> {
         settingsRequestV2Builder.setLiveSettings(indexLiveSettings);
       }
       settingsRequestV2Builder.setLocal(local);
-      client.liveSettingsV2(settingsRequestV2Builder.build());
+      CliUtils.printMessage(
+          client.liveSettingsV2(settingsRequestV2Builder.build()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

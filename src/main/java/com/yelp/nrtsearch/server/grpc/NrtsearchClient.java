@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,7 +109,7 @@ public class NrtsearchClient implements Closeable {
     this.channel.shutdownNow();
   }
 
-  public void createIndex(
+  public CreateIndexResponse createIndex(
       String indexName,
       String existsWithId,
       IndexSettings settings,
@@ -134,54 +133,44 @@ public class NrtsearchClient implements Closeable {
       requestBuilder.addAllFields(fields.getFieldList());
     }
     requestBuilder.setStart(start);
-    CreateIndexResponse response;
     try {
-      response = blockingStub.createIndex(requestBuilder.build());
+      return blockingStub.createIndex(requestBuilder.build());
     } catch (StatusRuntimeException e) {
       logger.error("Unable to create index {}", indexName);
       throw e;
     }
-    logger.info("Server returned : " + response.getResponse());
   }
 
-  public void liveSettingsV2(LiveSettingsV2Request liveSettingsV2Request) {
-    LiveSettingsV2Response response;
+  public LiveSettingsV2Response liveSettingsV2(LiveSettingsV2Request liveSettingsV2Request) {
     try {
-      response = blockingStub.liveSettingsV2(liveSettingsV2Request);
+      return blockingStub.liveSettingsV2(liveSettingsV2Request);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to update live settings");
       throw e;
     }
-    try {
-      logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
-    } catch (Exception e) {
-      logger.info("Error printing response message: {}", response, e);
-    }
   }
 
-  public void registerFields(String jsonStr) {
+  public FieldDefResponse registerFields(String jsonStr) {
     FieldDefRequest fieldDefRequest = getFieldDefRequest(jsonStr);
-    FieldDefResponse response;
     try {
-      response = blockingStub.registerFields(fieldDefRequest);
+      return blockingStub.registerFields(fieldDefRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to register fields");
       throw e;
     }
-    logger.info("Server returned : " + response.getResponse());
   }
 
-  public void reloadState() {
+  public ReloadStateResponse reloadState() {
     ReloadStateRequest reloadStateRequest = ReloadStateRequest.newBuilder().build();
     try {
-      blockingStub.reloadState(reloadStateRequest);
+      return blockingStub.reloadState(reloadStateRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to reload state");
       throw e;
     }
   }
 
-  public void settingsV2(String indexName, Path filePath) throws IOException {
+  public SettingsV2Response settingsV2(String indexName, Path filePath) throws IOException {
     SettingsV2Request settingsRequest;
     if (filePath != null) {
       settingsRequest = new NrtsearchClientBuilder.SettingsV2ClientBuilder().buildRequest(filePath);
@@ -189,50 +178,41 @@ public class NrtsearchClient implements Closeable {
     } else {
       settingsRequest = SettingsV2Request.newBuilder().setIndexName(indexName).build();
     }
-    SettingsV2Response response;
     try {
-      response = blockingStub.settingsV2(settingsRequest);
+      return blockingStub.settingsV2(settingsRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to apply settings");
       throw e;
     }
-    try {
-      logger.info("Server returned : " + JsonFormat.printer().print(response.getSettings()));
-    } catch (Exception e) {
-      logger.info("Error printing response message: " + response, e);
-    }
   }
 
-  public void startIndex(Path filePath) throws IOException {
+  public StartIndexResponse startIndex(Path filePath) throws IOException {
     StartIndexRequest startIndexRequest =
         new NrtsearchClientBuilder.StartIndexClientBuilder().buildRequest(filePath);
-    StartIndexResponse response;
     try {
-      response = blockingStub.startIndex(startIndexRequest);
+      return blockingStub.startIndex(startIndexRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to start index");
       throw e;
     }
-    logger.info("Server returned : " + response.toString());
   }
 
-  public void startIndexV2(String indexName) {
+  public StartIndexResponse startIndexV2(String indexName) {
     StartIndexV2Request startIndexRequest =
         StartIndexV2Request.newBuilder().setIndexName(indexName).build();
-    StartIndexResponse response;
     try {
-      response = blockingStub.startIndexV2(startIndexRequest);
+      return blockingStub.startIndexV2(startIndexRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to start index {}", indexName);
       throw e;
     }
-    logger.info("Server returned : " + response.toString());
   }
 
-  public void addDocuments(Stream<AddDocumentRequest> addDocumentRequestStream)
+  public AddDocumentResponse addDocuments(Stream<AddDocumentRequest> addDocumentRequestStream)
       throws InterruptedException {
     final CountDownLatch finishLatch = new CountDownLatch(1);
     List<Throwable> exception = new ArrayList<>();
+    List<AddDocumentResponse> responses = new ArrayList<>();
 
     StreamObserver<AddDocumentResponse> responseObserver =
         new StreamObserver<>() {
@@ -243,7 +223,7 @@ public class NrtsearchClient implements Closeable {
             // which is when it is done with indexing the entire stream), which means this method
             // should be
             // called only once.
-            logger.info(String.format("Received response for genId: %s", value));
+            responses.add(value);
           }
 
           @Override
@@ -284,123 +264,97 @@ public class NrtsearchClient implements Closeable {
     if (!exception.isEmpty()) {
       throw new RuntimeException(exception.getFirst());
     }
+    return responses.isEmpty() ? null : responses.getFirst();
   }
 
-  public void refresh(String indexName) {
+  public RefreshResponse refresh(String indexName) {
     logger.info("Will try to refresh index: " + indexName);
     RefreshRequest request = RefreshRequest.newBuilder().setIndexName(indexName).build();
-    RefreshResponse response;
     try {
-      response = blockingStub.refresh(request);
+      return blockingStub.refresh(request);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to call refresh on index {}", indexName);
       throw e;
     }
-    logger.info("Server returned refreshTimeMS : " + response.getRefreshTimeMS());
   }
 
-  public void commit(String indexName) {
+  public CommitResponse commit(String indexName) {
     logger.info("Will try to commit index: " + indexName);
     CommitRequest request = CommitRequest.newBuilder().setIndexName(indexName).build();
-    CommitResponse response;
     try {
-      response = blockingStub.commit(request);
+      return blockingStub.commit(request);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to commit index {}", indexName);
       throw e;
     }
-    logger.info(
-        "Server returned sequence id: "
-            + response.getGen()
-            + ", primary id: "
-            + response.getPrimaryId());
   }
 
-  public void stats(String indexName) {
+  public StatsResponse stats(String indexName) {
     logger.info("Will try to retrieve stats for index: " + indexName);
     StatsRequest request = StatsRequest.newBuilder().setIndexName(indexName).build();
-    StatsResponse response;
     try {
-      response = blockingStub.stats(request);
+      return blockingStub.stats(request);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to retrieve stats for index {}", indexName);
       throw e;
     }
-    logger.info("Server returned sequence id: " + response);
   }
 
-  public boolean ready(String indices) {
+  public HealthCheckResponse ready(String indices) {
     logger.info("Will check if indices are ready: " + indices);
     ReadyCheckRequest request = ReadyCheckRequest.newBuilder().setIndexNames(indices).build();
-    HealthCheckResponse response;
     try {
-      response = blockingStub.ready(request);
+      return blockingStub.ready(request);
     } catch (StatusRuntimeException e) {
       logger.warn("RPC failed: {}", e.getStatus());
-      return false;
+      return null;
     }
-    logger.info("Server returned response: " + response);
-    return TransferStatusCode.Done.equals(response.getHealth());
   }
 
-  public void search(Path filePath) throws IOException {
+  public SearchResponse search(Path filePath) throws IOException {
     SearchRequest searchRequest =
         new NrtsearchClientBuilder.SearchClientBuilder().buildRequest(filePath);
-    SearchResponse response;
     try {
-      response = blockingStub.search(searchRequest);
+      return blockingStub.search(searchRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to search");
       throw e;
     }
-    logger.info("Server returned : " + response.toString());
   }
 
-  public void delete(Path filePath) throws IOException {
+  public AddDocumentResponse delete(Path filePath) throws IOException {
     AddDocumentRequest addDocumentRequest =
         new NrtsearchClientBuilder.DeleteDocumentsBuilder().buildRequest(filePath);
-    AddDocumentResponse response;
     try {
-      response = blockingStub.delete(addDocumentRequest);
+      return blockingStub.delete(addDocumentRequest);
     } catch (StatusRuntimeException e) {
       logger.error("Unable to delete documents");
       throw e;
     }
-    logger.info(
-        "Server returned indexGen : "
-            + response.getGenId()
-            + ", primary id: "
-            + response.getPrimaryId());
   }
 
-  public void deleteIndex(String indexName) {
-    DeleteIndexResponse response =
-        blockingStub.deleteIndex(DeleteIndexRequest.newBuilder().setIndexName(indexName).build());
-    logger.info("Server returned response : " + response.getOk());
+  public DeleteIndexResponse deleteIndex(String indexName) {
+    return blockingStub.deleteIndex(
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
-  public void deleteAllDocuments(String indexName) {
-    DeleteAllDocumentsResponse response =
-        blockingStub.deleteAll(
-            DeleteAllDocumentsRequest.newBuilder().setIndexName(indexName).build());
-    logger.info("Server returned genId : " + response.getGenId());
+  public DeleteAllDocumentsResponse deleteAllDocuments(String indexName) {
+    return blockingStub.deleteAll(
+        DeleteAllDocumentsRequest.newBuilder().setIndexName(indexName).build());
   }
 
-  public void deleteByQuery(String indexName, Query query) {
-    AddDocumentResponse response =
-        blockingStub.deleteByQuery(
-            DeleteByQueryRequest.newBuilder().setIndexName(indexName).addQuery(query).build());
-    logger.info(
-        "Server returned primaryId: {}, genId : {}", response.getPrimaryId(), response.getGenId());
+  public AddDocumentResponse deleteByQuery(String indexName, Query query) {
+    return blockingStub.deleteByQuery(
+        DeleteByQueryRequest.newBuilder().setIndexName(indexName).addQuery(query).build());
   }
 
-  public void stopIndex(String indexName) {
-    blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
+  public DummyResponse stopIndex(String indexName) {
+    return blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
-  public void backupWarmingQueries(
+  public BackupWarmingQueriesResponse backupWarmingQueries(
       String index, String service, int numQueriesThreshold, int uptimeMinutesThreshold) {
-    blockingStub.backupWarmingQueries(
+    return blockingStub.backupWarmingQueries(
         BackupWarmingQueriesRequest.newBuilder()
             .setIndex(index)
             .setServiceName(service)
@@ -409,28 +363,12 @@ public class NrtsearchClient implements Closeable {
             .build());
   }
 
-  public void status() throws InterruptedException {
-    try {
-      HealthCheckResponse status =
-          blockingStub.status(HealthCheckRequest.newBuilder().setCheck(true).build());
-      if (status.getHealth() == TransferStatusCode.Done) {
-        logger.info("Host is up");
-        return;
-      }
-    } catch (StatusRuntimeException e) {
-      logger.info(e.getMessage());
-    }
-    this.shutdown();
-    System.exit(1);
+  public HealthCheckResponse status() {
+    return blockingStub.status(HealthCheckRequest.newBuilder().setCheck(true).build());
   }
 
-  public List<String> getIndices() {
-    return blockingStub
-        .indices(IndicesRequest.newBuilder().build())
-        .getIndicesResponseList()
-        .stream()
-        .map(IndexStatsResponse::getIndexName)
-        .collect(Collectors.toList());
+  public IndicesResponse getIndices() {
+    return blockingStub.indices(IndicesRequest.newBuilder().build());
   }
 
   private FieldDefRequest getFieldDefRequest(String jsonStr) {

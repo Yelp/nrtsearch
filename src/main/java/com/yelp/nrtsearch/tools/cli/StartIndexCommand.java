@@ -44,7 +44,7 @@ public class StartIndexCommand implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = Paths.get(getFileName());
-      client.startIndex(filePath);
+      CliUtils.printMessage(client.startIndex(filePath), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

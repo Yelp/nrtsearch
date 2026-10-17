@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
+import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -37,12 +39,15 @@ public class ReadyCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
-    boolean ready;
     try {
-      ready = client.ready(indices);
+      HealthCheckResponse response = client.ready(indices);
+      if (response == null) {
+        return 1;
+      }
+      CliUtils.printMessage(response, baseCmd.isJson());
+      return TransferStatusCode.Done.equals(response.getHealth()) ? 0 : 1;
     } finally {
       client.shutdown();
     }
-    return ready ? 0 : 1;
   }
 }

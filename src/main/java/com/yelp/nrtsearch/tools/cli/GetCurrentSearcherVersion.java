@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import static com.yelp.nrtsearch.tools.cli.NrtsearchClientCommand.logger;
-
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
@@ -69,7 +67,7 @@ public class GetCurrentSearcherVersion implements Callable<Integer> {
       ReplicationServerClient replServerClient =
           new ReplicationServerClient(getHostName(), getPort());
       SearcherVersion searcherVersion = replServerClient.getCurrentSearcherVersion(getIndexName());
-      logger.info("searcherVersion: " + searcherVersion.getVersion());
+      CliUtils.printMessage(searcherVersion, baseCmd.isJson());
     } finally {
       client.shutdown();
     }
