@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.logging.HitsLoggerFetchTask;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupFetchTask;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -80,6 +81,7 @@ public class FetchTasks {
   private HighlightFetchTask highlightFetchTask;
   private List<InnerHitFetchTask> innerHitFetchTaskList;
   private HitsLoggerFetchTask hitsLoggerFetchTask;
+  private CrossIndexLookupFetchTask crossIndexLookupFetchTask;
 
   public HighlightFetchTask getHighlightFetchTask() {
     return highlightFetchTask;
@@ -111,7 +113,7 @@ public class FetchTasks {
    * @param grpcTaskList fetch task definitions from search request
    */
   public FetchTasks(List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList) {
-    this(grpcTaskList, null, null, null);
+    this(grpcTaskList, null, null, null, null);
   }
 
   /**
@@ -127,6 +129,24 @@ public class FetchTasks {
       HighlightFetchTask highlightFetchTask,
       List<InnerHitFetchTask> innerHitFetchTaskList,
       HitsLoggerFetchTask hitsLoggerFetchTask) {
+    this(grpcTaskList, highlightFetchTask, innerHitFetchTaskList, hitsLoggerFetchTask, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param grpcTaskList fetch task definitions from search request
+   * @param highlightFetchTask highlight fetch task
+   * @param innerHitFetchTaskList innerHit fetch tasks
+   * @param hitsLoggerFetchTask hitsLogger fetch task
+   * @param crossIndexLookupFetchTask cross-index lookup fetch task
+   */
+  public FetchTasks(
+      List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList,
+      HighlightFetchTask highlightFetchTask,
+      List<InnerHitFetchTask> innerHitFetchTaskList,
+      HitsLoggerFetchTask hitsLoggerFetchTask,
+      CrossIndexLookupFetchTask crossIndexLookupFetchTask) {
     taskList =
         grpcTaskList.stream()
             .map(t -> FetchTaskCreator.getInstance().createFetchTask(t))
@@ -134,6 +154,7 @@ public class FetchTasks {
     this.highlightFetchTask = highlightFetchTask;
     this.innerHitFetchTaskList = innerHitFetchTaskList;
     this.hitsLoggerFetchTask = hitsLoggerFetchTask;
+    this.crossIndexLookupFetchTask = crossIndexLookupFetchTask;
   }
 
   /**
@@ -197,6 +218,9 @@ public class FetchTasks {
       for (InnerHitFetchTask innerHitFetchTask : innerHitFetchTaskList) {
         innerHitFetchTask.processHit(searchContext, segment, hit);
       }
+    }
+    if (crossIndexLookupFetchTask != null) {
+      crossIndexLookupFetchTask.processHit(searchContext, segment, hit);
     }
   }
 }

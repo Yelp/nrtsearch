@@ -147,7 +147,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     }
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    SearchContext searchContext;
+    SearchContext searchContext = null;
     try {
       s =
           getSearcherAndTaxonomy(
@@ -247,6 +247,15 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
         searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
       }
 
+      // Materialize cross-index lookup data before rescoring
+      if (searchContext.getCrossIndexLookupManager() != null) {
+        searchContext
+            .getCrossIndexLookupManager()
+            .materialize(hits, s, searchContext.getSharedDocContext());
+        DeadlineUtils.checkDeadline(
+            "SearchHandler: post cross-index materialization", diagnostics, "SEARCH");
+      }
+
       long rescoreStartTime = System.nanoTime();
 
       if (!searchContext.getRescorers().isEmpty()) {
@@ -326,6 +335,10 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
     } finally {
+      // Release cross-index lookup searchers
+      if (searchContext != null && searchContext.getCrossIndexLookupManager() != null) {
+        searchContext.getCrossIndexLookupManager().close();
+      }
       // NOTE: this is a little iffy, because we may not
       // have obtained this searcher from the NRTManager
       // (i.e. sometimes we pulled from

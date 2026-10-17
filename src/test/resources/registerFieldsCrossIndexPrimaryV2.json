@@ -1,0 +1,24 @@
+{
+  "indexName": "primary_v2_index",
+  "field": [
+    {
+      "name": "int_id_primary",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": { "name": "standard" },
+          "tokenFilters": [{ "name": "lowercase" }]
+        }
+      }
+    }
+  ]
+}

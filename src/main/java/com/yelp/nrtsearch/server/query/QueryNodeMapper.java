@@ -860,13 +860,23 @@ public class QueryNodeMapper {
     boolean multipleValuesPerDocument =
         secondaryFieldDef instanceof IndexableFieldDef<?> indexable && indexable.isMultiValue();
 
+    // Check if a CrossIndexLookupManager has a pre-acquired searcher for this index
+    boolean sharedSearcher = false;
     ShardState secondaryShard = secondaryIndex.getShard(0);
     SearcherTaxonomyManager.SearcherAndTaxonomy secondarySearcher;
-    try {
-      secondarySearcher = secondaryShard.acquire();
-    } catch (Exception e) {
-      throw new IllegalStateException(
-          "CrossIndexQuery: failed to acquire searcher for index \"" + index + "\"", e);
+
+    if (context.crossIndexLookupManager() != null
+        && context.crossIndexLookupManager().hasLookup(index)) {
+      // Reuse the lookup's searcher — lifecycle managed by the lookup manager
+      secondarySearcher = context.crossIndexLookupManager().getSearcher(index);
+      sharedSearcher = true;
+    } else {
+      try {
+        secondarySearcher = secondaryShard.acquire();
+      } catch (Exception e) {
+        throw new IllegalStateException(
+            "CrossIndexQuery: failed to acquire searcher for index \"" + index + "\"", e);
+      }
     }
 
     try {
@@ -891,8 +901,6 @@ public class QueryNodeMapper {
 
       ScoreMode scoreMode = mapJoinScoreMode(crossIndexQuery.getScoreMode());
 
-      // JoinUtil collects matching values eagerly at construction time, building a TermsQuery.
-      // The secondary searcher is NOT held open during primary search execution.
       return JoinUtil.createJoinQuery(
           secondaryField,
           multipleValuesPerDocument,
@@ -903,10 +911,13 @@ public class QueryNodeMapper {
     } catch (IOException e) {
       throw new RuntimeException("CrossIndexQuery: failed to create join query", e);
     } finally {
-      try {
-        secondaryShard.release(secondarySearcher);
-      } catch (Exception releaseEx) {
-        logger.error("CrossIndexQuery: failed to release secondary searcher", releaseEx);
+      // Only release if we acquired our own searcher (not shared from lookup manager)
+      if (!sharedSearcher) {
+        try {
+          secondaryShard.release(secondarySearcher);
+        } catch (Exception releaseEx) {
+          logger.error("CrossIndexQuery: failed to release secondary searcher", releaseEx);
+        }
       }
     }
   }

@@ -1,0 +1,17 @@
+{
+  "indexName": "int_join_index",
+  "field": [
+    {
+      "name": "int_id",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "value",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}
