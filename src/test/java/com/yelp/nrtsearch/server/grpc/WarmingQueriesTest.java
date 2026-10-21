@@ -18,9 +18,11 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import io.grpc.StatusRuntimeException;
 import java.io.BufferedReader;
@@ -312,5 +314,48 @@ public class WarmingQueriesTest {
 
   private static double backupFailureCount(String reason) {
     return WarmingMetrics.warmingBackupFailureCount.labelValues("test_index", reason).get();
+  }
+
+  @Test
+  public void testWarmOnStartupFromSchema() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    // no warming queries are backed up, schema warming must not need them
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 2, true)
+            .withWarmingStrategy("schema")
+            .build();
+    String indexId = server.getGlobalState().getDataResourceForIndex("test_index");
+    assertEquals(1, BootstrapMetrics.warmingStrategyInfo.labelValues(indexId, "schema").get(), 0);
+
+    SearchResponse response = replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  @Test
+  public void testWarmOnStartupFromSchemaWithGuardrails() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    String indexId = server.getGlobalState().getDataResourceForIndex("test_index");
+    double schemaSuccessBefore = schemaQueryCount(indexId, "success");
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 2, true)
+            .withWarmingStrategy("schema")
+            .withAdditionalWarmingConfig("queryTimeoutMs: 5000", "maxWarmingDurationMs: 30000")
+            .build();
+
+    // generated queries are replayed through the guarded path and counted as type schema
+    assertTrue(schemaQueryCount(indexId, "success") > schemaSuccessBefore);
+    assertEquals(0, schemaQueryCount(indexId, "error"), 0);
+    SearchResponse response = replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  private static double schemaQueryCount(String indexId, String outcome) {
+    return WarmingMetrics.warmingQueryCount.labelValues(indexId, "schema", outcome).get();
   }
 }

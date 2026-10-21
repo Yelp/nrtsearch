@@ -1,0 +1,17 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {"name": "doc_id", "type": "_ID", "search": true, "storeDocValues": true},
+    {"name": "category", "type": "ATOM", "search": true, "storeDocValues": true, "facet": "SORTED_SET_DOC_VALUES"},
+    {"name": "description", "type": "TEXT", "search": true},
+    {"name": "count", "type": "INT", "search": true, "storeDocValues": true},
+    {"name": "price", "type": "LONG", "search": true, "storeDocValues": true},
+    {"name": "rating", "type": "FLOAT", "search": true, "storeDocValues": true},
+    {"name": "score", "type": "DOUBLE", "search": true, "storeDocValues": true},
+    {"name": "active", "type": "BOOLEAN", "search": true, "storeDocValues": true},
+    {"name": "created", "type": "DATE_TIME", "search": true, "storeDocValues": true, "dateTimeFormat": "epoch_millis"},
+    {"name": "updated", "type": "DATE_TIME", "search": true, "storeDocValues": true, "dateTimeFormat": "yyyy-MM-dd HH:mm:ss"},
+    {"name": "embedding", "type": "VECTOR", "search": true, "storeDocValues": true, "vectorDimensions": 3, "vectorSimilarity": "cosine"},
+    {"name": "byte_embedding", "type": "VECTOR", "search": true, "storeDocValues": true, "vectorDimensions": 4, "vectorSimilarity": "l2_norm", "vectorElementType": "VECTOR_ELEMENT_BYTE"}
+  ]
+}

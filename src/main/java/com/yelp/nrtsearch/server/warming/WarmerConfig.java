@@ -18,6 +18,14 @@ package com.yelp.nrtsearch.server.warming;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
 
 public class WarmerConfig {
+  /** Source of the queries replayed when warming on startup. */
+  public enum WarmingStrategy {
+    /** Replay the query corpus backed up to S3 by backupWarmingQueries. */
+    S3,
+    /** Generate queries from the index schema and values, without downloading from S3. */
+    SCHEMA
+  }
+
   private static final String CONFIG_PREFIX = "warmer.";
   private static final int DEFAULT_MAX_WARMING_QUERIES = 0;
   private static final int DEFAULT_WARMING_PARALLELISM = 1;
@@ -30,6 +38,8 @@ public class WarmerConfig {
   private static final int DEFAULT_QUERY_TIMEOUT_MS = 0;
   private static final int DEFAULT_MAX_WARMING_DURATION_MS = 0;
   private static final int DEFAULT_MAX_VECTOR_CANDIDATES = 0;
+  private static final WarmingStrategy DEFAULT_WARMING_STRATEGY = WarmingStrategy.S3;
+  private static final int DEFAULT_SCHEMA_WARMING_QUERIES = 1000;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -42,6 +52,8 @@ public class WarmerConfig {
   private final int queryTimeoutMs;
   private final int maxWarmingDurationMs;
   private final int maxVectorCandidates;
+  private final WarmingStrategy warmingStrategy;
+  private final int schemaWarmingQueries;
 
   /**
    * Configuration for warmer.
@@ -71,7 +83,9 @@ public class WarmerConfig {
         DEFAULT_MAX_QUERY_LATENCY_MS,
         DEFAULT_QUERY_TIMEOUT_MS,
         DEFAULT_MAX_WARMING_DURATION_MS,
-        DEFAULT_MAX_VECTOR_CANDIDATES);
+        DEFAULT_MAX_VECTOR_CANDIDATES,
+        DEFAULT_WARMING_STRATEGY,
+        DEFAULT_SCHEMA_WARMING_QUERIES);
   }
 
   /**
@@ -93,6 +107,9 @@ public class WarmerConfig {
    * @param maxWarmingDurationMs maximum total time to spend warming on startup, 0 to disable
    * @param maxVectorCandidates queries with a knn query that has numCandidates above this are not
    *     collected, backed up or replayed, 0 to disable
+   * @param warmingStrategy source of the queries replayed when warming on startup
+   * @param schemaWarmingQueries number of term and range queries to generate with the SCHEMA
+   *     strategy
    */
   public WarmerConfig(
       int maxWarmingQueries,
@@ -105,7 +122,9 @@ public class WarmerConfig {
       int maxQueryLatencyMs,
       int queryTimeoutMs,
       int maxWarmingDurationMs,
-      int maxVectorCandidates) {
+      int maxVectorCandidates,
+      WarmingStrategy warmingStrategy,
+      int schemaWarmingQueries) {
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
@@ -117,6 +136,8 @@ public class WarmerConfig {
     this.queryTimeoutMs = queryTimeoutMs;
     this.maxWarmingDurationMs = maxWarmingDurationMs;
     this.maxVectorCandidates = maxVectorCandidates;
+    this.warmingStrategy = warmingStrategy;
+    this.schemaWarmingQueries = schemaWarmingQueries;
   }
 
   public static WarmerConfig fromConfig(YamlConfigReader configReader) {
@@ -147,6 +168,14 @@ public class WarmerConfig {
     int maxVectorCandidates =
         configReader.getInteger(
             CONFIG_PREFIX + "maxVectorCandidates", DEFAULT_MAX_VECTOR_CANDIDATES);
+    WarmingStrategy warmingStrategy =
+        WarmingStrategy.valueOf(
+            configReader
+                .getString(CONFIG_PREFIX + "warmingStrategy", DEFAULT_WARMING_STRATEGY.name())
+                .toUpperCase());
+    int schemaWarmingQueries =
+        configReader.getInteger(
+            CONFIG_PREFIX + "schemaWarmingQueries", DEFAULT_SCHEMA_WARMING_QUERIES);
 
     return new WarmerConfig(
         maxWarmingQueries,
@@ -159,7 +188,9 @@ public class WarmerConfig {
         maxQueryLatencyMs,
         queryTimeoutMs,
         maxWarmingDurationMs,
-        maxVectorCandidates);
+        maxVectorCandidates,
+        warmingStrategy,
+        schemaWarmingQueries);
   }
 
   public int getMaxWarmingQueries() {
@@ -204,5 +235,13 @@ public class WarmerConfig {
 
   public int getMaxVectorCandidates() {
     return maxVectorCandidates;
+  }
+
+  public WarmingStrategy getWarmingStrategy() {
+    return warmingStrategy;
+  }
+
+  public int getSchemaWarmingQueries() {
+    return schemaWarmingQueries;
   }
 }

@@ -1049,7 +1049,8 @@ public class ShardState implements Closeable {
   }
 
   /**
-   * Warm the index from the stored warming queries. When {@link
+   * Warm the index from the stored warming queries, or from queries generated from the index schema
+   * with {@link WarmerConfig.WarmingStrategy#SCHEMA}. When {@link
    * WarmerConfig#getMaxWarmingDurationMs()} is set, startup continues once that time has passed,
    * even if a warming query is still blocked, so slow warming cannot keep a replica from ever
    * becoming ready. When this method stops waiting, it signals the warmer to stop starting new
@@ -1069,8 +1070,14 @@ public class ShardState implements Closeable {
     Warmer warmer = indexState.getWarmer();
     int parallelism = warmerConfig.getWarmingParallelism();
     int maxDurationMs = warmerConfig.getMaxWarmingDurationMs();
+    boolean schema = warmerConfig.getWarmingStrategy() == WarmerConfig.WarmingStrategy.SCHEMA;
+    int schemaQueries = warmerConfig.getSchemaWarmingQueries();
     if (maxDurationMs <= 0) {
-      warmer.warmFromS3(indexState, parallelism);
+      if (schema) {
+        warmer.warmFromSchema(indexState, parallelism, schemaQueries);
+      } else {
+        warmer.warmFromS3(indexState, parallelism);
+      }
       return;
     }
     // set when startup stops waiting, so the warmer starts no new queries after that
@@ -1085,7 +1092,12 @@ public class ShardState implements Closeable {
       Future<?> warmingFuture =
           warmingExecutor.submit(
               () -> {
-                warmer.warmFromS3(indexState, parallelism, maxDurationMs, stopWarming);
+                if (schema) {
+                  warmer.warmFromSchema(
+                      indexState, parallelism, schemaQueries, maxDurationMs, stopWarming);
+                } else {
+                  warmer.warmFromS3(indexState, parallelism, maxDurationMs, stopWarming);
+                }
                 if (stopWarming.get()) {
                   logger.info(
                       "Background warming for index: {} finished after startup continued",

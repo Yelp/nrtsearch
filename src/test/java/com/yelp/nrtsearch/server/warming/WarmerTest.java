@@ -996,4 +996,47 @@ public class WarmerTest {
         "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field2\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
         "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field3\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
   }
+
+  @Test
+  public void testWarmFromRequests() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromRequests_parallel() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+
+    warmer.warmFromRequests(mockIndexState, 3, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromRequests_failureDoesNotStopWarming() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    when(mockSearchHandler.handle(mockIndexState, requests.get(0)))
+        .thenThrow(new IllegalArgumentException("bad query"));
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+  }
 }
