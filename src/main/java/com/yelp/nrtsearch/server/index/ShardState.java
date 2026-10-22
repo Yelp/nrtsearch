@@ -1046,9 +1046,11 @@ public class ShardState implements Closeable {
    * Warm the index from the stored warming queries. When {@link
    * WarmerConfig#getMaxWarmingDurationMs()} is set, startup continues once that time has passed,
    * even if a warming query is still blocked, so slow warming cannot keep a replica from ever
-   * becoming ready. The warmer stops starting new queries at the same deadline, but a query that is
-   * already running is not stopped, so warming work may continue in the background after this
-   * method returns. That work is bounded by the per query timeout, and is logged when it finishes.
+   * becoming ready. When this method stops waiting, it signals the warmer to stop starting new
+   * queries, so no new warming query starts after it returns. Queries that are already running (at
+   * most the warming parallelism) are not stopped and finish in the background, bounded by the per
+   * query timeout. The warmer also keeps reading the stored queries without running them, so they
+   * can pad the next backup. Completion of this background work is logged.
    *
    * <p>The warming thread is never interrupted, since interrupting a thread doing Lucene IO can
    * close index file channels that are shared with live searches.
@@ -1062,7 +1064,8 @@ public class ShardState implements Closeable {
       warmer.warmFromS3(indexState, parallelism);
       return;
     }
-    AtomicBoolean timedOut = new AtomicBoolean();
+    // set when startup stops waiting, so the warmer starts no new queries after that
+    AtomicBoolean stopWarming = new AtomicBoolean();
     ExecutorService warmingExecutor =
         Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder()
@@ -1073,8 +1076,8 @@ public class ShardState implements Closeable {
       Future<?> warmingFuture =
           warmingExecutor.submit(
               () -> {
-                warmer.warmFromS3(indexState, parallelism, maxDurationMs);
-                if (timedOut.get()) {
+                warmer.warmFromS3(indexState, parallelism, maxDurationMs, stopWarming);
+                if (stopWarming.get()) {
                   logger.info(
                       "Background warming for index: {} finished after startup continued",
                       indexState.getName());
@@ -1083,11 +1086,12 @@ public class ShardState implements Closeable {
               });
       warmingFuture.get(maxDurationMs, TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
-      timedOut.set(true);
+      stopWarming.set(true);
       WarmingMetrics.warmingDurationCapReachedCount.labelValues(indexState.getName()).inc();
       logger.warn(
           "Warming index: {} did not finish within max warming duration of {} ms, continuing"
-              + " startup while in flight warming queries complete in the background",
+              + " startup. No new warming queries will start, in flight queries complete in the"
+              + " background",
           indexState.getName(),
           maxDurationMs);
     } catch (ExecutionException e) {

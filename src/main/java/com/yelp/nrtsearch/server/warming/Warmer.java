@@ -53,6 +53,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
@@ -219,7 +220,7 @@ public class Warmer {
 
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    warmFromS3(indexState, parallelism, 0);
+    warmFromS3(indexState, parallelism, 0, new AtomicBoolean());
   }
 
   /**
@@ -229,26 +230,34 @@ public class Warmer {
    * @param parallelism number of queries to run in parallel
    * @param maxDurationMs stop starting new queries after this long, 0 for no limit. The remaining
    *     stored queries are still read, so they can pad the next backup.
+   * @param stopRequested when set, stop starting new queries in the same way as reaching the max
+   *     duration. Lets a caller that stopped waiting for warming make sure no new queries start
+   *     afterwards, since this method's own clock starts later than the caller's.
    */
-  public void warmFromS3(IndexState indexState, int parallelism, long maxDurationMs)
+  public void warmFromS3(
+      IndexState indexState, int parallelism, long maxDurationMs, AtomicBoolean stopRequested)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     try (Timer _timer =
         BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
       SearchHandler searchHandler =
           new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
-      warmFromS3(indexState, parallelism, searchHandler, maxDurationMs);
+      warmFromS3(indexState, parallelism, searchHandler, maxDurationMs, stopRequested);
     }
   }
 
   @VisibleForTesting
   void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    warmFromS3(indexState, parallelism, searchHandler, 0);
+    warmFromS3(indexState, parallelism, searchHandler, 0, new AtomicBoolean());
   }
 
   @VisibleForTesting
   void warmFromS3(
-      IndexState indexState, int parallelism, SearchHandler searchHandler, long maxDurationMs)
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     if (!remoteBackend.exists(service, index, IndexResourceType.WARMING_QUERIES)) {
       logger.info("No warming queries found in S3 for service: {} and index: {}", service, index);
@@ -292,8 +301,10 @@ public class Warmer {
       boolean reachedMaxDuration = false;
       while ((line = reader.readLine()) != null) {
         if (!reachedMaxDuration
-            && maxDurationMs > 0
-            && System.nanoTime() - startNs >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs)) {
+            && (stopRequested.get()
+                || (maxDurationMs > 0
+                    && System.nanoTime() - startNs
+                        >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs)))) {
           reachedMaxDuration = true;
         }
         if (reachedMaxDuration && downloadedQueries == null) {

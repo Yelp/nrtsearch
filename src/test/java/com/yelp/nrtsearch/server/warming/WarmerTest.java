@@ -53,6 +53,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Rule;
@@ -684,7 +685,7 @@ public class WarmerTest {
               return SearchResponse.getDefaultInstance();
             });
 
-    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 300);
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 300, new AtomicBoolean());
 
     // queries started at 0ms and 200ms, the cap is reached before the third
     verify(mockSearchHandler, atLeastOnce())
@@ -707,10 +708,37 @@ public class WarmerTest {
               return SearchResponse.getDefaultInstance();
             });
 
-    padWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 300);
+    padWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 300, new AtomicBoolean());
     Assertions.assertThat(mockingDetails(mockSearchHandler).getInvocations().size()).isLessThan(4);
 
     // queries not replayed because of the cap are still used for padding
+    padWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines())
+        .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testStopRequestedStopsNewQueries() throws Exception {
+    Warmer padWarmer = new Warmer(remoteBackend, service, index, 4, 0, true);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    AtomicBoolean stopRequested = new AtomicBoolean();
+    // the caller stops waiting while the first query is running
+    when(mockSearchHandler.handle(any(IndexState.class), any(SearchRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              stopRequested.set(true);
+              return SearchResponse.getDefaultInstance();
+            });
+
+    // no max duration of its own, only the stop signal
+    padWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler, 0, stopRequested);
+
+    verify(mockSearchHandler, times(1)).handle(any(IndexState.class), any(SearchRequest.class));
+    // queries that were not started are still used for padding
     padWarmer.backupWarmingQueriesToS3(service);
     Assertions.assertThat(readBackedUpLines())
         .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
