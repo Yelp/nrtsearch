@@ -352,9 +352,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       Warmer warmer = indexState.getWarmer();
       if (!warming && warmer != null) {
         double latencyMs = (System.nanoTime() - requestStartNs) / 1000000.0;
-        if (warmer.getQueryFilter().checkCollected(searchRequest, latencyMs) == null) {
-          warmer.addSearchRequest(searchRequest);
-        }
+        warmer.maybeAddSearchRequest(searchRequest, latencyMs, indexState.docLookup);
       }
     } catch (Exception e) {
       logger.error("Unable to add warming query", e);

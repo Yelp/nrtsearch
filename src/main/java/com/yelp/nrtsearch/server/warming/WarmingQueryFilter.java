@@ -15,8 +15,15 @@
  */
 package com.yelp.nrtsearch.server.warming;
 
+import static com.yelp.nrtsearch.server.analysis.AnalyzerCreator.isAnalyzerDefined;
+
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
+import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
+import com.yelp.nrtsearch.server.grpc.BooleanClause.Occur;
+import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
 import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery.ZeroTerms;
@@ -25,8 +32,11 @@ import com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase;
 import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
+import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import java.util.Map;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.QueryBuilder;
 
 /**
  * Decides whether a query is suitable for the warming corpus. Pathological queries (match-all
@@ -34,10 +44,10 @@ import java.util.Map;
  * enough under warm caches to go unnoticed in live traffic, but replaying them against a cold index
  * on startup can stall warming entirely.
  *
- * <p>The same checks are applied when a query is collected from live traffic, when the corpus is
- * backed up, and before a stored query is replayed, so queries that entered the corpus by another
- * path (padding from a previous corpus, or collection before a filter was configured) are also
- * excluded. For multi retriever requests, the checks are applied to each retriever.
+ * <p>The same checks are applied when a query is collected from live traffic and before a stored
+ * query is replayed, so a stored corpus that predates the filter is also cleaned up. Downloaded
+ * queries are only used to pad the next backup if they pass the replay check. For multi retriever
+ * requests, the checks are applied to each retriever.
  */
 public class WarmingQueryFilter {
 
@@ -45,6 +55,8 @@ public class WarmingQueryFilter {
   public enum Reason {
     MATCH_ALL,
     ALL_ZERO_TERMS,
+    // the simplified basic query matches all documents, the original query is still kept
+    BASIC_MATCH_ALL,
     TOP_HITS,
     VECTOR_CANDIDATES,
     LATENCY,
@@ -59,7 +71,6 @@ public class WarmingQueryFilter {
   /** Point at which the query was rejected, used as a metric label. */
   public enum Stage {
     COLLECTION,
-    BACKUP,
     REPLAY;
 
     String label() {
@@ -76,7 +87,7 @@ public class WarmingQueryFilter {
   /**
    * @param index index name, used for metrics
    * @param filterMatchAllQueries reject queries that match all documents, including match phrase
-   *     queries that match all documents when analysis removes all terms
+   *     queries that match all documents because analysis removes all terms
    * @param maxQueryTopHits reject queries with topHits or startHit above this value, 0 to disable
    * @param maxQueryLatencyMs reject collected queries that took longer than this, 0 to disable
    * @param maxVectorCandidates reject queries with a knn query that has numCandidates above this
@@ -105,10 +116,11 @@ public class WarmingQueryFilter {
    *
    * @param searchRequest query to check
    * @param latencyMs time taken to execute the query
+   * @param docLookup lookup for the index fields, used to analyze match phrase queries, may be null
    * @return reason the query should not be collected, or null if it may be collected
    */
-  public Reason checkCollected(SearchRequest searchRequest, double latencyMs) {
-    Reason reason = checkRequest(searchRequest);
+  public Reason checkCollected(SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
+    Reason reason = checkRequest(searchRequest, docLookup);
     if (reason == null && maxQueryLatencyMs > 0 && latencyMs > maxQueryLatencyMs) {
       reason = Reason.LATENCY;
     }
@@ -116,23 +128,28 @@ public class WarmingQueryFilter {
   }
 
   /**
-   * Check a query about to be written to the warming corpus.
+   * Check a stored query before it is replayed, since the stored corpus may predate the filter.
    *
    * @param searchRequest query to check
-   * @return reason the query should not be backed up, or null if it may be backed up
+   * @param docLookup lookup for the index fields, used to analyze match phrase queries, may be null
+   * @return reason the query should not be replayed, or null if it may be replayed
    */
-  public Reason checkBackup(SearchRequest searchRequest) {
-    return record(Stage.BACKUP, checkRequest(searchRequest));
+  public Reason checkReplay(SearchRequest searchRequest, DocLookup docLookup) {
+    return record(Stage.REPLAY, checkRequest(searchRequest, docLookup));
   }
 
   /**
-   * Check a stored query before it is replayed, since the stored corpus may predate the filter.
+   * Check the simplified form of a stored query that passed {@link #checkReplay}. Simplifying can
+   * turn a query into a match all scan, such as a top level function filter query. Rejections are
+   * recorded as {@link Reason#BASIC_MATCH_ALL}, since the original query is still kept.
    *
-   * @param searchRequest query to check, as it will be executed
-   * @return reason the query should not be replayed, or null if it may be replayed
+   * @param basicRequest simplified query, as it will be executed
+   * @param docLookup lookup for the index fields, used to analyze match phrase queries, may be null
+   * @return reason the simplified query should not be replayed, or null if it may be replayed
    */
-  public Reason checkReplay(SearchRequest searchRequest) {
-    return record(Stage.REPLAY, checkRequest(searchRequest));
+  public Reason checkBasicReplay(SearchRequest basicRequest, DocLookup docLookup) {
+    Reason reason = checkRequest(basicRequest, docLookup) == null ? null : Reason.BASIC_MATCH_ALL;
+    return record(Stage.REPLAY, reason);
   }
 
   /** Count a query that was rejected while being replayed. */
@@ -140,12 +157,12 @@ public class WarmingQueryFilter {
     record(Stage.REPLAY, reason);
   }
 
-  private Reason checkRequest(SearchRequest searchRequest) {
+  private Reason checkRequest(SearchRequest searchRequest, DocLookup docLookup) {
     if (filterMatchAllQueries) {
       if (isMatchAll(searchRequest)) {
         return Reason.MATCH_ALL;
       }
-      if (hasAllZeroTerms(searchRequest.getQuery())) {
+      if (hasAllZeroTermsScan(searchRequest.getQuery(), docLookup)) {
         return Reason.ALL_ZERO_TERMS;
       }
     }
@@ -159,7 +176,7 @@ public class WarmingQueryFilter {
       return Reason.VECTOR_CANDIDATES;
     }
     for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
-      Reason reason = checkRetriever(retriever);
+      Reason reason = checkRetriever(retriever, docLookup);
       if (reason != null) {
         return reason;
       }
@@ -167,7 +184,7 @@ public class WarmingQueryFilter {
     return null;
   }
 
-  private Reason checkRetriever(Retriever retriever) {
+  private Reason checkRetriever(Retriever retriever, DocLookup docLookup) {
     switch (retriever.getRetrieverTypeCase()) {
       case TEXTRETRIEVER -> {
         TextRetriever textRetriever = retriever.getTextRetriever();
@@ -175,7 +192,7 @@ public class WarmingQueryFilter {
           if (isMatchAll(textRetriever.getQuery())) {
             return Reason.MATCH_ALL;
           }
-          if (hasAllZeroTerms(textRetriever.getQuery())) {
+          if (hasAllZeroTermsScan(textRetriever.getQuery(), docLookup)) {
             return Reason.ALL_ZERO_TERMS;
           }
         }
@@ -236,13 +253,24 @@ public class WarmingQueryFilter {
   }
 
   /**
-   * Whether the query tree contains a match phrase query with {@link ZeroTerms#ALL_ZERO_TERMS},
-   * which matches all documents when analysis removes all terms (for example a query of only stop
-   * words). The tree is walked generically, so this covers every query type that can nest queries.
+   * Whether the query tree contains a match phrase query with {@link ZeroTerms#ALL_ZERO_TERMS} that
+   * analysis reduces to no terms, which is executed as a {@link
+   * org.apache.lucene.search.MatchAllDocsQuery}. Boolean queries with a restrictive MUST or FILTER
+   * clause are not searched, since they are not a full scan even if another clause is. The rest of
+   * the tree is walked generically, so this covers every query type that can nest queries.
+   *
+   * @param message query tree to check
+   * @param docLookup lookup for the field search analyzer, used when the query does not set its own
+   *     analyzer. If null, such queries are assumed to have terms.
    */
-  static boolean hasAllZeroTerms(Message message) {
+  static boolean hasAllZeroTermsScan(Message message, DocLookup docLookup) {
     if (message instanceof MatchPhraseQuery matchPhraseQuery) {
-      return matchPhraseQuery.getZeroTermsQuery() == ZeroTerms.ALL_ZERO_TERMS;
+      return matchPhraseQuery.getZeroTermsQuery() == ZeroTerms.ALL_ZERO_TERMS
+          && analyzesToNoTerms(matchPhraseQuery, docLookup);
+    }
+    if (message instanceof BooleanQuery booleanQuery
+        && hasRestrictiveClause(booleanQuery, docLookup)) {
+      return false;
     }
     for (Map.Entry<FieldDescriptor, Object> entry : message.getAllFields().entrySet()) {
       FieldDescriptor field = entry.getKey();
@@ -251,14 +279,48 @@ public class WarmingQueryFilter {
       }
       if (field.isRepeated()) {
         for (Object value : (Iterable<?>) entry.getValue()) {
-          if (value instanceof Message child && hasAllZeroTerms(child)) {
+          if (value instanceof Message child && hasAllZeroTermsScan(child, docLookup)) {
             return true;
           }
         }
-      } else if (hasAllZeroTerms((Message) entry.getValue())) {
+      } else if (hasAllZeroTermsScan((Message) entry.getValue(), docLookup)) {
         return true;
       }
     }
     return false;
+  }
+
+  private static boolean hasRestrictiveClause(BooleanQuery booleanQuery, DocLookup docLookup) {
+    for (BooleanClause clause : booleanQuery.getClausesList()) {
+      if ((clause.getOccur() == Occur.MUST || clause.getOccur() == Occur.FILTER)
+          && !isMatchAll(clause.getQuery())
+          && !hasAllZeroTermsScan(clause.getQuery(), docLookup)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Analyze the phrase the same way as {@code QueryNodeMapper}, true if no terms remain. */
+  private static boolean analyzesToNoTerms(MatchPhraseQuery matchPhraseQuery, DocLookup docLookup) {
+    try {
+      Analyzer analyzer;
+      if (isAnalyzerDefined(matchPhraseQuery.getAnalyzer())) {
+        analyzer = AnalyzerCreator.getInstance().getAnalyzer(matchPhraseQuery.getAnalyzer());
+      } else if (docLookup != null) {
+        analyzer = IndexState.getFieldSearchAnalyzer(matchPhraseQuery.getField(), docLookup);
+      } else {
+        return false;
+      }
+      return new QueryBuilder(analyzer)
+              .createPhraseQuery(
+                  matchPhraseQuery.getField(),
+                  matchPhraseQuery.getQuery(),
+                  matchPhraseQuery.getSlop())
+          == null;
+    } catch (Exception e) {
+      // the query cannot be built, so it is not a full scan
+      return false;
+    }
   }
 }

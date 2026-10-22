@@ -604,9 +604,8 @@ public class SearchStreamHandler
       try {
         IndexState indexState = state.searchContext.getIndexState();
         Warmer warmer = indexState.getWarmer();
-        if (warmer != null
-            && warmer.getQueryFilter().checkCollected(searchRequest, latencyMs) == null) {
-          warmer.addSearchRequest(searchRequest);
+        if (warmer != null) {
+          warmer.maybeAddSearchRequest(searchRequest, latencyMs, indexState.docLookup);
         }
       } catch (Exception e) {
         logger.error("Unable to add warming query", e);

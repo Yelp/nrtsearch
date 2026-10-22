@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
@@ -1045,8 +1046,9 @@ public class ShardState implements Closeable {
    * Warm the index from the stored warming queries. When {@link
    * WarmerConfig#getMaxWarmingDurationMs()} is set, startup continues once that time has passed,
    * even if a warming query is still blocked, so slow warming cannot keep a replica from ever
-   * becoming ready. The warmer stops starting new queries at the same deadline, and any queries
-   * still running complete in the background.
+   * becoming ready. The warmer stops starting new queries at the same deadline, but a query that is
+   * already running is not stopped, so warming work may continue in the background after this
+   * method returns. That work is bounded by the per query timeout, and is logged when it finishes.
    *
    * <p>The warming thread is never interrupted, since interrupting a thread doing Lucene IO can
    * close index file channels that are shared with live searches.
@@ -1060,6 +1062,7 @@ public class ShardState implements Closeable {
       warmer.warmFromS3(indexState, parallelism);
       return;
     }
+    AtomicBoolean timedOut = new AtomicBoolean();
     ExecutorService warmingExecutor =
         Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder()
@@ -1071,14 +1074,20 @@ public class ShardState implements Closeable {
           warmingExecutor.submit(
               () -> {
                 warmer.warmFromS3(indexState, parallelism, maxDurationMs);
+                if (timedOut.get()) {
+                  logger.info(
+                      "Background warming for index: {} finished after startup continued",
+                      indexState.getName());
+                }
                 return null;
               });
       warmingFuture.get(maxDurationMs, TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
+      timedOut.set(true);
       WarmingMetrics.warmingDurationCapReachedCount.labelValues(indexState.getName()).inc();
       logger.warn(
           "Warming index: {} did not finish within max warming duration of {} ms, continuing"
-              + " startup",
+              + " startup while in flight warming queries complete in the background",
           indexState.getName(),
           maxDurationMs);
     } catch (ExecutionException e) {

@@ -20,6 +20,8 @@ import com.google.common.base.Strings;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
@@ -144,14 +146,21 @@ public class Warmer {
     return warmingRequests.size();
   }
 
-  /** Get the filter used to exclude pathological queries from the warming corpus. */
-  public WarmingQueryFilter getQueryFilter() {
-    return queryFilter;
-  }
-
-  public void addSearchRequest(SearchRequest searchRequest) {
+  /**
+   * Add a query observed in live traffic to the warming corpus, if it is chosen by reservoir
+   * sampling and accepted by the query filter. The filter only runs for sampled queries, keeping it
+   * off the hot path once the reservoir is full. Sampling stays uniform over accepted queries,
+   * since the filter decision does not depend on the sampler.
+   *
+   * @param searchRequest query to add
+   * @param latencyMs time taken to execute the query
+   * @param docLookup lookup for the index fields, used by the query filter, may be null
+   */
+  public void maybeAddSearchRequest(
+      SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
     ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
-    if (sampleResult.isSample()) {
+    if (sampleResult.isSample()
+        && queryFilter.checkCollected(searchRequest, latencyMs, docLookup) == null) {
       int replace = sampleResult.getReplace();
       if (warmingRequests.size() < maxWarmingQueries) {
         warmingRequests.add(searchRequest);
@@ -172,14 +181,10 @@ public class Warmer {
     synchronized (warmingRequests) {
       observedRequests = new ArrayList<>(warmingRequests);
     }
-    // Second filter pass, catches queries collected before the filter was configured and
-    // pathological queries in the downloaded corpus used for padding
-    int numObserved = observedRequests.size();
-    observedRequests = filterForBackup(observedRequests);
-    int evicted = numObserved - observedRequests.size();
+    // Observed queries were filtered when collected, and downloaded queries when replayed
     List<SearchRequest> warmingRequestsToBackup;
     if (padWithDownloadedRequests) {
-      List<SearchRequest> downloaded = filterForBackup(this.downloadedWarmingRequests);
+      List<SearchRequest> downloaded = this.downloadedWarmingRequests;
       int deficit = maxWarmingQueries - observedRequests.size();
       if (deficit > 0 && !downloaded.isEmpty()) {
         int fromIndex = Math.max(0, downloaded.size() - deficit);
@@ -205,22 +210,11 @@ public class Warmer {
     byte[] warmingQueriesBytes = byteArrayOutputStream.toByteArray();
     remoteBackend.uploadWarmingQueries(service, index, warmingQueriesBytes);
     logger.info(
-        "Backed up {} warming queries for index: {} to service: {}, size: {}, evicted by filter: {}",
+        "Backed up {} warming queries for index: {} to service: {}, size: {}",
         count,
         index,
         service,
-        warmingQueriesBytes.length,
-        evicted);
-  }
-
-  private List<SearchRequest> filterForBackup(List<SearchRequest> requests) {
-    List<SearchRequest> filtered = new ArrayList<>(requests.size());
-    for (SearchRequest request : requests) {
-      if (queryFilter.checkBackup(request) == null) {
-        filtered.add(request);
-      }
-    }
-    return filtered;
+        warmingQueriesBytes.length);
   }
 
   public void warmFromS3(IndexState indexState, int parallelism)
@@ -233,7 +227,8 @@ public class Warmer {
    *
    * @param indexState index to warm
    * @param parallelism number of queries to run in parallel
-   * @param maxDurationMs stop starting new queries after this long, 0 for no limit
+   * @param maxDurationMs stop starting new queries after this long, 0 for no limit. The remaining
+   *     stored queries are still read, so they can pad the next backup.
    */
   public void warmFromS3(IndexState indexState, int parallelism, long maxDurationMs)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
@@ -263,7 +258,8 @@ public class Warmer {
     ScheduledExecutorService deadlineScheduler = null;
     long startMS = System.currentTimeMillis();
     long startNs = System.nanoTime();
-    if (queryTimeoutMs > 0) {
+    // the request deadline only has an effect when deadline cancellation is enabled
+    if (queryTimeoutMs > 0 && DeadlineUtils.getCancellationEnabled()) {
       deadlineScheduler =
           Executors.newSingleThreadScheduledExecutor(
               new ThreadFactoryBuilder()
@@ -292,14 +288,19 @@ public class Warmer {
                 StateUtils.getValidatingUTF8Decoder()))) {
       String line;
       int count = 0, basicCount = 0;
+      int skipped = 0;
       boolean reachedMaxDuration = false;
       while ((line = reader.readLine()) != null) {
-        if (maxDurationMs > 0
+        if (!reachedMaxDuration
+            && maxDurationMs > 0
             && System.nanoTime() - startNs >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs)) {
           reachedMaxDuration = true;
+        }
+        if (reachedMaxDuration && downloadedQueries == null) {
           break;
         }
         boolean isStripped = randomThreadLocal.get().nextInt(100) < warmBasicQueryOnlyPerc;
+        int position = downloadedQueries == null ? count : downloadedQueries.size();
         SearchRequest originalRequest =
             processLine(
                 indexState,
@@ -308,10 +309,15 @@ public class Warmer {
                 deadlineScheduler,
                 line,
                 isStripped,
-                count,
+                position,
+                !reachedMaxDuration,
                 replayStats);
-        if (downloadedQueries != null) {
+        if (originalRequest != null && downloadedQueries != null) {
           downloadedQueries.add(originalRequest);
+        }
+        if (reachedMaxDuration) {
+          skipped++;
+          continue;
         }
         count++;
         if (isStripped) {
@@ -322,23 +328,26 @@ public class Warmer {
       shutdownAndWait(threadPoolExecutor);
       if (reachedMaxDuration) {
         logger.warn(
-            "Warming index: {} reached max warming duration of {} ms, skipped remaining queries",
+            "Warming index: {} reached max warming duration of {} ms, skipped replaying {}"
+                + " remaining queries",
             index,
-            maxDurationMs);
+            maxDurationMs,
+            skipped);
       }
       logger.info(
           "Warmed index: {} with {} full and {} basic warming queries in {} seconds, timed out: {},"
-              + " failed: {}, filtered: {}.",
+              + " failed: {}, filtered: {}, basic query skipped as match all: {}.",
           index,
           count - basicCount,
           basicCount,
           (System.currentTimeMillis() - startMS) / 1000.0,
           replayStats.timedOut.get(),
           replayStats.failed.get(),
-          replayStats.filtered.get());
+          replayStats.filtered.get(),
+          replayStats.basicMatchAll.get());
       if (downloadedQueries != null) {
-        // queries that were filtered, timed out or failed during replay are not used to pad the
-        // next backup
+        // queries that timed out or failed during replay are not used to pad the next backup,
+        // filtered and unparsable queries were never added
         List<SearchRequest> replayable = new ArrayList<>(downloadedQueries.size());
         for (int i = 0; i < downloadedQueries.size(); ++i) {
           if (!replayStats.rejectedPositions.contains(i)) {
@@ -368,10 +377,16 @@ public class Warmer {
     final AtomicInteger timedOut = new AtomicInteger();
     final AtomicInteger failed = new AtomicInteger();
     final AtomicInteger filtered = new AtomicInteger();
-    // position in the downloaded corpus of queries that were filtered, timed out or failed
+    final AtomicInteger basicMatchAll = new AtomicInteger();
+    // position in the downloaded queries of queries that timed out or failed
     final Set<Integer> rejectedPositions = ConcurrentHashMap.newKeySet();
   }
 
+  /**
+   * Parse and filter a stored query, and replay it if requested.
+   *
+   * @return the stored query, or null if it could not be parsed or was rejected by the filter
+   */
   private SearchRequest processLine(
       IndexState indexState,
       SearchHandler searchHandler,
@@ -380,29 +395,45 @@ public class Warmer {
       String line,
       boolean warmBasicQuery,
       int position,
-      ReplayStats replayStats)
-      throws InvalidProtocolBufferException {
+      boolean shouldReplay,
+      ReplayStats replayStats) {
     SearchRequest.Builder builder = SearchRequest.newBuilder();
-    JsonFormat.parser().merge(line, builder);
+    try {
+      // the corpus may have been written by a newer version with fields this server doesn't know
+      JsonFormat.parser().ignoringUnknownFields().merge(line, builder);
+    } catch (InvalidProtocolBufferException e) {
+      int failed = replayStats.failed.incrementAndGet();
+      if (failed <= MAX_LOGGED_REPLAY_FAILURES) {
+        logger.warn("Unable to parse warming query for index: {}", index, e);
+      }
+      WarmingMetrics.warmingQueryCount
+          .labelValues(index, warmBasicQuery ? "basic" : "full", "error")
+          .inc();
+      queryFilter.recordReplayRejection(Reason.ERROR);
+      return null;
+    }
     SearchRequest originalRequest = builder.build();
+    DocLookup docLookup = indexState.docLookup;
     // The stored corpus may predate the filter, so check it before replay. A query that fails is
     // also not used to pad the next backup.
-    if (queryFilter.checkReplay(originalRequest) != null) {
+    if (queryFilter.checkReplay(originalRequest, docLookup) != null) {
       replayStats.filtered.incrementAndGet();
-      replayStats.rejectedPositions.add(position);
+      return null;
+    }
+    if (!shouldReplay) {
       return originalRequest;
     }
     if (warmBasicQuery) {
       WarmingUtils.simplifySearchRequestForWarming(builder);
       // Simplifying can turn a query into a match all scan, such as a top level function filter
       // query, check what will actually be executed. The original query is still fine as padding.
-      if (queryFilter.checkReplay(builder.build()) != null) {
-        replayStats.filtered.incrementAndGet();
+      if (queryFilter.checkBasicReplay(builder.build(), docLookup) != null) {
+        replayStats.basicMatchAll.incrementAndGet();
         return originalRequest;
       }
     }
     if (queryTimeoutMs > 0) {
-      applyQueryTimeout(builder, queryTimeoutMs);
+      applyQueryTimeout(builder, queryTimeoutMs, indexState);
     }
     SearchRequest searchRequest = builder.build();
     Runnable replay =
@@ -424,17 +455,24 @@ public class Warmer {
   }
 
   /**
-   * Limit collection time to the replay timeout, keeping any shorter timeout set on the original
-   * query. Lucene checks this cooperatively while collecting, so the query actually stops instead
-   * of continuing to hold a warming thread.
+   * Limit collection time to the replay timeout, keeping any shorter timeout that would otherwise
+   * apply, set on the original query or the index default. Lucene checks this cooperatively while
+   * collecting, so the query actually stops instead of continuing to hold a warming thread. The
+   * timeout check interval is only set when neither the query nor the index sets one.
    */
   @VisibleForTesting
-  static void applyQueryTimeout(SearchRequest.Builder builder, int queryTimeoutMs) {
+  static void applyQueryTimeout(
+      SearchRequest.Builder builder, int queryTimeoutMs, IndexState indexState) {
     double timeoutSec = queryTimeoutMs / 1000.0;
-    if (builder.getTimeoutSec() <= 0 || builder.getTimeoutSec() > timeoutSec) {
+    double currentTimeoutSec =
+        builder.getTimeoutSec() > 0
+            ? builder.getTimeoutSec()
+            : indexState.getDefaultSearchTimeoutSec();
+    if (currentTimeoutSec <= 0 || currentTimeoutSec > timeoutSec) {
       builder.setTimeoutSec(timeoutSec);
     }
-    if (builder.getTimeoutCheckEvery() <= 0) {
+    if (builder.getTimeoutCheckEvery() <= 0
+        && indexState.getDefaultSearchTimeoutCheckEvery() <= 0) {
       builder.setTimeoutCheckEvery(REPLAY_TIMEOUT_CHECK_EVERY);
     }
   }
@@ -476,7 +514,8 @@ public class Warmer {
       }
     } catch (Exception e) {
       reason = isDeadlineExceeded(e) ? Reason.TIMEOUT : Reason.ERROR;
-      if (reason == Reason.ERROR && replayStats.failed.get() < MAX_LOGGED_REPLAY_FAILURES) {
+      if (reason == Reason.ERROR
+          && replayStats.failed.incrementAndGet() <= MAX_LOGGED_REPLAY_FAILURES) {
         logger.warn("Warming query failed for index: {}", index, e);
       }
     }
@@ -484,8 +523,6 @@ public class Warmer {
     if (reason != null) {
       if (reason == Reason.TIMEOUT) {
         replayStats.timedOut.incrementAndGet();
-      } else {
-        replayStats.failed.incrementAndGet();
       }
       replayStats.rejectedPositions.add(position);
       queryFilter.recordReplayRejection(reason);

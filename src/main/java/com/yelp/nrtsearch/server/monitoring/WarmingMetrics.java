@@ -25,14 +25,14 @@ public class WarmingMetrics {
 
   public static final Counter warmingBackupSuccessCount =
       Counter.builder()
-          .name("nrt_warming_backup_success")
+          .name("nrt_warming_backup_success_count")
           .help("Number of warming query backups uploaded to the remote backend.")
           .labelNames("index")
           .build();
 
   public static final Counter warmingBackupFailureCount =
       Counter.builder()
-          .name("nrt_warming_backup_failure")
+          .name("nrt_warming_backup_failure_count")
           .help(
               "Number of failed warming query backups, by reason (below_uptime_threshold,"
                   + " below_query_threshold, upload_error, other).")
@@ -41,7 +41,7 @@ public class WarmingMetrics {
 
   public static final Counter warmingQueryCount =
       Counter.builder()
-          .name("nrt_warming_queries")
+          .name("nrt_warming_query_count")
           .help(
               "Number of queries replayed during startup warming, by type (full, basic) and outcome"
                   + " (success, error, timeout).")
@@ -59,15 +59,15 @@ public class WarmingMetrics {
 
   public static final Counter warmingQueriesFilteredCount =
       Counter.builder()
-          .name("nrt_warming_queries_filtered")
+          .name("nrt_warming_query_filtered_count")
           .help(
-              "Number of queries excluded from warming, by stage (collection, backup, replay) and reason.")
+              "Number of queries excluded from warming, by stage (collection, replay) and reason.")
           .labelNames("index", "stage", "reason")
           .build();
 
   public static final Counter warmingDurationCapReachedCount =
       Counter.builder()
-          .name("nrt_warming_duration_cap_reached")
+          .name("nrt_warming_duration_cap_reached_count")
           .help("Number of times startup warming was cut short by the total warming duration cap.")
           .labelNames("index")
           .build();
