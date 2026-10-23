@@ -541,7 +541,7 @@ Example server configuration
 
    * - maxWarmingDurationMs
      - int
-     - Maximum time to spend warming on startup. Once reached, no new warming queries are started and startup continues, even if a query is still running. Queries already running finish in the background, bounded by ``queryTimeoutMs``. The remaining stored queries are still read, so they can pad the next backup. Should be set below the startup probe limit, so slow warming cannot cause a restart loop. 0 disables the limit.
+     - Maximum time to spend warming on startup. Once reached, the warmer stops starting new queries and startup continues, even if a query is still running. Up to ``warmingParallelism`` queries that are already running keep running in the background, alongside client traffic. They are not fully bounded: ``queryTimeoutMs`` only stops collection, later phases such as rescoring and fetching are only stopped when ``deadlineCancellation`` is enabled, knn search during query rewrite cannot be stopped, and without ``queryTimeoutMs`` nothing stops them. The remaining stored queries are still read, so they can pad the next backup. Should be set below the startup probe limit, so slow warming cannot cause a restart loop. 0 disables the limit.
      - 0
 
 .. list-table:: `State Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/StateConfig.java>`_ (``stateConfig.*``)

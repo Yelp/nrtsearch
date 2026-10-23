@@ -1047,10 +1047,13 @@ public class ShardState implements Closeable {
    * WarmerConfig#getMaxWarmingDurationMs()} is set, startup continues once that time has passed,
    * even if a warming query is still blocked, so slow warming cannot keep a replica from ever
    * becoming ready. When this method stops waiting, it signals the warmer to stop starting new
-   * queries, so no new warming query starts after it returns. Queries that are already running (at
-   * most the warming parallelism) are not stopped and finish in the background, bounded by the per
-   * query timeout. The warmer also keeps reading the stored queries without running them, so they
-   * can pad the next backup. Completion of this background work is logged.
+   * queries. The flag is checked before each stored query, so one that passed the check just before
+   * may still start after this returns. Queries that are already running (at most the warming
+   * parallelism) are not stopped and keep running alongside client traffic. The per query timeout
+   * only stops collection, later phases are only stopped with deadline cancellation enabled, and
+   * knn search during query rewrite cannot be stopped. The warmer also keeps reading the stored
+   * queries without running them, so they can pad the next backup. Completion of this background
+   * work is logged.
    *
    * <p>The warming thread is never interrupted, since interrupting a thread doing Lucene IO can
    * close index file channels that are shared with live searches.
@@ -1090,8 +1093,8 @@ public class ShardState implements Closeable {
       WarmingMetrics.warmingDurationCapReachedCount.labelValues(indexState.getName()).inc();
       logger.warn(
           "Warming index: {} did not finish within max warming duration of {} ms, continuing"
-              + " startup. No new warming queries will start, in flight queries complete in the"
-              + " background",
+              + " startup. The warmer stops starting new queries, in flight queries complete in"
+              + " the background",
           indexState.getName(),
           maxDurationMs);
     } catch (ExecutionException e) {

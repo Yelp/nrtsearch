@@ -66,6 +66,8 @@ public class Warmer {
   static final int REPLAY_TIMEOUT_CHECK_EVERY = 1000;
   // Log only the first few replay failures, a broken corpus could otherwise produce thousands
   private static final int MAX_LOGGED_REPLAY_FAILURES = 10;
+  // Wait at least this long for running replay queries, plus the per query timeout if set
+  private static final long MIN_REPLAY_WAIT_MS = 10_000;
 
   private final RemoteBackend remoteBackend;
   private final String service;
@@ -79,6 +81,7 @@ public class Warmer {
   private final WarmingQueryFilter queryFilter;
   private final int queryTimeoutMs;
   protected final ThreadLocal<Random> randomThreadLocal;
+  private long minReplayWaitMs = MIN_REPLAY_WAIT_MS;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
     this(remoteBackend, service, index, maxWarmingQueries, 0);
@@ -148,10 +151,11 @@ public class Warmer {
   }
 
   /**
-   * Add a query observed in live traffic to the warming corpus, if it is chosen by reservoir
-   * sampling and accepted by the query filter. The filter only runs for sampled queries, keeping it
-   * off the hot path once the reservoir is full. Sampling stays uniform over accepted queries,
-   * since the filter decision does not depend on the sampler.
+   * Add a query observed in live traffic to the warming corpus, if it is accepted by the query
+   * filter and then chosen by reservoir sampling. The filter must run first: a rejected query must
+   * not advance the sampler's count, or later accepted queries would be sampled with a lower
+   * probability than earlier ones, biasing the corpus toward early traffic. The filter runs its
+   * cheap checks first, and only walks the query tree when match all filtering is enabled.
    *
    * @param searchRequest query to add
    * @param latencyMs time taken to execute the query
@@ -159,9 +163,11 @@ public class Warmer {
    */
   public void maybeAddSearchRequest(
       SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
+    if (queryFilter.checkCollected(searchRequest, latencyMs, docLookup) != null) {
+      return;
+    }
     ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
-    if (sampleResult.isSample()
-        && queryFilter.checkCollected(searchRequest, latencyMs, docLookup) == null) {
+    if (sampleResult.isSample()) {
       int replace = sampleResult.getReplace();
       if (warmingRequests.size() < maxWarmingQueries) {
         warmingRequests.add(searchRequest);
@@ -231,8 +237,9 @@ public class Warmer {
    * @param maxDurationMs stop starting new queries after this long, 0 for no limit. The remaining
    *     stored queries are still read, so they can pad the next backup.
    * @param stopRequested when set, stop starting new queries in the same way as reaching the max
-   *     duration. Lets a caller that stopped waiting for warming make sure no new queries start
-   *     afterwards, since this method's own clock starts later than the caller's.
+   *     duration. Lets a caller that stopped waiting for warming stop new queries from starting,
+   *     since this method's own clock starts later than the caller's. The flag is checked before
+   *     each stored query, so a query that passed the check just before it was set may still start.
    */
   public void warmFromS3(
       IndexState indexState, int parallelism, long maxDurationMs, AtomicBoolean stopRequested)
@@ -299,13 +306,17 @@ public class Warmer {
       int count = 0, basicCount = 0;
       int skipped = 0;
       boolean reachedMaxDuration = false;
+      // whether the caller stopped waiting, rather than this method's own max duration
+      boolean stoppedByCaller = false;
       while ((line = reader.readLine()) != null) {
-        if (!reachedMaxDuration
-            && (stopRequested.get()
-                || (maxDurationMs > 0
-                    && System.nanoTime() - startNs
-                        >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs)))) {
-          reachedMaxDuration = true;
+        if (!reachedMaxDuration) {
+          if (stopRequested.get()) {
+            reachedMaxDuration = true;
+            stoppedByCaller = true;
+          } else if (maxDurationMs > 0
+              && System.nanoTime() - startNs >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs)) {
+            reachedMaxDuration = true;
+          }
         }
         if (reachedMaxDuration && downloadedQueries == null) {
           break;
@@ -336,8 +347,21 @@ public class Warmer {
         }
       }
       // wait for in flight queries, so the replay results are known before they are used
-      shutdownAndWait(threadPoolExecutor);
-      if (reachedMaxDuration) {
+      if (!shutdownAndWait(threadPoolExecutor)) {
+        logger.warn(
+            "Warming index: {} still has {} warming queries running after waiting {} ms, they"
+                + " continue in the background and are not used for padding",
+            index,
+            replayStats.inFlightPositions.size(),
+            replayWaitMs());
+      }
+      if (stoppedByCaller) {
+        logger.warn(
+            "Warming index: {} stopped starting new queries since startup stopped waiting,"
+                + " skipped replaying {} remaining queries",
+            index,
+            skipped);
+      } else if (reachedMaxDuration) {
         logger.warn(
             "Warming index: {} reached max warming duration of {} ms, skipped replaying {}"
                 + " remaining queries",
@@ -357,11 +381,12 @@ public class Warmer {
           replayStats.filtered.get(),
           replayStats.basicMatchAll.get());
       if (downloadedQueries != null) {
-        // queries that timed out or failed during replay are not used to pad the next backup,
-        // filtered and unparsable queries were never added
+        // queries that timed out, failed, or are still running (so their result is unknown) are
+        // not used to pad the next backup, filtered and unparsable queries were never added
+        Set<Integer> inFlight = Set.copyOf(replayStats.inFlightPositions);
         List<SearchRequest> replayable = new ArrayList<>(downloadedQueries.size());
         for (int i = 0; i < downloadedQueries.size(); ++i) {
-          if (!replayStats.rejectedPositions.contains(i)) {
+          if (!replayStats.rejectedPositions.contains(i) && !inFlight.contains(i)) {
             replayable.add(downloadedQueries.get(i));
           }
         }
@@ -375,12 +400,29 @@ public class Warmer {
     }
   }
 
-  private static void shutdownAndWait(ThreadPoolExecutor threadPoolExecutor)
+  /**
+   * Stop accepting replay tasks and wait for running ones. Does nothing if already shut down, so
+   * the wait is not repeated in the finally block.
+   *
+   * @return true if all replay tasks finished
+   */
+  private boolean shutdownAndWait(ThreadPoolExecutor threadPoolExecutor)
       throws InterruptedException {
-    if (threadPoolExecutor != null) {
-      threadPoolExecutor.shutdown();
-      threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);
+    if (threadPoolExecutor == null || threadPoolExecutor.isShutdown()) {
+      return true;
     }
+    threadPoolExecutor.shutdown();
+    return threadPoolExecutor.awaitTermination(replayWaitMs(), TimeUnit.MILLISECONDS);
+  }
+
+  /** Time to wait for running replay tasks, long enough for a query to reach its timeout. */
+  private long replayWaitMs() {
+    return minReplayWaitMs + Math.max(0, queryTimeoutMs);
+  }
+
+  @VisibleForTesting
+  void setMinReplayWaitMs(long minReplayWaitMs) {
+    this.minReplayWaitMs = minReplayWaitMs;
   }
 
   /** Outcome of replayed queries, updated concurrently by warming threads. */
@@ -391,6 +433,8 @@ public class Warmer {
     final AtomicInteger basicMatchAll = new AtomicInteger();
     // position in the downloaded queries of queries that timed out or failed
     final Set<Integer> rejectedPositions = ConcurrentHashMap.newKeySet();
+    // position of queries that have been started and not yet finished
+    final Set<Integer> inFlightPositions = ConcurrentHashMap.newKeySet();
   }
 
   /**
@@ -447,6 +491,7 @@ public class Warmer {
       applyQueryTimeout(builder, queryTimeoutMs, indexState);
     }
     SearchRequest searchRequest = builder.build();
+    replayStats.inFlightPositions.add(position);
     Runnable replay =
         () ->
             replayQuery(
@@ -538,6 +583,7 @@ public class Warmer {
       replayStats.rejectedPositions.add(position);
       queryFilter.recordReplayRejection(reason);
     }
+    replayStats.inFlightPositions.remove(position);
   }
 
   private void recordReplayMetrics(boolean basicQuery, Reason reason, long elapsedNs) {

@@ -53,6 +53,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
@@ -742,6 +744,74 @@ public class WarmerTest {
     padWarmer.backupWarmingQueriesToS3(service);
     Assertions.assertThat(readBackedUpLines())
         .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testRejectedQueriesDoNotAdvanceSampler() throws IOException {
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            0,
+            false,
+            new WarmingQueryFilter(index, false, 100, 0, 0),
+            0);
+    // many rejected queries first, as from a bulk export
+    SearchRequest rejected =
+        SearchRequest.newBuilder().setIndexName(index).setTopHits(1000).build();
+    for (int i = 0; i < 10000; ++i) {
+      filteringWarmer.maybeAddSearchRequest(rejected, 0, null);
+    }
+    // if rejected queries advanced the sampler, these would almost never be sampled
+    List<SearchRequest> accepted = getTestSearchRequests();
+    accepted.forEach(r -> filteringWarmer.maybeAddSearchRequest(r, 0, null));
+
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines())
+        .containsExactlyElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testQueriesStillRunningNotUsedForPadding() throws Exception {
+    // replay waits the minimum wait plus the query timeout for running queries
+    Warmer padWarmer =
+        new Warmer(
+            remoteBackend, service, index, 4, 0, true, WarmingQueryFilter.acceptAll(index), 100);
+    padWarmer.setMinReplayWaitMs(100);
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    CountDownLatch release = new CountDownLatch(1);
+    when(mockSearchHandler.handle(any(IndexState.class), any(SearchRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              SearchRequest r = invocation.getArgument(1);
+              if (sameQuery(r, requests.get(0))) {
+                // still running when warming stops waiting
+                release.await();
+              }
+              return SearchResponse.getDefaultInstance();
+            });
+    try {
+      // one pool thread runs the first query, the caller runs the rest
+      long startNs = System.nanoTime();
+      padWarmer.warmFromS3(mockIndexState, 2, mockSearchHandler, 0, new AtomicBoolean());
+      Assertions.assertThat(System.nanoTime() - startNs)
+          .isGreaterThanOrEqualTo(TimeUnit.MILLISECONDS.toNanos(200));
+    } finally {
+      release.countDown();
+    }
+
+    // the result of the running query is unknown, so it is not used for padding
+    padWarmer.backupWarmingQueriesToS3(service);
+    List<String> expected = getTestSearchRequestsAsJsonStrings();
+    Assertions.assertThat(readBackedUpLines())
+        .containsExactly(expected.get(1), expected.get(2), expected.get(3));
   }
 
   private Warmer newTimeoutWarmer(int queryTimeoutMs) {

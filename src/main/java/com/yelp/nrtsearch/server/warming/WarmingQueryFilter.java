@@ -34,6 +34,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TextRetriever;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
+import java.util.List;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.QueryBuilder;
@@ -120,10 +121,11 @@ public class WarmingQueryFilter {
    * @return reason the query should not be collected, or null if it may be collected
    */
   public Reason checkCollected(SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
-    Reason reason = checkRequest(searchRequest, docLookup);
-    if (reason == null && maxQueryLatencyMs > 0 && latencyMs > maxQueryLatencyMs) {
-      reason = Reason.LATENCY;
-    }
+    // this runs for every live query, so check latency before inspecting the request
+    Reason reason =
+        maxQueryLatencyMs > 0 && latencyMs > maxQueryLatencyMs
+            ? Reason.LATENCY
+            : checkRequest(searchRequest, docLookup);
     return record(Stage.COLLECTION, reason);
   }
 
@@ -157,14 +159,14 @@ public class WarmingQueryFilter {
     record(Stage.REPLAY, reason);
   }
 
+  /**
+   * Check the request. The scalar checks run first, and the query tree is only walked (and match
+   * phrase queries analyzed) when match all filtering is enabled, since this runs for every live
+   * query.
+   */
   private Reason checkRequest(SearchRequest searchRequest, DocLookup docLookup) {
-    if (filterMatchAllQueries) {
-      if (isMatchAll(searchRequest)) {
-        return Reason.MATCH_ALL;
-      }
-      if (hasAllZeroTermsScan(searchRequest.getQuery(), docLookup)) {
-        return Reason.ALL_ZERO_TERMS;
-      }
+    if (filterMatchAllQueries && isMatchAll(searchRequest)) {
+      return Reason.MATCH_ALL;
     }
     // topHits already includes startHit, but check startHit too in case a client sets it alone
     if (maxQueryTopHits > 0
@@ -175,26 +177,34 @@ public class WarmingQueryFilter {
     if (exceedsVectorCandidates(searchRequest.getKnnList())) {
       return Reason.VECTOR_CANDIDATES;
     }
-    for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
-      Reason reason = checkRetriever(retriever, docLookup);
+    List<Retriever> retrievers = searchRequest.getMultiRetriever().getRetrieversList();
+    for (Retriever retriever : retrievers) {
+      Reason reason = checkRetriever(retriever);
       if (reason != null) {
         return reason;
+      }
+    }
+    if (filterMatchAllQueries) {
+      if (hasAllZeroTermsScan(searchRequest.getQuery(), docLookup)) {
+        return Reason.ALL_ZERO_TERMS;
+      }
+      for (Retriever retriever : retrievers) {
+        if (retriever.hasTextRetriever()
+            && hasAllZeroTermsScan(retriever.getTextRetriever().getQuery(), docLookup)) {
+          return Reason.ALL_ZERO_TERMS;
+        }
       }
     }
     return null;
   }
 
-  private Reason checkRetriever(Retriever retriever, DocLookup docLookup) {
+  /** Scalar checks for a single retriever, the query tree is checked by the caller. */
+  private Reason checkRetriever(Retriever retriever) {
     switch (retriever.getRetrieverTypeCase()) {
       case TEXTRETRIEVER -> {
         TextRetriever textRetriever = retriever.getTextRetriever();
-        if (filterMatchAllQueries) {
-          if (isMatchAll(textRetriever.getQuery())) {
-            return Reason.MATCH_ALL;
-          }
-          if (hasAllZeroTermsScan(textRetriever.getQuery(), docLookup)) {
-            return Reason.ALL_ZERO_TERMS;
-          }
+        if (filterMatchAllQueries && isMatchAll(textRetriever.getQuery())) {
+          return Reason.MATCH_ALL;
         }
         if (maxQueryTopHits > 0 && textRetriever.getTopHits() > maxQueryTopHits) {
           return Reason.TOP_HITS;
