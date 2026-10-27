@@ -42,6 +42,7 @@ import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.search.SearcherResult;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import com.yelp.nrtsearch.server.warming.Warmer;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -189,6 +190,7 @@ public class SearchStreamHandler
      */
     private void handleRankingRequest(RankingRequest rankingRequest) throws Exception {
       SearchStreamState state = sessionState();
+      long requestStartNs = System.nanoTime();
       // this request may have been waiting in the grpc queue too long
       DeadlineUtils.checkDeadline("SearchStreamHandler: start", "SEARCH");
 
@@ -397,7 +399,7 @@ public class SearchStreamHandler
         responseBuilder.setProfileResult(profileResultBuilder);
       }
 
-      addToWarmer(searchRequest);
+      addToWarmer(searchRequest, (System.nanoTime() - requestStartNs) / 1000000.0);
 
       DeadlineUtils.checkDeadline("SearchStreamHandler: ranking response", diagnostics, "SEARCH");
 
@@ -593,12 +595,17 @@ public class SearchStreamHandler
       }
     }
 
-    private void addToWarmer(SearchRequest searchRequest) {
+    /**
+     * Add the request to the warmer, unless the warming query filter rejects it. The latency only
+     * covers the ranking phase, since fetching happens in a later request on the stream.
+     */
+    private void addToWarmer(SearchRequest searchRequest, double latencyMs) {
       SearchStreamState state = sessionState();
       try {
         IndexState indexState = state.searchContext.getIndexState();
-        if (indexState.getWarmer() != null) {
-          indexState.getWarmer().addSearchRequest(searchRequest);
+        Warmer warmer = indexState.getWarmer();
+        if (warmer != null) {
+          warmer.maybeAddSearchRequest(searchRequest, latencyMs, indexState.docLookup);
         }
       } catch (Exception e) {
         logger.error("Unable to add warming query", e);
