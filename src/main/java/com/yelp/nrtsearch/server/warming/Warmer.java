@@ -461,9 +461,7 @@ public class Warmer {
       if (failed <= MAX_LOGGED_REPLAY_FAILURES) {
         logger.warn("Unable to parse warming query for index: {}", index, e);
       }
-      WarmingMetrics.warmingQueryCount
-          .labelValues(index, warmBasicQuery ? "basic" : "full", "error")
-          .inc();
+      // not counted in warmingQueryCount, which only counts replayed queries
       queryFilter.recordReplayRejection(Reason.ERROR);
       return null;
     }
@@ -548,42 +546,46 @@ public class Warmer {
     long startNs = System.nanoTime();
     Reason reason = null;
     try {
-      SearchResponse response;
-      if (deadlineScheduler == null) {
-        response = searchHandler.handle(indexState, searchRequest);
-      } else {
-        // The request deadline also covers the phases after collection (rescoring, fetching),
-        // when deadline cancellation is enabled
-        Context.CancellableContext context =
-            Context.current()
-                .withDeadlineAfter(queryTimeoutMs, TimeUnit.MILLISECONDS, deadlineScheduler);
-        try {
-          response = context.call(() -> searchHandler.handle(indexState, searchRequest));
-        } finally {
-          context.cancel(null);
+      try {
+        SearchResponse response;
+        if (deadlineScheduler == null) {
+          response = searchHandler.handle(indexState, searchRequest);
+        } else {
+          // The request deadline also covers the phases after collection (rescoring, fetching),
+          // when deadline cancellation is enabled
+          Context.CancellableContext context =
+              Context.current()
+                  .withDeadlineAfter(queryTimeoutMs, TimeUnit.MILLISECONDS, deadlineScheduler);
+          try {
+            response = context.call(() -> searchHandler.handle(indexState, searchRequest));
+          } finally {
+            context.cancel(null);
+          }
+        }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
+        if (queryTimeoutMs > 0
+            && (elapsedMs > queryTimeoutMs || (response != null && response.getHitTimeout()))) {
+          reason = Reason.TIMEOUT;
+        }
+      } catch (Exception e) {
+        reason = isDeadlineExceeded(e) ? Reason.TIMEOUT : Reason.ERROR;
+        if (reason == Reason.ERROR
+            && replayStats.failed.incrementAndGet() <= MAX_LOGGED_REPLAY_FAILURES) {
+          logger.warn("Warming query failed for index: {}", index, e);
         }
       }
-      long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
-      if (queryTimeoutMs > 0
-          && (elapsedMs > queryTimeoutMs || (response != null && response.getHitTimeout()))) {
-        reason = Reason.TIMEOUT;
+      recordReplayMetrics(basicQuery, reason, System.nanoTime() - startNs);
+      if (reason != null) {
+        if (reason == Reason.TIMEOUT) {
+          replayStats.timedOut.incrementAndGet();
+        }
+        replayStats.rejectedPositions.add(position);
+        queryFilter.recordReplayRejection(reason);
       }
-    } catch (Exception e) {
-      reason = isDeadlineExceeded(e) ? Reason.TIMEOUT : Reason.ERROR;
-      if (reason == Reason.ERROR
-          && replayStats.failed.incrementAndGet() <= MAX_LOGGED_REPLAY_FAILURES) {
-        logger.warn("Warming query failed for index: {}", index, e);
-      }
+    } finally {
+      // also cleared on an Error, so the query is not counted as running when warming finishes
+      replayStats.inFlightPositions.remove(position);
     }
-    recordReplayMetrics(basicQuery, reason, System.nanoTime() - startNs);
-    if (reason != null) {
-      if (reason == Reason.TIMEOUT) {
-        replayStats.timedOut.incrementAndGet();
-      }
-      replayStats.rejectedPositions.add(position);
-      queryFilter.recordReplayRejection(reason);
-    }
-    replayStats.inFlightPositions.remove(position);
   }
 
   private void recordReplayMetrics(boolean basicQuery, Reason reason, long elapsedNs) {

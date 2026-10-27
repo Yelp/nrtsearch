@@ -546,10 +546,13 @@ public class WarmerTest {
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
     double errorBefore = replayCount("full", "error");
+    double filteredErrorBefore = replayFilteredCount("error");
     padWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
 
     verify(mockSearchHandler, times(3)).handle(any(IndexState.class), any(SearchRequest.class));
-    assertEquals(1, replayCount("full", "error") - errorBefore, 0);
+    // a parse failure is not a replayed query, it is only counted as filtered
+    assertEquals(0, replayCount("full", "error") - errorBefore, 0);
+    assertEquals(1, replayFilteredCount("error") - filteredErrorBefore, 0);
 
     // the unparsable query is not used for padding
     padWarmer.backupWarmingQueriesToS3(service);
