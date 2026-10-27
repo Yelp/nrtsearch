@@ -109,6 +109,12 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private Double maxCFSSegmentSizeMB;
 
   @CommandLine.Option(
+      names = {"--useCompoundFile"},
+      description =
+          "If newly flushed segments should be written as a compound file, must be 'true' or 'false'")
+  private String useCompoundFile;
+
+  @CommandLine.Option(
       names = {"--defaultSearchTimeoutSec"},
       description = "Search timeout to use when not provided by the request")
   private Double defaultSearchTimeoutSec;
@@ -212,6 +218,10 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (maxCFSSegmentSizeMB != null) {
         liveSettingsBuilder.setMaxCFSSegmentSizeMB(
             DoubleValue.newBuilder().setValue(maxCFSSegmentSizeMB).build());
+      }
+      if (useCompoundFile != null) {
+        liveSettingsBuilder.setUseCompoundFile(
+            BoolValue.newBuilder().setValue(parseBoolean(useCompoundFile)).build());
       }
       if (defaultSearchTimeoutSec != null) {
         liveSettingsBuilder.setDefaultSearchTimeoutSec(

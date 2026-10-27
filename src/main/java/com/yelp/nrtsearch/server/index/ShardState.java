@@ -187,6 +187,12 @@ public class ShardState implements Closeable {
           writer.getConfig().setRAMBufferSizeMB(currentState.getIndexRamBufferSizeMB());
         }
       }
+      if (updateMessage.hasUseCompoundFile()) {
+        if (writer != null) {
+          logger.info("Setting use compound file");
+          writer.getConfig().setUseCompoundFile(currentState.getUseCompoundFile());
+        }
+      }
     }
   }
 

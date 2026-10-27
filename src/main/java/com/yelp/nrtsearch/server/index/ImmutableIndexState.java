@@ -101,7 +101,6 @@ public class ImmutableIndexState extends IndexState {
           .setDirectory(StringValue.newBuilder().setValue(DEFAULT_DIRECTORY).build())
           .setMaxFullFlushMergeWaitMillis(
               UInt64Value.newBuilder().setValue(DEFAULT_MAX_FULL_FLUSH_MERGE_WAIT_MILLIS).build())
-          .setUseCompoundFile(BoolValue.newBuilder().setValue(DEFAULT_USE_COMPOUND_FILE).build())
           .build();
 
   // Settings
@@ -113,7 +112,6 @@ public class ImmutableIndexState extends IndexState {
   private final boolean indexMergeSchedulerAutoThrottle;
   private final DirectoryFactory directoryFactory;
   private final long maxFullFlushMergeWaitMillis;
-  private final boolean useCompoundFile;
 
   public static final double DEFAULT_MAX_REFRESH_SEC = 1.0;
   public static final double DEFAULT_MIN_REFRESH_SEC = 0.05;
@@ -159,6 +157,7 @@ public class ImmutableIndexState extends IndexState {
           .setNoCFSRatio(DoubleValue.newBuilder().setValue(DEFAULT_NO_CFS_RATIO).build())
           .setMaxCFSSegmentSizeMB(
               DoubleValue.newBuilder().setValue(DEFAULT_MAX_CFS_SEGMENT_SIZE_MB).build())
+          .setUseCompoundFile(BoolValue.newBuilder().setValue(DEFAULT_USE_COMPOUND_FILE).build())
           .build();
 
   // Live Settings
@@ -175,6 +174,7 @@ public class ImmutableIndexState extends IndexState {
   private final double deletePctAllowed;
   private final double noCFSRatio;
   private final double maxCFSSegmentSizeMB;
+  private final boolean useCompoundFile;
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
@@ -253,7 +253,6 @@ public class ImmutableIndexState extends IndexState {
         DirectoryFactory.get(
             mergedSettings.getDirectory().getValue(), globalState.getConfiguration());
     maxFullFlushMergeWaitMillis = mergedSettings.getMaxFullFlushMergeWaitMillis().getValue();
-    useCompoundFile = mergedSettings.getUseCompoundFile().getValue();
 
     // live settings
     mergedLiveSettings =
@@ -275,6 +274,7 @@ public class ImmutableIndexState extends IndexState {
     deletePctAllowed = mergedLiveSettingsWithLocal.getDeletePctAllowed().getValue();
     noCFSRatio = mergedLiveSettingsWithLocal.getNoCFSRatio().getValue();
     maxCFSSegmentSizeMB = mergedLiveSettingsWithLocal.getMaxCFSSegmentSizeMB().getValue();
+    useCompoundFile = mergedLiveSettingsWithLocal.getUseCompoundFile().getValue();
     defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();

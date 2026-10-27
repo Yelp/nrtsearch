@@ -1444,9 +1444,6 @@ message IndexSettings {
     google.protobuf.StringValue directory = 7;
     // Maximum time in milliseconds to wait for merges when doing a full flush
     google.protobuf.UInt64Value maxFullFlushMergeWaitMillis = 8;
-    // Whether newly flushed segments are written as a compound file (.cfs), default: true. Merged segments are
-    // controlled by the noCFSRatio and maxCFSSegmentSizeMB live settings.
-    google.protobuf.BoolValue useCompoundFile = 9;
 }
 
 // Index live settings
@@ -1498,6 +1495,9 @@ message IndexLiveSettings {
     // Maximum size in MB of a merged segment that can be written as a compound file (.cfs), or 0 for no limit,
     // default: 0
     google.protobuf.DoubleValue maxCFSSegmentSizeMB = 21;
+    // Whether newly flushed segments are written as a compound file (.cfs), default: true. Merged segments are
+    // controlled by noCFSRatio and maxCFSSegmentSizeMB.
+    google.protobuf.BoolValue useCompoundFile = 22;
 }
 
 // Index state

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.lucene.index.IndexWriter;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -709,6 +711,30 @@ public class StateBackendServerTest {
   }
 
   @Test
+  public void testUseCompoundFileAppliedToRunningWriter() throws IOException {
+    primaryServer = buildLocalPrimary();
+    createIndexWithFields();
+    startIndexOnServer(primaryServer, Mode.PRIMARY);
+
+    IndexWriter writer =
+        primaryServer.getGlobalState().getIndexOrThrow("test_index").getShard(0).writer;
+    assertTrue(writer.getConfig().getUseCompoundFile());
+
+    primaryServer
+        .getClient()
+        .getBlockingStub()
+        .liveSettingsV2(
+            LiveSettingsV2Request.newBuilder()
+                .setIndexName("test_index")
+                .setLiveSettings(
+                    IndexLiveSettings.newBuilder()
+                        .setUseCompoundFile(BoolValue.newBuilder().setValue(false).build())
+                        .build())
+                .build());
+    assertFalse(writer.getConfig().getUseCompoundFile());
+  }
+
+  @Test
   public void testSetLocalIndexLiveSettingsReplica() throws IOException {
     primaryServer = buildLocalPrimary();
     assertTrue(primaryServer.indices().isEmpty());
@@ -1252,7 +1278,6 @@ public class StateBackendServerTest {
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
             .setMaxFullFlushMergeWaitMillis(UInt64Value.newBuilder().setValue(500).build())
-            .setUseCompoundFile(BoolValue.newBuilder().setValue(true).build())
             .build();
 
     IndexSettings.Builder builder = IndexSettings.newBuilder();
@@ -1348,6 +1373,7 @@ public class StateBackendServerTest {
             .setDeletePctAllowed(DoubleValue.newBuilder().setValue(20.0).build())
             .setNoCFSRatio(DoubleValue.newBuilder().setValue(0.1).build())
             .setMaxCFSSegmentSizeMB(DoubleValue.newBuilder().setValue(0.0).build())
+            .setUseCompoundFile(BoolValue.newBuilder().setValue(true).build())
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

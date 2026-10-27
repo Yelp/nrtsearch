@@ -1757,8 +1757,6 @@ public class ImmutableIndexStateTest {
 
   @Test
   public void testUseCompoundFile_default() throws IOException {
-    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
-    assertTrue(iwc.getUseCompoundFile());
     assertEquals(
         ImmutableIndexState.DEFAULT_USE_COMPOUND_FILE,
         getIndexState(getEmptyState()).getUseCompoundFile());
@@ -1766,11 +1764,20 @@ public class ImmutableIndexStateTest {
 
   @Test
   public void testUseCompoundFile_set() throws IOException {
-    IndexWriterConfig iwc =
-        getWriterConfigForSettings(
-            IndexSettings.newBuilder()
-                .setUseCompoundFile(BoolValue.newBuilder().setValue(false).build())
-                .build());
+    verifyBoolLiveSetting(
+        false, ImmutableIndexState::getUseCompoundFile, b -> b.setUseCompoundFile(wrap(false)));
+    verifyBoolLiveSetting(
+        true, ImmutableIndexState::getUseCompoundFile, b -> b.setUseCompoundFile(wrap(true)));
+  }
+
+  @Test
+  public void testUseCompoundFile_inWriterConfig() throws IOException {
+    IndexWriterConfig iwc = getWriterConfigForSettings(IndexSettings.newBuilder().build());
+    assertTrue(iwc.getUseCompoundFile());
+
+    iwc =
+        getWriterConfigForLiveSettings(
+            IndexLiveSettings.newBuilder().setUseCompoundFile(wrap(false)).build());
     assertFalse(iwc.getUseCompoundFile());
   }
 

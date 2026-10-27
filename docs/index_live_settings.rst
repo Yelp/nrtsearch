@@ -163,7 +163,7 @@ Default: 50
 noCFSRatio
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A merged segment is written as a compound file (``.cfs``) only if its size is no more than this fraction of the total index size. ``0.0`` means merged segments are never written as compound files, and ``1.0`` means they always can be. Flushed segments are controlled by the ``useCompoundFile`` index setting.
+A merged segment is written as a compound file (``.cfs``) only if its size is no more than this fraction of the total index size. ``0.0`` means merged segments are never written as compound files, and ``1.0`` means they always can be. Flushed segments are controlled by ``useCompoundFile``.
 
 Changes take effect the next time the index writer is opened.
 
@@ -181,3 +181,14 @@ Changes take effect the next time the index writer is opened.
 Must be >= 0.0.
 
 Default: 0.0 (unlimited)
+
+useCompoundFile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Controls whether newly flushed segments are written as a compound file (``.cfs``). A compound file packs a segment's files into one file, which reduces the number of open file handles but adds some write overhead.
+
+This setting only applies to flushed segments. Merged segments are controlled by ``noCFSRatio`` and ``maxCFSSegmentSizeMB``. To stop using compound files completely, set this to ``false`` and set ``noCFSRatio`` to ``0.0``.
+
+Changes apply to the running index writer, and affect segments flushed after the update.
+
+Default: true
