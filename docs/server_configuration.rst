@@ -509,6 +509,41 @@ Example server configuration
      - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100.
      - 0
 
+   * - padWithDownloadedRequests
+     - bool
+     - When backing up, pad the corpus with the most recently downloaded warming queries if fewer than ``maxWarmingQueries`` have been observed. Downloaded queries that timed out or failed during replay are not used.
+     - false
+
+   * - filterMatchAllQueries
+     - bool
+     - Do not collect or replay queries that match all documents: no query or a match all query (with no query text, knn or multi retriever), a multi retriever text retriever with no query or a match all query, or a match phrase query with ``zeroTermsQuery: ALL_ZERO_TERMS`` whose text the analyzer reduces to no terms (for example only stop words), unless it is under a boolean query with another restrictive ``MUST`` or ``FILTER`` clause. Large scans are cheap under warm caches, but can stall warming on a cold index. Basic warming queries are checked after simplification, since removing a top level function filter query leaves a match all query.
+     - false
+
+   * - maxQueryTopHits
+     - int
+     - Do not collect or replay queries where ``topHits`` or ``startHit`` exceeds this value, or where any multi retriever text retriever ``topHits`` exceeds it. ``topHits`` already includes ``startHit``, so this also filters deep pagination, which holds every hit up to the requested page in memory. 0 disables the filter.
+     - 0
+
+   * - maxQueryLatencyMs
+     - int
+     - Do not collect queries that took longer than this many milliseconds to execute. 0 disables the filter.
+     - 0
+
+   * - maxVectorCandidates
+     - int
+     - Do not collect or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
+     - 0
+
+   * - queryTimeoutMs
+     - int
+     - Timeout for each query replayed during warming. Collection stops at the timeout (the query's own ``timeoutSec``, or the index ``defaultSearchTimeoutSec``, is kept if shorter), and the request deadline also applies to later phases when ``deadlineCancellation`` is enabled. Queries that time out or fail are skipped and do not stop warming. 0 disables the timeout.
+     - 0
+
+   * - maxWarmingDurationMs
+     - int
+     - Maximum time to spend warming on startup. Once reached, the warmer stops starting new queries and startup continues, even if a query is still running. Up to ``warmingParallelism`` queries that are already running keep running in the background, alongside client traffic. They are not fully bounded: ``queryTimeoutMs`` only stops collection, later phases such as rescoring and fetching are only stopped when ``deadlineCancellation`` is enabled, knn search during query rewrite cannot be stopped, and without ``queryTimeoutMs`` nothing stops them. The remaining stored queries are still read, so they can pad the next backup. Should be set below the startup probe limit, so slow warming cannot cause a restart loop. 0 disables the limit.
+     - 0
+
 .. list-table:: `State Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/StateConfig.java>`_ (``stateConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1
@@ -635,6 +670,16 @@ Example server configuration
      - If enabled, the download concurrency limit is halved on each retry round. Has no effect when ``adaptiveConcurrency.enabled`` is true, since the adaptive limiter manages its own concurrency.
      - true
 
+   * - compressionType
+     - str
+     - Compression applied to index data files uploaded to S3. Built-in options are ``NONE``, ``LZ4``, and ``ZSTD``; plugins implementing ``FileCompressorPlugin`` may register additional names. The type used is recorded per file in the index metadata, so files are always decompressed with the codec they were written with, and this value may be changed at any time.
+     - NONE
+
+   * - compressionInMemoryThresholdBytes
+     - long
+     - Files at or below this size are compressed into memory and uploaded with a known length. Larger files are compressed while streaming to S3 using a multipart upload, bounding memory usage to roughly one part per file.
+     - 134217728 (128 MB)
+
 .. list-table:: `S3 Adaptive Concurrency Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Backend.java>`_ (``remoteConfig.s3.adaptiveConcurrency.*``)
    :widths: 25 10 50 25
    :header-rows: 1
@@ -693,6 +738,25 @@ Example server configuration
      - int
      - Number of initial measurement windows during which only increases are allowed. This prevents premature decreases during connection pool warm-up at the start of a download batch.
      - 3
+
+.. list-table:: `S3 ZSTD Compression Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/ZstdFileCompressor.java>`_ (``remoteConfig.s3.zstd.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - level
+     - int
+     - Compression level used when ``compressionType`` is ``ZSTD``. Higher levels compress better but use more CPU. Negative values select the faster, lower-ratio levels. Must be within the range supported by the zstd library (``-131072`` to ``22``). Only affects compression; files written at any level can be decompressed.
+     - 3
+
+   * - workers
+     - int
+     - Number of zstd worker threads used to compress each file. ``0`` compresses in the uploading thread. Values above ``0`` enable multithreaded compression of each file, which mostly benefits large files since multiple files are already uploaded in parallel.
+     - 0
 
 .. list-table:: `S3 Java Async Client Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.java.*``)
    :widths: 25 10 50 25

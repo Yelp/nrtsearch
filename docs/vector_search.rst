@@ -103,7 +103,11 @@ KNN search can be configured using the following syntax::
       int32 k = 3;
       int32 num_candidates = 4;
       repeated float query_vector = 5;
-      float boost = 6;
+      bytes query_byte_vector = 6;
+      float boost = 7;
+      optional float similarityThreshold = 8;
+      FilterStrategy filter_strategy = 9;
+      RescoreVector rescore_vector = 10;
     }
 
 You can perform three types of searches using KNN:
@@ -222,6 +226,44 @@ Example::
 
 Another example where this particular use case may make sense is a scenario where one would want to find burger photos for a particular business. The vector search query can find its top burger photo across all businesses. The text search can apply a filter based on business ID and caption field of the document. If there are photos from the same business in the vector search, their score can be boosted using the boost parameter so that when combined with the regular text search results, they get higher score. In this case even if no photos are found from the vector search, the text search can at least show some photos whose caption matches the keyword "burger".
 
+Rescoring Quantized Vector Search
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+For fields that use the ``hnsw_scalar_quantized`` vector search type, the graph search and the hit scores come from the
+quantized vectors. To recover accuracy, the search can be oversampled and then rescored with the full precision vectors,
+which are also kept in the index. Set ``rescore_vector.oversample`` to the oversampling factor:
+
+1. The vector search collects ``ceil(k * oversample)`` hits, scored with the quantized vectors. This value is capped at
+   10000. ``num_candidates`` is raised to this value if it is lower.
+2. These hits are rescored with the full precision vectors.
+3. The top ``k`` rescored hits are returned. Their scores are full precision similarity scores.
+
+``oversample`` must be >= 1.0, or 0 (the default) to disable rescoring. A value of 1.0 rescores the top ``k`` hits without
+collecting extra ones. ``similarityThreshold`` and ``boost`` are applied to the rescored score. Rescoring is only
+supported for fields with the float element type. It also works on non-quantized float fields, but there it only adds
+cost, because those search scores already use full precision. For nested vector fields, only the best matching child
+document of each parent is rescored.
+Example::
+
+    {
+      "indexName": "vector_test",
+      "topHits": 10,
+      "knn": [
+        {
+          "field": "photo_embeddings_quantized",
+          "k": 10,
+          "num_candidates": 100,
+          "query_vector": [0.188423157, 0.246743672, ...],
+          "rescore_vector": {
+            "oversample": 3.0
+          }
+        }
+      ]
+    }
+
+The ``exactVectorQuery`` computes similarity with the quantized vectors by default when the field uses a quantized
+vector search type. Set ``full_precision`` to ``true`` to use the full precision vectors instead. This is useful as the
+rescore query of a ``queryRescorer``, to rescore the hits of any first pass query with full precision vector similarity.
+
 Optimizing Search Queries
 -------------------------
 
@@ -259,6 +301,12 @@ A summary of trade-offs for each config:
 
     * Higher vector hits
     * Higher accuracy
+
+  * Rescore quantized vector search hits (`rescore_vector.oversample`)
+
+    * Higher vector hits from oversampling
+    * Full precision scores for returned hits
+    * No reindexing needed
 
   * Higher indexing parameter values (`hnsw_m`, `hnsw_ef_construction`)
 

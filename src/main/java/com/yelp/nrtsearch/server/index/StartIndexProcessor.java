@@ -42,6 +42,7 @@ public class StartIndexProcessor {
   private final IndexStateManager indexStateManager;
   private final boolean remoteCommit;
   private final boolean s3RefreshUpload;
+  private final boolean s3RefreshNotifyAfterUpload;
   private final int discoveryFileUpdateIntervalMs;
   private final boolean requireIdField;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
@@ -55,6 +56,8 @@ public class StartIndexProcessor {
    * @param indexStateManager index state manager
    * @param remoteCommit whether to commit to remote state
    * @param s3RefreshUpload whether to upload index data to S3 on every refresh
+   * @param s3RefreshNotifyAfterUpload whether to notify replicas of a new NRT point only after it
+   *     is uploaded to S3
    * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
    * @param requireIdField whether the index must have an _ID field defined
    */
@@ -65,6 +68,7 @@ public class StartIndexProcessor {
       IndexStateManager indexStateManager,
       boolean remoteCommit,
       boolean s3RefreshUpload,
+      boolean s3RefreshNotifyAfterUpload,
       int discoveryFileUpdateIntervalMs,
       boolean requireIdField) {
     this.serviceName = serviceName;
@@ -73,6 +77,7 @@ public class StartIndexProcessor {
     this.indexStateManager = indexStateManager;
     this.remoteCommit = remoteCommit;
     this.s3RefreshUpload = s3RefreshUpload;
+    this.s3RefreshNotifyAfterUpload = s3RefreshNotifyAfterUpload;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
     this.requireIdField = requireIdField;
   }
@@ -127,7 +132,8 @@ public class StartIndexProcessor {
             remoteBackend,
             restoreIndex,
             remoteCommit,
-            s3RefreshUpload);
+            s3RefreshUpload,
+            s3RefreshNotifyAfterUpload);
     if (mode.equals(Mode.PRIMARY)) {
       primaryGen = startIndexRequest.getPrimaryGen();
       primaryClient = null;

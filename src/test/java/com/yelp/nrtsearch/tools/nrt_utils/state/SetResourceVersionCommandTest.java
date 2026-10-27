@@ -33,7 +33,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,12 +47,19 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class SetResourceVersionCommandTest {
+  @ClassRule public static final TemporaryFolder s3Folder = new TemporaryFolder();
+
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   final PrintStream originalOut = System.out;
   final PrintStream originalErr = System.err;
   final ByteArrayOutputStream out = new ByteArrayOutputStream();
   final ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+  @BeforeClass
+  public static void setUpS3() throws Exception {
+    TestServer.initS3(s3Folder);
+  }
 
   @Before
   public void setUpStreams() {
@@ -59,10 +69,20 @@ public class SetResourceVersionCommandTest {
     System.setErr(new PrintStream(err));
   }
 
+  @Before
+  public void resetBucket() {
+    TestServer.resetS3Bucket();
+  }
+
   @After
   public void cleanup() {
     System.setOut(originalOut);
     System.setErr(originalErr);
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
@@ -95,7 +115,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceVersion_globalState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -123,7 +142,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceVersion_indexState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -155,7 +173,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceVersion_pointState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -187,7 +204,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceVersion_warmingQueries() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -219,7 +235,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testUpdateResourceVersion_globalState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -248,7 +263,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testUpdateResourceVersion_indexState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -281,7 +295,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testUpdateResourceVersion_pointState() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -314,7 +327,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testUpdateResourceVersion_warmingQueries() throws IOException {
-    TestServer.initS3(folder);
     S3Backend s3Backend =
         new S3Backend(
             TEST_BUCKET,
@@ -347,7 +359,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceNotExist() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
     int exitCode =
         cmd.execute(
@@ -403,7 +414,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testSetResourceFromGlobalState_notFound() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =
@@ -422,7 +432,6 @@ public class SetResourceVersionCommandTest {
 
   @Test
   public void testInvalidIndexResourceType() throws IOException {
-    TestServer.initS3(folder);
     CommandLine cmd = getInjectedCommand();
 
     int exitCode =

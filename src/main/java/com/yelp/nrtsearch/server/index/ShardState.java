@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef.FacetValueType;
@@ -25,12 +26,14 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.handler.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import com.yelp.nrtsearch.server.warming.Warmer;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
 import io.grpc.StatusRuntimeException;
 import io.prometheus.metrics.core.datapoints.Timer;
@@ -47,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
@@ -1021,7 +1025,7 @@ public class ShardState implements Closeable {
       WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         try {
-          indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
+          warmOnStartup(indexState, warmerConfig);
         } catch (SearchHandlerException | InterruptedException e) {
           throw new RuntimeException(e);
         }
@@ -1041,6 +1045,76 @@ public class ShardState implements Closeable {
         writer = null;
         slm = new SearcherLifetimeManager();
       }
+    }
+  }
+
+  /**
+   * Warm the index from the stored warming queries. When {@link
+   * WarmerConfig#getMaxWarmingDurationMs()} is set, startup continues once that time has passed,
+   * even if a warming query is still blocked, so slow warming cannot keep a replica from ever
+   * becoming ready. When this method stops waiting, it signals the warmer to stop starting new
+   * queries. The flag is checked before each stored query, so one that passed the check just before
+   * may still start after this returns. Queries that are already running (at most the warming
+   * parallelism) are not stopped and keep running alongside client traffic. The per query timeout
+   * only stops collection, later phases are only stopped with deadline cancellation enabled, and
+   * knn search during query rewrite cannot be stopped. The warmer also keeps reading the stored
+   * queries without running them, so they can pad the next backup. Completion of this background
+   * work is logged.
+   *
+   * <p>The warming thread is never interrupted, since interrupting a thread doing Lucene IO can
+   * close index file channels that are shared with live searches.
+   */
+  private static void warmOnStartup(IndexState indexState, WarmerConfig warmerConfig)
+      throws IOException, SearchHandlerException, InterruptedException {
+    Warmer warmer = indexState.getWarmer();
+    int parallelism = warmerConfig.getWarmingParallelism();
+    int maxDurationMs = warmerConfig.getMaxWarmingDurationMs();
+    if (maxDurationMs <= 0) {
+      warmer.warmFromS3(indexState, parallelism);
+      return;
+    }
+    // set when startup stops waiting, so the warmer starts no new queries after that
+    AtomicBoolean stopWarming = new AtomicBoolean();
+    ExecutorService warmingExecutor =
+        Executors.newSingleThreadExecutor(
+            new ThreadFactoryBuilder()
+                .setNameFormat("warming-" + indexState.getName() + "-%d")
+                .setDaemon(true)
+                .build());
+    try {
+      Future<?> warmingFuture =
+          warmingExecutor.submit(
+              () -> {
+                warmer.warmFromS3(indexState, parallelism, maxDurationMs, stopWarming);
+                if (stopWarming.get()) {
+                  logger.info(
+                      "Background warming for index: {} finished after startup continued",
+                      indexState.getName());
+                }
+                return null;
+              });
+      warmingFuture.get(maxDurationMs, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      stopWarming.set(true);
+      WarmingMetrics.warmingDurationCapReachedCount.labelValues(indexState.getName()).inc();
+      logger.warn(
+          "Warming index: {} did not finish within max warming duration of {} ms, continuing"
+              + " startup. The warmer stops starting new queries, in flight queries complete in"
+              + " the background",
+          indexState.getName(),
+          maxDurationMs);
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof IOException ioException) {
+        throw ioException;
+      } else if (cause instanceof SearchHandlerException searchHandlerException) {
+        throw searchHandlerException;
+      } else if (cause instanceof InterruptedException interruptedException) {
+        throw interruptedException;
+      }
+      throw new RuntimeException(cause);
+    } finally {
+      warmingExecutor.shutdown();
     }
   }
 

@@ -17,9 +17,12 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
+import io.grpc.StatusRuntimeException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -37,6 +41,11 @@ public class WarmingQueriesTest {
 
   @After
   public void cleanup() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
@@ -139,5 +148,169 @@ public class WarmingQueriesTest {
                 .setNumQueriesThreshold(0)
                 .build());
     replica.restart();
+  }
+
+  @Test
+  public void testCollectionFilter() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 1, false)
+            .withAdditionalWarmingConfig("filterMatchAllQueries: true", "maxQueryTopHits: 100")
+            .build();
+
+    SearchRequest termRequest = termSearchRequest(10);
+    SearchRequest matchAllRequest =
+        SearchRequest.newBuilder()
+            .setIndexName("test_index")
+            .setTopHits(10)
+            .addAllRetrieveFields(Arrays.asList("id", "field1", "field2"))
+            .build();
+    SearchRequest largeTopHitsRequest = termSearchRequest(1000);
+    replica.getClient().getBlockingStub().search(termRequest);
+    replica.getClient().getBlockingStub().search(matchAllRequest);
+    replica.getClient().getBlockingStub().search(largeTopHitsRequest);
+    backupWarmingQueries(replica);
+
+    List<String> lines = downloadWarmingQueries(server, replica);
+    assertEquals(1, lines.size());
+    assertEquals(
+        JsonFormat.printer().omittingInsignificantWhitespace().print(termRequest), lines.get(0));
+  }
+
+  @Test
+  public void testWarmOnStartupWithGuardrails() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 2, true)
+            .withAdditionalWarmingConfig("queryTimeoutMs: 5000", "maxWarmingDurationMs: 30000")
+            .build();
+
+    replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    backupWarmingQueries(replica);
+    replica.restart();
+
+    SearchResponse response = replica.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  private TestServer startPrimaryWithDocs() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    return server;
+  }
+
+  private static SearchRequest termSearchRequest(int topHits) {
+    return SearchRequest.newBuilder()
+        .setIndexName("test_index")
+        .setTopHits(topHits)
+        .setQuery(
+            Query.newBuilder()
+                .setTermQuery(TermQuery.newBuilder().setField("id").setTextValue("2").build())
+                .build())
+        .addAllRetrieveFields(Arrays.asList("id", "field1", "field2"))
+        .build();
+  }
+
+  private static void backupWarmingQueries(TestServer replica) {
+    replica
+        .getClient()
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex("test_index")
+                .setUptimeMinutesThreshold(0)
+                .setServiceName(SERVICE_NAME)
+                .setNumQueriesThreshold(0)
+                .build());
+  }
+
+  private static List<String> downloadWarmingQueries(TestServer server, TestServer replica)
+      throws IOException {
+    InputStream queriesStream =
+        replica
+            .getRemoteBackend()
+            .downloadWarmingQueries(
+                SERVICE_NAME, server.getGlobalState().getDataResourceForIndex("test_index"));
+    List<String> lines = new ArrayList<>();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        lines.add(line);
+      }
+    }
+    return lines;
+  }
+
+  @Test
+  public void testBackupWarmingQueriesMetrics() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 1, false)
+            .build();
+    replica
+        .getClient()
+        .getBlockingStub()
+        .search(SearchRequest.newBuilder().setIndexName("test_index").setTopHits(10).build());
+
+    double successBefore = backupSuccessCount();
+    double belowUptimeBefore = backupFailureCount("below_uptime_threshold");
+    double belowQueriesBefore = backupFailureCount("below_query_threshold");
+
+    // replica just started, so a one day uptime threshold is not met
+    assertThrows(StatusRuntimeException.class, () -> backupWarmingQueries(replica, 24 * 60, 0));
+    // only one query has been collected
+    assertThrows(StatusRuntimeException.class, () -> backupWarmingQueries(replica, 0, 100));
+    backupWarmingQueries(replica, 0, 0);
+
+    assertEquals(1, backupFailureCount("below_uptime_threshold") - belowUptimeBefore, 0);
+    assertEquals(1, backupFailureCount("below_query_threshold") - belowQueriesBefore, 0);
+    assertEquals(1, backupSuccessCount() - successBefore, 0);
+  }
+
+  private static void backupWarmingQueries(
+      TestServer replica, int uptimeMinutesThreshold, int numQueriesThreshold) {
+    replica
+        .getClient()
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex("test_index")
+                .setUptimeMinutesThreshold(uptimeMinutesThreshold)
+                .setServiceName(SERVICE_NAME)
+                .setNumQueriesThreshold(numQueriesThreshold)
+                .build());
+  }
+
+  private static double backupSuccessCount() {
+    return WarmingMetrics.warmingBackupSuccessCount.labelValues("test_index").get();
+  }
+
+  private static double backupFailureCount(String reason) {
+    return WarmingMetrics.warmingBackupFailureCount.labelValues("test_index", reason).get();
   }
 }

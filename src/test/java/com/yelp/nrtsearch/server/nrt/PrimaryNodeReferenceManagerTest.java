@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -68,6 +69,7 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(1)).flushAndRefresh();
     verify(mockPrimaryNode, times(1)).sendNewNRTPointToReplicas();
     verify(mockPrimaryNode, times(1)).getNrtDataManager();
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
     verify(mockNrtDataManager, times(1)).doS3RefreshUpload();
     verify(mockReferenceManager, times(2)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
@@ -111,8 +113,58 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(1)).sendNewNRTPointToReplicas();
     verify(mockPrimaryNode, times(2)).getNrtDataManager();
     verify(mockPrimaryNode, times(1)).getCopyState();
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
     verify(mockNrtDataManager, times(1)).doS3RefreshUpload();
-    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of());
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(), false);
+    verify(mockReferenceManager, times(2)).acquire();
+    verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
+    verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, mockIndexReader);
+    verify(mockSearcher, times(5)).getIndexReader();
+    verifyNoMoreInteractions(
+        mockPrimaryNode,
+        mockReferenceManager,
+        mockSearcher,
+        mockIndexReader,
+        mockSearcherFactory,
+        mockNrtDataManager,
+        mockCopyState);
+  }
+
+  @Test
+  public void testRefreshIfNeeded_s3RefreshNotifyAfterUpload() throws IOException {
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
+    IndexSearcher mockSearcher = mock(IndexSearcher.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
+    when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
+    when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
+    when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
+    SearcherFactory mockSearcherFactory = mock(SearcherFactory.class);
+    when(mockSearcherFactory.newSearcher(eq(mockIndexReader), any())).thenReturn(mockSearcher);
+
+    CopyState mockCopyState = mock(CopyState.class);
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.doS3RefreshUpload()).thenReturn(true);
+    when(mockNrtDataManager.doNotifyReplicasAfterUpload()).thenReturn(true);
+    when(mockPrimaryNode.getNrtDataManager()).thenReturn(mockNrtDataManager);
+    when(mockPrimaryNode.getCopyState()).thenReturn(mockCopyState);
+    when(mockPrimaryNode.flushAndRefresh()).thenReturn(true);
+
+    NRTPrimaryNode.PrimaryNodeReferenceManager primaryNodeReferenceManager =
+        new NRTPrimaryNode.PrimaryNodeReferenceManager(mockPrimaryNode, mockSearcherFactory);
+    IndexSearcher indexSearcher = primaryNodeReferenceManager.refreshIfNeeded(mockSearcher);
+    assertEquals(mockSearcher, indexSearcher);
+
+    verify(mockPrimaryNode, times(2)).getSearcherManager();
+    verify(mockPrimaryNode, times(1)).flushAndRefresh();
+    // replicas are notified after the version is in S3
+    verify(mockPrimaryNode, never()).sendNewNRTPointToReplicas();
+    verify(mockPrimaryNode, times(1)).updateSearcherVersionMetric();
+    verify(mockPrimaryNode, times(2)).getNrtDataManager();
+    verify(mockPrimaryNode, times(1)).getCopyState();
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
+    verify(mockNrtDataManager, times(1)).doS3RefreshUpload();
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(), true);
     verify(mockReferenceManager, times(2)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, mockIndexReader);
@@ -219,9 +271,10 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(2)).getSearcherManager();
     verify(mockPrimaryNode, times(1)).flushAndRefresh();
     verify(mockPrimaryNode, times(1)).sendNewNRTPointToReplicas();
-    verify(mockPrimaryNode, times(1)).getNrtDataManager();
+    verify(mockPrimaryNode, times(2)).getNrtDataManager();
     verify(mockPrimaryNode, times(1)).getCopyState();
-    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher));
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher), false);
     verify(mockReferenceManager, times(2)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, mockIndexReader);
@@ -265,10 +318,59 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(1)).flushAndRefresh();
     verify(mockPrimaryNode, times(1)).getNrtDataManager();
     verify(mockPrimaryNode, times(1)).getCopyState();
-    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher));
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher), false);
     verify(mockReferenceManager, times(1)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
     verify(mockSearcher, times(2)).getIndexReader();
+    verifyNoMoreInteractions(
+        mockPrimaryNode,
+        mockReferenceManager,
+        mockSearcher,
+        mockIndexReader,
+        mockSearcherFactory,
+        mockNrtDataManager,
+        mockCopyState);
+  }
+
+  @Test
+  public void testRefreshIfNeededWatcher_s3RefreshNotifyAfterUpload() throws IOException {
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    ReferenceManager<IndexSearcher> mockReferenceManager = mock(ReferenceManager.class);
+    IndexSearcher mockSearcher = mock(IndexSearcher.class);
+    IndexReader mockIndexReader = mock(StandardDirectoryReader.class);
+    when(mockSearcher.getIndexReader()).thenReturn(mockIndexReader);
+    when(mockReferenceManager.acquire()).thenReturn(mockSearcher);
+    when(mockPrimaryNode.getSearcherManager()).thenReturn(mockReferenceManager);
+    SearcherFactory mockSearcherFactory = mock(SearcherFactory.class);
+    when(mockSearcherFactory.newSearcher(eq(mockIndexReader), any())).thenReturn(mockSearcher);
+
+    CopyState mockCopyState = mock(CopyState.class);
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.doS3RefreshUpload()).thenReturn(true);
+    when(mockNrtDataManager.doNotifyReplicasAfterUpload()).thenReturn(true);
+    when(mockPrimaryNode.getNrtDataManager()).thenReturn(mockNrtDataManager);
+    when(mockPrimaryNode.getCopyState()).thenReturn(mockCopyState);
+    when(mockPrimaryNode.flushAndRefresh()).thenReturn(true);
+
+    NRTPrimaryNode.PrimaryNodeReferenceManager primaryNodeReferenceManager =
+        new NRTPrimaryNode.PrimaryNodeReferenceManager(mockPrimaryNode, mockSearcherFactory);
+    RefreshUploadFuture watcher =
+        (RefreshUploadFuture) primaryNodeReferenceManager.nextRefreshDurable();
+    IndexSearcher indexSearcher = primaryNodeReferenceManager.refreshIfNeeded(mockSearcher);
+    assertEquals(mockSearcher, indexSearcher);
+
+    verify(mockPrimaryNode, times(2)).getSearcherManager();
+    verify(mockPrimaryNode, times(1)).flushAndRefresh();
+    verify(mockPrimaryNode, never()).sendNewNRTPointToReplicas();
+    verify(mockPrimaryNode, times(1)).updateSearcherVersionMetric();
+    verify(mockPrimaryNode, times(2)).getNrtDataManager();
+    verify(mockPrimaryNode, times(1)).getCopyState();
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher), true);
+    verify(mockReferenceManager, times(2)).acquire();
+    verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
+    verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, mockIndexReader);
+    verify(mockSearcher, times(5)).getIndexReader();
     verifyNoMoreInteractions(
         mockPrimaryNode,
         mockReferenceManager,
@@ -355,9 +457,10 @@ public class PrimaryNodeReferenceManagerTest {
     verify(mockPrimaryNode, times(1)).getSearcherManager();
     verify(mockPrimaryNode, times(1)).flushAndRefresh();
     verify(mockPrimaryNode, times(1)).sendNewNRTPointToReplicas();
-    verify(mockPrimaryNode, times(1)).getNrtDataManager();
+    verify(mockPrimaryNode, times(2)).getNrtDataManager();
     verify(mockPrimaryNode, times(1)).getCopyState();
-    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher));
+    verify(mockNrtDataManager, times(1)).doNotifyReplicasAfterUpload();
+    verify(mockNrtDataManager, times(1)).enqueueUpload(mockCopyState, List.of(watcher), false);
     verify(mockReferenceManager, times(1)).acquire();
     verify(mockSearcherFactory, times(1)).newSearcher(mockIndexReader, null);
     verify(mockSearcher, times(2)).getIndexReader();

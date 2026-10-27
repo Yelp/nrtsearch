@@ -794,6 +794,17 @@ public class SearchRequestProcessor {
     if (searchRequest.hasQuerySort()) {
       throw new IllegalArgumentException("QuerySort is not supported with MultiRetriever requests");
     }
+    Blender blender = searchRequest.getMultiRetriever().getBlender();
+    if (blender.hasMinScore()) {
+      if (blender.getMinScore() < 0) {
+        throw new IllegalArgumentException("Blender min_score must be a non-negative number");
+      }
+      // Scoreless raw merge assigns score 0 to every hit, so a threshold is meaningless there.
+      if (blender.getBlenderTypeCase() == Blender.BlenderTypeCase.SCORELESSRAWMERGE) {
+        throw new IllegalArgumentException(
+            "Blender min_score is not supported with scorelessRawMerge blender");
+      }
+    }
   }
 
   private static Query buildMultiRetrieverContextAndUnionQuery(

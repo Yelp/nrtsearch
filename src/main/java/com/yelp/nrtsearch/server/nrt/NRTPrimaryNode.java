@@ -213,8 +213,12 @@ public class NRTPrimaryNode extends PrimaryNode {
     return indexStateManager.getCurrent().getMaxMergePreCopyDurationSec();
   }
 
+  /** Update the searcher version metric with the current primary index version. */
+  void updateSearcherVersionMetric() {
+    NrtMetrics.searcherVersion.labelValues(indexName).set(getCopyStateVersion());
+  }
+
   void sendNewNRTPointToReplicas() {
-    logger.info("NRTPrimaryNode: sendNRTPoint");
     // Something did get flushed (there were indexing ops since the last flush):
 
     // nocommit: we used to notify caller of the version, before trying to push to replicas, in case
@@ -222,8 +226,20 @@ public class NRTPrimaryNode extends PrimaryNode {
     // before notifying all replicas, at which point we have a newer version index than client knew
     // about?
     long version = getCopyStateVersion();
-    logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.searcherVersion.labelValues(indexName).set(version);
+    sendNewNRTPointToReplicas(version);
+  }
+
+  /**
+   * Notify all replicas of a new NRT point. When s3RefreshNotifyAfterUpload is enabled, this is
+   * called by the {@link NrtDataManager} once the version is available in the remote backend, so
+   * that replicas downloading from S3 do not load an older version.
+   *
+   * @param version index version to send
+   */
+  void sendNewNRTPointToReplicas(long version) {
+    logger.info("NRTPrimaryNode: sendNRTPoint");
+    logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.nrtPrimaryPointCount.labelValues(indexName).inc();
 
     // Notify current replicas:
@@ -311,11 +327,19 @@ public class NRTPrimaryNode extends PrimaryNode {
       boolean uploadQueued = false;
       try {
         if (primary.flushAndRefresh()) {
-          if (!watchers.isEmpty() || primary.getNrtDataManager().doS3RefreshUpload()) {
-            queueIndexUpload(watchers);
+          NrtDataManager nrtDataManager = primary.getNrtDataManager();
+          boolean notifyAfterUpload = nrtDataManager.doNotifyReplicasAfterUpload();
+          if (!watchers.isEmpty() || nrtDataManager.doS3RefreshUpload()) {
+            queueIndexUpload(watchers, notifyAfterUpload);
             uploadQueued = true;
           }
-          primary.sendNewNRTPointToReplicas();
+          if (notifyAfterUpload) {
+            // replicas may download this version from S3, so the NrtDataManager notifies them
+            // after the upload completes
+            primary.updateSearcherVersionMetric();
+          } else {
+            primary.sendNewNRTPointToReplicas();
+          }
           // NOTE: steals a ref from one ReferenceManager to another!
           return SearcherManager.getSearcher(
               searcherFactory,
@@ -324,7 +348,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         } else {
           if (!watchers.isEmpty()) {
             // even if flush was a noop, we still need to make sure the data is uploaded
-            queueIndexUpload(watchers);
+            queueIndexUpload(watchers, false);
             uploadQueued = true;
           }
           return null;
@@ -340,9 +364,10 @@ public class NRTPrimaryNode extends PrimaryNode {
       }
     }
 
-    private void queueIndexUpload(List<RefreshUploadFuture> watchers) throws IOException {
+    private void queueIndexUpload(List<RefreshUploadFuture> watchers, boolean notifyReplicas)
+        throws IOException {
       CopyState copyState = primary.getCopyState();
-      primary.getNrtDataManager().enqueueUpload(copyState, watchers);
+      primary.getNrtDataManager().enqueueUpload(copyState, watchers, notifyReplicas);
     }
 
     @Override

@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.yelp.nrtsearch.server.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.facet.FacetTopDocs;
+import com.yelp.nrtsearch.server.grpc.Blender;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
@@ -36,6 +37,7 @@ import com.yelp.nrtsearch.server.search.SearcherResult;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -268,10 +270,12 @@ public class SearchExecutionUtils {
     retrieverResults.forEach((name, result) -> retrieverTopDocs.put(name, result.topDocs()));
 
     long blendStartTime = System.nanoTime();
+    Blender blender = multiRetrieverContext.getBlender();
+    float minScore = blender.hasMinScore() ? blender.getMinScore() : BlenderOperation.NO_MIN_SCORE;
     TopDocs blendedHits =
         multiRetrieverContext
             .getBlenderOperation()
-            .blend(retrieverTopDocs, retrieverContexts, 0, blendTopHits);
+            .blend(retrieverTopDocs, retrieverContexts, 0, blendTopHits, minScore);
     double blenderTimeMs = (System.nanoTime() - blendStartTime) / 1_000_000.0;
 
     // Populate per-retriever diagnostics

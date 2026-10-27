@@ -17,6 +17,9 @@ package com.yelp.nrtsearch.server.nrt.state;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,6 +73,64 @@ public class NrtFileMetaDataTest {
         "{\"header\":\"AQIDBAU=\",\"footer\":\"BQQDAgE=\",\"length\":10,\"checksum\":25,\"primaryId\":\"primaryId\",\"timeString\":\"timeString\",\"unknownField\":\"unknownValue\"}";
     NrtFileMetaData nrtFileMetaData = OBJECT_MAPPER.readValue(json, NrtFileMetaData.class);
     assertNrtFileMetaData(nrtFileMetaData);
+  }
+
+  @Test
+  public void testToJson_withCompression() throws JsonProcessingException {
+    NrtFileMetaData nrtFileMetaData =
+        new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    nrtFileMetaData.compressionType = "LZ4";
+    nrtFileMetaData.compressedLength = 7L;
+    String json = OBJECT_MAPPER.writeValueAsString(nrtFileMetaData);
+    assertTrue(json.contains("\"compressionType\":\"LZ4\""));
+    assertTrue(json.contains("\"compressedLength\":7"));
+  }
+
+  @Test
+  public void testToJson_noCompressionFieldsWhenNull() throws JsonProcessingException {
+    NrtFileMetaData nrtFileMetaData =
+        new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    String json = OBJECT_MAPPER.writeValueAsString(nrtFileMetaData);
+    assertEquals(expectedJson, json);
+  }
+
+  @Test
+  public void testFromJson_withCompression() throws JsonProcessingException {
+    String json =
+        "{\"header\":\"AQIDBAU=\",\"footer\":\"BQQDAgE=\",\"length\":10,\"checksum\":25,"
+            + "\"primaryId\":\"primaryId\",\"timeString\":\"timeString\","
+            + "\"compressionType\":\"LZ4\",\"compressedLength\":7}";
+    NrtFileMetaData nrtFileMetaData = OBJECT_MAPPER.readValue(json, NrtFileMetaData.class);
+    assertNrtFileMetaData(nrtFileMetaData);
+    assertEquals("LZ4", nrtFileMetaData.compressionType);
+    assertEquals(Long.valueOf(7), nrtFileMetaData.compressedLength);
+  }
+
+  @Test
+  public void testFromJson_compressionFieldsNullWhenAbsent() throws JsonProcessingException {
+    NrtFileMetaData nrtFileMetaData = OBJECT_MAPPER.readValue(expectedJson, NrtFileMetaData.class);
+    assertNrtFileMetaData(nrtFileMetaData);
+    assertNull(nrtFileMetaData.compressionType);
+    assertNull(nrtFileMetaData.compressedLength);
+  }
+
+  @Test
+  public void testEquals_withSameCompression() throws JsonProcessingException {
+    NrtFileMetaData a = new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    NrtFileMetaData b = new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    a.compressionType = "LZ4";
+    a.compressedLength = 7L;
+    b.compressionType = "LZ4";
+    b.compressedLength = 7L;
+    assertEquals(a, b);
+  }
+
+  @Test
+  public void testEquals_differentCompressionNotEqual() {
+    NrtFileMetaData a = new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    NrtFileMetaData b = new NrtFileMetaData(header, footer, length, checksum, primaryId, timestamp);
+    a.compressionType = "LZ4";
+    assertNotEquals(a, b);
   }
 
   private void assertNrtFileMetaData(NrtFileMetaData nrtFileMetaData) {

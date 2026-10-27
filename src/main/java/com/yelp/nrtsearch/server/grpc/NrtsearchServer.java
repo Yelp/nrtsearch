@@ -100,9 +100,11 @@ import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
+import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.plugins.IngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
+import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.script.ScriptService;
@@ -279,6 +281,8 @@ public class NrtsearchServer {
     prometheusRegistry.register(new QueryCacheCollector());
     // register deadline cancellation metrics
     DeadlineMetrics.register(prometheusRegistry);
+    // register warming guardrail metrics
+    WarmingMetrics.register(prometheusRegistry);
     // register directory size metrics
     prometheusRegistry.register(new DirSizeCollector(globalState));
     prometheusRegistry.register(new ProcStatCollector());
@@ -493,6 +497,7 @@ public class NrtsearchServer {
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
+      FileCompressorCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
       HitsLoggerCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);

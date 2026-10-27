@@ -146,6 +146,26 @@ A custom blending strategy provided by a plugin::
       }
     }
 
+Minimum Score
+^^^^^^^^^^^^^
+
+Any blender except ``scorelessRawMerge`` accepts an optional ``minScore`` threshold on the blended score. When set, hits whose blended score is below the threshold are dropped before sorting and pagination, so ``startHit`` offsets into the filtered ranking. The threshold is inclusive: a hit scoring exactly ``minScore`` is kept, so an explicit ``minScore`` of ``0`` keeps hits that legitimately score ``0`` (for example from a boolean query with only ``FILTER`` clauses).
+
+::
+
+    "blender": {
+      "weightedScoreOrder": {
+        "scoreMode": "MAX"
+      },
+      "minScore": 0.7
+    }
+
+**Facets and collectors are not affected.** ``minScore`` filters only the ranked hits produced by the blender. Facet counts and collector results are computed over the full union query of all retrievers, so they still include documents whose blended score is below the threshold.
+
+**totalHits depends on whether aggregations are requested.** Without facets or collectors, ``totalHits`` is the number of blended hits that passed ``minScore``. With facets or collectors, ``totalHits`` comes from the aggregation pass and reports the union match count, which includes hits below the threshold.
+
+With RRF the blended score is rank-derived, so a threshold is mostly useful to require presence in more than one retriever: a doc found by a single retriever scores at most ``1 / (rankConstant + 1)``, while a doc found by two retrievers always scores above that. ``minScore`` must be non-negative, and is rejected for ``scorelessRawMerge`` because every hit there scores 0.
+
 Diagnostics
 -----------
 

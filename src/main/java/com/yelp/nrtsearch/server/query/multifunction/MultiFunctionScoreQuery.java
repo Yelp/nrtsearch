@@ -266,7 +266,7 @@ public class MultiFunctionScoreQuery extends Query {
       return new ScorerSupplier() {
         @Override
         public Scorer get(long leadCost) throws IOException {
-          Scorer innerScorer = innerWeight.scorer(context);
+          Scorer innerScorer = innerScorerSupplier.get(leadCost);
           LeafFunction[] leafFunctions = new LeafFunction[functions.length];
           Bits[] docSets = new Bits[functions.length];
           for (int i = 0; i < filterWeights.length; ++i) {

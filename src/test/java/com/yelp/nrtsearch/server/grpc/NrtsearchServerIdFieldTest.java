@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.List;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -41,6 +42,11 @@ public class NrtsearchServerIdFieldTest {
 
   @After
   public void tearDown() {
+    TestServer.cleanupServers();
+  }
+
+  @AfterClass
+  public static void cleanupClass() {
     TestServer.cleanupAll();
   }
 
