@@ -17,10 +17,10 @@ package com.yelp.nrtsearch.server.warming;
 
 import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.BooleanQuery;
+import com.yelp.nrtsearch.server.grpc.ChildFilter;
 import com.yelp.nrtsearch.server.grpc.ConstantScoreQuery;
 import com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
-import com.yelp.nrtsearch.server.grpc.KnnRetriever;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.NestedQuery;
@@ -35,6 +35,13 @@ public class WarmingUtils {
       SearchRequest.Builder searchRequestBuilder) {
     if (searchRequestBuilder.hasQuery()) {
       searchRequestBuilder.setQuery(stripScriptQuery(searchRequestBuilder.getQuery()));
+    }
+    for (int i = 0; i < searchRequestBuilder.getChildFiltersCount(); i++) {
+      ChildFilter childFilter = searchRequestBuilder.getChildFilters(i);
+      if (childFilter.hasFilter()) {
+        searchRequestBuilder.setChildFilters(
+            i, childFilter.toBuilder().setFilter(stripScriptQuery(childFilter.getFilter())));
+      }
     }
     for (int i = 0; i < searchRequestBuilder.getKnnCount(); i++) {
       searchRequestBuilder.setKnn(i, stripKnnQuery(searchRequestBuilder.getKnn(i)));
@@ -81,7 +88,7 @@ public class WarmingUtils {
         }
         case KNNRETRIEVER ->
             retrieverBuilder.setKnnRetriever(
-                KnnRetriever.newBuilder()
+                retrieverBuilder.getKnnRetriever().toBuilder()
                     .setKnnQuery(stripKnnQuery(retrieverBuilder.getKnnRetriever().getKnnQuery())));
         default -> {}
       }

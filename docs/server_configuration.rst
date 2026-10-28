@@ -506,7 +506,7 @@ Example server configuration
 
    * - warmBasicQueryOnlyPerc
      - int
-     - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100.
+     - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100. Basic queries strip scripts from the query, child filters, text retriever queries and knn filters, and remove sorts, rescorers (including per retriever rescorers and sorts), retrieve fields, fetch tasks, facets, collectors, highlights, inner hits, virtual fields, runtime fields, logging hits, explain and profile. A knn filter reduced to nothing is removed, so the vector search runs unfiltered.
      - 0
 
    * - padWithDownloadedRequests

@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.BooleanQuery;
+import com.yelp.nrtsearch.server.grpc.ChildFilter;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.ConstantScoreQuery;
 import com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery;
@@ -421,6 +422,24 @@ public class WarmingUtilsTest {
     assertEquals(5, knnQuery.getK());
 
     assertFalse(retrievers.get(2).getTextRetriever().hasQuery());
+  }
+
+  @Test
+  public void testSimplifySearchRequestForWarmingWithChildFilters() {
+    SearchRequest.Builder searchRequestBuilder =
+        SearchRequest.newBuilder()
+            .setQuery(termQuery())
+            .addChildFilters(
+                ChildFilter.newBuilder()
+                    .setPath("nested")
+                    .setFilter(functionScoreQuery(termQuery())));
+
+    SearchRequest simplifiedRequest =
+        WarmingUtils.simplifySearchRequestForWarming(searchRequestBuilder);
+
+    assertEquals(1, simplifiedRequest.getChildFiltersCount());
+    assertEquals("nested", simplifiedRequest.getChildFilters(0).getPath());
+    assertEquals(termQuery(), simplifiedRequest.getChildFilters(0).getFilter());
   }
 
   private static Query termQuery() {
