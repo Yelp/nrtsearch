@@ -21,8 +21,8 @@ repositories {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 allprojects {
@@ -113,6 +113,8 @@ task luceneServer(type: CreateStartScripts) {
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
+    // Allow native calls, such as those used for page cache management
+    defaultJvmOpts = ['--enable-native-access=ALL-UNNAMED']
     // Add additional dependencies, e.g. custom loggers
     classpath += files('$APP_HOME/additional_libs')
 }
@@ -129,6 +131,8 @@ task nrtsearchServer(type: CreateStartScripts) {
     applicationName = 'nrtsearch_server'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
+    // Allow native calls, such as those used for page cache management
+    defaultJvmOpts = ['--enable-native-access=ALL-UNNAMED']
     // Add additional dependencies, e.g. custom loggers
     classpath += files('$APP_HOME/additional_libs')
 }
@@ -218,6 +222,7 @@ test {
     finalizedBy 'spotlessJavaCheck'
     // Run tests sequentially to avoid S3Mock port conflicts
     maxParallelForks = 1
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
     // Used by NrtsearchConfigTest
     environment(Map.of('CUSTOM_HOST', 'my_custom_host', 'VAR1', 'v1', 'VAR2', 'v2', 'VAR3', 'v3'))
     if (project.hasProperty('longRunningTestsOnly')) {

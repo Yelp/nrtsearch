@@ -47,7 +47,7 @@ In the home directory.
 ./gradlew clean installDist test
 ```
 
-Note: This code has been tested on *Java21*
+Note: Java 25 or later is required
 
 
 # Run gRPC Server
