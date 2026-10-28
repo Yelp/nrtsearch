@@ -34,6 +34,7 @@ import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery.ZeroTerms;
 import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.RescoreVector;
 import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
@@ -338,5 +339,40 @@ public class WarmingQueryFilterTest {
         WarmingQueryFilter.acceptAll(INDEX)
             .checkCollected(
                 SearchRequest.newBuilder().addKnn(knnQuery(10, 10000)).build(), 1, null));
+  }
+
+  @Test
+  public void testMaxVectorCandidatesWithOversample() {
+    WarmingQueryFilter filter = new WarmingQueryFilter(INDEX, false, 0, 0, 1000);
+    // the search raises numCandidates to ceil(k * oversample) = 1500
+    KnnQuery oversampled = oversampledKnnQuery(500, 500, 3.0f);
+    assertEquals(
+        Reason.VECTOR_CANDIDATES,
+        filter.checkCollected(SearchRequest.newBuilder().addKnn(oversampled).build(), 1, null));
+    assertEquals(
+        Reason.VECTOR_CANDIDATES,
+        filter.checkReplay(
+            multiRetrieverRequest(
+                Retriever.newBuilder()
+                    .setName("knn")
+                    .setKnnRetriever(KnnRetriever.newBuilder().setKnnQuery(oversampled))
+                    .build()),
+            null));
+    // ceil(10 * 1.5) = 15 is below numCandidates, which is used instead
+    assertNull(
+        filter.checkCollected(
+            SearchRequest.newBuilder().addKnn(oversampledKnnQuery(10, 1000, 1.5f)).build(),
+            1,
+            null));
+    // an oversample of 0 disables rescoring
+    assertNull(
+        filter.checkCollected(
+            SearchRequest.newBuilder().addKnn(oversampledKnnQuery(500, 500, 0)).build(), 1, null));
+  }
+
+  private static KnnQuery oversampledKnnQuery(int k, int numCandidates, float oversample) {
+    return knnQuery(k, numCandidates).toBuilder()
+        .setRescoreVector(RescoreVector.newBuilder().setOversample(oversample))
+        .build();
   }
 }

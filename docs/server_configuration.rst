@@ -531,7 +531,7 @@ Example server configuration
 
    * - maxVectorCandidates
      - int
-     - Do not collect or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
+     - Do not collect or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. When full precision rescoring is enabled, the oversampled hit count (``ceil(k * rescore_vector.oversample)``) is used if it is larger, since the search raises ``num_candidates`` to it. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
      - 0
 
    * - queryTimeoutMs

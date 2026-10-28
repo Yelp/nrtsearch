@@ -19,19 +19,32 @@ import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.BooleanQuery;
 import com.yelp.nrtsearch.server.grpc.ConstantScoreQuery;
 import com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery;
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
+import com.yelp.nrtsearch.server.grpc.KnnRetriever;
 import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
+import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.NestedQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.TextRetriever;
 
 public class WarmingUtils {
 
   public static SearchRequest simplifySearchRequestForWarming(
       SearchRequest.Builder searchRequestBuilder) {
-    Query basicSearchRequest = stripScriptQuery(searchRequestBuilder.getQuery());
+    if (searchRequestBuilder.hasQuery()) {
+      searchRequestBuilder.setQuery(stripScriptQuery(searchRequestBuilder.getQuery()));
+    }
+    for (int i = 0; i < searchRequestBuilder.getKnnCount(); i++) {
+      searchRequestBuilder.setKnn(i, stripKnnQuery(searchRequestBuilder.getKnn(i)));
+    }
+    if (searchRequestBuilder.hasMultiRetriever()) {
+      searchRequestBuilder.setMultiRetriever(
+          stripMultiRetriever(searchRequestBuilder.getMultiRetriever()));
+    }
     SearchRequest searchRequest =
         searchRequestBuilder
-            .setQuery(basicSearchRequest)
             .clearQuerySort()
             .clearRescorers()
             .clearRetrieveFields()
@@ -39,9 +52,54 @@ public class WarmingUtils {
             .clearFacets()
             .clearCollectors()
             .clearHighlight()
+            .clearInnerHits()
+            .clearVirtualFields()
+            .clearRuntimeFields()
+            .clearLoggingHits()
+            .setExplain(false)
             .setProfile(false)
             .build();
     return searchRequest;
+  }
+
+  /**
+   * Strip scripts from each text retriever query and knn filter, and remove the per retriever
+   * rescorers and sorts. The blender is kept, since it only merges the retriever hits.
+   */
+  private static MultiRetrieverRequest stripMultiRetriever(MultiRetrieverRequest multiRetriever) {
+    MultiRetrieverRequest.Builder multiRetrieverBuilder = multiRetriever.toBuilder();
+    for (int i = 0; i < multiRetriever.getRetrieversCount(); i++) {
+      Retriever.Builder retrieverBuilder =
+          multiRetriever.getRetrievers(i).toBuilder().clearRescorer().clearSortedFields();
+      switch (retrieverBuilder.getRetrieverTypeCase()) {
+        case TEXTRETRIEVER -> {
+          TextRetriever textRetriever = retrieverBuilder.getTextRetriever();
+          if (textRetriever.hasQuery()) {
+            retrieverBuilder.setTextRetriever(
+                textRetriever.toBuilder().setQuery(stripScriptQuery(textRetriever.getQuery())));
+          }
+        }
+        case KNNRETRIEVER ->
+            retrieverBuilder.setKnnRetriever(
+                KnnRetriever.newBuilder()
+                    .setKnnQuery(stripKnnQuery(retrieverBuilder.getKnnRetriever().getKnnQuery())));
+        default -> {}
+      }
+      multiRetrieverBuilder.setRetrievers(i, retrieverBuilder.build());
+    }
+    return multiRetrieverBuilder.build();
+  }
+
+  private static KnnQuery stripKnnQuery(KnnQuery knnQuery) {
+    if (!knnQuery.hasFilter()) {
+      return knnQuery;
+    }
+    Query filter = stripScriptQuery(knnQuery.getFilter());
+    // an empty filter would be built as a match all filter, so search without one instead
+    if (filter.getQueryNodeCase() == Query.QueryNodeCase.QUERYNODE_NOT_SET) {
+      return knnQuery.toBuilder().clearFilter().build();
+    }
+    return knnQuery.toBuilder().setFilter(filter).build();
   }
 
   private static Query stripScriptQuery(Query query) {

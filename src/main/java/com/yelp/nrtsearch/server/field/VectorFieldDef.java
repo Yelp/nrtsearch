@@ -431,7 +431,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
       if (!(oversample >= 1.0f)) {
         throw new IllegalArgumentException("Vector search rescore oversample must be >= 1.0");
       }
-      searchK = (int) Math.min(Math.ceil((double) k * oversample), NUM_CANDIDATES_LIMIT);
+      searchK = getRescoreSearchK(k, oversample);
       numCandidates = Math.max(numCandidates, searchK);
     }
 
@@ -453,6 +453,29 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
    */
   static boolean isRescoreEnabled(KnnQuery knnQuery) {
     return knnQuery.hasRescoreVector() && knnQuery.getRescoreVector().getOversample() != 0;
+  }
+
+  private static int getRescoreSearchK(int k, float oversample) {
+    return (int) Math.min(Math.ceil((double) k * oversample), NUM_CANDIDATES_LIMIT);
+  }
+
+  /**
+   * Get the number of nearest neighbors the knn query considers per segment. When full precision
+   * rescoring is enabled, this is increased to the oversampled number of hits to collect. The query
+   * is not validated.
+   *
+   * @param knnQuery knn query definition
+   * @return number of candidates the vector search uses
+   */
+  public static int getEffectiveNumCandidates(KnnQuery knnQuery) {
+    int numCandidates = knnQuery.getNumCandidates();
+    if (isRescoreEnabled(knnQuery)) {
+      numCandidates =
+          Math.max(
+              numCandidates,
+              getRescoreSearchK(knnQuery.getK(), knnQuery.getRescoreVector().getOversample()));
+    }
+    return numCandidates;
   }
 
   @Override
