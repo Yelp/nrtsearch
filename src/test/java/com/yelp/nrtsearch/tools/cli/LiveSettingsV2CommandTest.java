@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -114,6 +115,28 @@ public class LiveSettingsV2CommandTest {
             "--indexName=test_index",
             "--verboseMetrics=invalid");
     assertEquals(1, exitCode);
+  }
+
+  @Test
+  public void testUseCompoundFile() throws IOException {
+    TestServer server = getTestServer();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    IndexState indexState = server.getGlobalState().getIndexOrThrow("test_index");
+    assertTrue(indexState.getShard(0).writer.getConfig().getUseCompoundFile());
+
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
+    int exitCode =
+        cmd.execute(
+            "--hostname=localhost",
+            "--port=" + server.getPort(),
+            "liveSettingsV2",
+            "--indexName=test_index",
+            "--useCompoundFile=false");
+    assertEquals(0, exitCode);
+    assertFalse(server.getGlobalState().getIndexOrThrow("test_index").getUseCompoundFile());
+    assertFalse(indexState.getShard(0).writer.getConfig().getUseCompoundFile());
   }
 
   @Test
