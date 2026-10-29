@@ -608,7 +608,7 @@ Example server configuration
 
    * - rules
      - list
-     - Ordered list of rules for all indices. Each rule has ``files``, a list of globs, and ``action``, one of ``PRELOAD``, ``EVICT``, or ``DEFAULT``. The first rule with a glob matching an index file sets its action, and files that match no rule use ``DEFAULT``. ``PRELOAD`` files are loaded into the OS page cache when opened with an MMapDirectory. ``EVICT`` is not yet implemented.
+     - Ordered list of rules for all indices. Each rule has ``files``, a list of globs, and ``action``, one of ``PRELOAD``, ``EVICT``, or ``DEFAULT``. The first rule with a glob matching an index file sets its action, and files that match no rule use ``DEFAULT``. ``PRELOAD`` files are loaded into the OS page cache when opened with an MMapDirectory. ``EVICT`` files are dropped from the OS page cache on replicas, after they are copied and before they are opened, and on replica startup. They are still read on demand. ``EVICT`` is only supported on 64-bit Linux, and requires ``mmapReadAdvice: BY_CONTEXT``, otherwise OS readahead reads evicted data back into the page cache.
      - []
 
    * - indices.<index>.rules
@@ -618,10 +618,18 @@ Example server configuration
 
 Rule globs are matched against segment file names with the segment name prefix removed. For example, ``_0_Lucene104_0.tip`` is matched as ``_Lucene104_0.tip``, and ``_0.fdt`` as ``.fdt``. Other files, such as ``segments_N``, are matched by their full name. A glob like ``*.tip`` matches files by extension.
 
+For segments that use compound files, ``EVICT`` rules are matched against the sub-file names in the compound file, which use the same stripped form, and only the byte ranges of matching sub-files are dropped. ``PRELOAD`` rules currently apply to the whole compound file, matched as ``.cfs``, so a rule that preloads ``.cfs`` files also loads any sub-files with the ``EVICT`` action when the file is opened.
+
+Before dropping a range, its dirty pages are written back, since only clean pages can be dropped. This time is reported in the ``nrt_page_cache_sync_time_ms`` metric, separately from ``nrt_page_cache_drop_time_ms``. Both have a ``trigger`` label of ``nrt_point``, ``merge_precopy``, or ``startup``. The ``nrt_page_cache_evicted_bytes`` and ``nrt_page_cache_eviction_failure_count`` metrics count dropped bytes and failed files. Each time eviction runs, a log line reports the files, bytes, and time taken.
+
+The full precision vectors of quantized vector fields are only read for rescoring and merging, and can be dropped with:
+
 .. code-block:: yaml
 
   pageCache:
     rules:
+      - files: ["*QuantizedVectorsFormat_*.vec"]
+        action: EVICT
       - files: ["*.tip", "*.tmd"]
         action: PRELOAD
     indices:

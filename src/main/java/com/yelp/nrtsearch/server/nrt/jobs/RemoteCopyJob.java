@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.server.nrt.jobs;
 
+import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.InputStreamDataInput;
@@ -294,6 +296,17 @@ public class RemoteCopyJob extends VisitableCopyJob {
       }
 
       dest.getDirectory().rename(tmpFileName, fileName);
+    }
+
+    // Apply the page cache policy before the new files are opened by a reader
+    if (dest instanceof NRTReplicaNode nrtReplicaNode) {
+      nrtReplicaNode
+          .getPageCachePolicyApplier()
+          .apply(
+              copiedFiles.keySet(),
+              getCopyState() == null
+                  ? PageCachePolicyApplier.Trigger.MERGE_PRECOPY
+                  : PageCachePolicyApplier.Trigger.NRT_POINT);
     }
 
     // nocommit syncMetaData here?

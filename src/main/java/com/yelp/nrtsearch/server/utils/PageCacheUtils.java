@@ -70,6 +70,14 @@ public final class PageCacheUtils {
     }
   }
 
+  /**
+   * Time spent in each step of dropping file ranges from the page cache.
+   *
+   * @param syncNanos time spent writing back dirty pages
+   * @param dropNanos time spent dropping pages
+   */
+  public record DropStats(long syncNanos, long dropNanos) {}
+
   private PageCacheUtils() {}
 
   /** Get if page cache operations are supported on this platform. */
@@ -85,10 +93,13 @@ public final class PageCacheUtils {
    *
    * @param path file path
    * @param ranges file ranges to drop
+   * @return time spent in each step
    * @throws IOException on error, or if page cache operations are not supported
    */
-  public static void dropFromPageCache(Path path, List<FileRange> ranges) throws IOException {
+  public static DropStats dropFromPageCache(Path path, List<FileRange> ranges) throws IOException {
     NativeCalls calls = getNativeCalls();
+    long syncNanos = 0;
+    long dropNanos = 0;
     try (Arena arena = Arena.ofConfined()) {
       MemorySegment callState = arena.allocate(NativeCalls.CALL_STATE_LAYOUT);
       int fd =
@@ -104,6 +115,7 @@ public final class PageCacheUtils {
           if (range.length() == 0) {
             continue;
           }
+          long startNanos = System.nanoTime();
           int ret =
               (int)
                   calls.syncFileRange.invokeExact(
@@ -118,6 +130,8 @@ public final class PageCacheUtils {
             throw new IOException(
                 "sync_file_range failed for " + path + ", errno: " + errno(callState));
           }
+          long syncedNanos = System.nanoTime();
+          syncNanos += syncedNanos - startNanos;
           // posix_fadvise returns the error number directly
           ret =
               (int)
@@ -126,10 +140,12 @@ public final class PageCacheUtils {
           if (ret != 0) {
             throw new IOException("posix_fadvise failed for " + path + ", errno: " + ret);
           }
+          dropNanos += System.nanoTime() - syncedNanos;
         }
       } finally {
         int unused = (int) calls.close.invokeExact(fd);
       }
+      return new DropStats(syncNanos, dropNanos);
     } catch (IOException | RuntimeException | Error e) {
       throw e;
     } catch (Throwable t) {

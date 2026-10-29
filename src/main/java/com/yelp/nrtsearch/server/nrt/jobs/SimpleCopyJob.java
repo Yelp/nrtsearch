@@ -20,6 +20,8 @@ import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
+import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.time.Instant;
@@ -163,6 +165,17 @@ public class SimpleCopyJob extends VisitableCopyJob {
       // files),  nor warranted here (would make the
       // code more complex, for the exceptional cases when something is wrong w/ your IO system):
       dest.getDirectory().rename(tmpFileName, fileName);
+    }
+
+    // Apply the page cache policy before the new files are opened by a reader
+    if (dest instanceof NRTReplicaNode nrtReplicaNode) {
+      nrtReplicaNode
+          .getPageCachePolicyApplier()
+          .apply(
+              copiedFiles.keySet(),
+              getCopyState() == null
+                  ? PageCachePolicyApplier.Trigger.MERGE_PRECOPY
+                  : PageCachePolicyApplier.Trigger.NRT_POINT);
     }
 
     // nocommit syncMetaData here?

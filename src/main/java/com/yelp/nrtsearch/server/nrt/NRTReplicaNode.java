@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.NrtPushRemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -59,6 +60,7 @@ public class NRTReplicaNode extends ReplicaNode {
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
    * on sendReplicas and it can build its channel over this pair */
   private final HostPort hostPort;
+  private final PageCachePolicyApplier pageCachePolicyApplier;
   private static final Logger logger = LoggerFactory.getLogger(NRTReplicaNode.class);
 
   public NRTReplicaNode(
@@ -76,7 +78,8 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean decInitialCommit,
       boolean filterIncompatibleSegmentReaders,
       int lowPriorityCopyPercentage,
-      boolean s3ReplicaRefreshDownload)
+      boolean s3ReplicaRefreshDownload,
+      PageCachePolicyApplier pageCachePolicyApplier)
       throws IOException {
     // the id is always 0, the nodeName is the identifier
     super(0, indexDir, searcherFactory, printStream);
@@ -89,6 +92,8 @@ public class NRTReplicaNode extends ReplicaNode {
     this.nrtDataManager = nrtDataManager;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
+    this.pageCachePolicyApplier =
+        pageCachePolicyApplier != null ? pageCachePolicyApplier : PageCachePolicyApplier.NOOP;
 
     if (isolatedReplicaConfig.isEnabled()) {
       if (hasPrimaryConnection()) {
@@ -121,6 +126,11 @@ public class NRTReplicaNode extends ReplicaNode {
     } else {
       return new DefaultCopyThread(node);
     }
+  }
+
+  /** Get the applier for the page cache policy of copied index files. */
+  public PageCachePolicyApplier getPageCachePolicyApplier() {
+    return pageCachePolicyApplier;
   }
 
   @VisibleForTesting

@@ -126,6 +126,37 @@ public class NrtMetrics {
           .labelNames("index")
           .build();
 
+  public static final Summary pageCacheSyncTime =
+      Summary.builder()
+          .name("nrt_page_cache_sync_time_ms")
+          .help("Time to write back dirty pages before dropping them from the page cache (ms).")
+          .quantile(0.5, 0.05)
+          .quantile(0.95, 0.01)
+          .quantile(0.99, 0.01)
+          .labelNames("index", "trigger")
+          .build();
+  public static final Summary pageCacheDropTime =
+      Summary.builder()
+          .name("nrt_page_cache_drop_time_ms")
+          .help("Time to drop pages from the page cache (ms).")
+          .quantile(0.5, 0.05)
+          .quantile(0.95, 0.01)
+          .quantile(0.99, 0.01)
+          .labelNames("index", "trigger")
+          .build();
+  public static final Counter pageCacheEvictedBytes =
+      Counter.builder()
+          .name("nrt_page_cache_evicted_bytes")
+          .help("Bytes of index data dropped from the page cache.")
+          .labelNames("index", "trigger")
+          .build();
+  public static final Counter pageCacheEvictionFailures =
+      Counter.builder()
+          .name("nrt_page_cache_eviction_failure_count")
+          .help("Number of index files that failed to be dropped from the page cache.")
+          .labelNames("index", "trigger")
+          .build();
+
   /**
    * Add all nrt metrics to the collector registry.
    *
@@ -145,5 +176,9 @@ public class NrtMetrics {
     registry.register(nrtMergeCopyEndCount);
     registry.register(nrtAckedCopyMB);
     registry.register(indexTimestampSec);
+    registry.register(pageCacheSyncTime);
+    registry.register(pageCacheDropTime);
+    registry.register(pageCacheEvictedBytes);
+    registry.register(pageCacheEvictionFailures);
   }
 }

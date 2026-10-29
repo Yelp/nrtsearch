@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -950,6 +951,18 @@ public class ShardState implements Closeable {
         indexDir = origIndexDir;
       }
 
+      PageCachePolicyApplier pageCachePolicyApplier =
+          PageCachePolicyApplier.create(
+              indexState.getName(),
+              indexDirFile,
+              indexDir,
+              configuration.getPageCachePolicyConfig().forIndex(indexState.getName()),
+              configuration.getMMapReadAdvice());
+      // Apply the page cache policy to existing or restored files before they are opened by a
+      // reader
+      pageCachePolicyApplier.apply(
+          List.of(indexDir.listAll()), PageCachePolicyApplier.Trigger.STARTUP);
+
       manager = null;
       nrtPrimaryNode = null;
 
@@ -975,7 +988,8 @@ public class ShardState implements Closeable {
               configuration.getDecInitialCommit(),
               configuration.getFilterIncompatibleSegmentReaders(),
               configuration.getLowPriorityCopyPercentage(),
-              configuration.getS3ReplicaRefreshDownload());
+              configuration.getS3ReplicaRefreshDownload(),
+              pageCachePolicyApplier);
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

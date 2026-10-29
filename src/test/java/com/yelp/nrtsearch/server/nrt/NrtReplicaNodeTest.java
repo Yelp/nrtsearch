@@ -99,7 +99,8 @@ public class NrtReplicaNodeTest {
         false,
         true,
         0,
-        false);
+        false,
+        null);
   }
 
   private NRTReplicaNode getNrtReplicaNodeWithIRConfig(
@@ -119,7 +120,8 @@ public class NrtReplicaNodeTest {
         false,
         true,
         0,
-        false);
+        false,
+        null);
   }
 
   @Test
@@ -140,7 +142,8 @@ public class NrtReplicaNodeTest {
             false,
             true,
             0,
-            false);
+            false,
+            null);
     assertTrue(replicaNode.hasPrimaryConnection());
   }
 
@@ -216,7 +219,8 @@ public class NrtReplicaNodeTest {
             false,
             true,
             0,
-            true);
+            true,
+            null);
     assertTrue(replicaNode.getCopyJobManager() instanceof NrtPushRemoteCopyJobManager);
   }
 
@@ -238,7 +242,8 @@ public class NrtReplicaNodeTest {
             false,
             true,
             0,
-            false);
+            false,
+            null);
     assertTrue(replicaNode.getCopyJobManager() instanceof GrpcCopyJobManager);
   }
 
@@ -278,7 +283,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             0,
-            false);
+            false,
+            null);
 
     // Create a spy to skip the parent finishNRTCopy call
     NRTReplicaNode spyReplicaNode = spy(replicaNode);
@@ -341,7 +347,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             0,
-            false);
+            false,
+            null);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
@@ -400,7 +407,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             0,
-            false);
+            false,
+            null);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
@@ -465,7 +473,8 @@ public class NrtReplicaNodeTest {
             false,
             false,
             0,
-            false);
+            false,
+            null);
 
     // Set initial metric value to verify it doesn't change
     NrtMetrics.indexTimestampSec.labelValues(TEST_INDEX_NAME).set(999.0);
