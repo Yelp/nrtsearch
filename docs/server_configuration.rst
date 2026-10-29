@@ -506,7 +506,7 @@ Example server configuration
 
    * - warmBasicQueryOnlyPerc
      - int
-     - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100.
+     - Percentage of warming queries that should be basic queries (for fast bootstrap). Value should be between 0 and 100. Basic queries strip scripts from the query, child filters, text retriever queries and knn filters, and remove sorts, rescorers (including per retriever rescorers and sorts), retrieve fields, fetch tasks, facets, collectors, highlights, inner hits, virtual fields, runtime fields, logging hits, explain and profile. A knn filter reduced to nothing is removed, so the vector search runs unfiltered.
      - 0
 
    * - padWithDownloadedRequests
@@ -531,7 +531,7 @@ Example server configuration
 
    * - maxVectorCandidates
      - int
-     - Do not collect or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
+     - Do not collect or replay queries with a knn query, top level or in a multi retriever knn retriever, whose ``num_candidates`` exceeds this value. When full precision rescoring is enabled, the oversampled hit count (``ceil(k * rescore_vector.oversample)``) is used if it is larger, since the search raises ``num_candidates`` to it. Vector search runs while the query is rewritten, so ``queryTimeoutMs`` cannot stop it. Vector queries are usually fast and help warm the vector graph, so they are not filtered by default. 0 disables the filter.
      - 0
 
    * - queryTimeoutMs

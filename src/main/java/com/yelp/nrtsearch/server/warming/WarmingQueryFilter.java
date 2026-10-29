@@ -21,6 +21,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.doc.DocLookup;
+import com.yelp.nrtsearch.server.field.VectorFieldDef;
 import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.BooleanClause.Occur;
 import com.yelp.nrtsearch.server.grpc.BooleanQuery;
@@ -91,8 +92,8 @@ public class WarmingQueryFilter {
    *     queries that match all documents because analysis removes all terms
    * @param maxQueryTopHits reject queries with topHits or startHit above this value, 0 to disable
    * @param maxQueryLatencyMs reject collected queries that took longer than this, 0 to disable
-   * @param maxVectorCandidates reject queries with a knn query that has numCandidates above this
-   *     value, 0 to disable
+   * @param maxVectorCandidates reject queries with a knn query that has numCandidates, or the
+   *     oversampled k when full precision rescoring is enabled, above this value, 0 to disable
    */
   public WarmingQueryFilter(
       String index,
@@ -230,8 +231,10 @@ public class WarmingQueryFilter {
   }
 
   private boolean exceedsVectorCandidates(KnnQuery knnQuery) {
-    // numCandidates must be >= k, so it bounds the vectors visited per segment
-    return maxVectorCandidates > 0 && knnQuery.getNumCandidates() > maxVectorCandidates;
+    // numCandidates must be >= k, so it bounds the vectors visited per segment. Full precision
+    // rescoring raises it to the oversampled k when that is larger.
+    return maxVectorCandidates > 0
+        && VectorFieldDef.getEffectiveNumCandidates(knnQuery) > maxVectorCandidates;
   }
 
   private Reason record(Stage stage, Reason reason) {

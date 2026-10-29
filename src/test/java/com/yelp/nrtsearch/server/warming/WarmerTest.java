@@ -30,11 +30,17 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
+import com.yelp.nrtsearch.server.grpc.KnnRetriever;
+import com.yelp.nrtsearch.server.grpc.MultiRetrieverRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.Rescorer;
+import com.yelp.nrtsearch.server.grpc.Retriever;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
+import com.yelp.nrtsearch.server.grpc.TextRetriever;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
@@ -489,6 +495,80 @@ public class WarmerTest {
     assertEquals(0, replayFilteredCount("match_all") - matchAllBefore, 0);
 
     // the original query is not match all, so it may still be used for padding
+    filteringWarmer.backupWarmingQueriesToS3(service);
+    Assertions.assertThat(readBackedUpLines()).containsExactlyElementsOf(storedJson);
+  }
+
+  @Test
+  public void testBasicReplayOfVectorAndMultiRetrieverQueries()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    // with every filter enabled, simplified knn and multi retriever queries are still replayed, and
+    // not skipped as match all
+    Warmer filteringWarmer =
+        new Warmer(
+            remoteBackend,
+            service,
+            index,
+            4,
+            100,
+            true,
+            new WarmingQueryFilter(index, true, 100, 0, 1000),
+            0);
+    Query scriptQuery =
+        Query.newBuilder()
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(TermQuery.newBuilder().setField("id").setTextValue("1")))
+                    .setScript(Script.newBuilder().setLang("js").setSource("10")))
+            .build();
+    KnnQuery knnQuery =
+        KnnQuery.newBuilder()
+            .setField("vector")
+            .setK(10)
+            .setNumCandidates(100)
+            .setFilter(scriptQuery)
+            .build();
+    SearchRequest knnRequest =
+        SearchRequest.newBuilder().setIndexName(index).addKnn(knnQuery).build();
+    SearchRequest multiRetrieverRequest =
+        SearchRequest.newBuilder()
+            .setIndexName(index)
+            .setMultiRetriever(
+                MultiRetrieverRequest.newBuilder()
+                    .addRetrievers(
+                        Retriever.newBuilder()
+                            .setName("text")
+                            .setRescorer(Rescorer.newBuilder().setWindowSize(10))
+                            .setTextRetriever(
+                                TextRetriever.newBuilder().setQuery(scriptQuery).setTopHits(10)))
+                    .addRetrievers(
+                        Retriever.newBuilder()
+                            .setName("knn")
+                            .setKnnRetriever(KnnRetriever.newBuilder().setKnnQuery(knnQuery))))
+            .build();
+    List<String> storedJson =
+        List.of(
+            JsonFormat.printer().omittingInsignificantWhitespace().print(knnRequest),
+            JsonFormat.printer().omittingInsignificantWhitespace().print(multiRetrieverRequest));
+    remoteBackend.uploadWarmingQueries(service, index, getWarmingBytes(storedJson));
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double basicMatchAllBefore = replayFilteredCount("basic_match_all");
+    filteringWarmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    verify(mockSearchHandler)
+        .handle(
+            mockIndexState, WarmingUtils.simplifySearchRequestForWarming(knnRequest.toBuilder()));
+    verify(mockSearchHandler)
+        .handle(
+            mockIndexState,
+            WarmingUtils.simplifySearchRequestForWarming(multiRetrieverRequest.toBuilder()));
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(0, replayFilteredCount("basic_match_all") - basicMatchAllBefore, 0);
+
     filteringWarmer.backupWarmingQueriesToS3(service);
     Assertions.assertThat(readBackedUpLines()).containsExactlyElementsOf(storedJson);
   }
