@@ -89,6 +89,48 @@ Must be > 0
 
 Default: 1
 
+sliceStrategy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Strategy used to divide the index into parallel search slices. Must be one of:
+
+* ``SEGMENT``: Group whole segments into slices, limited by sliceMaxDocs and sliceMaxSegments. When virtual sharding is enabled, segments are first grouped by virtualShards. A single large segment limits the parallelism of a query.
+* ``BALANCED_CUT``: Lay out all segments end to end and cut them into sliceTarget slices with an equal number of live documents. A cut close to a segment boundary (see sliceSnapTolerance) moves to the boundary, otherwise the segment is split into doc id range partitions at the cut. This adds at most sliceTarget - 1 partitions.
+* ``SPLIT_OUTLIERS``: Split each segment that is larger than the target slice size into equal partitions, then pack all segments and partitions into sliceTarget slices, assigning the largest first.
+
+The partitioning strategies never split a nested document block. Drill sideways and completion queries do not support segment partitions, and always use whole segment slices.
+
+Searching a segment partition repeats some per segment work, such as building the doc id set for a point range or terms in set query, and term dictionary lookups. Use sliceMinPartitionDocs to limit how small a partition can be.
+
+Default: SEGMENT
+
+sliceTarget
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Number of slices to create when using the BALANCED_CUT or SPLIT_OUTLIERS slice strategy. If 0, the number of search threads is used. Fewer slices may be created for small indices, see sliceMinPartitionDocs.
+
+Must be >= 0
+
+Default: 0
+
+sliceMinPartitionDocs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Minimum number of live documents in a partial segment partition when using the BALANCED_CUT or SPLIT_OUTLIERS slice strategy. The number of slices is also limited so that each slice has at least this many live documents.
+
+Must be > 0
+
+Default: 10000
+
+sliceSnapTolerance
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fraction of the target slice size that a cut may move to land on a segment boundary, instead of splitting the segment, when using the BALANCED_CUT slice strategy. For SPLIT_OUTLIERS, a segment is only split if it is more than (1 + sliceSnapTolerance) times the target slice size. Larger values create fewer partitions, at the cost of less even slices.
+
+Must be between 0.0 and 0.5
+
+Default: 0.1
+
 maxMergedSegmentMB
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

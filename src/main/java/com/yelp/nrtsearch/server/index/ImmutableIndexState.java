@@ -42,9 +42,11 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.handler.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.search.sort.SortParser;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -125,6 +127,10 @@ public class ImmutableIndexState extends IndexState {
   public static final double DEFAULT_DELETE_PCT_ALLOWED = 20.0;
   public static final int DEFAULT_MAX_MERGED_SEGMENT_MB = 5 * 1024;
   public static final int DEFAULT_PARALLEL_FETCH_CHUNK_SIZE = 50;
+  public static final String DEFAULT_SLICE_STRATEGY = MyIndexSearcher.SliceStrategy.SEGMENT.name();
+  public static final int DEFAULT_SLICE_TARGET = 0; // 0 = search thread count
+  public static final int DEFAULT_SLICE_MIN_PARTITION_DOCS = 10_000;
+  public static final double DEFAULT_SLICE_SNAP_TOLERANCE = 0.1;
 
   // default live settings as message, so they can be merged with saved settings
   public static final IndexLiveSettings DEFAULT_INDEX_LIVE_SETTINGS =
@@ -158,6 +164,12 @@ public class ImmutableIndexState extends IndexState {
           .setMaxCFSSegmentSizeMB(
               DoubleValue.newBuilder().setValue(DEFAULT_MAX_CFS_SEGMENT_SIZE_MB).build())
           .setUseCompoundFile(BoolValue.newBuilder().setValue(DEFAULT_USE_COMPOUND_FILE).build())
+          .setSliceStrategy(StringValue.newBuilder().setValue(DEFAULT_SLICE_STRATEGY).build())
+          .setSliceTarget(Int32Value.newBuilder().setValue(DEFAULT_SLICE_TARGET).build())
+          .setSliceMinPartitionDocs(
+              Int32Value.newBuilder().setValue(DEFAULT_SLICE_MIN_PARTITION_DOCS).build())
+          .setSliceSnapTolerance(
+              DoubleValue.newBuilder().setValue(DEFAULT_SLICE_SNAP_TOLERANCE).build())
           .build();
 
   // Live Settings
@@ -175,6 +187,10 @@ public class ImmutableIndexState extends IndexState {
   private final double noCFSRatio;
   private final double maxCFSSegmentSizeMB;
   private final boolean useCompoundFile;
+  private final MyIndexSearcher.SliceStrategy sliceStrategy;
+  private final int sliceTarget;
+  private final int sliceMinPartitionDocs;
+  private final double sliceSnapTolerance;
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
@@ -275,6 +291,12 @@ public class ImmutableIndexState extends IndexState {
     noCFSRatio = mergedLiveSettingsWithLocal.getNoCFSRatio().getValue();
     maxCFSSegmentSizeMB = mergedLiveSettingsWithLocal.getMaxCFSSegmentSizeMB().getValue();
     useCompoundFile = mergedLiveSettingsWithLocal.getUseCompoundFile().getValue();
+    sliceStrategy =
+        MyIndexSearcher.SliceStrategy.valueOf(
+            mergedLiveSettingsWithLocal.getSliceStrategy().getValue());
+    sliceTarget = mergedLiveSettingsWithLocal.getSliceTarget().getValue();
+    sliceMinPartitionDocs = mergedLiveSettingsWithLocal.getSliceMinPartitionDocs().getValue();
+    sliceSnapTolerance = mergedLiveSettingsWithLocal.getSliceSnapTolerance().getValue();
     defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
@@ -782,6 +804,26 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public MyIndexSearcher.SliceStrategy getSliceStrategy() {
+    return sliceStrategy;
+  }
+
+  @Override
+  public int getSliceTarget() {
+    return sliceTarget;
+  }
+
+  @Override
+  public int getSliceMinPartitionDocs() {
+    return sliceMinPartitionDocs;
+  }
+
+  @Override
+  public double getSliceSnapTolerance() {
+    return sliceSnapTolerance;
+  }
+
+  @Override
   public double getNoCFSRatio() {
     return noCFSRatio;
   }
@@ -871,6 +913,25 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getMaxCFSSegmentSizeMB().getValue() < 0.0) {
       throw new IllegalArgumentException("maxCFSSegmentSizeMB must be >= 0.0");
+    }
+    try {
+      MyIndexSearcher.SliceStrategy.valueOf(liveSettings.getSliceStrategy().getValue());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "sliceStrategy must be one of "
+              + Arrays.toString(MyIndexSearcher.SliceStrategy.values())
+              + ", got: "
+              + liveSettings.getSliceStrategy().getValue());
+    }
+    if (liveSettings.getSliceTarget().getValue() < 0) {
+      throw new IllegalArgumentException("sliceTarget must be >= 0");
+    }
+    if (liveSettings.getSliceMinPartitionDocs().getValue() <= 0) {
+      throw new IllegalArgumentException("sliceMinPartitionDocs must be > 0");
+    }
+    if (liveSettings.getSliceSnapTolerance().getValue() < 0.0
+        || liveSettings.getSliceSnapTolerance().getValue() > 0.5) {
+      throw new IllegalArgumentException("sliceSnapTolerance must be between 0.0 and 0.5");
     }
     if (liveSettings.getDefaultSearchTimeoutSec().getValue() < 0.0) {
       throw new IllegalArgumentException("defaultSearchTimeoutSec must be >= 0.0");

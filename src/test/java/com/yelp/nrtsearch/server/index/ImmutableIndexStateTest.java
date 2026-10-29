@@ -55,6 +55,7 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.index.FieldUpdateUtils.UpdatedFieldInfo;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.GlobalState;
@@ -1859,5 +1860,90 @@ public class ImmutableIndexStateTest {
             IndexLiveSettings.newBuilder().setMaxCFSSegmentSizeMB(wrap(256.0)).build());
     mp = (TieredMergePolicy) iwc.getMergePolicy();
     assertEquals(256.0, mp.getMaxCFSSegmentSizeMB(), 0.001);
+  }
+
+  @Test
+  public void testSliceStrategy_default() throws IOException {
+    assertEquals(
+        MyIndexSearcher.SliceStrategy.SEGMENT, getIndexState(getEmptyState()).getSliceStrategy());
+  }
+
+  @Test
+  public void testSliceStrategy_set() throws IOException {
+    for (MyIndexSearcher.SliceStrategy strategy : MyIndexSearcher.SliceStrategy.values()) {
+      IndexLiveSettings liveSettings =
+          IndexLiveSettings.newBuilder().setSliceStrategy(wrap(strategy.name())).build();
+      assertEquals(
+          strategy, getIndexState(getStateWithLiveSettings(liveSettings)).getSliceStrategy());
+    }
+  }
+
+  @Test
+  public void testSliceStrategy_invalid() throws IOException {
+    assertLiveSettingException(
+        "sliceStrategy must be one of [SEGMENT, BALANCED_CUT, SPLIT_OUTLIERS], got: INVALID",
+        b -> b.setSliceStrategy(wrap("INVALID")));
+  }
+
+  @Test
+  public void testSliceTarget_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_SLICE_TARGET, getIndexState(getEmptyState()).getSliceTarget());
+  }
+
+  @Test
+  public void testSliceTarget_set() throws IOException {
+    verifyIntLiveSetting(16, ImmutableIndexState::getSliceTarget, b -> b.setSliceTarget(wrap(16)));
+    verifyIntLiveSetting(0, ImmutableIndexState::getSliceTarget, b -> b.setSliceTarget(wrap(0)));
+  }
+
+  @Test
+  public void testSliceTarget_invalid() throws IOException {
+    assertLiveSettingException("sliceTarget must be >= 0", b -> b.setSliceTarget(wrap(-1)));
+  }
+
+  @Test
+  public void testSliceMinPartitionDocs_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_SLICE_MIN_PARTITION_DOCS,
+        getIndexState(getEmptyState()).getSliceMinPartitionDocs());
+  }
+
+  @Test
+  public void testSliceMinPartitionDocs_set() throws IOException {
+    verifyIntLiveSetting(
+        500,
+        ImmutableIndexState::getSliceMinPartitionDocs,
+        b -> b.setSliceMinPartitionDocs(wrap(500)));
+  }
+
+  @Test
+  public void testSliceMinPartitionDocs_invalid() throws IOException {
+    String expectedMsg = "sliceMinPartitionDocs must be > 0";
+    assertLiveSettingException(expectedMsg, b -> b.setSliceMinPartitionDocs(wrap(0)));
+    assertLiveSettingException(expectedMsg, b -> b.setSliceMinPartitionDocs(wrap(-1)));
+  }
+
+  @Test
+  public void testSliceSnapTolerance_default() throws IOException {
+    assertEquals(
+        ImmutableIndexState.DEFAULT_SLICE_SNAP_TOLERANCE,
+        getIndexState(getEmptyState()).getSliceSnapTolerance(),
+        0.0);
+  }
+
+  @Test
+  public void testSliceSnapTolerance_set() throws IOException {
+    verifyDoubleLiveSetting(
+        0.25, ImmutableIndexState::getSliceSnapTolerance, b -> b.setSliceSnapTolerance(wrap(0.25)));
+    verifyDoubleLiveSetting(
+        0.0, ImmutableIndexState::getSliceSnapTolerance, b -> b.setSliceSnapTolerance(wrap(0.0)));
+  }
+
+  @Test
+  public void testSliceSnapTolerance_invalid() throws IOException {
+    String expectedMsg = "sliceSnapTolerance must be between 0.0 and 0.5";
+    assertLiveSettingException(expectedMsg, b -> b.setSliceSnapTolerance(wrap(-0.1)));
+    assertLiveSettingException(expectedMsg, b -> b.setSliceSnapTolerance(wrap(0.6)));
   }
 }

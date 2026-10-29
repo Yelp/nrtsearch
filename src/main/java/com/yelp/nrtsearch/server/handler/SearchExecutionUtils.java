@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.search.FetchTasks;
+import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.search.SearcherResult;
@@ -54,9 +55,13 @@ import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
 
 /**
  * Steps of a search request that are shared by the unary {@link SearchHandler} and the streaming
@@ -76,14 +81,75 @@ public class SearchExecutionUtils {
       TopDocs topDocs, boolean hadTimeout, boolean terminatedEarly) {}
 
   /**
+   * Get the searcher to use for a query. Some queries do not support searching a doc id range of a
+   * segment, so must use a searcher with only whole segment slices.
+   *
+   * @param searcher index searcher
+   * @param query query to execute
+   * @return searcher to execute query with
+   */
+  public static IndexSearcher searcherForQuery(IndexSearcher searcher, Query query) {
+    if (requiresWholeSegments(query)) {
+      return segmentSearcher(searcher);
+    }
+    return searcher;
+  }
+
+  /**
+   * Get a searcher for the same index that only uses whole segment slices.
+   *
+   * @param searcher index searcher
+   * @return searcher with only whole segment slices
+   */
+  public static IndexSearcher segmentSearcher(IndexSearcher searcher) {
+    if (searcher instanceof MyIndexSearcher myIndexSearcher) {
+      return myIndexSearcher.getSegmentSearcher();
+    }
+    return searcher;
+  }
+
+  /**
+   * Determine if the query requires searching whole segments. This is true for drill down queries,
+   * which may be executed with drill sideways, and completion queries, whose bulk scorer ignores
+   * the doc id range.
+   */
+  static boolean requiresWholeSegments(Query query) {
+    if (query == null) {
+      return false;
+    }
+    if (query instanceof DrillDownQuery) {
+      return true;
+    }
+    boolean[] found = new boolean[1];
+    query.visit(
+        new QueryVisitor() {
+          @Override
+          public void visitLeaf(Query leafQuery) {
+            if (leafQuery instanceof CompletionQuery) {
+              found[0] = true;
+            }
+          }
+
+          @Override
+          public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+            if (parent instanceof CompletionQuery) {
+              found[0] = true;
+            }
+            return this;
+          }
+        });
+    return found[0];
+  }
+
+  /**
    * Runs {@link org.apache.lucene.search.IndexSearcher#search} against the search context query and
    * collector, unwrapping any {@link CollectionTimeoutException} from the call stack.
    */
   public static SearcherResult executeSearch(IndexSearcher searcher, SearchContext searchContext)
       throws IOException {
     try {
-      return searcher.search(
-          searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+      return searcherForQuery(searcher, searchContext.getQuery())
+          .search(searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
     } catch (RuntimeException e) {
       CollectionTimeoutException timeoutException = findTimeoutException(e);
       if (timeoutException != null) {
@@ -117,9 +183,10 @@ public class SearchExecutionUtils {
     // deadlock trying to execute the dependent parallel search tasks. Since we do not
     // currently add additional drill down definitions, there will only be one drill
     // sideways task per query.
+    // DrillSidewaysScorer only supports scoring whole segments
     DrillSideways drillS =
         new DrillSidewaysImpl(
-            s.searcher(),
+            segmentSearcher(s.searcher()),
             indexState.getFacetsConfig(),
             s.taxonomyReader(),
             searchRequest.getFacetsList(),
@@ -218,7 +285,8 @@ public class SearchExecutionUtils {
                 DocCollector docCollector = retrieverContext.getDocCollector();
                 long searchStart = System.nanoTime();
                 SearcherResult result =
-                    searcher.search(retrieverContext.getQuery(), docCollector.getWrappedManager());
+                    searcherForQuery(searcher, retrieverContext.getQuery())
+                        .search(retrieverContext.getQuery(), docCollector.getWrappedManager());
                 TopDocs topDocs = result.getTopDocs();
                 double searchTimeMs = (System.nanoTime() - searchStart) / 1_000_000.0;
 

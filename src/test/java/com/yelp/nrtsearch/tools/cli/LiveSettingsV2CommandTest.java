@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import java.io.IOException;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -137,6 +138,51 @@ public class LiveSettingsV2CommandTest {
     assertEquals(0, exitCode);
     assertFalse(server.getGlobalState().getIndexOrThrow("test_index").getUseCompoundFile());
     assertFalse(indexState.getShard(0).writer.getConfig().getUseCompoundFile());
+  }
+
+  @Test
+  public void testSliceSettings() throws IOException {
+    TestServer server = getTestServer();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
+    int exitCode =
+        cmd.execute(
+            "--hostname=localhost",
+            "--port=" + server.getPort(),
+            "liveSettingsV2",
+            "--indexName=test_index",
+            "--sliceStrategy=BALANCED_CUT",
+            "--sliceTarget=8",
+            "--sliceMinPartitionDocs=5000",
+            "--sliceSnapTolerance=0.2");
+    assertEquals(0, exitCode);
+    IndexState indexState = server.getGlobalState().getIndexOrThrow("test_index");
+    assertEquals(MyIndexSearcher.SliceStrategy.BALANCED_CUT, indexState.getSliceStrategy());
+    assertEquals(8, indexState.getSliceTarget());
+    assertEquals(5000, indexState.getSliceMinPartitionDocs());
+    assertEquals(0.2, indexState.getSliceSnapTolerance(), 0.0);
+  }
+
+  @Test
+  public void testInvalidSliceStrategy() throws IOException {
+    TestServer server = getTestServer();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
+    int exitCode =
+        cmd.execute(
+            "--hostname=localhost",
+            "--port=" + server.getPort(),
+            "liveSettingsV2",
+            "--indexName=test_index",
+            "--sliceStrategy=INVALID");
+    assertEquals(1, exitCode);
+    assertEquals(
+        MyIndexSearcher.SliceStrategy.SEGMENT,
+        server.getGlobalState().getIndexOrThrow("test_index").getSliceStrategy());
   }
 
   @Test

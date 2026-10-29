@@ -627,13 +627,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
       SearcherTaxonomyManager.SearcherAndTaxonomy result =
           new SearcherTaxonomyManager.SearcherAndTaxonomy(
-              MyIndexSearcher.create(
-                  r,
-                  searchExecutor,
-                  new MyIndexSearcher.SlicingParams(
-                      indexState.getSliceMaxDocs(),
-                      indexState.getSliceMaxSegments(),
-                      indexState.getVirtualShards())),
+              MyIndexSearcher.create(r, searchExecutor, indexState.getSlicingParams()),
               s.taxonomyReader());
       state.slm.record(result.searcher());
       long t1 = System.nanoTime();

@@ -23,9 +23,11 @@ import java.util.Collection;
 import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 
@@ -47,7 +49,11 @@ public class HitCountCollector extends DocCollector {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
     super(context, additionalCollectors);
-    manager = new HitCountCollectorManager();
+    LeafSlice[] slices =
+        context.getSearcherAndTaxonomy() != null
+            ? context.getSearcherAndTaxonomy().searcher().getSlices()
+            : new LeafSlice[0];
+    manager = new HitCountCollectorManager(slices);
   }
 
   @Override
@@ -61,21 +67,32 @@ public class HitCountCollector extends DocCollector {
   @Override
   public void fillLastHit(SearchState.Builder stateBuilder, ScoreDoc lastHit) {}
 
-  /** Collector manager to do parallel collection of hit count. */
+  /**
+   * Collector manager to do parallel collection of hit count. Delegates to the lucene {@link
+   * TotalHitCountCollectorManager}, which ensures that a segment's hits are only counted once when
+   * the segment is divided into multiple partitions.
+   */
   public static class HitCountCollectorManager
       implements CollectorManager<TotalHitCountCollector, TopDocs> {
+    private final TotalHitCountCollectorManager delegate;
+
+    /**
+     * Constructor.
+     *
+     * @param slices slices of the searcher that will execute the query
+     */
+    public HitCountCollectorManager(LeafSlice[] slices) {
+      delegate = new TotalHitCountCollectorManager(slices);
+    }
 
     @Override
     public TotalHitCountCollector newCollector() throws IOException {
-      return new TotalHitCountCollector();
+      return delegate.newCollector();
     }
 
     @Override
     public TopDocs reduce(Collection<TotalHitCountCollector> collectors) throws IOException {
-      long count = 0;
-      for (TotalHitCountCollector collector : collectors) {
-        count += collector.getTotalHits();
-      }
+      long count = delegate.reduce(collectors);
       return new TopDocs(new TotalHits(count, Relation.EQUAL_TO), new ScoreDoc[0]);
     }
   }

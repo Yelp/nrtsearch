@@ -1498,6 +1498,19 @@ message IndexLiveSettings {
     // Whether newly flushed segments are written as a compound file (.cfs), default: true. Merged segments are
     // controlled by noCFSRatio and maxCFSSegmentSizeMB.
     google.protobuf.BoolValue useCompoundFile = 22;
+    // Strategy used to divide the index into parallel search slices, default: SEGMENT
+    //   SEGMENT: group whole segments, limited by sliceMaxDocs and sliceMaxSegments (and virtualShards)
+    //   BALANCED_CUT: cut the index into sliceTarget slices of equal live docs, splitting segments as needed
+    //   SPLIT_OUTLIERS: split segments larger than the target slice size, then pack pieces into sliceTarget slices
+    google.protobuf.StringValue sliceStrategy = 23;
+    // Number of slices to target for BALANCED_CUT and SPLIT_OUTLIERS, or 0 to use the search thread count,
+    // default: 0
+    google.protobuf.Int32Value sliceTarget = 24;
+    // Minimum number of live documents in a partial segment slice partition, default: 10,000
+    google.protobuf.Int32Value sliceMinPartitionDocs = 25;
+    // Fraction of the target slice size a cut may move to land on a segment boundary instead of splitting
+    // the segment, must be in [0.0, 0.5], default: 0.1
+    google.protobuf.DoubleValue sliceSnapTolerance = 26;
 }
 
 // Index state

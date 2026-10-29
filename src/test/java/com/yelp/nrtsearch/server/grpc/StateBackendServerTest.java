@@ -1380,6 +1380,10 @@ public class StateBackendServerTest {
             .setNoCFSRatio(DoubleValue.newBuilder().setValue(0.1).build())
             .setMaxCFSSegmentSizeMB(DoubleValue.newBuilder().setValue(0.0).build())
             .setUseCompoundFile(BoolValue.newBuilder().setValue(true).build())
+            .setSliceStrategy(StringValue.newBuilder().setValue("SEGMENT").build())
+            .setSliceTarget(Int32Value.newBuilder().setValue(0).build())
+            .setSliceMinPartitionDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setSliceSnapTolerance(DoubleValue.newBuilder().setValue(0.1).build())
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

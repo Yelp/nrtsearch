@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.tools.cli;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsV2Request;
@@ -80,6 +81,29 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       names = {"--virtualShards"},
       description = "Number of virtual shards to partition index into")
   private Integer virtualShards;
+
+  @CommandLine.Option(
+      names = {"--sliceStrategy"},
+      description =
+          "Strategy to divide the index into parallel search slices, one of SEGMENT, BALANCED_CUT, SPLIT_OUTLIERS")
+  private String sliceStrategy;
+
+  @CommandLine.Option(
+      names = {"--sliceTarget"},
+      description =
+          "Target number of slices for partitioning slice strategies, or 0 to use the search thread count")
+  private Integer sliceTarget;
+
+  @CommandLine.Option(
+      names = {"--sliceMinPartitionDocs"},
+      description = "Minimum number of live documents in a partial segment slice partition")
+  private Integer sliceMinPartitionDocs;
+
+  @CommandLine.Option(
+      names = {"--sliceSnapTolerance"},
+      description =
+          "Fraction of the target slice size a cut may move to land on a segment boundary, must be in [0.0, 0.5]")
+  private Double sliceSnapTolerance;
 
   @CommandLine.Option(
       names = {"--maxMergedSegmentMB"},
@@ -199,6 +223,21 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (virtualShards != null) {
         liveSettingsBuilder.setVirtualShards(
             Int32Value.newBuilder().setValue(virtualShards).build());
+      }
+      if (sliceStrategy != null) {
+        liveSettingsBuilder.setSliceStrategy(
+            StringValue.newBuilder().setValue(sliceStrategy).build());
+      }
+      if (sliceTarget != null) {
+        liveSettingsBuilder.setSliceTarget(Int32Value.newBuilder().setValue(sliceTarget).build());
+      }
+      if (sliceMinPartitionDocs != null) {
+        liveSettingsBuilder.setSliceMinPartitionDocs(
+            Int32Value.newBuilder().setValue(sliceMinPartitionDocs).build());
+      }
+      if (sliceSnapTolerance != null) {
+        liveSettingsBuilder.setSliceSnapTolerance(
+            DoubleValue.newBuilder().setValue(sliceSnapTolerance).build());
       }
       if (maxMergedSegmentMB != null) {
         liveSettingsBuilder.setMaxMergedSegmentMB(

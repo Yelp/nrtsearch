@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.index;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonObject;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.doc.DocLookup;
@@ -35,6 +36,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.warming.Warmer;
@@ -542,6 +544,42 @@ public abstract class IndexState implements Closeable {
    * returns 1.
    */
   public abstract int getVirtualShards();
+
+  /** Get the strategy used to divide the index into parallel search slices. */
+  public abstract MyIndexSearcher.SliceStrategy getSliceStrategy();
+
+  /** Get the target number of slices for partitioning slice strategies, or 0 for search threads. */
+  public abstract int getSliceTarget();
+
+  /** Get the minimum number of live docs in a partial segment slice partition. */
+  public abstract int getSliceMinPartitionDocs();
+
+  /** Get the fraction of the target slice size a cut may move to land on a segment boundary. */
+  public abstract double getSliceSnapTolerance();
+
+  /**
+   * Get the parameters for dividing a searcher over this index into parallel search slices.
+   *
+   * @return slicing params
+   */
+  public MyIndexSearcher.SlicingParams getSlicingParams() {
+    int sliceTarget = getSliceTarget();
+    if (sliceTarget == 0) {
+      sliceTarget =
+          getThreadPoolConfiguration()
+              .getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH)
+              .maxThreads();
+    }
+    return new MyIndexSearcher.SlicingParams(
+        getSliceMaxDocs(),
+        getSliceMaxSegments(),
+        getVirtualShards(),
+        getSliceStrategy(),
+        sliceTarget,
+        getSliceMinPartitionDocs(),
+        getSliceSnapTolerance(),
+        getParentBitSetProducer());
+  }
 
   /** Get maximum sized segment to produce during normal merging */
   public abstract int getMaxMergedSegmentMB();

@@ -517,13 +517,7 @@ public class ShardState implements Closeable {
         throws IOException {
       IndexState indexState = indexStateManager.getCurrent();
       IndexSearcher searcher =
-          MyIndexSearcher.create(
-              reader,
-              searchExecutor,
-              new MyIndexSearcher.SlicingParams(
-                  indexState.getSliceMaxDocs(),
-                  indexState.getSliceMaxSegments(),
-                  indexState.getVirtualShards()));
+          MyIndexSearcher.create(reader, searchExecutor, indexState.getSlicingParams());
       searcher.setSimilarity(indexState.searchSimilarity);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader, indexState);
@@ -801,13 +795,7 @@ public class ShardState implements Closeable {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) {
                   IndexSearcher searcher =
-                      MyIndexSearcher.create(
-                          r,
-                          searchExecutor,
-                          new MyIndexSearcher.SlicingParams(
-                              indexState.getSliceMaxDocs(),
-                              indexState.getSliceMaxSegments(),
-                              indexState.getVirtualShards()));
+                      MyIndexSearcher.create(r, searchExecutor, indexState.getSlicingParams());
                   searcher.setSimilarity(indexState.searchSimilarity);
                   return searcher;
                 }
