@@ -206,6 +206,28 @@ public class NrtsearchConfigTest {
   }
 
   @Test
+  public void testMMapReadAdvice_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(DirectoryFactory.MMapReadAdvice.NONE, luceneConfig.getMMapReadAdvice());
+  }
+
+  @Test
+  public void testMMapReadAdvice_set() {
+    String config = "mmapReadAdvice: BY_CONTEXT";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(DirectoryFactory.MMapReadAdvice.BY_CONTEXT, luceneConfig.getMMapReadAdvice());
+  }
+
+  @Test
+  public void testMMapReadAdvice_invalid() {
+    String config = "mmapReadAdvice: RANDOM";
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> getForConfig(config));
+    assertEquals("Invalid MMapReadAdvice: RANDOM", e.getMessage());
+  }
+
+  @Test
   public void testDefaultMaxClauseCount() {
     String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);

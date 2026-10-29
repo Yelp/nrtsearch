@@ -217,6 +217,11 @@ Example server configuration
      - Controls how MMapDirectory groups memory-mapped files into arenas. ``SEGMENT`` groups all files for a segment together, ``SEGMENT_EXCEPT_SI`` excludes segment info files from grouping, ``NONE`` uses no grouping.
      - ``SEGMENT``
 
+   * - mmapReadAdvice
+     - enum
+     - Controls the read advice (``madvise``) applied to memory-mapped index files. ``NONE`` applies no advice, so the OS reads ahead around each page fault. ``BY_CONTEXT`` applies the advice requested by Lucene for each file, such as random access for vector data, which limits reads to the pages that are needed. ``NONE`` is the Lucene ``MMapDirectory`` default in current Lucene versions. Earlier Lucene 10 versions, such as 10.1, always applied the requested advice, which is equivalent to ``BY_CONTEXT``. ``BY_CONTEXT`` is needed for ``pageCache`` ``EVICT`` rules to be effective.
+     - ``NONE``
+
    * - indexLiveSettingsOverrides
      - map
      - A map of index names to ``IndexLiveSettings`` JSON objects. These overrides are applied when an index is started, allowing per-index tuning of live settings without changing the stored index state.

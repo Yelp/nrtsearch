@@ -39,6 +39,17 @@ public abstract class DirectoryFactory {
     NONE
   }
 
+  /** How the read advice for memory mapped files is chosen when using MMapDirectory. */
+  public enum MMapReadAdvice {
+    /** Apply no read advice, using the OS default. This is the Lucene default. */
+    NONE,
+    /**
+     * Apply the read advice requested by the codec in the IOContext, such as random access for
+     * vector data. See {@link MMapDirectory#ADVISE_BY_CONTEXT}.
+     */
+    BY_CONTEXT
+  }
+
   /** Sole constructor. */
   public DirectoryFactory() {}
 
@@ -64,6 +75,7 @@ public abstract class DirectoryFactory {
             if (directory instanceof MMapDirectory mMapDirectory) {
               mMapDirectory.setPreload(preloadConfig.preloadPredicate());
               setMMapGrouping(mMapDirectory, config.getMMapGrouping());
+              setMMapReadAdvice(mMapDirectory, config.getMMapReadAdvice());
             }
             return directory;
           }
@@ -76,6 +88,7 @@ public abstract class DirectoryFactory {
             MMapDirectory mMapDirectory = new MMapDirectory(path);
             mMapDirectory.setPreload(preloadConfig.preloadPredicate());
             setMMapGrouping(mMapDirectory, config.getMMapGrouping());
+            setMMapReadAdvice(mMapDirectory, config.getMMapReadAdvice());
             return mMapDirectory;
           }
         };
@@ -161,6 +174,35 @@ public abstract class DirectoryFactory {
       case SEGMENT_EXCEPT_SI -> directory.setGroupingFunction(SEGMENT_EXCEPT_SI_FUNCTION);
       case NONE -> directory.setGroupingFunction(MMapDirectory.NO_GROUPING);
     }
+  }
+
+  /**
+   * Set the read advice function for the directory.
+   *
+   * @param directory the MMapDirectory
+   * @param readAdvice the MMapReadAdvice
+   */
+  @VisibleForTesting
+  static void setMMapReadAdvice(MMapDirectory directory, MMapReadAdvice readAdvice) {
+    switch (readAdvice) {
+      case NONE -> {}
+      case BY_CONTEXT -> directory.setReadAdvice(MMapDirectory.ADVISE_BY_CONTEXT);
+    }
+  }
+
+  /**
+   * Parse MMapReadAdvice from string.
+   *
+   * @param readAdvice the string representation of the read advice
+   * @return MMapReadAdvice
+   * @throws IllegalArgumentException if the read advice is invalid
+   */
+  public static MMapReadAdvice parseMMapReadAdvice(String readAdvice) {
+    return switch (readAdvice) {
+      case "NONE" -> MMapReadAdvice.NONE;
+      case "BY_CONTEXT" -> MMapReadAdvice.BY_CONTEXT;
+      default -> throw new IllegalArgumentException("Invalid MMapReadAdvice: " + readAdvice);
+    };
   }
 
   /**

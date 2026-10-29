@@ -111,6 +111,7 @@ public class NrtsearchConfig {
   private final boolean verifyReplicationIndexId;
   private final boolean useKeepAliveForReplication;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
+  private final DirectoryFactory.MMapReadAdvice mmapReadAdvice;
   private final boolean requireIdField;
   private final boolean s3RefreshUpload;
   private final boolean s3ReplicaRefreshDownload;
@@ -192,6 +193,11 @@ public class NrtsearchConfig {
             "mmapGrouping",
             o -> DirectoryFactory.parseMMapGrouping(o.toString()),
             DirectoryFactory.MMapGrouping.SEGMENT);
+    mmapReadAdvice =
+        configReader.get(
+            "mmapReadAdvice",
+            o -> DirectoryFactory.parseMMapReadAdvice(o.toString()),
+            DirectoryFactory.MMapReadAdvice.NONE);
     useSeparateCommitExecutor = configReader.getBoolean("useSeparateCommitExecutor", false);
     requireIdField = configReader.getBoolean("requireIdField", false);
     s3RefreshUpload = configReader.getBoolean("s3RefreshUpload", false);
@@ -390,6 +396,10 @@ public class NrtsearchConfig {
 
   public DirectoryFactory.MMapGrouping getMMapGrouping() {
     return mmapGrouping;
+  }
+
+  public DirectoryFactory.MMapReadAdvice getMMapReadAdvice() {
+    return mmapReadAdvice;
   }
 
   public IndexLiveSettings getLiveSettingsOverride(String indexName) {

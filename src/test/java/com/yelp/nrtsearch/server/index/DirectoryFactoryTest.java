@@ -17,8 +17,11 @@ package com.yelp.nrtsearch.server.index;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -87,5 +90,28 @@ public class DirectoryFactoryTest {
     mock(MMapDirectory.class);
     DirectoryFactory.setMMapGrouping(mockMMapDirectory, DirectoryFactory.MMapGrouping.NONE);
     verify(mockMMapDirectory, times(1)).setGroupingFunction(MMapDirectory.NO_GROUPING);
+  }
+
+  @Test
+  public void testParseMMapReadAdvice() {
+    assertSame(DirectoryFactory.MMapReadAdvice.NONE, DirectoryFactory.parseMMapReadAdvice("NONE"));
+    assertSame(
+        DirectoryFactory.MMapReadAdvice.BY_CONTEXT,
+        DirectoryFactory.parseMMapReadAdvice("BY_CONTEXT"));
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class, () -> DirectoryFactory.parseMMapReadAdvice("RANDOM"));
+    assertEquals("Invalid MMapReadAdvice: RANDOM", e.getMessage());
+  }
+
+  @Test
+  public void testSetMMapReadAdvice() {
+    MMapDirectory mockMMapDirectory = mock(MMapDirectory.class);
+    DirectoryFactory.setMMapReadAdvice(mockMMapDirectory, DirectoryFactory.MMapReadAdvice.NONE);
+    verify(mockMMapDirectory, never()).setReadAdvice(any());
+
+    DirectoryFactory.setMMapReadAdvice(
+        mockMMapDirectory, DirectoryFactory.MMapReadAdvice.BY_CONTEXT);
+    verify(mockMMapDirectory, times(1)).setReadAdvice(MMapDirectory.ADVISE_BY_CONTEXT);
   }
 }
