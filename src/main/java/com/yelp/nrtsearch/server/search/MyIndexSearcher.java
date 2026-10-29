@@ -101,6 +101,7 @@ public class MyIndexSearcher extends IndexSearcher {
   private final SlicingParams slicingParams;
   private final Executor executor;
   private volatile MyIndexSearcher segmentSearcher;
+  private volatile long sliceComputeNanos = 0;
 
   /**
    * Create a new MyIndexSearcher.
@@ -136,6 +137,25 @@ public class MyIndexSearcher extends IndexSearcher {
   @VisibleForTesting
   SlicingParams getSlicingParams() {
     return slicingParams;
+  }
+
+  /** Get the time taken to compute the slices for this searcher, or 0 if not yet computed. */
+  public long getSliceComputeNanos() {
+    return sliceComputeNanos;
+  }
+
+  /**
+   * Get statistics about how this searcher divides the index into slices. This computes the slices
+   * if they have not been already.
+   *
+   * @return slice statistics
+   */
+  public SliceStats getSliceStats() {
+    try {
+      return getSliceStats(getSlices());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /**
@@ -178,6 +198,15 @@ public class MyIndexSearcher extends IndexSearcher {
 
   /** * start segment to thread mapping * */
   protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+    long startNanos = System.nanoTime();
+    try {
+      return computeSlices(leaves);
+    } finally {
+      sliceComputeNanos = System.nanoTime() - startNanos;
+    }
+  }
+
+  private LeafSlice[] computeSlices(List<LeafReaderContext> leaves) {
     try {
       return switch (slicingParams.sliceStrategy()) {
         case SEGMENT -> {
@@ -657,27 +686,31 @@ public class MyIndexSearcher extends IndexSearcher {
   }
 
   /**
-   * Get statistics about how evenly the given slices divide the index.
+   * Get statistics about how evenly the given slices divide the index. Doc counts are live docs, so
+   * deleted documents are not included.
    *
    * @param slices index slices
    * @return slice statistics
    */
-  public static SliceStats getSliceStats(LeafSlice[] slices) {
+  public static SliceStats getSliceStats(LeafSlice[] slices) throws IOException {
     if (slices.length == 0) {
-      return new SliceStats(0, 0, 0, 0, 0, 1.0);
+      return new SliceStats(0, 0, 0, 0, 0, 0, 0, 1.0);
     }
     long totalDocs = 0;
+    long minDocs = Long.MAX_VALUE;
     long maxDocs = 0;
     int partitions = 0;
     Map<LeafReaderContext, Integer> segmentPartitions = new HashMap<>();
     for (LeafSlice slice : slices) {
-      long docs = slice.getMaxDocs();
-      totalDocs += docs;
-      maxDocs = Math.max(maxDocs, docs);
-      partitions += slice.partitions.length;
+      long docs = 0;
       for (LeafReaderContextPartition partition : slice.partitions) {
+        docs += partitionLiveDocs(partition);
         segmentPartitions.merge(partition.ctx, 1, Integer::sum);
       }
+      totalDocs += docs;
+      minDocs = Math.min(minDocs, docs);
+      maxDocs = Math.max(maxDocs, docs);
+      partitions += slice.partitions.length;
     }
     int splitSegments = (int) segmentPartitions.values().stream().filter(c -> c > 1).count();
     double meanDocs = (double) totalDocs / slices.length;
@@ -686,26 +719,56 @@ public class MyIndexSearcher extends IndexSearcher {
         partitions,
         segmentPartitions.size(),
         splitSegments,
+        totalDocs,
+        minDocs,
         maxDocs,
         meanDocs == 0 ? 1.0 : maxDocs / meanDocs);
   }
 
+  private static long partitionLiveDocs(LeafReaderContextPartition partition) throws IOException {
+    int maxDoc = partition.ctx.reader().maxDoc();
+    int to = Math.min(partition.maxDocId, maxDoc);
+    if (partition.minDocId == 0 && to == maxDoc) {
+      return partition.ctx.reader().numDocs();
+    }
+    return new SegmentDocs(partition.ctx, null).liveDocs(partition.minDocId, to);
+  }
+
   /**
-   * Statistics about the division of an index into slices. Doc counts are based on {@link
-   * LeafSlice#getMaxDocs()}, which includes deleted documents.
+   * Statistics about the division of an index into slices. Doc counts are live docs.
    *
    * @param numSlices number of slices
    * @param numPartitions total number of partitions across all slices
    * @param numSegments number of distinct segments
    * @param numSplitSegments number of segments divided into multiple partitions
-   * @param maxSliceDocs docs in the largest slice
-   * @param imbalance ratio of the largest slice docs to the mean slice docs
+   * @param totalDocs live docs across all slices
+   * @param minSliceDocs live docs in the smallest slice
+   * @param maxSliceDocs live docs in the largest slice
+   * @param imbalance ratio of the largest slice docs to the mean slice docs, 1.0 is perfectly even
    */
   public record SliceStats(
       int numSlices,
       int numPartitions,
       int numSegments,
       int numSplitSegments,
+      long totalDocs,
+      long minSliceDocs,
       long maxSliceDocs,
-      double imbalance) {}
+      double imbalance) {
+
+    @Override
+    public String toString() {
+      return String.format(
+          "slices=%d, partitions=%d, segments=%d, splitSegments=%d, docs=%d, minSliceDocs=%d,"
+              + " maxSliceDocs=%d, imbalance=%.3f",
+          numSlices,
+          numPartitions,
+          numSegments,
+          numSplitSegments,
+          totalDocs,
+          minSliceDocs,
+          maxSliceDocs,
+          imbalance);
+    }
+  }
 }

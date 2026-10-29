@@ -497,6 +497,28 @@ public class ShardState implements Closeable {
    * Factory class that produces a new searcher for each {@link IndexReader} version. Sets field
    * similarity and handles any eager global ordinal loading.
    */
+  /**
+   * Log how a new searcher divides the index into parallel search slices. This computes the
+   * searcher slices, which would otherwise happen on the first query.
+   */
+  private static void logSliceStats(IndexState indexState, MyIndexSearcher searcher) {
+    if (!logger.isInfoEnabled()) {
+      return;
+    }
+    try {
+      MyIndexSearcher.SliceStats stats = searcher.getSliceStats();
+      logger.info(
+          "Index: {}, searcher slicing: strategy={}, computeMs={}, {}",
+          indexState.getName(),
+          indexState.getSliceStrategy(),
+          String.format("%.3f", searcher.getSliceComputeNanos() / 1_000_000.0),
+          stats);
+    } catch (RuntimeException e) {
+      // don't let an exception here stop creation of a new searcher
+      logger.warn("Unable to compute slice stats for index: {}", indexState.getName(), e);
+    }
+  }
+
   private class ShardSearcherFactory extends SearcherFactory {
     private final boolean loadEagerOrdinals;
     private final boolean collectMetrics;
@@ -516,9 +538,10 @@ public class ShardState implements Closeable {
     public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader)
         throws IOException {
       IndexState indexState = indexStateManager.getCurrent();
-      IndexSearcher searcher =
+      MyIndexSearcher searcher =
           MyIndexSearcher.create(reader, searchExecutor, indexState.getSlicingParams());
       searcher.setSimilarity(indexState.searchSimilarity);
+      logSliceStats(indexState, searcher);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader, indexState);
       }
@@ -794,9 +817,10 @@ public class ShardState implements Closeable {
               new SearcherFactory() {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) {
-                  IndexSearcher searcher =
+                  MyIndexSearcher searcher =
                       MyIndexSearcher.create(r, searchExecutor, indexState.getSlicingParams());
                   searcher.setSimilarity(indexState.searchSimilarity);
+                  logSliceStats(indexState, searcher);
                   return searcher;
                 }
               });

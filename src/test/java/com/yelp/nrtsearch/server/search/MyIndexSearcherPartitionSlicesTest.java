@@ -247,6 +247,14 @@ public class MyIndexSearcherPartitionSlicesTest {
       }
       assertEquals(reader.numDocs(), total);
       assertTrue(imbalance(docs) <= 1.1);
+
+      MyIndexSearcher.SliceStats stats = MyIndexSearcher.getSliceStats(slices);
+      assertEquals(slices.length, stats.numSlices());
+      assertEquals(numPartitions(slices), stats.numPartitions());
+      assertEquals(3, stats.numSegments());
+      assertEquals(reader.numDocs(), stats.totalDocs());
+      assertEquals(imbalance(docs), stats.imbalance(), 1e-9);
+      assertTrue(stats.minSliceDocs() <= stats.maxSliceDocs());
     }
   }
 
