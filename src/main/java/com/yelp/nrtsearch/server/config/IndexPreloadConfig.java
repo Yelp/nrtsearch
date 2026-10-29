@@ -16,21 +16,28 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.config.PageCachePolicyConfig.Action;
+import com.yelp.nrtsearch.server.config.PageCachePolicyConfig.IndexPageCachePolicy;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 
-/** Class containing configuration related to index data preloading. */
+/**
+ * Class containing configuration related to index data preloading. The preload decision is made by
+ * an {@link IndexPageCachePolicy}: files with the {@link Action#PRELOAD} action are preloaded.
+ *
+ * <p>The {@code preload.*} config is deprecated in favor of {@link PageCachePolicyConfig} rules.
+ */
 public class IndexPreloadConfig {
   private static final String CONFIG_PREFIX = "preload.";
   public static final String ALL_EXTENSIONS = "*";
   private final boolean preload;
   private final Set<String> extensions;
+  private final IndexPageCachePolicy policy;
 
   /**
    * Create instance from provided configuration reader.
@@ -55,6 +62,22 @@ public class IndexPreloadConfig {
   public IndexPreloadConfig(boolean preload, Set<String> extensions) {
     this.preload = preload;
     this.extensions = Collections.unmodifiableSet(extensions);
+    this.policy =
+        new PageCachePolicyConfig(
+                PageCachePolicyConfig.fromLegacyPreload(preload, extensions),
+                Collections.emptyMap())
+            .getGlobalPolicy();
+  }
+
+  /**
+   * Create instance that preloads files based on an index page cache policy.
+   *
+   * @param policy index page cache policy
+   */
+  public IndexPreloadConfig(IndexPageCachePolicy policy) {
+    this.preload = policy.hasAction(Action.PRELOAD);
+    this.extensions = Collections.emptySet();
+    this.policy = policy;
   }
 
   /**
@@ -63,23 +86,27 @@ public class IndexPreloadConfig {
    * @return predicate to determine if a file should be preloaded
    */
   public BiPredicate<String, IOContext> preloadPredicate() {
-    if (preload) {
-      if (extensions.contains(ALL_EXTENSIONS)) {
-        return MMapDirectory.ALL_FILES;
-      }
-      return (fileName, context) -> {
-        String extension = FileSwitchDirectory.getExtension(fileName);
-        return extensions.contains(extension);
-      };
+    if (!preload) {
+      return MMapDirectory.NO_FILES;
     }
-    return MMapDirectory.NO_FILES;
+    if (policy.preloadsAllFiles()) {
+      return MMapDirectory.ALL_FILES;
+    }
+    return (fileName, context) -> policy.indexFileAction(fileName) == Action.PRELOAD;
   }
 
+  /** Get the page cache policy used to decide which files are preloaded. */
+  public IndexPageCachePolicy getPolicy() {
+    return policy;
+  }
+
+  /** Get if any files may be preloaded. */
   @VisibleForTesting
   boolean getPreload() {
     return preload;
   }
 
+  /** Get the extensions from the deprecated preload config, empty when created from a policy. */
   @VisibleForTesting
   Set<String> getExtensions() {
     return extensions;

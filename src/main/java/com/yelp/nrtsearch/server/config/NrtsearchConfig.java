@@ -81,7 +81,7 @@ public class NrtsearchConfig {
   private final List<String> pluginSearchPath;
   private final String serviceName;
   private final ThreadPoolConfiguration threadPoolConfiguration;
-  private final IndexPreloadConfig preloadConfig;
+  private final PageCachePolicyConfig pageCachePolicyConfig;
   private final QueryCacheConfig queryCacheConfig;
   private final WarmerConfig warmerConfig;
   private final boolean virtualSharding;
@@ -159,7 +159,7 @@ public class NrtsearchConfig {
             NrtsearchConfig::getPluginSearchPath,
             List.of(DEFAULT_PLUGIN_SEARCH_PATH.toString()));
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
-    preloadConfig = IndexPreloadConfig.fromConfig(configReader);
+    pageCachePolicyConfig = PageCachePolicyConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     warmerConfig = WarmerConfig.fromConfig(configReader);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
@@ -286,8 +286,18 @@ public class NrtsearchConfig {
     return this.pluginSearchPath;
   }
 
-  public IndexPreloadConfig getPreloadConfig() {
-    return preloadConfig;
+  /**
+   * Get the preload config for an index, based on its page cache policy.
+   *
+   * @param indexName index name
+   * @return index preload config
+   */
+  public IndexPreloadConfig getPreloadConfig(String indexName) {
+    return new IndexPreloadConfig(pageCachePolicyConfig.forIndex(indexName));
+  }
+
+  public PageCachePolicyConfig getPageCachePolicyConfig() {
+    return pageCachePolicyConfig;
   }
 
   public QueryCacheConfig getQueryCacheConfig() {

@@ -592,7 +592,40 @@ Example server configuration
      - Maximum number of un-acked chunks the primary is allowed to have in flight. The primary pauses sending when this limit is reached and resumes upon receiving an ack. Only used when ``ackedCopy`` is true.
      - 2000
 
-.. list-table:: `Index Data Preload Configuration <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/server/config/IndexPreloadConfig.java>`_ (``preload.*``)
+.. list-table:: `Page Cache Policy Configuration <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/server/config/PageCachePolicyConfig.java>`_ (``pageCache.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - rules
+     - list
+     - Ordered list of rules for all indices. Each rule has ``files``, a list of globs, and ``action``, one of ``PRELOAD``, ``EVICT``, or ``DEFAULT``. The first rule with a glob matching an index file sets its action, and files that match no rule use ``DEFAULT``. ``PRELOAD`` files are loaded into the OS page cache when opened with an MMapDirectory. ``EVICT`` is not yet implemented.
+     - []
+
+   * - indices.<index>.rules
+     - list
+     - Ordered list of rules for one index, in the same format as ``rules``. These are checked before the global rules. To stop the global rules from applying to an index, end its rules with a catch all rule, such as ``files: ["*"]`` with action ``DEFAULT``.
+     - []
+
+Rule globs are matched against segment file names with the segment name prefix removed. For example, ``_0_Lucene104_0.tip`` is matched as ``_Lucene104_0.tip``, and ``_0.fdt`` as ``.fdt``. Other files, such as ``segments_N``, are matched by their full name. A glob like ``*.tip`` matches files by extension.
+
+.. code-block:: yaml
+
+  pageCache:
+    rules:
+      - files: ["*.tip", "*.tmd"]
+        action: PRELOAD
+    indices:
+      small_hot_index:
+        rules:
+          - files: ["*"]
+            action: PRELOAD
+
+.. list-table:: `Index Data Preload Configuration (deprecated) <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/server/config/IndexPreloadConfig.java>`_ (``preload.*``)
    :widths: 25 10 50 25
    :header-rows: 1
 
@@ -603,12 +636,12 @@ Example server configuration
 
    * - enabled
      - bool
-     - If opening index files with an MMapDirectory should preload the data into the OS page cache
+     - If opening index files with an MMapDirectory should preload the data into the OS page cache. Deprecated, use ``pageCache`` rules instead. When ``pageCache`` is not set, this config is converted to an equivalent ``PRELOAD`` rule. Setting both is an error.
      - false
 
    * - extensions
      - list
-     - List of index file extensions to preload. Including '*' will preload all files.
+     - List of index file extensions to preload. Including '*' will preload all files. The extension ``ext`` is equivalent to the ``pageCache`` glob ``*.ext``.
      - ['*']
 
 .. list-table:: `S3 Remote Storage Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/remote/s3/S3Util.java>`_ (``remoteConfig.s3.*``)

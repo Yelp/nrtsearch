@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.index;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef.FacetValueType;
@@ -572,6 +573,8 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
+    IndexPreloadConfig preloadConfig =
+        indexState.getGlobalState().getConfiguration().getPreloadConfig(indexState.getName());
 
     try {
       Path indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
@@ -579,11 +582,7 @@ public class ShardState implements Closeable {
         Files.createDirectories(indexDirFile);
       }
       nrtDataManager.restoreIfNeeded(indexDirFile);
-      origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+      origIndexDir = indexState.getDirectoryFactory().open(indexDirFile, preloadConfig);
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -614,10 +613,7 @@ public class ShardState implements Closeable {
       }
 
       Path taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
-      taxoDir =
-          indexState
-              .getDirectoryFactory()
-              .open(taxoDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+      taxoDir = indexState.getDirectoryFactory().open(taxoDirFile, preloadConfig);
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -703,6 +699,8 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
+    IndexPreloadConfig preloadConfig =
+        indexState.getGlobalState().getConfiguration().getPreloadConfig(indexState.getName());
     // nocommit share code better w/ start and startReplica!
 
     try {
@@ -711,11 +709,7 @@ public class ShardState implements Closeable {
         Files.createDirectories(indexDirFile);
       }
       nrtDataManager.restoreIfNeeded(indexDirFile);
-      origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+      origIndexDir = indexState.getDirectoryFactory().open(indexDirFile, preloadConfig);
 
       if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
@@ -939,7 +933,9 @@ public class ShardState implements Closeable {
       }
       nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
       origIndexDir =
-          indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+          indexState
+              .getDirectoryFactory()
+              .open(indexDirFile, configuration.getPreloadConfig(indexState.getName()));
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if (!(origIndexDir instanceof MMapDirectory)) {
