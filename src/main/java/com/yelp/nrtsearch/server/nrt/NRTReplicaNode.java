@@ -26,11 +26,14 @@ import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.NrtPushRemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
+import com.yelp.nrtsearch.server.nrt.pagecache.CompoundFilePreloader;
 import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCacheTrigger;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.index.SegmentInfos;
@@ -61,6 +64,7 @@ public class NRTReplicaNode extends ReplicaNode {
    * on sendReplicas and it can build its channel over this pair */
   private final HostPort hostPort;
   private final PageCachePolicyApplier pageCachePolicyApplier;
+  private final CompoundFilePreloader compoundFilePreloader;
   private static final Logger logger = LoggerFactory.getLogger(NRTReplicaNode.class);
 
   public NRTReplicaNode(
@@ -79,7 +83,8 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean filterIncompatibleSegmentReaders,
       int lowPriorityCopyPercentage,
       boolean s3ReplicaRefreshDownload,
-      PageCachePolicyApplier pageCachePolicyApplier)
+      PageCachePolicyApplier pageCachePolicyApplier,
+      CompoundFilePreloader compoundFilePreloader)
       throws IOException {
     // the id is always 0, the nodeName is the identifier
     super(0, indexDir, searcherFactory, printStream);
@@ -94,6 +99,8 @@ public class NRTReplicaNode extends ReplicaNode {
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
     this.pageCachePolicyApplier =
         pageCachePolicyApplier != null ? pageCachePolicyApplier : PageCachePolicyApplier.NOOP;
+    this.compoundFilePreloader =
+        compoundFilePreloader != null ? compoundFilePreloader : CompoundFilePreloader.NOOP;
 
     if (isolatedReplicaConfig.isEnabled()) {
       if (hasPrimaryConnection()) {
@@ -131,6 +138,25 @@ public class NRTReplicaNode extends ReplicaNode {
   /** Get the applier for the page cache policy of copied index files. */
   public PageCachePolicyApplier getPageCachePolicyApplier() {
     return pageCachePolicyApplier;
+  }
+
+  /** Get the preloader for compound files. */
+  public CompoundFilePreloader getCompoundFilePreloader() {
+    return compoundFilePreloader;
+  }
+
+  /**
+   * Apply the page cache policy to copied index files, before they are opened by a reader. Compound
+   * file ranges with the PRELOAD action are preloaded, and then ranges with the EVICT action are
+   * dropped from the page cache. Evicting last drops any data loaded by readahead while preloading
+   * neighboring ranges.
+   *
+   * @param fileNames copied index file names
+   * @param trigger what caused the files to be copied
+   */
+  public void applyPageCachePolicy(Collection<String> fileNames, PageCacheTrigger trigger) {
+    compoundFilePreloader.preload(fileNames, trigger);
+    pageCachePolicyApplier.apply(fileNames, trigger);
   }
 
   @VisibleForTesting

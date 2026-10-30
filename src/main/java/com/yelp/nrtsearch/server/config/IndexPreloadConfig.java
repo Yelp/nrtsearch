@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 
@@ -35,9 +36,11 @@ import org.apache.lucene.store.MMapDirectory;
 public class IndexPreloadConfig {
   private static final String CONFIG_PREFIX = "preload.";
   public static final String ALL_EXTENSIONS = "*";
+  private static final String COMPOUND_DATA_EXTENSION = "cfs";
   private final boolean preload;
   private final Set<String> extensions;
   private final IndexPageCachePolicy policy;
+  private final boolean compoundFileRanges;
 
   /**
    * Create instance from provided configuration reader.
@@ -67,6 +70,7 @@ public class IndexPreloadConfig {
                 PageCachePolicyConfig.fromLegacyPreload(preload, extensions),
                 Collections.emptyMap())
             .getGlobalPolicy();
+    this.compoundFileRanges = false;
   }
 
   /**
@@ -75,9 +79,29 @@ public class IndexPreloadConfig {
    * @param policy index page cache policy
    */
   public IndexPreloadConfig(IndexPageCachePolicy policy) {
+    this(policy, false);
+  }
+
+  /**
+   * Create instance that preloads files based on an index page cache policy.
+   *
+   * @param policy index page cache policy
+   * @param compoundFileRanges if compound files should be excluded from the preload predicate,
+   *     because their sub-file ranges are preloaded separately
+   */
+  public IndexPreloadConfig(IndexPageCachePolicy policy, boolean compoundFileRanges) {
     this.preload = policy.hasAction(Action.PRELOAD);
     this.extensions = Collections.emptySet();
     this.policy = policy;
+    this.compoundFileRanges = compoundFileRanges;
+  }
+
+  /**
+   * Get a copy of this config that excludes compound files from the preload predicate, because
+   * their sub-file ranges are preloaded separately.
+   */
+  public IndexPreloadConfig withCompoundFileRanges() {
+    return new IndexPreloadConfig(policy, true);
   }
 
   /**
@@ -88,6 +112,11 @@ public class IndexPreloadConfig {
   public BiPredicate<String, IOContext> preloadPredicate() {
     if (!preload) {
       return MMapDirectory.NO_FILES;
+    }
+    if (compoundFileRanges) {
+      return (fileName, context) ->
+          !COMPOUND_DATA_EXTENSION.equals(IndexFileNames.getExtension(fileName))
+              && policy.indexFileAction(fileName) == Action.PRELOAD;
     }
     if (policy.preloadsAllFiles()) {
       return MMapDirectory.ALL_FILES;

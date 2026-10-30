@@ -27,7 +27,6 @@ import com.yelp.nrtsearch.server.config.PageCachePolicyConfig.Rule;
 import com.yelp.nrtsearch.server.index.DirectoryFactory;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier.ApplyResult;
-import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier.Trigger;
 import com.yelp.nrtsearch.server.utils.PageCacheUtils;
 import com.yelp.nrtsearch.server.utils.PageCacheUtils.FileRange;
 import io.prometheus.metrics.core.metrics.Summary;
@@ -102,7 +101,7 @@ public class PageCachePolicyApplierTest {
   public void testNoopApply() {
     assertEquals(
         new ApplyResult(0, 0, 0, 0, 0),
-        PageCachePolicyApplier.NOOP.apply(List.of("_0.cfs"), Trigger.NRT_POINT));
+        PageCachePolicyApplier.NOOP.apply(List.of("_0.cfs"), PageCacheTrigger.NRT_POINT));
   }
 
   @Test
@@ -195,7 +194,8 @@ public class PageCachePolicyApplierTest {
       // missing standalone file fails to read its length
       ApplyResult result =
           applier.apply(
-              List.of("_9_Lucene104HnswBinaryQuantizedVectorsFormat_0.vec"), Trigger.STARTUP);
+              List.of("_9_Lucene104HnswBinaryQuantizedVectorsFormat_0.vec"),
+              PageCacheTrigger.STARTUP);
       assertEquals(new ApplyResult(0, 0, 1, 0, 0), result);
       assertEquals(
           1.0,
@@ -228,7 +228,7 @@ public class PageCachePolicyApplierTest {
               directory,
               QUANTIZED_EVICT_POLICY,
               DirectoryFactory.MMapReadAdvice.BY_CONTEXT);
-      ApplyResult result = applier.apply(List.of(directory.listAll()), Trigger.NRT_POINT);
+      ApplyResult result = applier.apply(List.of(directory.listAll()), PageCacheTrigger.NRT_POINT);
       assertEquals(1, result.files());
       assertEquals(vecRange.length(), result.evictedBytes());
       assertEquals(0, result.failures());
@@ -265,7 +265,8 @@ public class PageCachePolicyApplierTest {
               directory,
               QUANTIZED_EVICT_POLICY,
               DirectoryFactory.MMapReadAdvice.BY_CONTEXT);
-      ApplyResult result = applier.apply(List.of(directory.listAll()), Trigger.MERGE_PRECOPY);
+      ApplyResult result =
+          applier.apply(List.of(directory.listAll()), PageCacheTrigger.MERGE_PRECOPY);
       assertEquals(1, result.files());
       assertEquals(vecRange.length(), result.evictedBytes());
 
@@ -288,7 +289,8 @@ public class PageCachePolicyApplierTest {
               DirectoryFactory.MMapReadAdvice.BY_CONTEXT);
       // missing entries are logged, not counted as a failure
       assertEquals(
-          new ApplyResult(0, 0, 0, 0, 0), applier.apply(List.of("_5.cfs"), Trigger.NRT_POINT));
+          new ApplyResult(0, 0, 0, 0, 0),
+          applier.apply(List.of("_5.cfs"), PageCacheTrigger.NRT_POINT));
     }
   }
 }

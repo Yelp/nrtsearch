@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.lucene.store.Directory;
 import org.slf4j.Logger;
@@ -50,18 +49,6 @@ public class PageCachePolicyApplier {
 
   /** Applier that does nothing. */
   public static final PageCachePolicyApplier NOOP = new PageCachePolicyApplier();
-
-  /** What caused the policy to be applied, used to label metrics. */
-  public enum Trigger {
-    /** Files copied for a new nrt point. */
-    NRT_POINT,
-    /** Files pre-copied for a merged segment. */
-    MERGE_PRECOPY,
-    /** Existing or restored index files on replica startup. */
-    STARTUP;
-
-    final String label = name().toLowerCase(Locale.ROOT);
-  }
 
   /**
    * Result of applying the policy to a set of files.
@@ -140,7 +127,7 @@ public class PageCachePolicyApplier {
    * @param trigger what caused the policy to be applied
    * @return apply result
    */
-  public ApplyResult apply(Collection<String> fileNames, Trigger trigger) {
+  public ApplyResult apply(Collection<String> fileNames, PageCacheTrigger trigger) {
     if (this == NOOP) {
       return new ApplyResult(0, 0, 0, 0, 0);
     }
@@ -185,7 +172,7 @@ public class PageCachePolicyApplier {
             "Unable to drop index {} file {} from page cache, trigger: {}",
             indexName,
             fileName,
-            trigger.label,
+            trigger.label(),
             e);
       }
     }
@@ -193,20 +180,20 @@ public class PageCachePolicyApplier {
     ApplyResult result = new ApplyResult(files, evictedBytes, failures, syncNanos, dropNanos);
     if (files > 0 || failures > 0) {
       NrtMetrics.pageCacheSyncTime
-          .labelValues(indexName, trigger.label)
+          .labelValues(indexName, trigger.label())
           .observe(toMillis(syncNanos));
       NrtMetrics.pageCacheDropTime
-          .labelValues(indexName, trigger.label)
+          .labelValues(indexName, trigger.label())
           .observe(toMillis(dropNanos));
-      NrtMetrics.pageCacheEvictedBytes.labelValues(indexName, trigger.label).inc(evictedBytes);
+      NrtMetrics.pageCacheEvictedBytes.labelValues(indexName, trigger.label()).inc(evictedBytes);
       if (failures > 0) {
-        NrtMetrics.pageCacheEvictionFailures.labelValues(indexName, trigger.label).inc(failures);
+        NrtMetrics.pageCacheEvictionFailures.labelValues(indexName, trigger.label()).inc(failures);
       }
       logger.info(
           "Applied page cache policy for index {}, trigger: {}, files: {}, evicted bytes: {},"
               + " failures: {}, sync: {} ms, drop: {} ms, total: {} ms",
           indexName,
-          trigger.label,
+          trigger.label(),
           files,
           evictedBytes,
           failures,

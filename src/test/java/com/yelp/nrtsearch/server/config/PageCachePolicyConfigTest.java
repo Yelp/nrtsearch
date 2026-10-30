@@ -381,4 +381,23 @@ public class PageCachePolicyConfigTest {
         new IndexPreloadConfig(defaultPolicy).preloadPredicate();
     assertFalse(defaultPredicate.test("_0.fdt", IOContext.DEFAULT));
   }
+
+  @Test
+  public void testPreloadPredicate_compoundFileRanges() {
+    IndexPageCachePolicy policy =
+        new PageCachePolicyConfig(List.of(new Rule(List.of("*"), Action.PRELOAD)), Map.of())
+            .getGlobalPolicy();
+    // whole compound files are preloaded by default, as used for the taxonomy directory
+    IndexPreloadConfig wholeFiles = new IndexPreloadConfig(policy);
+    assertSame(MMapDirectory.ALL_FILES, wholeFiles.preloadPredicate());
+
+    // compound files are excluded, since their sub-file ranges are preloaded separately
+    BiPredicate<String, IOContext> ranges = wholeFiles.withCompoundFileRanges().preloadPredicate();
+    assertFalse(ranges.test("_0.cfs", IOContext.DEFAULT));
+    assertFalse(ranges.test("_1a.cfs", IOContext.DEFAULT));
+    assertTrue(ranges.test("_0.cfe", IOContext.DEFAULT));
+    assertTrue(ranges.test("_0_Lucene104_0.tip", IOContext.DEFAULT));
+    assertTrue(ranges.test("segments_1", IOContext.DEFAULT));
+    assertSame(policy, wholeFiles.withCompoundFileRanges().getPolicy());
+  }
 }

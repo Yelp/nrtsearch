@@ -150,6 +150,27 @@ public class NrtMetrics {
           .help("Bytes of index data dropped from the page cache.")
           .labelNames("index", "trigger")
           .build();
+  public static final Summary pageCachePreloadTime =
+      Summary.builder()
+          .name("nrt_page_cache_preload_time_ms")
+          .help("Time to preload compound file ranges into the page cache (ms).")
+          .quantile(0.5, 0.05)
+          .quantile(0.95, 0.01)
+          .quantile(0.99, 0.01)
+          .labelNames("index", "trigger")
+          .build();
+  public static final Counter pageCachePreloadedBytes =
+      Counter.builder()
+          .name("nrt_page_cache_preloaded_bytes")
+          .help("Bytes of compound file ranges preloaded into the page cache.")
+          .labelNames("index", "trigger")
+          .build();
+  public static final Counter pageCachePreloadFailures =
+      Counter.builder()
+          .name("nrt_page_cache_preload_failure_count")
+          .help("Number of compound files that failed to be preloaded into the page cache.")
+          .labelNames("index", "trigger")
+          .build();
   public static final Counter pageCacheEvictionFailures =
       Counter.builder()
           .name("nrt_page_cache_eviction_failure_count")
@@ -180,5 +201,8 @@ public class NrtMetrics {
     registry.register(pageCacheDropTime);
     registry.register(pageCacheEvictedBytes);
     registry.register(pageCacheEvictionFailures);
+    registry.register(pageCachePreloadTime);
+    registry.register(pageCachePreloadedBytes);
+    registry.register(pageCachePreloadFailures);
   }
 }

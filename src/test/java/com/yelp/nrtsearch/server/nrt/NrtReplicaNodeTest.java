@@ -17,9 +17,11 @@ package com.yelp.nrtsearch.server.nrt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -31,10 +33,14 @@ import com.yelp.nrtsearch.server.nrt.jobs.GrpcCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.NrtPushRemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.RemoteCopyJobManager;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob;
+import com.yelp.nrtsearch.server.nrt.pagecache.CompoundFilePreloader;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCacheTrigger;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.search.SearcherFactory;
@@ -42,6 +48,7 @@ import org.apache.lucene.store.Directory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -83,6 +90,46 @@ public class NrtReplicaNodeTest {
     assertTrue(ct instanceof ProportionalCopyThread);
   }
 
+  @Test
+  public void testApplyPageCachePolicy_preloadThenEvict() throws IOException {
+    PageCachePolicyApplier applier = mock(PageCachePolicyApplier.class);
+    CompoundFilePreloader preloader = mock(CompoundFilePreloader.class);
+    NRTReplicaNode replicaNode =
+        new NRTReplicaNode(
+            "test_index",
+            "id",
+            null,
+            new HostPort("host", 0),
+            "testNode",
+            mock(Directory.class),
+            null,
+            mock(IsolatedReplicaConfig.class),
+            null,
+            null,
+            false,
+            false,
+            true,
+            0,
+            false,
+            applier,
+            preloader);
+    List<String> files = List.of("_0.cfs", "_0.cfe");
+    replicaNode.applyPageCachePolicy(files, PageCacheTrigger.NRT_POINT);
+
+    // evict after preloading, so readahead while preloading cannot reload evicted data
+    InOrder inOrder = inOrder(preloader, applier);
+    inOrder.verify(preloader).preload(files, PageCacheTrigger.NRT_POINT);
+    inOrder.verify(applier).apply(files, PageCacheTrigger.NRT_POINT);
+  }
+
+  @Test
+  public void testApplyPageCachePolicy_defaultsToNoop() throws IOException {
+    NRTReplicaNode replicaNode = getNrtReplicaNodeWithoutPrimary();
+    assertSame(PageCachePolicyApplier.NOOP, replicaNode.getPageCachePolicyApplier());
+    assertSame(CompoundFilePreloader.NOOP, replicaNode.getCompoundFilePreloader());
+    replicaNode.applyPageCachePolicy(List.of("_0.cfs"), PageCacheTrigger.STARTUP);
+  }
+
   private NRTReplicaNode getNrtReplicaNodeWithoutPrimary() throws IOException {
     return new NRTReplicaNode(
         "test_index",
@@ -100,6 +147,7 @@ public class NrtReplicaNodeTest {
         true,
         0,
         false,
+        null,
         null);
   }
 
@@ -121,6 +169,7 @@ public class NrtReplicaNodeTest {
         true,
         0,
         false,
+        null,
         null);
   }
 
@@ -143,6 +192,7 @@ public class NrtReplicaNodeTest {
             true,
             0,
             false,
+            null,
             null);
     assertTrue(replicaNode.hasPrimaryConnection());
   }
@@ -220,6 +270,7 @@ public class NrtReplicaNodeTest {
             true,
             0,
             true,
+            null,
             null);
     assertTrue(replicaNode.getCopyJobManager() instanceof NrtPushRemoteCopyJobManager);
   }
@@ -243,6 +294,7 @@ public class NrtReplicaNodeTest {
             true,
             0,
             false,
+            null,
             null);
     assertTrue(replicaNode.getCopyJobManager() instanceof GrpcCopyJobManager);
   }
@@ -284,6 +336,7 @@ public class NrtReplicaNodeTest {
             false,
             0,
             false,
+            null,
             null);
 
     // Create a spy to skip the parent finishNRTCopy call
@@ -348,6 +401,7 @@ public class NrtReplicaNodeTest {
             false,
             0,
             false,
+            null,
             null);
 
     // Set initial metric value to verify it doesn't change
@@ -408,6 +462,7 @@ public class NrtReplicaNodeTest {
             false,
             0,
             false,
+            null,
             null);
 
     // Set initial metric value to verify it doesn't change
@@ -474,6 +529,7 @@ public class NrtReplicaNodeTest {
             false,
             0,
             false,
+            null,
             null);
 
     // Set initial metric value to verify it doesn't change

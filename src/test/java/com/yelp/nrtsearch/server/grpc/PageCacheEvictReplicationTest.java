@@ -54,7 +54,9 @@ public class PageCacheEvictReplicationTest {
           "pageCache:",
           "  rules:",
           "    - files: [\"*QuantizedVectorsFormat_*.vec\"]",
-          "      action: EVICT");
+          "      action: EVICT",
+          "    - files: [\"*\"]",
+          "      action: PRELOAD");
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
@@ -241,6 +243,12 @@ public class PageCacheEvictReplicationTest {
             assertTrue(
                 PageCacheUtils.residentPages(indexPath.resolve(file), entry.getValue()) <= 2);
             coldRanges++;
+          } else if (entry.getKey().endsWith(".veq")) {
+            // quantized vectors are preloaded
+            FileRange range = entry.getValue();
+            long pages =
+                (range.offset() + range.length() - 1) / pageSize - range.offset() / pageSize + 1;
+            assertEquals(pages, PageCacheUtils.residentPages(indexPath.resolve(file), range));
           }
         }
       } else if (!useCompoundFile && file.endsWith(".vec") && file.contains("Quantized")) {

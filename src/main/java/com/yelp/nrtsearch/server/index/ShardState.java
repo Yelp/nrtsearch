@@ -31,7 +31,9 @@ import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.pagecache.CompoundFilePreloader;
 import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCacheTrigger;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -486,6 +488,23 @@ public class ShardState implements Closeable {
   }
 
   /** Start the searcher pruning thread. */
+  /**
+   * Preload the compound file sub-file ranges with the PRELOAD action, for existing or restored
+   * index files. Compound files are excluded from the MMapDirectory preload predicate, since it can
+   * only preload whole files.
+   *
+   * @return preloader for the index
+   */
+  private CompoundFilePreloader preloadCompoundFiles(
+      IndexState indexState, Path indexDirFile, IndexPreloadConfig preloadConfig)
+      throws IOException {
+    CompoundFilePreloader preloader =
+        CompoundFilePreloader.create(
+            indexState.getName(), indexDirFile, indexDir, preloadConfig.getPolicy());
+    preloader.preload(List.of(indexDir.listAll()), PageCacheTrigger.STARTUP);
+    return preloader;
+  }
+
   private void startSearcherPruningThread(CountDownLatch shutdownNow) {
     // nocommit make one thread in GlobalState
     if (searcherPruningThread == null) {
@@ -583,7 +602,10 @@ public class ShardState implements Closeable {
         Files.createDirectories(indexDirFile);
       }
       nrtDataManager.restoreIfNeeded(indexDirFile);
-      origIndexDir = indexState.getDirectoryFactory().open(indexDirFile, preloadConfig);
+      origIndexDir =
+          indexState
+              .getDirectoryFactory()
+              .open(indexDirFile, preloadConfig.withCompoundFileRanges());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -598,6 +620,7 @@ public class ShardState implements Closeable {
       } else {
         indexDir = origIndexDir;
       }
+      preloadCompoundFiles(indexState, indexDirFile, preloadConfig);
 
       // Rather than rely on IndexWriter/TaxonomyWriter to
       // figure out if an index is new or not by passing
@@ -710,7 +733,10 @@ public class ShardState implements Closeable {
         Files.createDirectories(indexDirFile);
       }
       nrtDataManager.restoreIfNeeded(indexDirFile);
-      origIndexDir = indexState.getDirectoryFactory().open(indexDirFile, preloadConfig);
+      origIndexDir =
+          indexState
+              .getDirectoryFactory()
+              .open(indexDirFile, preloadConfig.withCompoundFileRanges());
 
       if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
@@ -723,6 +749,7 @@ public class ShardState implements Closeable {
       } else {
         indexDir = origIndexDir;
       }
+      preloadCompoundFiles(indexState, indexDirFile, preloadConfig);
 
       // Rather than rely on IndexWriter/TaxonomyWriter to
       // figure out if an index is new or not by passing
@@ -936,7 +963,9 @@ public class ShardState implements Closeable {
       origIndexDir =
           indexState
               .getDirectoryFactory()
-              .open(indexDirFile, configuration.getPreloadConfig(indexState.getName()));
+              .open(
+                  indexDirFile,
+                  configuration.getPreloadConfig(indexState.getName()).withCompoundFileRanges());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if (!(origIndexDir instanceof MMapDirectory)) {
@@ -959,9 +988,12 @@ public class ShardState implements Closeable {
               configuration.getPageCachePolicyConfig().forIndex(indexState.getName()),
               configuration.getMMapReadAdvice());
       // Apply the page cache policy to existing or restored files before they are opened by a
-      // reader
-      pageCachePolicyApplier.apply(
-          List.of(indexDir.listAll()), PageCachePolicyApplier.Trigger.STARTUP);
+      // reader. Evict after preloading, since readahead while preloading compound file ranges may
+      // load neighboring ranges that should be evicted.
+      CompoundFilePreloader compoundFilePreloader =
+          preloadCompoundFiles(
+              indexState, indexDirFile, configuration.getPreloadConfig(indexState.getName()));
+      pageCachePolicyApplier.apply(List.of(indexDir.listAll()), PageCacheTrigger.STARTUP);
 
       manager = null;
       nrtPrimaryNode = null;
@@ -989,7 +1021,8 @@ public class ShardState implements Closeable {
               configuration.getFilterIncompatibleSegmentReaders(),
               configuration.getLowPriorityCopyPercentage(),
               configuration.getS3ReplicaRefreshDownload(),
-              pageCachePolicyApplier);
+              pageCachePolicyApplier,
+              compoundFilePreloader);
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

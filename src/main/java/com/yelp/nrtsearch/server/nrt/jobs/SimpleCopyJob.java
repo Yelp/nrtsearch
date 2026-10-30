@@ -21,7 +21,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
-import com.yelp.nrtsearch.server.nrt.pagecache.PageCachePolicyApplier;
+import com.yelp.nrtsearch.server.nrt.pagecache.PageCacheTrigger;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.time.Instant;
@@ -169,13 +169,9 @@ public class SimpleCopyJob extends VisitableCopyJob {
 
     // Apply the page cache policy before the new files are opened by a reader
     if (dest instanceof NRTReplicaNode nrtReplicaNode) {
-      nrtReplicaNode
-          .getPageCachePolicyApplier()
-          .apply(
-              copiedFiles.keySet(),
-              getCopyState() == null
-                  ? PageCachePolicyApplier.Trigger.MERGE_PRECOPY
-                  : PageCachePolicyApplier.Trigger.NRT_POINT);
+      nrtReplicaNode.applyPageCachePolicy(
+          copiedFiles.keySet(),
+          getCopyState() == null ? PageCacheTrigger.MERGE_PRECOPY : PageCacheTrigger.NRT_POINT);
     }
 
     // nocommit syncMetaData here?
