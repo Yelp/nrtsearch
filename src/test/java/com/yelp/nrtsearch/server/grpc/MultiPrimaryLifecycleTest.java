@@ -223,6 +223,37 @@ public class MultiPrimaryLifecycleTest {
     b.verifySimpleDocIds(INDEX, 1, 2, 4);
   }
 
+  /** Once leadership is revoked, writes are rejected even before the index is restarted. */
+  @Test
+  public void testWritesRejectedAfterLeadershipLost() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    cluster.revokeCurrent();
+    // rejected by the leadership check, or by the closed writer if demotion already restarted it
+    RuntimeException e = assertThrows(RuntimeException.class, () -> a.addSimpleDocs(INDEX, 2));
+    assertTrue(
+        e.getMessage(),
+        e.getMessage().contains("requires the active primary")
+            || e.getMessage().contains("open writer")
+            || e.getMessage().contains("on a replica node is not supported"));
+  }
+
+  /** Stopping the active primary releases leadership, so a standby can be elected right away. */
+  @Test
+  public void testShutdownReleasesLeadership() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    a.stop();
+    assertFalse(cluster.hasLeader());
+    elect(b);
+    b.verifySimpleDocIds(INDEX, 1);
+  }
+
   /** A new leader can back up warming queries that an earlier leader wrote. */
   @Test
   public void testWarmingQueriesWritableAfterFailover() throws Exception {

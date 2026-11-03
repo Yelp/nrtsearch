@@ -383,10 +383,16 @@ public class BackendGlobalState extends GlobalState {
    * Restart a started index with a fresh {@link IndexStateManager}, so that it can be started in a
    * different role. A closed index state cannot be started again.
    */
-  private synchronized void restartIndex(String indexName) throws IOException {
-    IndexStateManager current = getIndexStateManagerOrThrow(indexName);
-    IndexGlobalState indexGlobalState =
-        immutableState.globalStateInfo.getIndicesMap().get(indexName);
+  private void restartIndex(String indexName) throws IOException {
+    // only the leader manager transition thread restarts indices, so this index is not modified
+    // concurrently. The global state lock is only held to swap in the new manager, so that
+    // indices restart in parallel during promotion and other requests are not blocked.
+    IndexStateManager current;
+    IndexGlobalState indexGlobalState;
+    synchronized (this) {
+      current = getIndexStateManagerOrThrow(indexName);
+      indexGlobalState = immutableState.globalStateInfo.getIndicesMap().get(indexName);
+    }
     if (indexGlobalState == null) {
       throw new IllegalArgumentException("Index not in global state: " + indexName);
     }
@@ -398,9 +404,11 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getLiveSettingsOverride(indexName),
             stateBackend);
     fresh.load();
-    Map<String, IndexStateManager> managers = new HashMap<>(immutableState.indexStateManagerMap);
-    managers.put(indexName, fresh);
-    immutableState = new ImmutableState(immutableState.globalStateInfo, managers);
+    synchronized (this) {
+      Map<String, IndexStateManager> managers = new HashMap<>(immutableState.indexStateManagerMap);
+      managers.put(indexName, fresh);
+      immutableState = new ImmutableState(immutableState.globalStateInfo, managers);
+    }
     startIndexFromConfig(indexName, fresh, indexGlobalState);
   }
 
@@ -431,6 +439,13 @@ public class BackendGlobalState extends GlobalState {
             stateManager.load();
           }
           newManagerMap.put(entry.getKey(), stateManager);
+        }
+        // close managers of indices that are no longer in the global state
+        for (Map.Entry<String, IndexStateManager> entry :
+            immutableState.indexStateManagerMap.entrySet()) {
+          if (!newManagerMap.containsKey(entry.getKey())) {
+            entry.getValue().close();
+          }
         }
         immutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
       }
@@ -739,6 +754,9 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public void close() throws IOException {
+    // release leadership first, so another primary can take over without waiting for the lease
+    // ttl, and so no role transitions run while indices close
+    releaseLeadership();
     synchronized (this) {
       logger.info("GlobalState.close: indices=" + getIndexNames());
       IOUtils.close(immutableState.indexStateManagerMap.values());

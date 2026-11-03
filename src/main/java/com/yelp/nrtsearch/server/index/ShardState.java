@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.handler.Handler;
 import com.yelp.nrtsearch.server.handler.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
@@ -307,6 +308,8 @@ public class ShardState implements Closeable {
       throw new IllegalStateException(
           operation + " requires a started index with an open writer, index: " + name);
     }
+    // with leader election, a primary index may still be open while this node is demoting
+    Handler.verifyActivePrimary(indexStateManager.getCurrent().getGlobalState(), operation);
   }
 
   public void waitForGeneration(long gen) throws InterruptedException {

@@ -258,6 +258,10 @@ public class NrtsearchServer {
 
   @VisibleForTesting
   public void stop() {
+    // release leadership first, so another primary can be elected without waiting for it to expire
+    if (serverImpl != null) {
+      serverImpl.getGlobalState().releaseLeadership();
+    }
     if (server != null) {
       server.shutdown();
     }

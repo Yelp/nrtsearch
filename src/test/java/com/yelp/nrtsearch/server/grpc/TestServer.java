@@ -419,6 +419,7 @@ public class TestServer {
   public void stop(boolean clearData) {
     if (serverImpl != null) {
       GlobalState globalState = serverImpl.getGlobalState();
+      globalState.releaseLeadership();
       for (String indexName : globalState.getIndexNames()) {
         try {
           IndexState indexState = globalState.getIndexOrThrow(indexName);

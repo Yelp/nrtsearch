@@ -92,9 +92,15 @@ public class S3LeaseElector implements PrimaryElector {
   private LeaderListener listener;
 
   // state, guarded by this
-  private LeaderInfo heldLeadership; // non-null while this node holds the lease
+  /**
+   * Held leadership and its validity deadline, published together so lock free readers never see a
+   * holder paired with another holder's deadline.
+   */
+  private record Held(LeaderInfo info, long validUntilNanos) {}
+
+  // non-null while this node holds the lease; written under the lock, read without it
+  private volatile Held held;
   private String heldVersion;
-  private long validUntilNanos;
   private volatile LeaderInfo lastKnownLeader;
   private String observedVersion;
   private long observedAtNanos;
@@ -197,7 +203,7 @@ public class S3LeaseElector implements PrimaryElector {
     if (closed) {
       return;
     }
-    if (heldLeadership != null) {
+    if (held != null) {
       renew();
     } else {
       maybeAcquire();
@@ -206,20 +212,21 @@ public class S3LeaseElector implements PrimaryElector {
 
   private void renew() throws IOException {
     long sendNanos = nanoClock.getAsLong();
-    if (sendNanos >= validUntilNanos) {
+    Held current = held;
+    if (sendNanos >= current.validUntilNanos()) {
       // could not renew in time (e.g. long pause), leadership may already have been taken
       lose("lease validity expired before renewal");
       return;
     }
     try {
       heldVersion =
-          writeLease(new Lease(heldLeadership, ttlMillis(), false, ++renewalCount), heldVersion);
-      validUntilNanos = sendNanos + ttlNanos - safetyMarginNanos;
+          writeLease(new Lease(current.info(), ttlMillis(), false, ++renewalCount), heldVersion);
+      held = new Held(current.info(), sendNanos + ttlNanos - safetyMarginNanos);
     } catch (PreconditionFailedException e) {
       lose("lease was modified by another node");
     } catch (IOException e) {
       logger.warn("Failed to renew lease, will retry", e);
-      if (nanoClock.getAsLong() >= validUntilNanos) {
+      if (nanoClock.getAsLong() >= current.validUntilNanos()) {
         lose("lease validity expired while renewal failing");
       }
     }
@@ -260,8 +267,7 @@ public class S3LeaseElector implements PrimaryElector {
       logger.info("Lost race to acquire lease at epoch {}", epoch);
       return;
     }
-    heldLeadership = info;
-    validUntilNanos = sendNanos + ttlNanos - safetyMarginNanos;
+    held = new Held(info, sendNanos + ttlNanos - safetyMarginNanos);
     lastSeenEpoch = epoch;
     lastKnownLeader = info;
     observedVersion = heldVersion;
@@ -271,11 +277,10 @@ public class S3LeaseElector implements PrimaryElector {
   }
 
   private void lose(String reason) {
-    LeaderInfo lost = heldLeadership;
+    LeaderInfo lost = held.info();
     logger.warn("Lost leader lease at epoch {}: {}", lost.epoch(), reason);
-    heldLeadership = null;
+    held = null;
     heldVersion = null;
-    validUntilNanos = 0;
     observedVersion = null;
     LeaderListener l = listener;
     listenerExecutor.execute(() -> l.onLost(lost));
@@ -302,22 +307,28 @@ public class S3LeaseElector implements PrimaryElector {
     return Optional.ofNullable(lastKnownLeader);
   }
 
+  /** Lock free, so callers on request paths never wait behind lease I/O. */
   @Override
-  public synchronized boolean isLeader() {
-    return heldLeadership != null && nanoClock.getAsLong() < validUntilNanos;
+  public boolean isLeader() {
+    Held current = held;
+    return current != null && nanoClock.getAsLong() < current.validUntilNanos();
   }
 
   /** Epoch of held leadership, or -1 if not leader. */
-  public synchronized long getLeaderEpoch() {
-    return isLeader() ? heldLeadership.epoch() : -1;
+  public long getLeaderEpoch() {
+    Held current = held;
+    return current != null && nanoClock.getAsLong() < current.validUntilNanos()
+        ? current.info().epoch()
+        : -1;
   }
 
   @Override
   public synchronized void resign() {
-    if (heldLeadership == null) {
+    Held current = held;
+    if (current == null) {
       return;
     }
-    LeaderInfo held = heldLeadership;
+    LeaderInfo held = current.info();
     try {
       // keep the epoch in the lease so the next leader increments it
       writeLease(new Lease(held, ttlMillis(), true, ++renewalCount), heldVersion);

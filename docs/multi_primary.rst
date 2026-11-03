@@ -65,6 +65,11 @@ compare-and-set:
   paused. The old primary then resigns and becomes a standby.
 * A write that the old primary completed before the claim is seen by the new primary, which restores from it.
 
+Since S3 derives an object's ETag from its content, every fenced pointer write also changes the pointer content:
+a fenced ``_current`` object contains the resource name followed by a ``#nrt-fence epoch=<E> nonce=<N>`` line.
+Servers and ``nrt_utils`` tools read only the first line. Servers from before multi-primary support cannot read
+fenced pointers, so all nodes of a cluster must be upgraded before enabling leader election.
+
 Replicas reject replication requests with a lower ``primaryGen`` than they have already seen
 (``enforcePrimaryGenOrdering``, enabled automatically with leader election).
 

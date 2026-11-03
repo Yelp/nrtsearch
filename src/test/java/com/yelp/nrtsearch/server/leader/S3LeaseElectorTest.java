@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Before;
@@ -274,5 +275,62 @@ public class S3LeaseElectorTest {
     assertTrue(a.elector().isLeader());
     assertFalse(b.elector().isLeader());
     assertEquals(epoch, a.elector().getLeaderEpoch());
+  }
+
+  /** isLeader must not wait behind lease I/O in tick(). */
+  @Test
+  public void testIsLeaderDoesNotBlockOnTick() throws Exception {
+    java.util.concurrent.CountDownLatch inGet = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    ConditionalObjectStore slow =
+        new ConditionalObjectStore() {
+          @Override
+          public Optional<ConditionalObjectStore.VersionedObject> get(String key)
+              throws java.io.IOException {
+            return store.get(key);
+          }
+
+          @Override
+          public String putIfAbsent(String key, byte[] data, Map<String, String> metadata)
+              throws java.io.IOException {
+            return store.putIfAbsent(key, data, metadata);
+          }
+
+          @Override
+          public String putIfMatch(
+              String key, byte[] data, Map<String, String> metadata, String expectedVersion)
+              throws java.io.IOException {
+            inGet.countDown();
+            try {
+              release.await();
+            } catch (InterruptedException e) {
+              throw new java.io.IOException(e);
+            }
+            return store.putIfMatch(key, data, metadata, expectedVersion);
+          }
+        };
+    Clock clock = new Clock();
+    S3LeaseElector elector =
+        new S3LeaseElector(
+            slow, KEY, new LeaderInfo("a", "a", "h", 1, 2, -1), TTL, MARGIN, POLL, clock::now);
+    elector.startManual(new RecordingListener());
+    elector.tick();
+    Thread renewal =
+        new Thread(
+            () -> {
+              try {
+                elector.tick();
+              } catch (Exception ignored) {
+              }
+            });
+    renewal.start();
+    assertTrue(inGet.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    // renewal is blocked in S3 while holding the elector lock
+    long start = System.nanoTime();
+    assertTrue(elector.isLeader());
+    assertTrue(elector.getLeaderEpoch() > 0);
+    assertTrue(System.nanoTime() - start < java.util.concurrent.TimeUnit.SECONDS.toNanos(1));
+    release.countDown();
+    renewal.join(5000);
   }
 }

@@ -212,6 +212,23 @@ public abstract class GlobalState implements Closeable {
     return java.util.Optional.empty();
   }
 
+  /**
+   * Stop participating in leader election and release leadership if held, so another primary can
+   * take over without waiting for leadership to expire. Called on server shutdown. No op when
+   * leader election is disabled.
+   */
+  public void releaseLeadership() {
+    getLeaderManager()
+        .ifPresent(
+            manager -> {
+              try {
+                manager.close();
+              } catch (Exception e) {
+                logger.warn("Error releasing leadership", e);
+              }
+            });
+  }
+
   /** Get the data resource name for a given index. Used by remote backend. */
   public abstract String getDataResourceForIndex(String indexName);
 

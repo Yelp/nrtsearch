@@ -92,6 +92,13 @@ public class LeaderManager implements Closeable, LeaderListener {
   private volatile long activeEpoch = -1;
   // incremented on every leadership change, lets queued transitions detect they are stale
   private volatile long leadershipChangeCount = 0;
+  private boolean closed = false;
+  // set when leadership is lost and a demotion is queued, cleared on election; ensures one
+  // demotion per loss no matter how many sources report it (elector callback, fence, promotion)
+  private boolean lossHandled = true;
+  // true once any index may have been restarted as primary; cleared after restarting as standby.
+  // only accessed on the transition thread
+  private boolean indicesMayBePrimary = false;
 
   public LeaderManager(
       PrimaryElector elector,
@@ -146,15 +153,23 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   @Override
   public synchronized void onElected(LeaderInfo leaderInfo) {
+    if (closed) {
+      return;
+    }
     long change = ++leadershipChangeCount;
+    lossHandled = false;
     transitionExecutor.execute(() -> promote(leaderInfo, change));
   }
 
   @Override
   public synchronized void onLost(LeaderInfo leaderInfo) {
-    long change = ++leadershipChangeCount;
     // stop all remote state writes immediately, before queueing the slower index restart
     fence.deactivate();
+    if (closed || lossHandled) {
+      return;
+    }
+    lossHandled = true;
+    long change = ++leadershipChangeCount;
     if (role != Role.STANDBY) {
       role = Role.DEMOTING;
     }
@@ -165,16 +180,16 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   private void onFenced(FencedException e) {
     logger.warn("Remote state write fenced, resigning leadership", e);
-    // resign triggers onLost if leadership is held; also demote in case elector already lost it
-    transitionExecutor.execute(
-        () -> {
-          elector.resign();
-          synchronized (this) {
-            if (role == Role.ACTIVE || role == Role.PROMOTING) {
-              onLost(new LeaderInfo("", "", "", 0, 0, activeEpoch));
-            }
-          }
-        });
+    resignAndDemote(activeEpoch);
+  }
+
+  /**
+   * Stop acting as leader: demote now, then resign from the elector. The elector may also report
+   * the loss through {@link #onLost}, possibly asynchronously; only the first report demotes.
+   */
+  private void resignAndDemote(long epoch) {
+    onLost(new LeaderInfo("", "", "", 0, 0, epoch));
+    elector.resign();
   }
 
   private void promote(LeaderInfo leaderInfo, long change) {
@@ -184,26 +199,30 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
     long epoch = leaderInfo.epoch();
     logger.info("Promoting to active primary at epoch {}", epoch);
-    role = Role.PROMOTING;
+    synchronized (this) {
+      if (change != leadershipChangeCount) {
+        logger.info("Skipping stale promotion for epoch {}", epoch);
+        return;
+      }
+      role = Role.PROMOTING;
+    }
     try {
       fence.activate(epoch);
       controller.claimAndReloadGlobalState();
       List<String> indices = new ArrayList<>(controller.getIndicesToStart());
       runParallel(indices, name -> controller.claimIndex(name));
       checkStillLeader(change, epoch);
+      indicesMayBePrimary = true;
       runParallel(indices, name -> controller.restartAsPrimary(name, epoch));
-      checkStillLeader(change, epoch);
-      activeEpoch = epoch;
-      role = Role.ACTIVE;
+      synchronized (this) {
+        checkStillLeader(change, epoch);
+        activeEpoch = epoch;
+        role = Role.ACTIVE;
+      }
       logger.info("Active primary at epoch {}, indices: {}", epoch, indices);
     } catch (Throwable t) {
       logger.error("Failed to promote at epoch {}, resigning", epoch, t);
-      elector.resign();
-      synchronized (this) {
-        if (change == leadershipChangeCount) {
-          onLost(leaderInfo);
-        }
-      }
+      resignAndDemote(epoch);
     }
   }
 
@@ -218,15 +237,23 @@ public class LeaderManager implements Closeable, LeaderListener {
       logger.info("Skipping stale demotion: {}", reason);
       return;
     }
-    logger.warn("Demoting to standby: {}", reason);
-    try {
-      List<String> indices = new ArrayList<>(controller.getIndicesToStart());
-      runParallel(indices, name -> controller.restartAsStandby(name));
-    } catch (Throwable t) {
-      logger.error("Error restarting indices as standby", t);
+    if (!indicesMayBePrimary) {
+      // promotion failed before any index restarted as primary, indices are still standby
+      logger.info("Leadership lost before indices became primary, staying standby: {}", reason);
+    } else {
+      logger.warn("Demoting to standby: {}", reason);
+      try {
+        List<String> indices = new ArrayList<>(controller.getIndicesToStart());
+        runParallel(indices, name -> controller.restartAsStandby(name));
+        indicesMayBePrimary = false;
+      } catch (Throwable t) {
+        logger.error("Error restarting indices as standby", t);
+      }
     }
-    if (change == leadershipChangeCount) {
-      role = Role.STANDBY;
+    synchronized (this) {
+      if (change == leadershipChangeCount) {
+        role = Role.STANDBY;
+      }
     }
   }
 
@@ -278,8 +305,12 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   @Override
   public void close() throws IOException {
-    elector.close();
-    fence.deactivate();
+    synchronized (this) {
+      closed = true;
+    }
+    // stop transitions first, so resigning below does not restart indices during shutdown
     transitionExecutor.shutdownNow();
+    fence.deactivate();
+    elector.close();
   }
 }

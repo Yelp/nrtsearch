@@ -54,6 +54,11 @@ public class ManualElectorPlugin extends Plugin implements PrimaryElectorPlugin 
       return info.epoch();
     }
 
+    /** If any node currently holds leadership. */
+    public boolean hasLeader() {
+      return leader != null;
+    }
+
     /** Revoke leadership from the current leader, if any. */
     public synchronized void revokeCurrent() {
       LeaderInfo current = leader;

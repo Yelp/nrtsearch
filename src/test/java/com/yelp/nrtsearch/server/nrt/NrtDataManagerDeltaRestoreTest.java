@@ -141,4 +141,41 @@ public class NrtDataManagerDeltaRestoreTest {
     assertTrue(follower.isStandbyFollower());
     assertTrue(follower.getIsolatedReplicaConfig(server) == standby);
   }
+
+  @Test
+  public void testSubdirectoriesRemoved() throws IOException {
+    Path local = folder.newFolder("local").toPath();
+    Path other = folder.newFolder("other").toPath();
+    NrtFileMetaData remote = writeLuceneFile(other, "_0.cfs", "content");
+    Path sub = Files.createDirectories(local.resolve("stale_dir"));
+    Files.writeString(sub.resolve("f"), "x");
+    assertEquals(
+        Map.of("_0.cfs", remote),
+        NrtDataManager.prepareDeltaRestore(local, Map.of("_0.cfs", remote)));
+    assertFalse(Files.exists(sub));
+  }
+
+  /** Without remote data to compare against, keepMatchingLocalFiles must still wipe local data. */
+  @Test
+  public void testStaleLocalFilesRemovedWithoutRemoteData() throws IOException {
+    Path local = folder.newFolder("local").toPath();
+    Files.writeString(local.resolve("_0.cfs"), "stale");
+    com.yelp.nrtsearch.server.remote.RemoteBackend backend =
+        org.mockito.Mockito.mock(com.yelp.nrtsearch.server.remote.RemoteBackend.class);
+    NrtDataManager manager =
+        new NrtDataManager(
+            "s",
+            "i",
+            "p",
+            backend,
+            com.yelp.nrtsearch.server.grpc.RestoreIndex.newBuilder()
+                .setDeleteExistingData(true)
+                .build(),
+            true,
+            true,
+            true,
+            new NrtDataManager.StartOptions(true, null));
+    manager.restoreIfNeeded(local);
+    assertFalse(Files.exists(local.resolve("_0.cfs")));
+  }
 }

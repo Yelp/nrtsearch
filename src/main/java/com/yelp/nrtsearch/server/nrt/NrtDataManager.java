@@ -35,19 +35,29 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -213,7 +223,7 @@ public class NrtDataManager implements Closeable {
       boolean s3RefreshUpload,
       boolean notifyReplicasAfterUpload,
       StartOptions startOptions) {
-    this.startOptions = java.util.Objects.requireNonNull(startOptions);
+    this.startOptions = Objects.requireNonNull(startOptions);
     if (s3RefreshUpload && !remoteCommit) {
       throw new IllegalArgumentException("s3RefreshUpload requires remoteCommit to be enabled");
     }
@@ -271,9 +281,8 @@ public class NrtDataManager implements Closeable {
   static Map<String, NrtFileMetaData> prepareDeltaRestore(
       Path shardDataDir, Map<String, NrtFileMetaData> pointFiles) throws IOException {
     Map<String, NrtFileMetaData> toDownload = new HashMap<>();
-    java.util.Set<String> keep = new java.util.HashSet<>();
-    try (org.apache.lucene.store.FSDirectory dir =
-        org.apache.lucene.store.FSDirectory.open(shardDataDir)) {
+    Set<String> keep = new HashSet<>();
+    try (FSDirectory dir = FSDirectory.open(shardDataDir)) {
       for (Map.Entry<String, NrtFileMetaData> entry : pointFiles.entrySet()) {
         if (localFileMatches(dir, entry.getKey(), entry.getValue())) {
           keep.add(entry.getKey());
@@ -282,10 +291,13 @@ public class NrtDataManager implements Closeable {
         }
       }
     }
-    try (java.util.stream.Stream<Path> files = java.nio.file.Files.list(shardDataDir)) {
+    // index files are flat in the shard data dir; anything else (including directories) is removed
+    try (Stream<Path> files = Files.list(shardDataDir)) {
       for (Path file : (Iterable<Path>) files::iterator) {
-        if (!keep.contains(file.getFileName().toString())) {
-          java.nio.file.Files.deleteIfExists(file);
+        if (Files.isDirectory(file)) {
+          FileUtils.deleteAllFiles(file);
+        } else if (!keep.contains(file.getFileName().toString())) {
+          Files.deleteIfExists(file);
         }
       }
     }
@@ -297,14 +309,13 @@ public class NrtDataManager implements Closeable {
   }
 
   private static boolean localFileMatches(
-      org.apache.lucene.store.Directory dir, String fileName, NrtFileMetaData expected) {
+      Directory dir, String fileName, NrtFileMetaData expected) {
     try {
       if (dir.fileLength(fileName) != expected.length) {
         return false;
       }
-      try (org.apache.lucene.store.IndexInput in =
-          dir.openInput(fileName, org.apache.lucene.store.IOContext.READONCE)) {
-        return org.apache.lucene.codecs.CodecUtil.retrieveChecksum(in) == expected.checksum;
+      try (IndexInput in = dir.openInput(fileName, IOContext.READONCE)) {
+        return CodecUtil.retrieveChecksum(in) == expected.checksum;
       }
     } catch (Exception e) {
       return false;
@@ -432,10 +443,13 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex == null) {
       return;
     }
-    if (restoreIndex.getDeleteExistingData() && !startOptions.keepMatchingLocalFiles()) {
+    boolean hasRestoreData = hasRestoreData();
+    // matching local files are only kept when there is remote data to compare them against
+    if (restoreIndex.getDeleteExistingData()
+        && !(startOptions.keepMatchingLocalFiles() && hasRestoreData)) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
-    if (hasRestoreData()) {
+    if (hasRestoreData) {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
       RemoteBackend.InputStreamWithTimestamp pointStateWithTimestamp =
           remoteBackend.downloadPointState(
