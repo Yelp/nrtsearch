@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * Configuration for lazy loading of index files on replicas. Index files with one of the configured
  * extensions are not downloaded when a replica restores or copies an index version. Instead, a
  * small stub file is written locally, and reads of the file fetch byte ranges from the remote
- * backend through an on-disk block cache.
+ * backend through a block cache, kept in memory by default.
  *
  * <p>The intended use is full precision vectors ({@code .vec}) of quantized vector fields. Searches
  * use the quantized vectors ({@code .veq}) and the HNSW graph ({@code .vex}), which stay local, and
@@ -37,11 +37,20 @@ import java.util.stream.Collectors;
 public class LazyRemoteDataConfig {
   public static final String CONFIG_PREFIX = "lazyRemoteData.";
   public static final List<String> DEFAULT_EXTENSIONS = List.of("vec");
-  public static final long DEFAULT_CACHE_SIZE_MB = 1024;
-  public static final int DEFAULT_BLOCK_SIZE_KB = 1024;
+  public static final long DEFAULT_CACHE_SIZE_MB = 512;
+  public static final int DEFAULT_BLOCK_SIZE_KB = 64;
+
+  /** Where cached blocks are kept. */
+  public enum CacheType {
+    /** On the heap. Fastest, sized against the JVM heap. */
+    MEMORY,
+    /** In files on local disk, for caches larger than the heap allows. */
+    DISK
+  }
 
   private final boolean enabled;
   private final Set<String> extensions;
+  private final CacheType cacheType;
   private final String cacheDir;
   private final long cacheSizeBytes;
   private final int blockSizeBytes;
@@ -51,21 +60,36 @@ public class LazyRemoteDataConfig {
     boolean enabled = configReader.getBoolean(CONFIG_PREFIX + "enabled", false);
     List<String> extensions =
         configReader.getStringList(CONFIG_PREFIX + "extensions", DEFAULT_EXTENSIONS);
+    String cacheTypeName = configReader.getString(CONFIG_PREFIX + "cacheType", "MEMORY");
+    CacheType cacheType;
+    try {
+      cacheType = CacheType.valueOf(cacheTypeName.toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "lazyRemoteData.cacheType must be MEMORY or DISK, got: " + cacheTypeName);
+    }
     String cacheDir = configReader.getString(CONFIG_PREFIX + "cacheDir", "");
     long cacheSizeMB = configReader.getLong(CONFIG_PREFIX + "cacheSizeMB", DEFAULT_CACHE_SIZE_MB);
     int blockSizeKB = configReader.getInteger(CONFIG_PREFIX + "blockSizeKB", DEFAULT_BLOCK_SIZE_KB);
-    return new LazyRemoteDataConfig(enabled, extensions, cacheDir, cacheSizeMB, blockSizeKB);
+    return new LazyRemoteDataConfig(
+        enabled, extensions, cacheType, cacheDir, cacheSizeMB, blockSizeKB);
   }
 
   public static LazyRemoteDataConfig disabled() {
     return new LazyRemoteDataConfig(
-        false, DEFAULT_EXTENSIONS, "", DEFAULT_CACHE_SIZE_MB, DEFAULT_BLOCK_SIZE_KB);
+        false,
+        DEFAULT_EXTENSIONS,
+        CacheType.MEMORY,
+        "",
+        DEFAULT_CACHE_SIZE_MB,
+        DEFAULT_BLOCK_SIZE_KB);
   }
 
   /**
    * @param enabled whether lazy loading is enabled
    * @param extensions file extensions to load lazily, without the leading dot
-   * @param cacheDir directory for the block cache, or empty to use a directory under the node's
+   * @param cacheType where to keep cached blocks
+   * @param cacheDir directory for a disk block cache, or empty to use a directory under the node's
    *     index directory
    * @param cacheSizeMB maximum size of the block cache in MB
    * @param blockSizeKB size of each block read from the remote backend in KB
@@ -73,6 +97,7 @@ public class LazyRemoteDataConfig {
   public LazyRemoteDataConfig(
       boolean enabled,
       List<String> extensions,
+      CacheType cacheType,
       String cacheDir,
       long cacheSizeMB,
       int blockSizeKB) {
@@ -82,6 +107,7 @@ public class LazyRemoteDataConfig {
             .map(e -> e.startsWith(".") ? e.substring(1) : e)
             .map(e -> e.toLowerCase(Locale.ROOT))
             .collect(Collectors.toUnmodifiableSet());
+    this.cacheType = Objects.requireNonNull(cacheType);
     this.cacheDir = cacheDir == null ? "" : cacheDir;
     if (cacheSizeMB <= 0) {
       throw new IllegalArgumentException(
@@ -104,6 +130,10 @@ public class LazyRemoteDataConfig {
 
   public Set<String> getExtensions() {
     return extensions;
+  }
+
+  public CacheType getCacheType() {
+    return cacheType;
   }
 
   public String getCacheDir() {

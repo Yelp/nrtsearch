@@ -60,15 +60,15 @@ public class LazyRemoteDirectoryTest {
   private byte[] fileBytes;
   private NrtFileMetaData meta;
   private final LazyRemoteDataConfig config =
-      new LazyRemoteDataConfig(true, List.of("vec"), "", 1, 4);
+      new LazyRemoteDataConfig(
+          true, List.of("vec"), LazyRemoteDataConfig.CacheType.MEMORY, "", 1, 4);
 
   @Before
   public void setUp() throws Exception {
     path = folder.newFolder("index").toPath();
     base = new NIOFSDirectory(path);
     backend = mock(RemoteBackend.class);
-    RemoteBlockCache cache =
-        new RemoteBlockCache(folder.newFolder("cache").toPath(), 1024 * 1024, 4096);
+    RemoteBlockCache cache = new RemoteBlockCache.Memory(1024 * 1024, 4096);
     dir = new LazyRemoteDirectory(base, path, "service", backend, cache, config);
 
     // Build a real Lucene file (header + body + footer) in a scratch directory
@@ -175,15 +175,23 @@ public class LazyRemoteDirectoryTest {
 
   @Test
   public void testConfig() {
-    LazyRemoteDataConfig c = new LazyRemoteDataConfig(true, List.of(".VEC", "veq"), "", 10, 64);
+    LazyRemoteDataConfig c =
+        new LazyRemoteDataConfig(
+            true, List.of(".VEC", "veq"), LazyRemoteDataConfig.CacheType.DISK, "", 10, 64);
     assertTrue(c.isLazyFile("_0_Lucene99HnswVectorsFormat_0.vec"));
     assertTrue(c.isLazyFile("_0.veq"));
     assertFalse(c.isLazyFile("_0.vex"));
     assertFalse(c.isLazyFile("segments_1"));
     assertFalse(LazyRemoteDataConfig.disabled().isLazyFile("_0.vec"));
     assertThrows(
-        IllegalArgumentException.class, () -> new LazyRemoteDataConfig(true, List.of(), "", 0, 64));
+        IllegalArgumentException.class,
+        () ->
+            new LazyRemoteDataConfig(
+                true, List.of(), LazyRemoteDataConfig.CacheType.MEMORY, "", 0, 64));
     assertThrows(
-        IllegalArgumentException.class, () -> new LazyRemoteDataConfig(true, List.of(), "", 1, 1));
+        IllegalArgumentException.class,
+        () ->
+            new LazyRemoteDataConfig(
+                true, List.of(), LazyRemoteDataConfig.CacheType.MEMORY, "", 1, 1));
   }
 }

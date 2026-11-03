@@ -195,17 +195,40 @@ Isolated replicas (``isolatedReplicaConfig.enabled: true``) can leave the ``.vec
   lazyRemoteData:
     enabled: true
     extensions: [vec]
-    cacheSizeMB: 4096
+    cacheType: MEMORY   # or DISK for a cache larger than the heap
+    cacheSizeMB: 512
     blockSizeKB: 64
 
 When the replica restores or copies an index version, each ``.vec`` file is written as a small
 stub holding its S3 location, length, header and footer. Lucene sees a normal file: opening it and
 checking its identity needs no S3 read. Rescoring reads the blocks it needs with S3 byte range
-requests, and keeps them in an on-disk LRU block cache shared by the node.
+requests, and keeps them in an LRU block cache shared by the node, on the heap by default.
 
 Files inside compound (``.cfs``) files can't be lazy, so the gateway creates indexes with compound
 files turned off (``useCompoundFile: false``, ``noCFSRatio: 0``). Use ``--compoundFiles`` to keep
 them.
+
+Cache metrics are exported on ``/status/metrics`` with a ``cache_type`` label:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Metric
+     - Description
+   * - ``nrt_lazy_remote_cache_hits_total``, ``nrt_lazy_remote_cache_misses_total``
+     - Block reads served from the cache, and loaded from S3.
+   * - ``nrt_lazy_remote_cache_remote_bytes_total``
+     - Bytes read from S3.
+   * - ``nrt_lazy_remote_cache_remote_load_seconds_total``
+     - Time spent loading blocks from S3. Divide by misses for the average load latency.
+   * - ``nrt_lazy_remote_cache_load_errors_total``
+     - Failed block loads.
+   * - ``nrt_lazy_remote_cache_evictions_total``
+     - Blocks evicted to stay within ``cacheSizeMB``.
+   * - ``nrt_lazy_remote_cache_size_bytes``, ``nrt_lazy_remote_cache_blocks``
+     - Current cache size.
+   * - ``nrt_lazy_remote_cache_max_bytes``, ``nrt_lazy_remote_cache_block_size_bytes``
+     - Configured limits.
 
 Trade offs:
 

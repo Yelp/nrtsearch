@@ -30,9 +30,19 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class LazyRemoteIndexInputTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+
+  @Parameterized.Parameters(name = "{0}")
+  public static List<Object[]> cacheTypes() {
+    return List.of(new Object[] {"memory"}, new Object[] {"disk"});
+  }
+
+  @Parameterized.Parameter public String cacheType;
 
   private static final int BLOCK = 4096;
   private byte[] data;
@@ -43,7 +53,10 @@ public class LazyRemoteIndexInputTest {
   public void setUp() throws Exception {
     data = new byte[BLOCK * 10 + 123];
     new Random(1).nextBytes(data);
-    cache = new RemoteBlockCache(folder.newFolder("cache").toPath(), BLOCK * 4L, BLOCK);
+    cache =
+        cacheType.equals("memory")
+            ? new RemoteBlockCache.Memory(BLOCK * 4L, BLOCK)
+            : new RemoteBlockCache.Disk(folder.newFolder("cache").toPath(), BLOCK * 4L, BLOCK);
   }
 
   private IndexInput open(byte[] header, byte[] footer) {

@@ -90,6 +90,7 @@ import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
+import com.yelp.nrtsearch.server.monitoring.LazyRemoteCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.MergeSchedulerCollector;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
@@ -285,6 +286,7 @@ public class NrtsearchServer {
     WarmingMetrics.register(prometheusRegistry);
     // register directory size metrics
     prometheusRegistry.register(new DirSizeCollector(globalState));
+    prometheusRegistry.register(new LazyRemoteCacheCollector(globalState));
     prometheusRegistry.register(new ProcStatCollector());
     prometheusRegistry.register(new MergeSchedulerCollector(globalState));
     prometheusRegistry.register(new SearchResponseCollector(globalState));

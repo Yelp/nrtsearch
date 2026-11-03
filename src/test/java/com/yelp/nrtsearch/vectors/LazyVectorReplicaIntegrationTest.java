@@ -23,10 +23,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.monitoring.LazyRemoteCacheCollector;
 import com.yelp.nrtsearch.server.nrt.lazy.LazyFileStub;
 import com.yelp.nrtsearch.server.nrt.lazy.LazyRemoteDirectory;
 import com.yelp.nrtsearch.server.nrt.lazy.RemoteBlockCache;
@@ -160,6 +162,7 @@ public class LazyVectorReplicaIntegrationTest {
                     "lazyRemoteData:",
                     "  enabled: true",
                     "  extensions: [vec]",
+                    "  cacheType: MEMORY",
                     "  cacheSizeMB: 64",
                     "  blockSizeKB: 4"))
             .build();
@@ -242,6 +245,25 @@ public class LazyVectorReplicaIntegrationTest {
         "remote bytes " + cache.getRemoteBytes() + " vs vec bytes " + vecBytes,
         cache.getRemoteBytes() <= vecBytes);
     int stubsBefore = files(indexPath, ".vec" + LazyFileStub.STUB_SUFFIX).size();
+
+    // the cache stats are exported through the server's prometheus endpoint. TestServer does not
+    // run NrtsearchServer.registerMetrics, so register the collector the same way it does.
+    replica
+        .getPrometheusRegistry()
+        .register(new LazyRemoteCacheCollector(replica.getGlobalState()));
+    String metrics =
+        replica
+            .getClient()
+            .getBlockingStub()
+            .metrics(Empty.newBuilder().build())
+            .getData()
+            .toStringUtf8();
+    assertTrue(
+        metrics,
+        metrics.contains(
+            "nrt_lazy_remote_cache_misses_total{cache_type=\"memory\"} " + cache.getMisses()));
+    assertTrue(metrics.contains("nrt_lazy_remote_cache_remote_bytes_total{cache_type=\"memory\"}"));
+    assertTrue(metrics.contains("nrt_lazy_remote_cache_size_bytes{cache_type=\"memory\"}"));
 
     // GetVectors returns full precision data through the lazy files
     ObjectNode get = req();

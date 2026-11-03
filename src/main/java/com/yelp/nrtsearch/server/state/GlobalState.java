@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.state;
 
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
-import com.yelp.nrtsearch.server.config.LazyRemoteDataConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
@@ -83,20 +82,20 @@ public abstract class GlobalState implements Closeable {
 
   private RemoteBlockCache lazyRemoteBlockCache;
 
+  /** Get the lazy remote block cache if it has been created, or null. Used for metrics. */
+  public synchronized RemoteBlockCache getLazyRemoteBlockCacheIfCreated() {
+    return lazyRemoteBlockCache;
+  }
+
   /**
-   * Get the block cache shared by all lazily loaded remote files on this node, creating it on first
-   * use.
+   * Get the block cache shared by all lazily loaded remote files on this node. It is created on
+   * first use, so nodes without lazy files have no cache.
    */
   public synchronized RemoteBlockCache getLazyRemoteBlockCache() throws IOException {
     if (lazyRemoteBlockCache == null) {
-      LazyRemoteDataConfig lazyConfig = configuration.getLazyRemoteDataConfig();
-      Path cacheDir =
-          lazyConfig.getCacheDir().isEmpty()
-              ? indexDirBase.resolve("lazy_remote_cache")
-              : Paths.get(lazyConfig.getCacheDir());
       lazyRemoteBlockCache =
-          new RemoteBlockCache(
-              cacheDir, lazyConfig.getCacheSizeBytes(), lazyConfig.getBlockSizeBytes());
+          RemoteBlockCache.create(
+              configuration.getLazyRemoteDataConfig(), indexDirBase.resolve("lazy_remote_cache"));
     }
     return lazyRemoteBlockCache;
   }

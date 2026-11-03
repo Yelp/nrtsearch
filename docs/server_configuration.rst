@@ -996,18 +996,23 @@ Example server configuration
      - File extensions to load lazily, without the dot. ``vec`` holds full precision vectors, which quantized vector fields only read to rescore the top hits.
      - [vec]
 
+   * - cacheType
+     - enum
+     - Where cached blocks are kept. ``MEMORY`` keeps them on the JVM heap. ``DISK`` keeps them in files under ``cacheDir``, for caches larger than the heap should hold; hits then cost a file read, usually served by the OS page cache. Both start empty when the node starts.
+     - ``MEMORY``
+
    * - cacheDir
      - str
-     - Directory for the block cache. Emptied on startup.
+     - Directory for a ``DISK`` block cache. Emptied on startup.
      - ``<indexDir>/lazy_remote_cache``
 
    * - cacheSizeMB
      - long
-     - Maximum size of the block cache, shared by all indices on the node. The least recently used blocks are evicted.
-     - 1024
+     - Maximum size of the block cache, shared by all indices on the node. The least recently used blocks are evicted. With ``MEMORY``, size the heap to include it.
+     - 512
 
    * - blockSizeKB
      - int
-     - Size of the byte range read from S3 for each cache miss. Smaller blocks read less data for scattered reads (such as rescoring), larger blocks need fewer requests for sequential reads. Must be between 4 and 65536.
-     - 1024
+     - Size of the byte range read from S3 for each cache miss. Smaller blocks read less data for scattered reads (such as rescoring), larger blocks need fewer requests for sequential reads. With ``MEMORY``, keep blocks below half the G1 region size to avoid humongous allocations. Must be between 4 and 65536.
+     - 64
 
