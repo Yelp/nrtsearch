@@ -73,6 +73,12 @@ public class S3LeaseElectorTest {
     }
   }
 
+  /** Epoch of the first election event recorded by a node. */
+  private static long e1(Node n) {
+    String first = n.listener().get().get(0);
+    return Long.parseLong(first.substring(first.indexOf(':') + 1));
+  }
+
   @Before
   public void setUp() {
     store = new InMemoryConditionalObjectStore();
@@ -89,11 +95,14 @@ public class S3LeaseElectorTest {
 
   @Test
   public void testFirstNodeAcquires() throws Exception {
+    long start = System.currentTimeMillis();
     Node a = node("a");
     a.tick();
     assertTrue(a.elector().isLeader());
-    assertEquals(1, a.elector().getLeaderEpoch());
-    assertEquals(List.of("elected:1"), a.listener().get());
+    // initial epoch is wall clock based, newer than legacy start time primaryGens
+    long epoch = a.elector().getLeaderEpoch();
+    assertTrue(epoch >= start);
+    assertEquals(List.of("elected:" + epoch), a.listener().get());
     assertEquals("a", a.elector().currentLeader().get().leaderId());
   }
 
@@ -105,7 +114,7 @@ public class S3LeaseElectorTest {
     b.tick();
     assertFalse(b.elector().isLeader());
     assertEquals("a", b.elector().currentLeader().get().leaderId());
-    assertEquals(1, b.elector().currentLeader().get().epoch());
+    assertEquals(a.elector().getLeaderEpoch(), b.elector().currentLeader().get().epoch());
   }
 
   @Test
@@ -122,7 +131,7 @@ public class S3LeaseElectorTest {
       assertTrue(a.elector().isLeader());
       assertFalse(b.elector().isLeader());
     }
-    assertEquals(List.of("elected:1"), a.listener().get());
+    assertEquals(List.of("elected:" + e1(a)), a.listener().get());
     assertEquals(List.of(), b.listener().get());
   }
 
@@ -131,6 +140,7 @@ public class S3LeaseElectorTest {
     Node a = node("a");
     Node b = node("b");
     a.tick();
+    long epochA = a.elector().getLeaderEpoch();
     b.tick();
     // a stops renewing; b must wait ttl + margin after first seeing this version
     b.clock().advanceMs(TTL);
@@ -139,8 +149,9 @@ public class S3LeaseElectorTest {
     b.clock().advanceMs(MARGIN + 1);
     b.tick();
     assertTrue(b.elector().isLeader());
-    assertEquals(2, b.elector().getLeaderEpoch());
-    assertEquals(List.of("elected:2"), b.listener().get());
+    long epochB = b.elector().getLeaderEpoch();
+    assertEquals(epochA + 1, epochB);
+    assertEquals(List.of("elected:" + epochB), b.listener().get());
   }
 
   @Test
@@ -168,7 +179,7 @@ public class S3LeaseElectorTest {
     // a wakes, must not renew stale lease
     a.tick();
     assertFalse(a.elector().isLeader());
-    assertEquals(List.of("elected:1", "lost:1"), a.listener().get());
+    assertEquals(List.of("elected:" + e1(a), "lost:" + e1(a)), a.listener().get());
     assertTrue(new String(store.get(KEY).get().data()).contains("\"leaderId\":\"b\""));
   }
 
@@ -182,7 +193,7 @@ public class S3LeaseElectorTest {
     a.clock().advanceMs(POLL);
     a.tick();
     assertFalse(a.elector().isLeader());
-    assertEquals(List.of("elected:1", "lost:1"), a.listener().get());
+    assertEquals(List.of("elected:" + e1(a), "lost:" + e1(a)), a.listener().get());
   }
 
   @Test
@@ -194,10 +205,10 @@ public class S3LeaseElectorTest {
     a.elector().resign();
     a.elector().drainListener();
     assertFalse(a.elector().isLeader());
-    assertEquals(List.of("elected:1", "lost:1"), a.listener().get());
+    assertEquals(List.of("elected:" + e1(a), "lost:" + e1(a)), a.listener().get());
     b.tick();
     assertTrue(b.elector().isLeader());
-    assertEquals(2, b.elector().getLeaderEpoch());
+    assertEquals(e1(a) + 1, b.elector().getLeaderEpoch());
   }
 
   @Test

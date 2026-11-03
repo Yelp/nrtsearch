@@ -70,6 +70,7 @@ public class S3LeaseElector implements PrimaryElector {
   private final long safetyMarginNanos;
   private final long pollIntervalMs;
   private final LongSupplier nanoClock;
+  private final LongSupplier wallClockMs;
 
   private final ExecutorService listenerExecutor =
       Executors.newSingleThreadExecutor(
@@ -147,6 +148,7 @@ public class S3LeaseElector implements PrimaryElector {
     this.safetyMarginNanos = TimeUnit.MILLISECONDS.toNanos(safetyMarginMs);
     this.pollIntervalMs = pollIntervalMs;
     this.nanoClock = nanoClock;
+    this.wallClockMs = System::currentTimeMillis;
   }
 
   @Override
@@ -216,7 +218,9 @@ public class S3LeaseElector implements PrimaryElector {
     Optional<VersionedObject> current = store.get(leaseKey);
     long now = nanoClock.getAsLong();
     if (current.isEmpty()) {
-      tryAcquire(null, lastSeenEpoch + 1, now);
+      // the first epoch must be newer than any existing primaryGen, which before leader election
+      // was the primary start time in ms
+      tryAcquire(null, Math.max(lastSeenEpoch + 1, wallClockMs.getAsLong()), now);
       return;
     }
     VersionedObject obj = current.get();
