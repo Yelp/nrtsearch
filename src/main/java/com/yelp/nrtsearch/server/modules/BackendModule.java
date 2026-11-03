@@ -17,17 +17,28 @@ package com.yelp.nrtsearch.server.modules;
 
 import com.google.inject.*;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.leader.LeaderElection;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
+import java.util.Optional;
 
 public class BackendModule extends AbstractModule {
+
+  @Override
+  protected void configure() {
+    // the remote backend depends on the leader election pointer fence
+    install(new LeaderModule());
+  }
 
   @Inject
   @Singleton
   @Provides
   protected RemoteBackend providesRemoteBackend(
-      NrtsearchConfig configuration, S3Util.S3ClientBundle s3ClientBundle) {
-    return new S3Backend(configuration, s3ClientBundle);
+      NrtsearchConfig configuration,
+      S3Util.S3ClientBundle s3ClientBundle,
+      Optional<LeaderElection> leaderElection) {
+    return new S3Backend(
+        configuration, s3ClientBundle, leaderElection.map(LeaderElection::fence).orElse(null));
   }
 }

@@ -53,7 +53,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final String nodeName;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
-  private volatile boolean enforcePrimaryGenOrdering = false;
+  private final boolean enforcePrimaryGenOrdering;
   private final NrtDataManager nrtDataManager;
   final NrtCopyThread nrtCopyThread;
 
@@ -79,6 +79,49 @@ public class NRTReplicaNode extends ReplicaNode {
       int lowPriorityCopyPercentage,
       boolean s3ReplicaRefreshDownload)
       throws IOException {
+    this(
+        indexName,
+        indexId,
+        primaryAddress,
+        hostPort,
+        nodeName,
+        indexDir,
+        searcherFactory,
+        isolatedReplicaConfig,
+        nrtDataManager,
+        printStream,
+        ackedCopy,
+        decInitialCommit,
+        filterIncompatibleSegmentReaders,
+        lowPriorityCopyPercentage,
+        s3ReplicaRefreshDownload,
+        false);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param enforcePrimaryGenOrdering reject replication requests from a primary with a generation
+   *     lower than the last one seen
+   */
+  public NRTReplicaNode(
+      String indexName,
+      String indexId,
+      ReplicationServerClient primaryAddress,
+      HostPort hostPort,
+      String nodeName,
+      Directory indexDir,
+      SearcherFactory searcherFactory,
+      IsolatedReplicaConfig isolatedReplicaConfig,
+      NrtDataManager nrtDataManager,
+      PrintStream printStream,
+      boolean ackedCopy,
+      boolean decInitialCommit,
+      boolean filterIncompatibleSegmentReaders,
+      int lowPriorityCopyPercentage,
+      boolean s3ReplicaRefreshDownload,
+      boolean enforcePrimaryGenOrdering)
+      throws IOException {
     // the id is always 0, the nodeName is the identifier
     super(0, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
@@ -90,6 +133,7 @@ public class NRTReplicaNode extends ReplicaNode {
     this.nrtDataManager = nrtDataManager;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
+    this.enforcePrimaryGenOrdering = enforcePrimaryGenOrdering;
 
     if (isolatedReplicaConfig.isEnabled()) {
       if (hasPrimaryConnection()) {
@@ -211,12 +255,9 @@ public class NRTReplicaNode extends ReplicaNode {
     }
   }
 
-  /**
-   * Set if this replica should reject replication requests from a primary with a generation lower
-   * than the last one seen. Must be called before the node is started.
-   */
-  public void setEnforcePrimaryGenOrdering(boolean enforcePrimaryGenOrdering) {
-    this.enforcePrimaryGenOrdering = enforcePrimaryGenOrdering;
+  /** Get the data manager for this replica. */
+  public NrtDataManager getNrtDataManager() {
+    return nrtDataManager;
   }
 
   /** Get the generation of the last primary this replica has received data from. */

@@ -35,7 +35,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
-import com.yelp.nrtsearch.server.leader.ConditionalObjectStore;
+import com.yelp.nrtsearch.server.leader.LeaderElection;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -120,6 +121,7 @@ public class TestServer {
   private LuceneServerImpl serverImpl;
   private ExecutorFactory executorFactory;
   private RemoteBackend remoteBackend;
+  private Optional<LeaderElection> leaderElection = Optional.empty();
   private PrometheusRegistry prometheusRegistry;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
@@ -285,12 +287,13 @@ public class TestServer {
     software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
         software.amazon.awssdk.transfer.s3.S3TransferManager.builder().s3Client(s3Async).build();
     // s3mock does not enforce conditional writes, use a store that does CAS in process
-    return new S3Backend(configuration, new S3Util.S3ClientBundle(s3, s3Async)) {
-      @Override
-      public ConditionalObjectStore getConditionalObjectStore() {
-        return new WriteThroughConditionalStore(s3, TEST_BUCKET);
-      }
-    };
+    leaderElection =
+        LeaderElection.fromConfig(
+            configuration, () -> new WriteThroughConditionalStore(s3, TEST_BUCKET));
+    return new S3Backend(
+        configuration,
+        new S3Util.S3ClientBundle(s3, s3Async),
+        leaderElection.map(LeaderElection::fence).orElse(null));
   }
 
   public void restart() throws IOException {
@@ -306,7 +309,12 @@ public class TestServer {
     prometheusRegistry = new PrometheusRegistry();
     serverImpl =
         new LuceneServerImpl(
-            configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
+            configuration,
+            remoteBackend,
+            prometheusRegistry,
+            executorFactory,
+            plugins,
+            leaderElection);
 
     replicationServer =
         ServerBuilder.forPort(0)

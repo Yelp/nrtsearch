@@ -87,15 +87,20 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final EpochPointerFence fence;
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
-  private volatile IndexRoleController controller;
+  private final IndexRoleController controller;
   private volatile Role role = Role.STANDBY;
   private volatile long activeEpoch = -1;
   // incremented on every leadership change, lets queued transitions detect they are stale
   private volatile long leadershipChangeCount = 0;
 
-  public LeaderManager(PrimaryElector elector, EpochPointerFence fence, int claimConcurrency) {
+  public LeaderManager(
+      PrimaryElector elector,
+      EpochPointerFence fence,
+      int claimConcurrency,
+      IndexRoleController controller) {
     this.elector = Objects.requireNonNull(elector);
     this.fence = Objects.requireNonNull(fence);
+    this.controller = Objects.requireNonNull(controller);
     this.claimConcurrency = claimConcurrency;
     this.transitionExecutor =
         Executors.newSingleThreadExecutor(
@@ -104,12 +109,11 @@ public class LeaderManager implements Closeable, LeaderListener {
               t.setDaemon(true);
               return t;
             });
-    fence.setOnFenced(this::onFenced);
+    fence.registerFencedListener(this::onFenced);
   }
 
   /** Start participating in election. Indices should already be started as standby. */
-  public void start(IndexRoleController controller) {
-    this.controller = Objects.requireNonNull(controller);
+  public void start() {
     elector.start(this);
   }
 

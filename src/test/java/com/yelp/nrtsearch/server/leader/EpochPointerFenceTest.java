@@ -88,7 +88,7 @@ public class EpochPointerFenceTest {
   public void testStaleLeaderFencedAfterNewLeaderClaims() throws Exception {
     List<FencedException> fencedEvents = new ArrayList<>();
     EpochPointerFence oldLeader = new EpochPointerFence(store);
-    oldLeader.setOnFenced(fencedEvents::add);
+    oldLeader.registerFencedListener(fencedEvents::add);
     oldLeader.activate(1);
     oldLeader.claim(KEY);
     oldLeader.write(KEY, "a1");
@@ -132,7 +132,7 @@ public class EpochPointerFenceTest {
 
     List<FencedException> fencedEvents = new ArrayList<>();
     EpochPointerFence older = new EpochPointerFence(store);
-    older.setOnFenced(fencedEvents::add);
+    older.registerFencedListener(fencedEvents::add);
     older.activate(4);
     assertThrows(FencedException.class, () -> older.claim(KEY));
     assertEquals(1, fencedEvents.size());

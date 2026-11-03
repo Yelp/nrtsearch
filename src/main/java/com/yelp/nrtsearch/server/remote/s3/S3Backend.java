@@ -127,7 +127,7 @@ public class S3Backend implements RemoteBackend {
   private final S3Client s3;
   private final S3AsyncClient s3Async;
   private final String serviceBucket;
-  private volatile EpochPointerFence pointerFence;
+  private final EpochPointerFence pointerFence;
   private final S3TransferManager transferManager;
   private final boolean s3Metrics;
   private final GlobalWindowRateLimiter rateLimiter;
@@ -567,6 +567,21 @@ public class S3Backend implements RemoteBackend {
    * @param s3ClientBundle s3 client bundle
    */
   public S3Backend(NrtsearchConfig configuration, S3Util.S3ClientBundle s3ClientBundle) {
+    this(configuration, s3ClientBundle, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param configuration configuration
+   * @param s3ClientBundle s3 client bundle
+   * @param pointerFence fence for current resource pointer writes when using multi-primary leader
+   *     election, or null to write pointers unconditionally
+   */
+  public S3Backend(
+      NrtsearchConfig configuration,
+      S3Util.S3ClientBundle s3ClientBundle,
+      EpochPointerFence pointerFence) {
     this(
         configuration.getBucketName(),
         configuration.getSavePluginBeforeUnzip(),
@@ -575,7 +590,8 @@ public class S3Backend implements RemoteBackend {
         configuration
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ExecutorFactory.ExecutorType.REMOTE)
-            .maxThreads());
+            .maxThreads(),
+        pointerFence);
   }
 
   /**
@@ -596,7 +612,8 @@ public class S3Backend implements RemoteBackend {
         savePluginBeforeUnzip,
         s3BackendConfig,
         s3ClientBundle,
-        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS);
+        ThreadPoolConfiguration.DEFAULT_REMOTE_THREADS,
+        null);
   }
 
   /**
@@ -608,13 +625,16 @@ public class S3Backend implements RemoteBackend {
    * @param s3ClientBundle s3 client bundle
    * @param defaultParallelism parallelism to use when downloading multipart objects, also the
    *     default batch size when downloading all index files
+   * @param pointerFence fence for current resource pointer writes, or null
    */
   private S3Backend(
       String serviceBucket,
       boolean savePluginBeforeUnzip,
       S3BackendConfig s3BackendConfig,
       S3Util.S3ClientBundle s3ClientBundle,
-      int defaultParallelism) {
+      int defaultParallelism,
+      EpochPointerFence pointerFence) {
+    this.pointerFence = pointerFence;
     this.s3 = s3ClientBundle.s3Client();
     this.s3Async = s3ClientBundle.s3AsyncClient();
     this.transferManager =
@@ -675,14 +695,6 @@ public class S3Backend implements RemoteBackend {
 
   public S3Client getS3() {
     return s3;
-  }
-
-  /**
-   * Get a store for conditional writes to the service bucket, used for leader election and fencing.
-   * Requires S3 conditional write support. Overridable for testing.
-   */
-  public com.yelp.nrtsearch.server.leader.ConditionalObjectStore getConditionalObjectStore() {
-    return new com.yelp.nrtsearch.server.leader.S3ConditionalObjectStore(s3, serviceBucket);
   }
 
   /** Get the bucket used for service data. */
@@ -1862,16 +1874,6 @@ public class S3Backend implements RemoteBackend {
         prefix,
         version,
         fence.getEpoch());
-  }
-
-  @Override
-  public void setPointerFence(EpochPointerFence fence) {
-    this.pointerFence = fence;
-  }
-
-  /** Get the pointer fence, or null if not fenced. */
-  public EpochPointerFence getPointerFence() {
-    return pointerFence;
   }
 
   /** Get the object key of the current pointer for a global resource. */

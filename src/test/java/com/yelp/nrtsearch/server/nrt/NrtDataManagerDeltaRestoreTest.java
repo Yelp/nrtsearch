@@ -116,4 +116,29 @@ public class NrtDataManagerDeltaRestoreTest {
         Map.of("_0.cfs", remote),
         NrtDataManager.prepareDeltaRestore(local, Map.of("_0.cfs", remote)));
   }
+
+  @Test
+  public void testStartOptionsIsolatedReplicaOverride() {
+    com.yelp.nrtsearch.server.config.IsolatedReplicaConfig server =
+        new com.yelp.nrtsearch.server.config.IsolatedReplicaConfig(false, 120, 0, 0);
+    com.yelp.nrtsearch.server.config.IsolatedReplicaConfig standby =
+        new com.yelp.nrtsearch.server.config.IsolatedReplicaConfig(true, 10, 0, 0);
+    NrtDataManager defaults = new NrtDataManager("s", "i", "p", null, null, true, true, true);
+    assertFalse(defaults.isStandbyFollower());
+    assertTrue(defaults.getIsolatedReplicaConfig(server) == server);
+
+    NrtDataManager follower =
+        new NrtDataManager(
+            "s",
+            "i",
+            "p",
+            null,
+            null,
+            true,
+            true,
+            true,
+            new NrtDataManager.StartOptions(false, standby));
+    assertTrue(follower.isStandbyFollower());
+    assertTrue(follower.getIsolatedReplicaConfig(server) == standby);
+  }
 }

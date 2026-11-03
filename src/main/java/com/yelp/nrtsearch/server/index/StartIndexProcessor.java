@@ -84,6 +84,22 @@ public class StartIndexProcessor {
 
   public StartIndexResponse process(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexProcessorException {
+    return process(indexState, startIndexRequest, NrtDataManager.StartOptions.DEFAULT);
+  }
+
+  /**
+   * Start an index.
+   *
+   * @param indexState index state
+   * @param startIndexRequest start request
+   * @param startOptions options for this start that differ from the server configuration
+   * @return start response
+   */
+  public StartIndexResponse process(
+      IndexState indexState,
+      StartIndexRequest startIndexRequest,
+      NrtDataManager.StartOptions startOptions)
+      throws StartIndexProcessorException {
     String indexName = indexState.getName();
     synchronized (startingIndices) {
       if (indexState.isStarted()) {
@@ -98,7 +114,7 @@ public class StartIndexProcessor {
     }
 
     try {
-      return processInternal(indexState, startIndexRequest);
+      return processInternal(indexState, startIndexRequest, startOptions);
     } finally {
       synchronized (startingIndices) {
         startingIndices.remove(indexName);
@@ -107,7 +123,9 @@ public class StartIndexProcessor {
   }
 
   private StartIndexResponse processInternal(
-      IndexState indexState, StartIndexRequest startIndexRequest)
+      IndexState indexState,
+      StartIndexRequest startIndexRequest,
+      NrtDataManager.StartOptions startOptions)
       throws StartIndexProcessorException {
 
     if (requireIdField && indexState.getIdFieldDef().isEmpty()) {
@@ -133,7 +151,8 @@ public class StartIndexProcessor {
             restoreIndex,
             remoteCommit,
             s3RefreshUpload,
-            s3RefreshNotifyAfterUpload);
+            s3RefreshNotifyAfterUpload,
+            startOptions);
     if (mode.equals(Mode.PRIMARY)) {
       primaryGen = startIndexRequest.getPrimaryGen();
       primaryClient = null;

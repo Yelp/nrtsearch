@@ -92,8 +92,7 @@ public class NrtDataManager implements Closeable {
   // Set during restoreIfNeeded, then only accessed by UploadManagerThread
   private volatile NrtPointState lastPointState = null;
 
-  // If restore should keep local files matching the point state, set before restore
-  private volatile boolean keepMatchingLocalFiles = false;
+  private final StartOptions startOptions;
 
   // Set during restoreIfNeeded, then updated by setLastPointState, which only happens on replicas
   // using the isolated replica feature
@@ -170,6 +169,51 @@ public class NrtDataManager implements Closeable {
       boolean remoteCommit,
       boolean s3RefreshUpload,
       boolean notifyReplicasAfterUpload) {
+    this(
+        serviceName,
+        indexIdentifier,
+        ephemeralId,
+        remoteBackend,
+        restoreIndex,
+        remoteCommit,
+        s3RefreshUpload,
+        notifyReplicasAfterUpload,
+        StartOptions.DEFAULT);
+  }
+
+  /**
+   * Options for a single index start that differ from the server configuration, used for multi
+   * primary leader election.
+   *
+   * @param keepMatchingLocalFiles on restore, keep local index files that match the point state
+   *     instead of deleting all local data, so only changed files are downloaded; used when
+   *     promoting a standby that has been following remote data
+   * @param isolatedReplicaOverride if non-null, replicas follow remote data with this config
+   *     instead of the server isolated replica config; used for standby followers
+   */
+  public record StartOptions(
+      boolean keepMatchingLocalFiles, IsolatedReplicaConfig isolatedReplicaOverride) {
+    public static final StartOptions DEFAULT = new StartOptions(false, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param startOptions per start options
+   * @see #NrtDataManager(String, String, String, RemoteBackend, RestoreIndex, boolean, boolean,
+   *     boolean)
+   */
+  public NrtDataManager(
+      String serviceName,
+      String indexIdentifier,
+      String ephemeralId,
+      RemoteBackend remoteBackend,
+      RestoreIndex restoreIndex,
+      boolean remoteCommit,
+      boolean s3RefreshUpload,
+      boolean notifyReplicasAfterUpload,
+      StartOptions startOptions) {
+    this.startOptions = java.util.Objects.requireNonNull(startOptions);
     if (s3RefreshUpload && !remoteCommit) {
       throw new IllegalArgumentException("s3RefreshUpload requires remoteCommit to be enabled");
     }
@@ -201,12 +245,18 @@ public class NrtDataManager implements Closeable {
   }
 
   /**
-   * Keep local index files that match the restored point state instead of deleting all local data,
-   * so that only changed files are downloaded. Used when promoting a standby that has been
-   * following remote data. Must be called before {@link #restoreIfNeeded}.
+   * Get the isolated replica config replicas should use: the start override if set, otherwise the
+   * given server config.
    */
-  public void setKeepMatchingLocalFiles(boolean keepMatchingLocalFiles) {
-    this.keepMatchingLocalFiles = keepMatchingLocalFiles;
+  public IsolatedReplicaConfig getIsolatedReplicaConfig(IsolatedReplicaConfig serverConfig) {
+    return startOptions.isolatedReplicaOverride() != null
+        ? startOptions.isolatedReplicaOverride()
+        : serverConfig;
+  }
+
+  /** If this manager was created for a standby follower. */
+  public boolean isStandbyFollower() {
+    return startOptions.isolatedReplicaOverride() != null;
   }
 
   /**
@@ -382,7 +432,7 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex == null) {
       return;
     }
-    if (restoreIndex.getDeleteExistingData() && !keepMatchingLocalFiles) {
+    if (restoreIndex.getDeleteExistingData() && !startOptions.keepMatchingLocalFiles()) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
     if (hasRestoreData()) {
@@ -402,7 +452,7 @@ public class NrtDataManager implements Closeable {
       long start = System.nanoTime();
       try {
         Map<String, NrtFileMetaData> filesToDownload = pointState.files;
-        if (keepMatchingLocalFiles) {
+        if (startOptions.keepMatchingLocalFiles()) {
           filesToDownload = prepareDeltaRestore(shardDataDir, pointState.files);
         }
         remoteBackend.downloadIndexFiles(

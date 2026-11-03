@@ -257,18 +257,6 @@ public class ShardState implements Closeable {
     }
   }
 
-  private volatile IsolatedReplicaConfig standbyFollowerConfig;
-  private volatile boolean deltaRestore = false;
-
-  /**
-   * Set if a primary start should keep local index files that match the restored point state,
-   * downloading only the difference. Used when promoting a standby follower. Must be set before
-   * {@link #startPrimary}.
-   */
-  public void setDeltaRestore(boolean deltaRestore) {
-    this.deltaRestore = deltaRestore;
-  }
-
   public boolean isPrimary() {
     return nrtPrimaryNode != null;
   }
@@ -277,29 +265,10 @@ public class ShardState implements Closeable {
     return nrtReplicaNode != null;
   }
 
-  /**
-   * Configure this shard to start as a standby follower: a replica that follows index data from
-   * remote storage with the given polling config, independent of the server isolated replica
-   * config. Must be set before {@link #startReplica}.
-   *
-   * @param config follower config, or null to use the server config
-   */
-  public synchronized void setStandbyFollowerConfig(IsolatedReplicaConfig config) {
-    if (isStarted()) {
-      throw new IllegalStateException("Cannot set standby follower config on started index");
-    }
-    this.standbyFollowerConfig = config;
-  }
-
-  /** If this shard was started as a standby follower. */
+  /** If this shard was started as a standby follower for multi-primary leader election. */
   public boolean isStandbyFollower() {
-    return standbyFollowerConfig != null && isReplica();
-  }
-
-  private IsolatedReplicaConfig getEffectiveIsolatedReplicaConfig(NrtsearchConfig configuration) {
-    return standbyFollowerConfig != null
-        ? standbyFollowerConfig
-        : configuration.getIsolatedReplicaConfig();
+    NRTReplicaNode node = nrtReplicaNode;
+    return node != null && node.getNrtDataManager().isStandbyFollower();
   }
 
   /**
@@ -787,7 +756,6 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.setKeepMatchingLocalFiles(deltaRestore);
       nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState
@@ -1020,7 +988,7 @@ public class ShardState implements Closeable {
         Files.createDirectories(indexDirFile);
       }
       IsolatedReplicaConfig isolatedReplicaConfig =
-          getEffectiveIsolatedReplicaConfig(configuration);
+          nrtDataManager.getIsolatedReplicaConfig(configuration.getIsolatedReplicaConfig());
       nrtDataManager.restoreIfNeeded(indexDirFile, isolatedReplicaConfig);
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
@@ -1063,8 +1031,8 @@ public class ShardState implements Closeable {
               configuration.getDecInitialCommit(),
               configuration.getFilterIncompatibleSegmentReaders(),
               configuration.getLowPriorityCopyPercentage(),
-              configuration.getS3ReplicaRefreshDownload());
-      nrtReplicaNode.setEnforcePrimaryGenOrdering(configuration.getEnforcePrimaryGenOrdering());
+              configuration.getS3ReplicaRefreshDownload(),
+              configuration.getEnforcePrimaryGenOrdering());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

@@ -82,6 +82,7 @@ import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.handler.stream.SearchStreamHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.ingestion.IngestionPluginUtils;
+import com.yelp.nrtsearch.server.leader.LeaderElection;
 import com.yelp.nrtsearch.server.leader.PrimaryElectorCreator;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.modules.NrtsearchModule;
@@ -149,15 +150,26 @@ public class NrtsearchServer {
   private Server replicationServer;
   private LuceneServerImpl serverImpl;
   private final NrtsearchConfig configuration;
+  private final Optional<LeaderElection> leaderElection;
+
+  public NrtsearchServer(
+      NrtsearchConfig configuration,
+      RemoteBackend remoteBackend,
+      PrometheusRegistry prometheusRegistry,
+      ExecutorFactory executorFactory) {
+    this(configuration, remoteBackend, prometheusRegistry, executorFactory, Optional.empty());
+  }
 
   @Inject
   public NrtsearchServer(
       NrtsearchConfig configuration,
       RemoteBackend remoteBackend,
       PrometheusRegistry prometheusRegistry,
-      ExecutorFactory executorFactory) {
+      ExecutorFactory executorFactory,
+      Optional<LeaderElection> leaderElection) {
     this.configuration = configuration;
     this.remoteBackend = remoteBackend;
+    this.leaderElection = leaderElection;
     this.prometheusRegistry = prometheusRegistry;
     this.executorFactory = executorFactory;
     this.pluginsService = new PluginsService(configuration, remoteBackend, prometheusRegistry);
@@ -171,7 +183,12 @@ public class NrtsearchServer {
 
     serverImpl =
         new LuceneServerImpl(
-            configuration, remoteBackend, prometheusRegistry, executorFactory, plugins);
+            configuration,
+            remoteBackend,
+            prometheusRegistry,
+            executorFactory,
+            plugins,
+            leaderElection);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
@@ -406,6 +423,34 @@ public class NrtsearchServer {
         ExecutorFactory executorFactory,
         List<Plugin> plugins)
         throws IOException {
+      this(
+          configuration,
+          remoteBackend,
+          prometheusRegistry,
+          executorFactory,
+          plugins,
+          Optional.empty());
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param configuration server configuration
+     * @param remoteBackend backend for persistent remote storage
+     * @param prometheusRegistry metrics collector registry
+     * @param executorFactory executor factory
+     * @param plugins loaded plugins
+     * @param leaderElection multi-primary leader election components, if enabled
+     * @throws IOException
+     */
+    LuceneServerImpl(
+        NrtsearchConfig configuration,
+        RemoteBackend remoteBackend,
+        PrometheusRegistry prometheusRegistry,
+        ExecutorFactory executorFactory,
+        List<Plugin> plugins,
+        Optional<LeaderElection> leaderElection)
+        throws IOException {
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
 
@@ -413,7 +458,9 @@ public class NrtsearchServer {
       initMaxClauseCount(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, remoteBackend, executorFactory);
+      this.globalState =
+          GlobalState.createState(
+              configuration, remoteBackend, executorFactory, leaderElection, prometheusRegistry);
 
       // Initialize handlers
       initIngestionPlugin(globalState, plugins);

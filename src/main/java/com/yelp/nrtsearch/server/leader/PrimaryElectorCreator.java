@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.config.LeaderElectionConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PrimaryElectorPlugin;
-import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -36,13 +35,8 @@ public class PrimaryElectorCreator {
   private PrimaryElectorCreator() {
     providers.put(
         S3LeaseElector.TYPE,
-        (context, params) -> {
-          if (!(context.remoteBackend() instanceof S3Backend s3Backend)) {
-            throw new IllegalArgumentException(
-                S3LeaseElector.TYPE + " leader election requires an S3 remote backend");
-          }
-          return S3LeaseElector.fromParams(s3Backend.getConditionalObjectStore(), context, params);
-        });
+        (context, params) ->
+            S3LeaseElector.fromParams(context.conditionalStore(), context, params));
   }
 
   private void register(String name, PrimaryElectorProvider provider) {

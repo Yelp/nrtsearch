@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,15 +48,23 @@ public class EpochPointerFence {
   private final ConditionalObjectStore store;
   private final ConcurrentHashMap<String, String> ownedVersions = new ConcurrentHashMap<>();
   private volatile long epoch = -1;
-  private volatile Consumer<FencedException> onFenced = e -> {};
+  private final AtomicReference<Consumer<FencedException>> fencedListener = new AtomicReference<>();
 
   public EpochPointerFence(ConditionalObjectStore store) {
     this.store = Objects.requireNonNull(store);
   }
 
-  /** Set callback invoked when a write is fenced because a newer leader took over. */
-  public void setOnFenced(Consumer<FencedException> onFenced) {
-    this.onFenced = Objects.requireNonNull(onFenced);
+  /**
+   * Register the listener invoked when a write is fenced because a newer leader took over. The
+   * fence is created before its owner (the leader manager), so the listener is registered after
+   * construction; only one may be registered.
+   *
+   * @throws IllegalStateException if a listener is already registered
+   */
+  public void registerFencedListener(Consumer<FencedException> listener) {
+    if (!fencedListener.compareAndSet(null, Objects.requireNonNull(listener))) {
+      throw new IllegalStateException("Fenced listener already registered");
+    }
   }
 
   /**
@@ -164,8 +173,11 @@ public class EpochPointerFence {
   private FencedException fenced(String message) {
     FencedException e = new FencedException(message);
     logger.warn(message);
+    Consumer<FencedException> listener = fencedListener.get();
     try {
-      onFenced.accept(e);
+      if (listener != null) {
+        listener.accept(e);
+      }
     } catch (Throwable t) {
       logger.warn("Error in fenced callback", t);
     }

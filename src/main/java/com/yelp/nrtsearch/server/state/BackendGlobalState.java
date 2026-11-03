@@ -41,19 +41,19 @@ import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.index.StartIndexProcessor;
 import com.yelp.nrtsearch.server.index.StartIndexProcessor.StartIndexProcessorException;
-import com.yelp.nrtsearch.server.leader.ConditionalObjectStore;
-import com.yelp.nrtsearch.server.leader.EpochPointerFence;
 import com.yelp.nrtsearch.server.leader.FencedException;
+import com.yelp.nrtsearch.server.leader.LeaderElection;
 import com.yelp.nrtsearch.server.leader.LeaderInfo;
 import com.yelp.nrtsearch.server.leader.LeaderManager;
 import com.yelp.nrtsearch.server.leader.PrimaryElector;
 import com.yelp.nrtsearch.server.leader.PrimaryElectorContext;
 import com.yelp.nrtsearch.server.leader.PrimaryElectorCreator;
+import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.state.backend.StateBackend;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -139,8 +139,29 @@ public class BackendGlobalState extends GlobalState {
   public BackendGlobalState(
       NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
       throws IOException {
+    this(configuration, remoteBackend, executorFactory, Optional.empty(), null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param configuration server config
+   * @param remoteBackend backend for persistent remote storage, must have been constructed with the
+   *     leader election fence when leader election is enabled
+   * @param executorFactory executor factory
+   * @param leaderElection leader election components, required if enabled in config
+   * @param prometheusRegistry metrics registry, may be null
+   * @throws IOException on filesystem error
+   */
+  public BackendGlobalState(
+      NrtsearchConfig configuration,
+      RemoteBackend remoteBackend,
+      ExecutorFactory executorFactory,
+      Optional<LeaderElection> leaderElection,
+      PrometheusRegistry prometheusRegistry)
+      throws IOException {
     super(configuration, remoteBackend, executorFactory);
-    leaderManager = createLeaderManager();
+    leaderManager = createLeaderManager(leaderElection, prometheusRegistry);
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = loadGlobalState();
     // init index state managers
@@ -160,16 +181,21 @@ public class BackendGlobalState extends GlobalState {
   }
 
   /**
-   * Create the {@link LeaderManager} if leader election is enabled, and install the pointer fence
-   * in the remote backend. The fence starts inactive, so this node cannot write remote state until
-   * it is elected.
+   * Create the {@link LeaderManager} if leader election is enabled. The pointer fence starts
+   * inactive, so this node cannot write remote state until it is elected.
    */
-  private LeaderManager createLeaderManager() {
+  private LeaderManager createLeaderManager(
+      Optional<LeaderElection> leaderElection, PrometheusRegistry prometheusRegistry) {
     NrtsearchConfig config = getConfiguration();
     if (!config.getLeaderElectionConfig().isEnabled()) {
       return null;
     }
     validateLeaderElectionConfig(config);
+    LeaderElection election =
+        leaderElection.orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "Leader election is enabled, but leader election components were not provided"));
     LeaderInfo localInfo =
         new LeaderInfo(
             getEphemeralId(),
@@ -180,26 +206,18 @@ public class BackendGlobalState extends GlobalState {
             -1);
     PrimaryElector elector =
         PrimaryElectorCreator.getInstance()
-            .createElector(new PrimaryElectorContext(config, localInfo, getRemoteBackend(), null))
+            .createElector(
+                new PrimaryElectorContext(
+                    config, localInfo, election.conditionalStore(), prometheusRegistry))
             .orElseThrow();
-    EpochPointerFence fence = new EpochPointerFence(createConditionalObjectStore());
-    getRemoteBackend().setPointerFence(fence);
     logger.info(
         "Leader election enabled, type: {}, starting as standby",
         config.getLeaderElectionConfig().getType());
     return new LeaderManager(
-        elector, fence, config.getLeaderElectionConfig().getClaimConcurrency());
-  }
-
-  /**
-   * Create the store used for fencing remote state pointers. Protected to allow injection for
-   * testing.
-   */
-  protected ConditionalObjectStore createConditionalObjectStore() {
-    if (getRemoteBackend() instanceof S3Backend s3Backend) {
-      return s3Backend.getConditionalObjectStore();
-    }
-    throw new IllegalArgumentException("Leader election requires an S3 remote backend");
+        elector,
+        election.fence(),
+        config.getLeaderElectionConfig().getClaimConcurrency(),
+        new RoleController());
   }
 
   /** Verify configuration is compatible with multi-primary leader election. */
@@ -349,7 +367,7 @@ public class BackendGlobalState extends GlobalState {
       updateStartedIndices(immutableState);
     }
     if (leaderManager != null) {
-      leaderManager.start(new RoleController());
+      leaderManager.start();
     }
   }
 
@@ -656,6 +674,14 @@ public class BackendGlobalState extends GlobalState {
 
   private StartIndexResponse startIndex(
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
+    return startIndex(indexStateManager, startIndexRequest, NrtDataManager.StartOptions.DEFAULT);
+  }
+
+  private StartIndexResponse startIndex(
+      IndexStateManager indexStateManager,
+      StartIndexRequest startIndexRequest,
+      NrtDataManager.StartOptions startOptions)
+      throws IOException {
     StartIndexProcessor startIndexHandler =
         new StartIndexProcessor(
             getConfiguration().getServiceName(),
@@ -671,7 +697,8 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
             getConfiguration().getRequireIdField());
     try {
-      return startIndexHandler.process(indexStateManager.getCurrent(), startIndexRequest);
+      return startIndexHandler.process(
+          indexStateManager.getCurrent(), startIndexRequest, startOptions);
     } catch (StartIndexProcessorException e) {
       throw new RuntimeException(e);
     }
@@ -772,17 +799,17 @@ public class BackendGlobalState extends GlobalState {
             .setMode(mode);
 
     // set primary discovery config
-    if (leaderManager != null && !standby) {
-      // promoting a standby that was following remote data, only download changed files
-      indexStateManager.getCurrent().getShard(0).setDeltaRestore(true);
-    }
-    if (standby) {
+    NrtDataManager.StartOptions startOptions;
+    if (leaderManager == null) {
+      startOptions = NrtDataManager.StartOptions.DEFAULT;
+    } else if (standby) {
       // standby followers poll remote storage, and do not connect to the active primary
-      indexStateManager
-          .getCurrent()
-          .getShard(0)
-          .setStandbyFollowerConfig(getStandbyFollowerConfig());
-    } else if (mode.equals(Mode.REPLICA)) {
+      startOptions = new NrtDataManager.StartOptions(false, getStandbyFollowerConfig());
+    } else {
+      // promoting a standby that was following remote data, only download changed files
+      startOptions = new NrtDataManager.StartOptions(true, null);
+    }
+    if (!standby && mode.equals(Mode.REPLICA)) {
       requestBuilder
           .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
           .setPort(indexStartConfig.getDiscoveryPort())
@@ -809,7 +836,8 @@ public class BackendGlobalState extends GlobalState {
 
     StartIndexRequest startIndexRequest = requestBuilder.build();
     logger.info("Starting index: " + startIndexRequest);
-    StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
+    StartIndexResponse response =
+        startIndex(indexStateManager, requestBuilder.build(), startOptions);
     logger.info("Index started: " + response);
     return response;
   }

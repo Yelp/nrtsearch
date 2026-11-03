@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.leader;
 
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
-import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 /**
@@ -24,13 +23,13 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
  *
  * @param configuration server configuration
  * @param localInfo info describing the local node, epoch is unset (-1)
- * @param remoteBackend remote backend, may be null if not configured
- * @param prometheusRegistry metrics registry
+ * @param conditionalStore store supporting compare-and-set writes in the service bucket
+ * @param prometheusRegistry metrics registry, may be null
  */
 public record PrimaryElectorContext(
     NrtsearchConfig configuration,
     LeaderInfo localInfo,
-    RemoteBackend remoteBackend,
+    ConditionalObjectStore conditionalStore,
     PrometheusRegistry prometheusRegistry) {
 
   /** Service name of the cluster, the scope of leadership. */

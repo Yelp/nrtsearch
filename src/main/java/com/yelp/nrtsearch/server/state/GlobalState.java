@@ -75,6 +75,26 @@ public abstract class GlobalState implements Closeable {
     return new BackendGlobalState(configuration, remoteBackend, executorFactory);
   }
 
+  /**
+   * Create global state with multi-primary leader election.
+   *
+   * @param configuration server config
+   * @param remoteBackend remote backend, must have been constructed with the leader election fence
+   * @param executorFactory executor factory
+   * @param leaderElection leader election components, or empty if disabled
+   * @param prometheusRegistry metrics registry, may be null
+   */
+  public static GlobalState createState(
+      NrtsearchConfig configuration,
+      RemoteBackend remoteBackend,
+      ExecutorFactory executorFactory,
+      java.util.Optional<com.yelp.nrtsearch.server.leader.LeaderElection> leaderElection,
+      io.prometheus.metrics.model.registry.PrometheusRegistry prometheusRegistry)
+      throws IOException {
+    return new BackendGlobalState(
+        configuration, remoteBackend, executorFactory, leaderElection, prometheusRegistry);
+  }
+
   public RemoteBackend getRemoteBackend() {
     return remoteBackend;
   }

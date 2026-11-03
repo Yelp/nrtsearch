@@ -25,7 +25,6 @@ import static org.mockito.Mockito.mock;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PrimaryElectorPlugin;
-import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Map;
@@ -57,9 +56,12 @@ public class PrimaryElectorCreatorTest {
     return new NrtsearchConfig(new ByteArrayInputStream(("nodeName: n\n" + yaml).getBytes()));
   }
 
-  private static PrimaryElectorContext context(NrtsearchConfig config, RemoteBackend backend) {
+  private static PrimaryElectorContext context(NrtsearchConfig config) {
     return new PrimaryElectorContext(
-        config, new LeaderInfo("id", "n", "h", 1, 2, -1), backend, null);
+        config,
+        new LeaderInfo("id", "n", "h", 1, 2, -1),
+        new InMemoryConditionalObjectStore(),
+        null);
   }
 
   @Test
@@ -68,7 +70,7 @@ public class PrimaryElectorCreatorTest {
     assertFalse(config.getLeaderElectionConfig().isEnabled());
     assertFalse(config.getEnforcePrimaryGenOrdering());
     PrimaryElectorCreator.initialize(config, List.of());
-    assertTrue(PrimaryElectorCreator.getInstance().createElector(context(config, null)).isEmpty());
+    assertTrue(PrimaryElectorCreator.getInstance().createElector(context(config)).isEmpty());
   }
 
   @Test
@@ -77,8 +79,7 @@ public class PrimaryElectorCreatorTest {
     assertTrue(config.getEnforcePrimaryGenOrdering());
     PrimaryElectorCreator.initialize(config, List.of(new TestElectorPlugin()));
     assertSame(
-        TEST_ELECTOR,
-        PrimaryElectorCreator.getInstance().createElector(context(config, null)).get());
+        TEST_ELECTOR, PrimaryElectorCreator.getInstance().createElector(context(config)).get());
   }
 
   @Test
@@ -88,21 +89,17 @@ public class PrimaryElectorCreatorTest {
     IllegalArgumentException e =
         assertThrows(
             IllegalArgumentException.class,
-            () -> PrimaryElectorCreator.getInstance().createElector(context(config, null)));
+            () -> PrimaryElectorCreator.getInstance().createElector(context(config)));
     assertTrue(e.getMessage().contains("Unknown leader election type: missing"));
   }
 
   @Test
-  public void testS3LeaseRequiresS3Backend() {
+  public void testS3LeaseUsesContextStore() {
     NrtsearchConfig config = config("leaderElection:\n  type: s3_lease\n");
     PrimaryElectorCreator.initialize(config, List.of());
-    IllegalArgumentException e =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                PrimaryElectorCreator.getInstance()
-                    .createElector(context(config, mock(RemoteBackend.class))));
-    assertTrue(e.getMessage().contains("requires an S3 remote backend"));
+    assertTrue(
+        PrimaryElectorCreator.getInstance().createElector(context(config)).get()
+            instanceof S3LeaseElector);
   }
 
   @Test
