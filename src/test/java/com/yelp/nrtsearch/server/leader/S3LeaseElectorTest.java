@@ -256,4 +256,23 @@ public class S3LeaseElectorTest {
         IllegalArgumentException.class,
         () -> new S3LeaseElector(store, KEY, info, 1000, 100, 900, System::nanoTime));
   }
+
+  /** S3 versions are content hashes; a renewal must change the content or contenders take over. */
+  @Test
+  public void testRenewingLeaderNotTakenOverAfterManyTtls() throws Exception {
+    Node a = node("a");
+    Node b = node("b");
+    a.tick();
+    b.tick();
+    long epoch = a.elector().getLeaderEpoch();
+    for (long elapsed = 0; elapsed < 5 * TTL; elapsed += POLL) {
+      a.clock().advanceMs(POLL);
+      b.clock().advanceMs(POLL);
+      a.tick();
+      b.tick();
+    }
+    assertTrue(a.elector().isLeader());
+    assertFalse(b.elector().isLeader());
+    assertEquals(epoch, a.elector().getLeaderEpoch());
+  }
 }

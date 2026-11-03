@@ -16,14 +16,17 @@
 package com.yelp.nrtsearch.server.leader;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In process {@link ConditionalObjectStore}. Useful for tests, and for multiple servers in the same
- * JVM when the backing remote store does not support conditional writes.
+ * In process {@link ConditionalObjectStore}, for tests. Like S3, the version of an object is the
+ * MD5 of its content (S3 ETag for single part uploads), so rewriting identical content does not
+ * change the version.
  */
 public class InMemoryConditionalObjectStore implements ConditionalObjectStore {
   private final ConcurrentHashMap<String, VersionedObject> objects = new ConcurrentHashMap<>();
@@ -71,10 +74,17 @@ public class InMemoryConditionalObjectStore implements ConditionalObjectStore {
     return obj.version();
   }
 
+  /** Version for content, matching the S3 ETag of a single part upload. */
+  public static String contentVersion(byte[] data) {
+    try {
+      return "\"" + HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(data)) + "\"";
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
   private static VersionedObject newObject(byte[] data, Map<String, String> metadata) {
     return new VersionedObject(
-        data.clone(),
-        UUID.randomUUID().toString(),
-        metadata == null ? Map.of() : Map.copyOf(metadata));
+        data.clone(), contentVersion(data), metadata == null ? Map.of() : Map.copyOf(metadata));
   }
 }

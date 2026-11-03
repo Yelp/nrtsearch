@@ -1826,7 +1826,8 @@ public class S3Backend implements RemoteBackend {
       GetObjectRequest request = GetObjectRequest.builder().bucket(serviceBucket).key(key).build();
       ResponseInputStream<GetObjectResponse> responseStream = s3.getObject(request);
       byte[] versionBytes = IOUtils.toByteArray(responseStream);
-      return StateUtils.fromUTF8(versionBytes);
+      // pointers written with leader election fencing carry an epoch line after the value
+      return EpochPointerFence.decodeValue(StateUtils.fromUTF8(versionBytes));
     } catch (NoSuchKeyException e) {
       String error = String.format("Object s3://%s/%s not found", serviceBucket, key);
       throw new IllegalArgumentException(error, e);

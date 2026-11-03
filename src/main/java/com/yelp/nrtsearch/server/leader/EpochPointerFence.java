@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -39,10 +40,17 @@ import org.slf4j.LoggerFactory;
  * advance the same pointer.
  *
  * <p>While not active (standby), all writes are rejected.
+ *
+ * <p>Object stores like S3 derive the version (ETag) from the object content, so rewriting the same
+ * bytes does not change the version. Every fenced write therefore encodes the epoch and a unique
+ * nonce in the body, after the pointer value: {@code <value>\n#nrt-fence epoch=<E> nonce=<N>}. Use
+ * {@link #decodeValue} to read the pointer value, which also accepts unfenced pointers containing
+ * only the value.
  */
 public class EpochPointerFence {
   private static final Logger logger = LoggerFactory.getLogger(EpochPointerFence.class);
   public static final String EPOCH_METADATA_KEY = "nrt-epoch";
+  static final String FENCE_LINE_PREFIX = "\n#nrt-fence ";
   private static final int MAX_CLAIM_ATTEMPTS = 10;
 
   private final ConditionalObjectStore store;
@@ -114,18 +122,22 @@ public class EpochPointerFence {
         return Optional.empty();
       }
       VersionedObject obj = current.get();
-      long pointerEpoch = getEpoch(obj);
+      String body = new String(obj.data(), StandardCharsets.UTF_8);
+      long pointerEpoch = decodeEpoch(body);
       if (pointerEpoch > claimEpoch) {
         throw fenced(
             String.format(
                 "Cannot claim %s for epoch %d, pointer has newer epoch %d",
                 key, claimEpoch, pointerEpoch));
       }
+      String value = decodeValue(body);
       try {
+        // the body changes (epoch, nonce), so the version changes and older owners are fenced
         String version =
-            store.putIfMatch(key, obj.data(), epochMetadata(claimEpoch), obj.version());
+            store.putIfMatch(
+                key, encode(value, claimEpoch), epochMetadata(claimEpoch), obj.version());
         ownedVersions.put(key, version);
-        return Optional.of(new String(obj.data(), StandardCharsets.UTF_8));
+        return Optional.of(value);
       } catch (PreconditionFailedException e) {
         logger.info("Pointer {} changed while claiming, retrying", key);
       }
@@ -142,7 +154,10 @@ public class EpochPointerFence {
    */
   public void write(String key, String value) throws IOException {
     long writeEpoch = requireActive(key);
-    byte[] data = value.getBytes(StandardCharsets.UTF_8);
+    if (value.contains("\n")) {
+      throw new IllegalArgumentException("Pointer value must be a single line: " + value);
+    }
+    byte[] data = encode(value, writeEpoch);
     String expected = ownedVersions.get(key);
     try {
       String version =
@@ -188,12 +203,34 @@ public class EpochPointerFence {
     return Map.of(EPOCH_METADATA_KEY, Long.toString(epoch));
   }
 
-  /** Get the writer epoch from pointer metadata, or 0 if unfenced (written without a fence). */
-  public static long getEpoch(VersionedObject obj) {
-    String value = obj.metadata().get(EPOCH_METADATA_KEY);
-    if (value == null) {
+  /** Encode a fenced pointer body. A random nonce makes every write produce distinct content. */
+  static byte[] encode(String value, long epoch) {
+    return (value + FENCE_LINE_PREFIX + "epoch=" + epoch + " nonce=" + UUID.randomUUID())
+        .getBytes(StandardCharsets.UTF_8);
+  }
+
+  /**
+   * Get the pointer value from a pointer body, fenced or not.
+   *
+   * @param body pointer object content
+   * @return pointer value
+   */
+  public static String decodeValue(String body) {
+    int idx = body.indexOf(FENCE_LINE_PREFIX);
+    return idx < 0 ? body : body.substring(0, idx);
+  }
+
+  /** Get the writer epoch from a pointer body, or 0 if unfenced (written without a fence). */
+  public static long decodeEpoch(String body) {
+    int idx = body.indexOf(FENCE_LINE_PREFIX);
+    if (idx < 0) {
       return 0;
     }
-    return Long.parseLong(value);
+    for (String part : body.substring(idx + FENCE_LINE_PREFIX.length()).trim().split(" ")) {
+      if (part.startsWith("epoch=")) {
+        return Long.parseLong(part.substring("epoch=".length()));
+      }
+    }
+    throw new IllegalStateException("Fenced pointer missing epoch: " + body);
   }
 }

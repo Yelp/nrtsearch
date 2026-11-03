@@ -37,11 +37,13 @@ public class EpochPointerFenceTest {
   }
 
   private String value() throws Exception {
-    return new String(store.get(KEY).get().data(), StandardCharsets.UTF_8);
+    return EpochPointerFence.decodeValue(
+        new String(store.get(KEY).get().data(), StandardCharsets.UTF_8));
   }
 
   private long pointerEpoch() throws Exception {
-    return EpochPointerFence.getEpoch(store.get(KEY).get());
+    return EpochPointerFence.decodeEpoch(
+        new String(store.get(KEY).get().data(), StandardCharsets.UTF_8));
   }
 
   @Test
@@ -167,5 +169,40 @@ public class EpochPointerFenceTest {
     fence.claim(KEY);
     fence.write(KEY, "v2");
     assertEquals("v2", value());
+  }
+
+  /**
+   * S3 versions are content hashes. The new leader claims a pointer whose value it does not change,
+   * and the old leader then writes the same value it wrote before; both must still be fenced.
+   */
+  @Test
+  public void testIdenticalValuesStillFenced() throws Exception {
+    EpochPointerFence oldLeader = new EpochPointerFence(store);
+    oldLeader.activate(1);
+    oldLeader.claim(KEY);
+    oldLeader.write(KEY, "same");
+    oldLeader.write(KEY, "same");
+
+    EpochPointerFence newLeader = new EpochPointerFence(store);
+    newLeader.activate(2);
+    assertEquals(Optional.of("same"), newLeader.claim(KEY));
+    assertThrows(FencedException.class, () -> oldLeader.write(KEY, "same"));
+    assertEquals(2, pointerEpoch());
+  }
+
+  @Test
+  public void testDecodeLegacyAndFencedBodies() {
+    assertEquals("v1", EpochPointerFence.decodeValue("v1"));
+    assertEquals(0, EpochPointerFence.decodeEpoch("v1"));
+    String fenced = new String(EpochPointerFence.encode("v1", 7), StandardCharsets.UTF_8);
+    assertEquals("v1", EpochPointerFence.decodeValue(fenced));
+    assertEquals(7, EpochPointerFence.decodeEpoch(fenced));
+  }
+
+  @Test
+  public void testMultiLineValueRejected() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    assertThrows(IllegalArgumentException.class, () -> fence.write(KEY, "a\nb"));
   }
 }

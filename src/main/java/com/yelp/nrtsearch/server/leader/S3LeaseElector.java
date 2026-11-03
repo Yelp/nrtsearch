@@ -56,12 +56,21 @@ public class S3LeaseElector implements PrimaryElector {
   public static final long DEFAULT_TTL_MS = 15_000;
   public static final long DEFAULT_SAFETY_MARGIN_MS = 2_000;
 
-  /** Lease object content. */
+  /**
+   * Lease object content.
+   *
+   * @param holder leader holding the lease
+   * @param ttlMs lease ttl
+   * @param released if the holder released the lease
+   * @param renewal renewal counter, increments on every write; S3 derives the version (ETag) from
+   *     the content, so the content must change on renewal for contenders to observe it
+   */
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record Lease(
       @JsonProperty("holder") LeaderInfo holder,
       @JsonProperty("ttlMs") long ttlMs,
-      @JsonProperty("released") boolean released) {}
+      @JsonProperty("released") boolean released,
+      @JsonProperty("renewal") long renewal) {}
 
   private final ConditionalObjectStore store;
   private final String leaseKey;
@@ -90,6 +99,7 @@ public class S3LeaseElector implements PrimaryElector {
   private String observedVersion;
   private long observedAtNanos;
   private long lastSeenEpoch = 0;
+  private long renewalCount = 0;
   private boolean closed = false;
 
   /**
@@ -202,7 +212,8 @@ public class S3LeaseElector implements PrimaryElector {
       return;
     }
     try {
-      heldVersion = writeLease(new Lease(heldLeadership, ttlMillis(), false), heldVersion);
+      heldVersion =
+          writeLease(new Lease(heldLeadership, ttlMillis(), false, ++renewalCount), heldVersion);
       validUntilNanos = sendNanos + ttlNanos - safetyMarginNanos;
     } catch (PreconditionFailedException e) {
       lose("lease was modified by another node");
@@ -243,7 +254,8 @@ public class S3LeaseElector implements PrimaryElector {
   private void tryAcquire(String expectedVersion, long epoch, long sendNanos) throws IOException {
     LeaderInfo info = localInfo.withEpoch(epoch);
     try {
-      heldVersion = writeLease(new Lease(info, ttlMillis(), false), expectedVersion);
+      heldVersion =
+          writeLease(new Lease(info, ttlMillis(), false, ++renewalCount), expectedVersion);
     } catch (PreconditionFailedException e) {
       logger.info("Lost race to acquire lease at epoch {}", epoch);
       return;
@@ -308,7 +320,7 @@ public class S3LeaseElector implements PrimaryElector {
     LeaderInfo held = heldLeadership;
     try {
       // keep the epoch in the lease so the next leader increments it
-      writeLease(new Lease(held, ttlMillis(), true), heldVersion);
+      writeLease(new Lease(held, ttlMillis(), true, ++renewalCount), heldVersion);
     } catch (IOException e) {
       logger.warn("Failed to release lease, it will expire after ttl", e);
     }
