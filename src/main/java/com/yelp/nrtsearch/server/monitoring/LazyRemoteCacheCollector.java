@@ -78,6 +78,13 @@ public class LazyRemoteCacheCollector implements MultiCollector {
     metrics.add(gauge("blocks", "Number of blocks in the cache.", cache.getBlockCount(), labels));
     metrics.add(gauge("max_bytes", "Maximum size of the cache.", cache.getMaxBytes(), labels));
     metrics.add(
+        gauge(
+            "allocated_bytes",
+            "Bytes of memory or disk held by the cache, which for off heap caches includes free"
+                + " slots in allocated slabs.",
+            cache.getAllocatedBytes(),
+            labels));
+    metrics.add(
         gauge("block_size_bytes", "Size of each cache block.", cache.getBlockSize(), labels));
     return new MetricSnapshots(metrics);
   }

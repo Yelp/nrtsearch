@@ -44,12 +44,22 @@ import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * A primary created through the vector gateway, and an isolated replica that leaves the full
  * precision vector files (.vec) in S3 and reads them by range when rescoring.
  */
+@RunWith(Parameterized.class)
 public class LazyVectorReplicaIntegrationTest {
+  @Parameterized.Parameters(name = "{0}")
+  public static List<Object[]> cacheTypes() {
+    return List.of(new Object[] {"MEMORY"}, new Object[] {"OFF_HEAP"}, new Object[] {"DISK"});
+  }
+
+  @Parameterized.Parameter public String cacheType;
+
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String BUCKET = "test-bucket";
   private static final String INDEX = "test-index";
@@ -162,7 +172,7 @@ public class LazyVectorReplicaIntegrationTest {
                     "lazyRemoteData:",
                     "  enabled: true",
                     "  extensions: [vec]",
-                    "  cacheType: MEMORY",
+                    "  cacheType: " + cacheType,
                     "  cacheSizeMB: 64",
                     "  blockSizeKB: 4"))
             .build();
@@ -258,12 +268,13 @@ public class LazyVectorReplicaIntegrationTest {
             .metrics(Empty.newBuilder().build())
             .getData()
             .toStringUtf8();
+    String label = "{cache_type=\"" + cacheType.toLowerCase() + "\"}";
     assertTrue(
         metrics,
-        metrics.contains(
-            "nrt_lazy_remote_cache_misses_total{cache_type=\"memory\"} " + cache.getMisses()));
-    assertTrue(metrics.contains("nrt_lazy_remote_cache_remote_bytes_total{cache_type=\"memory\"}"));
-    assertTrue(metrics.contains("nrt_lazy_remote_cache_size_bytes{cache_type=\"memory\"}"));
+        metrics.contains("nrt_lazy_remote_cache_misses_total" + label + " " + cache.getMisses()));
+    assertTrue(metrics.contains("nrt_lazy_remote_cache_remote_bytes_total" + label));
+    assertTrue(metrics.contains("nrt_lazy_remote_cache_size_bytes" + label));
+    assertTrue(metrics.contains("nrt_lazy_remote_cache_allocated_bytes" + label));
 
     // GetVectors returns full precision data through the lazy files
     ObjectNode get = req();

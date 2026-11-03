@@ -42,9 +42,14 @@ public class LazyRemoteDataConfig {
 
   /** Where cached blocks are kept. */
   public enum CacheType {
-    /** On the heap. Fastest, sized against the JVM heap. */
+    /** On the heap. Simplest, sized against the JVM heap. */
     MEMORY,
-    /** In files on local disk, for caches larger than the heap allows. */
+    /**
+     * In native memory outside the heap, for large caches that shouldn't add to garbage collection
+     * work. Needs direct memory ({@code -XX:MaxDirectMemorySize}) of at least the cache size.
+     */
+    OFF_HEAP,
+    /** In files on local disk, for caches larger than memory allows. */
     DISK
   }
 
@@ -66,7 +71,7 @@ public class LazyRemoteDataConfig {
       cacheType = CacheType.valueOf(cacheTypeName.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
-          "lazyRemoteData.cacheType must be MEMORY or DISK, got: " + cacheTypeName);
+          "lazyRemoteData.cacheType must be MEMORY, OFF_HEAP or DISK, got: " + cacheTypeName);
     }
     String cacheDir = configReader.getString(CONFIG_PREFIX + "cacheDir", "");
     long cacheSizeMB = configReader.getLong(CONFIG_PREFIX + "cacheSizeMB", DEFAULT_CACHE_SIZE_MB);

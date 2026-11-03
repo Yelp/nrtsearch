@@ -998,7 +998,7 @@ Example server configuration
 
    * - cacheType
      - enum
-     - Where cached blocks are kept. ``MEMORY`` keeps them on the JVM heap. ``DISK`` keeps them in files under ``cacheDir``, for caches larger than the heap should hold; hits then cost a file read, usually served by the OS page cache. Both start empty when the node starts.
+     - Where cached blocks are kept. ``MEMORY`` keeps them on the JVM heap. ``OFF_HEAP`` keeps them in native memory outside the heap, in 64 MB slabs allocated as the cache fills, so a large cache doesn't add to heap size or garbage collection work; the JVM must allow at least ``cacheSizeMB`` of direct memory (``-XX:MaxDirectMemorySize``, which defaults to the max heap size), and each block uses a whole ``blockSizeKB`` slot. ``DISK`` keeps them in files under ``cacheDir``, for caches larger than memory allows; hits then cost a file read, usually served by the OS page cache. All types start empty when the node starts.
      - ``MEMORY``
 
    * - cacheDir
@@ -1008,11 +1008,11 @@ Example server configuration
 
    * - cacheSizeMB
      - long
-     - Maximum size of the block cache, shared by all indices on the node. The least recently used blocks are evicted. With ``MEMORY``, size the heap to include it.
+     - Maximum size of the block cache, shared by all indices on the node. The least recently used blocks are evicted. With ``MEMORY``, size the heap to include it; with ``OFF_HEAP``, size the container or host memory to include it.
      - 512
 
    * - blockSizeKB
      - int
-     - Size of the byte range read from S3 for each cache miss. Smaller blocks read less data for scattered reads (such as rescoring), larger blocks need fewer requests for sequential reads. With ``MEMORY``, keep blocks below half the G1 region size to avoid humongous allocations. Must be between 4 and 65536.
+     - Size of the byte range read from S3 for each cache miss. Smaller blocks read less data for scattered reads (such as rescoring), larger blocks need fewer requests for sequential reads. With ``MEMORY``, keep blocks below half the G1 region size to avoid humongous allocations; ``OFF_HEAP`` has no such limit. Must be between 4 and 65536.
      - 64
 

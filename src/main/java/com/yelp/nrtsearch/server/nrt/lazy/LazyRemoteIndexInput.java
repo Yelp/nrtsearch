@@ -22,13 +22,16 @@ import org.apache.lucene.store.RandomAccessInput;
 
 /**
  * {@link IndexInput} for a file that stays in the remote backend. Reads are served from fixed size
- * blocks, fetched with byte range reads and kept in a {@link RemoteBlockCache}. The block being
- * read is also held in memory, so sequential reads only go to the cache once per block.
+ * blocks, fetched with byte range reads and kept in a {@link RemoteBlockCache}. Small reads go
+ * through a {@value #BUFFER_SIZE} byte buffer, so reading single bytes and numbers doesn't go to
+ * the cache for each value.
  *
  * <p>The header and footer are served from the stub, without a remote read, so that opening the
  * file and checking its identity (as replicas do for every file of a new index version) is cheap.
  */
 public class LazyRemoteIndexInput extends IndexInput implements RandomAccessInput {
+  static final int BUFFER_SIZE = 4096;
+
   /** Reads a byte range of the remote file. */
   @FunctionalInterface
   public interface RangeReader {
@@ -48,9 +51,10 @@ public class LazyRemoteIndexInput extends IndexInput implements RandomAccessInpu
 
   // position within this input
   private long pos;
-  // block currently held in memory
-  private long currentBlock = -1;
-  private byte[] currentData;
+  // buffered bytes of the file [bufferStart, bufferStart + bufferLength), never header or footer
+  private byte[] buffer;
+  private long bufferStart;
+  private int bufferLength;
 
   public LazyRemoteIndexInput(
       String resourceDescription,
@@ -96,9 +100,41 @@ public class LazyRemoteIndexInput extends IndexInput implements RandomAccessInpu
     if (filePos >= footerStart) {
       return footer[(int) (filePos - footerStart)];
     }
+    if (filePos < bufferStart || filePos >= bufferStart + bufferLength) {
+      fillBuffer(filePos);
+    }
+    return buffer[(int) (filePos - bufferStart)];
+  }
+
+  /** Buffer bytes from filePos, up to the end of its block or the footer. */
+  private void fillBuffer(long filePos) throws IOException {
+    if (buffer == null) {
+      buffer = new byte[BUFFER_SIZE];
+    }
     int blockSize = cache.getBlockSize();
     long block = filePos / blockSize;
-    return loadBlock(block)[(int) (filePos - block * blockSize)];
+    long blockEnd = Math.min((block + 1) * blockSize, footerStart);
+    int n = (int) Math.min(BUFFER_SIZE, blockEnd - filePos);
+    readFromCache(filePos, buffer, 0, n);
+    bufferStart = filePos;
+    bufferLength = n;
+  }
+
+  /** Copy bytes from one block of the file, which must not include the header or footer. */
+  private void readFromCache(long filePos, byte[] dest, int destOffset, int len)
+      throws IOException {
+    int blockSize = cache.getBlockSize();
+    long block = filePos / blockSize;
+    long blockStart = block * blockSize;
+    int blockLength = (int) Math.min(blockSize, fileLength - blockStart);
+    cache.read(
+        fileId,
+        block,
+        (int) (filePos - blockStart),
+        dest,
+        destOffset,
+        len,
+        () -> reader.read(blockStart, blockLength));
   }
 
   /**
@@ -115,28 +151,24 @@ public class LazyRemoteIndexInput extends IndexInput implements RandomAccessInpu
       System.arraycopy(footer, (int) (filePos - footerStart), b, offset, n);
       return n;
     }
-    int blockSize = cache.getBlockSize();
-    long block = filePos / blockSize;
-    long blockStart = block * blockSize;
-    byte[] data = loadBlock(block);
-    int inBlock = (int) (filePos - blockStart);
-    // stop at the end of the block, and at the footer (served from the stub)
-    int n = (int) Math.min(Math.min(len, data.length - inBlock), footerStart - filePos);
-    System.arraycopy(data, inBlock, b, offset, n);
-    return n;
-  }
-
-  private byte[] loadBlock(long block) throws IOException {
-    if (block == currentBlock) {
-      return currentData;
+    if (filePos >= bufferStart && filePos < bufferStart + bufferLength) {
+      int n = (int) Math.min(len, bufferStart + bufferLength - filePos);
+      System.arraycopy(buffer, (int) (filePos - bufferStart), b, offset, n);
+      return n;
     }
     int blockSize = cache.getBlockSize();
-    long blockStart = block * blockSize;
-    int blockLength = (int) Math.min(blockSize, fileLength - blockStart);
-    byte[] data = cache.getBlock(fileId, block, () -> reader.read(blockStart, blockLength));
-    currentBlock = block;
-    currentData = data;
-    return data;
+    long blockEnd = Math.min((filePos / blockSize + 1) * blockSize, footerStart);
+    // stop at the end of the block, and at the footer (served from the stub)
+    int n = (int) Math.min(len, blockEnd - filePos);
+    if (n < BUFFER_SIZE) {
+      // small read, buffer it for the reads that follow
+      fillBuffer(filePos);
+      n = Math.min(n, bufferLength);
+      System.arraycopy(buffer, 0, b, offset, n);
+    } else {
+      readFromCache(filePos, b, offset, n);
+    }
+    return n;
   }
 
   private void readFully(long inputPos, byte[] b, int offset, int len) throws IOException {
@@ -223,7 +255,9 @@ public class LazyRemoteIndexInput extends IndexInput implements RandomAccessInpu
   @Override
   public LazyRemoteIndexInput clone() {
     LazyRemoteIndexInput clone = (LazyRemoteIndexInput) super.clone();
-    // the in memory block is shared read-only, which is safe
+    // clones are used by other threads, give the clone its own buffer
+    clone.buffer = null;
+    clone.bufferLength = 0;
     return clone;
   }
 

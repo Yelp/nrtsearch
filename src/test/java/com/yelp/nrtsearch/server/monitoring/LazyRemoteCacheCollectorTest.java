@@ -34,6 +34,28 @@ import org.junit.Test;
 public class LazyRemoteCacheCollectorTest {
 
   @Test
+  public void testOffHeapAllocatedBytes() throws Exception {
+    // capacity for 8 blocks, but only one 4 block slab allocated so far
+    RemoteBlockCache cache = new RemoteBlockCache.OffHeap(80, 10, 40);
+    cache.read("f", 0, 0, new byte[10], 0, 10, () -> new byte[10]);
+    GlobalState globalState = mock(GlobalState.class);
+    when(globalState.getLazyRemoteBlockCacheIfCreated()).thenReturn(cache);
+    Map<String, Double> values = new HashMap<>();
+    for (MetricSnapshot snapshot : new LazyRemoteCacheCollector(globalState).collect()) {
+      DataPointSnapshot point = snapshot.getDataPoints().get(0);
+      assertEquals("off_heap", point.getLabels().get("cache_type"));
+      if (snapshot instanceof GaugeSnapshot) {
+        values.put(
+            snapshot.getMetadata().getName(),
+            ((GaugeSnapshot.GaugeDataPointSnapshot) point).getValue());
+      }
+    }
+    assertEquals(40.0, values.get("nrt_lazy_remote_cache_allocated_bytes"), 0);
+    assertEquals(10.0, values.get("nrt_lazy_remote_cache_size_bytes"), 0);
+    assertEquals(80.0, values.get("nrt_lazy_remote_cache_max_bytes"), 0);
+  }
+
+  @Test
   public void testNoCache() {
     GlobalState globalState = mock(GlobalState.class);
     when(globalState.getLazyRemoteBlockCacheIfCreated()).thenReturn(null);
@@ -43,10 +65,9 @@ public class LazyRemoteCacheCollectorTest {
   @Test
   public void testMetrics() throws Exception {
     RemoteBlockCache cache = new RemoteBlockCache.Memory(20, 10);
-    cache.getBlock("f", 0, () -> new byte[10]);
-    cache.getBlock("f", 0, () -> new byte[10]);
-    cache.getBlock("f", 1, () -> new byte[10]);
-    cache.getBlock("f", 2, () -> new byte[10]);
+    for (int block : new int[] {0, 0, 1, 2}) {
+      cache.read("f", block, 0, new byte[10], 0, 10, () -> new byte[10]);
+    }
 
     GlobalState globalState = mock(GlobalState.class);
     when(globalState.getLazyRemoteBlockCacheIfCreated()).thenReturn(cache);
@@ -72,7 +93,8 @@ public class LazyRemoteCacheCollectorTest {
     assertEquals(2.0, values.get(p + "blocks"), 0);
     assertEquals(20.0, values.get(p + "max_bytes"), 0);
     assertEquals(10.0, values.get(p + "block_size_bytes"), 0);
+    assertEquals(20.0, values.get(p + "allocated_bytes"), 0);
     assertTrue(values.get(p + "remote_load_seconds") >= 0);
-    assertEquals(10, values.size());
+    assertEquals(11, values.size());
   }
 }

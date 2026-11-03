@@ -195,14 +195,15 @@ Isolated replicas (``isolatedReplicaConfig.enabled: true``) can leave the ``.vec
   lazyRemoteData:
     enabled: true
     extensions: [vec]
-    cacheType: MEMORY   # or DISK for a cache larger than the heap
+    cacheType: MEMORY   # OFF_HEAP for a large cache outside the heap, DISK for larger than memory
     cacheSizeMB: 512
     blockSizeKB: 64
 
 When the replica restores or copies an index version, each ``.vec`` file is written as a small
 stub holding its S3 location, length, header and footer. Lucene sees a normal file: opening it and
 checking its identity needs no S3 read. Rescoring reads the blocks it needs with S3 byte range
-requests, and keeps them in an LRU block cache shared by the node, on the heap by default.
+requests, and keeps them in an LRU block cache shared by the node: on the heap by default, in
+native memory outside the heap (``OFF_HEAP``), or in local files (``DISK``).
 
 Files inside compound (``.cfs``) files can't be lazy, so the gateway creates indexes with compound
 files turned off (``useCompoundFile: false``, ``noCFSRatio: 0``). Use ``--compoundFiles`` to keep
@@ -229,6 +230,9 @@ Cache metrics are exported on ``/status/metrics`` with a ``cache_type`` label:
      - Current cache size.
    * - ``nrt_lazy_remote_cache_max_bytes``, ``nrt_lazy_remote_cache_block_size_bytes``
      - Configured limits.
+   * - ``nrt_lazy_remote_cache_allocated_bytes``
+     - Memory or disk held by the cache. For ``OFF_HEAP`` this is the allocated slabs, including
+       free slots; it grows to ``max_bytes`` and stays there.
 
 Trade offs:
 
