@@ -677,6 +677,14 @@ public class S3Backend implements RemoteBackend {
     return s3;
   }
 
+  /**
+   * Get a store for conditional writes to the service bucket, used for leader election and fencing.
+   * Requires S3 conditional write support. Overridable for testing.
+   */
+  public com.yelp.nrtsearch.server.leader.ConditionalObjectStore getConditionalObjectStore() {
+    return new com.yelp.nrtsearch.server.leader.S3ConditionalObjectStore(s3, serviceBucket);
+  }
+
   /** Get the bucket used for service data. */
   public String getServiceBucket() {
     return serviceBucket;

@@ -21,7 +21,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.config.StateConfig.StateBackendType;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
@@ -36,19 +38,32 @@ import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.index.BackendStateManager;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
+import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.index.StartIndexProcessor;
 import com.yelp.nrtsearch.server.index.StartIndexProcessor.StartIndexProcessorException;
+import com.yelp.nrtsearch.server.leader.ConditionalObjectStore;
+import com.yelp.nrtsearch.server.leader.EpochPointerFence;
+import com.yelp.nrtsearch.server.leader.FencedException;
+import com.yelp.nrtsearch.server.leader.LeaderInfo;
+import com.yelp.nrtsearch.server.leader.LeaderManager;
+import com.yelp.nrtsearch.server.leader.PrimaryElector;
+import com.yelp.nrtsearch.server.leader.PrimaryElectorContext;
+import com.yelp.nrtsearch.server.leader.PrimaryElectorCreator;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.state.backend.StateBackend;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -83,6 +98,7 @@ public class BackendGlobalState extends GlobalState {
   // volatile for atomic replacement
   private volatile ImmutableState immutableState;
   private final StateBackend stateBackend;
+  private final LeaderManager leaderManager;
 
   /**
    * Build unique index name from index name and instance id (UUID).
@@ -124,8 +140,9 @@ public class BackendGlobalState extends GlobalState {
       NrtsearchConfig configuration, RemoteBackend remoteBackend, ExecutorFactory executorFactory)
       throws IOException {
     super(configuration, remoteBackend, executorFactory);
+    leaderManager = createLeaderManager();
     stateBackend = createStateBackend();
-    GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo globalStateInfo = loadGlobalState();
     // init index state managers
     Map<String, IndexStateManager> managerMap = new HashMap<>();
     for (Map.Entry<String, IndexGlobalState> entry : globalStateInfo.getIndicesMap().entrySet()) {
@@ -140,6 +157,101 @@ public class BackendGlobalState extends GlobalState {
     }
     immutableState = new ImmutableState(globalStateInfo, managerMap);
     // If any indices should be started, it will be done in the replicationStarted hook
+  }
+
+  /**
+   * Create the {@link LeaderManager} if leader election is enabled, and install the pointer fence
+   * in the remote backend. The fence starts inactive, so this node cannot write remote state until
+   * it is elected.
+   */
+  private LeaderManager createLeaderManager() {
+    NrtsearchConfig config = getConfiguration();
+    if (!config.getLeaderElectionConfig().isEnabled()) {
+      return null;
+    }
+    validateLeaderElectionConfig(config);
+    LeaderInfo localInfo =
+        new LeaderInfo(
+            getEphemeralId(),
+            getNodeName(),
+            getHostName(),
+            getPort(),
+            config.getReplicationPort(),
+            -1);
+    PrimaryElector elector =
+        PrimaryElectorCreator.getInstance()
+            .createElector(new PrimaryElectorContext(config, localInfo, getRemoteBackend(), null))
+            .orElseThrow();
+    EpochPointerFence fence = new EpochPointerFence(createConditionalObjectStore());
+    getRemoteBackend().setPointerFence(fence);
+    logger.info(
+        "Leader election enabled, type: {}, starting as standby",
+        config.getLeaderElectionConfig().getType());
+    return new LeaderManager(
+        elector, fence, config.getLeaderElectionConfig().getClaimConcurrency());
+  }
+
+  /**
+   * Create the store used for fencing remote state pointers. Protected to allow injection for
+   * testing.
+   */
+  protected ConditionalObjectStore createConditionalObjectStore() {
+    if (getRemoteBackend() instanceof S3Backend s3Backend) {
+      return s3Backend.getConditionalObjectStore();
+    }
+    throw new IllegalArgumentException("Leader election requires an S3 remote backend");
+  }
+
+  /** Verify configuration is compatible with multi-primary leader election. */
+  static void validateLeaderElectionConfig(NrtsearchConfig config) {
+    IndexStartConfig startConfig = config.getIndexStartConfig();
+    List<String> errors = new ArrayList<>();
+    if (startConfig.getMode() != Mode.PRIMARY) {
+      errors.add("indexStartConfig.mode must be PRIMARY");
+    }
+    if (startConfig.getDataLocationType() != IndexDataLocationType.REMOTE) {
+      errors.add("indexStartConfig.dataLocationType must be REMOTE");
+    }
+    if (config.getStateConfig().getBackendType() != StateBackendType.REMOTE) {
+      errors.add("stateConfig.backendType must be REMOTE");
+    }
+    // replicas must only advance to points that are durable in remote storage, so that they are
+    // never ahead of the point a new primary restores from
+    if (!config.getS3RefreshUpload()) {
+      errors.add("s3RefreshUpload must be true");
+    }
+    if (!config.getS3RefreshNotifyAfterUpload()) {
+      errors.add("s3RefreshNotifyAfterUpload must be true");
+    }
+    if (!config.getEnforcePrimaryGenOrdering()) {
+      errors.add("enforcePrimaryGenOrdering must be true");
+    }
+    if (!errors.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Invalid configuration for leader election: " + String.join(", ", errors));
+    }
+  }
+
+  /**
+   * Load global state from the backend. When leader election is enabled and this node is not the
+   * active primary, missing state is not created, since only the leader may write it; an empty
+   * state is used until the leader creates it.
+   */
+  private GlobalStateInfo loadGlobalState() throws IOException {
+    if (leaderManager != null && !leaderManager.getFence().isActive()) {
+      if (!getRemoteBackend()
+          .exists(
+              getConfiguration().getServiceName(), RemoteBackend.GlobalResourceType.GLOBAL_STATE)) {
+        logger.info("Global state does not exist yet, waiting for leader to create it");
+        return GlobalStateInfo.newBuilder().build();
+      }
+    }
+    return stateBackend.loadOrCreateGlobalState();
+  }
+
+  @Override
+  public Optional<LeaderManager> getLeaderManager() {
+    return Optional.ofNullable(leaderManager);
   }
 
   /**
@@ -187,7 +299,7 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public synchronized void reloadStateFromBackend() throws IOException {
-    GlobalStateInfo newGlobalStateInfo = getStateBackend().loadOrCreateGlobalState();
+    GlobalStateInfo newGlobalStateInfo = loadGlobalState();
     Map<String, IndexStateManager> newManagerMap = new HashMap<>();
     for (Map.Entry<String, IndexGlobalState> entry :
         newGlobalStateInfo.getIndicesMap().entrySet()) {
@@ -235,6 +347,104 @@ public class BackendGlobalState extends GlobalState {
     this.resolvedReplicationPort = replicationPort;
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {
       updateStartedIndices(immutableState);
+    }
+    if (leaderManager != null) {
+      leaderManager.start(new RoleController());
+    }
+  }
+
+  /** Config used by standby followers to poll remote storage for new index versions. */
+  private IsolatedReplicaConfig getStandbyFollowerConfig() {
+    IsolatedReplicaConfig serverConfig = getConfiguration().getIsolatedReplicaConfig();
+    int pollingIntervalSeconds =
+        serverConfig.isEnabled() ? serverConfig.getPollingIntervalSeconds() : 10;
+    return new IsolatedReplicaConfig(true, pollingIntervalSeconds, 0, 0);
+  }
+
+  /**
+   * Restart a started index with a fresh {@link IndexStateManager}, so that it can be started in a
+   * different role. A closed index state cannot be started again.
+   */
+  private synchronized void restartIndex(String indexName) throws IOException {
+    IndexStateManager current = getIndexStateManagerOrThrow(indexName);
+    IndexGlobalState indexGlobalState =
+        immutableState.globalStateInfo.getIndicesMap().get(indexName);
+    if (indexGlobalState == null) {
+      throw new IllegalArgumentException("Index not in global state: " + indexName);
+    }
+    current.close();
+    IndexStateManager fresh =
+        createIndexStateManager(
+            indexName,
+            indexGlobalState.getId(),
+            getConfiguration().getLiveSettingsOverride(indexName),
+            stateBackend);
+    fresh.load();
+    Map<String, IndexStateManager> managers = new HashMap<>(immutableState.indexStateManagerMap);
+    managers.put(indexName, fresh);
+    immutableState = new ImmutableState(immutableState.globalStateInfo, managers);
+    startIndexFromConfig(indexName, fresh, indexGlobalState);
+  }
+
+  /** {@link LeaderManager.IndexRoleController} operating on this global state. */
+  private class RoleController implements LeaderManager.IndexRoleController {
+    @Override
+    public void claimAndReloadGlobalState() throws IOException {
+      getRemoteBackend()
+          .claimResource(
+              getConfiguration().getServiceName(), RemoteBackend.GlobalResourceType.GLOBAL_STATE);
+      synchronized (BackendGlobalState.this) {
+        // reload without starting indices, roles are switched by the leader manager
+        GlobalStateInfo newGlobalStateInfo = loadGlobalState();
+        Map<String, IndexStateManager> newManagerMap = new HashMap<>();
+        for (Map.Entry<String, IndexGlobalState> entry :
+            newGlobalStateInfo.getIndicesMap().entrySet()) {
+          IndexStateManager stateManager = immutableState.indexStateManagerMap.get(entry.getKey());
+          if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
+            if (stateManager != null) {
+              stateManager.close();
+            }
+            stateManager =
+                createIndexStateManager(
+                    entry.getKey(),
+                    entry.getValue().getId(),
+                    getConfiguration().getLiveSettingsOverride(entry.getKey()),
+                    stateBackend);
+            stateManager.load();
+          }
+          newManagerMap.put(entry.getKey(), stateManager);
+        }
+        immutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
+      }
+    }
+
+    @Override
+    public Set<String> getIndicesToStart() {
+      return BackendGlobalState.this.getIndicesToStart();
+    }
+
+    @Override
+    public void claimIndex(String indexName) throws IOException {
+      String uniqueName = getDataResourceForIndex(indexName);
+      String service = getConfiguration().getServiceName();
+      getRemoteBackend()
+          .claimResource(service, uniqueName, RemoteBackend.IndexResourceType.INDEX_STATE);
+      getRemoteBackend()
+          .claimResource(service, uniqueName, RemoteBackend.IndexResourceType.POINT_STATE);
+    }
+
+    @Override
+    public void restartAsPrimary(String indexName, long primaryGen) throws IOException {
+      restartIndex(indexName);
+      ShardState shard = getIndexOrThrow(indexName).getShard(0);
+      if (!shard.isPrimary()) {
+        throw new IllegalStateException("Index did not start as primary: " + indexName);
+      }
+    }
+
+    @Override
+    public void restartAsStandby(String indexName) throws IOException {
+      restartIndex(indexName);
     }
   }
 
@@ -536,14 +746,36 @@ public class BackendGlobalState extends GlobalState {
       String indexName, IndexStateManager indexStateManager, IndexGlobalState indexGlobalState)
       throws IOException {
     IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
+    Mode mode = indexStartConfig.getMode();
+    long primaryGen = -1;
+    boolean standby = false;
+    if (leaderManager != null) {
+      // only the active primary starts indices as primary, all others follow remote data
+      if (leaderManager.getRole() == LeaderManager.Role.PROMOTING
+          || leaderManager.getRole() == LeaderManager.Role.ACTIVE) {
+        primaryGen = leaderManager.getFence().getEpoch();
+        if (primaryGen <= 0) {
+          throw new FencedException("Cannot start index as primary, fence is not active");
+        }
+      } else {
+        mode = Mode.REPLICA;
+        standby = true;
+      }
+    }
     StartIndexRequest.Builder requestBuilder =
         StartIndexRequest.newBuilder()
             .setIndexName(indexName)
-            .setPrimaryGen(-1)
-            .setMode(indexStartConfig.getMode());
+            .setPrimaryGen(primaryGen)
+            .setMode(mode);
 
     // set primary discovery config
-    if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
+    if (standby) {
+      // standby followers poll remote storage, and do not connect to the active primary
+      indexStateManager
+          .getCurrent()
+          .getShard(0)
+          .setStandbyFollowerConfig(getStandbyFollowerConfig());
+    } else if (mode.equals(Mode.REPLICA)) {
       requestBuilder
           .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
           .setPort(indexStartConfig.getDiscoveryPort())

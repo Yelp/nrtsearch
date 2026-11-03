@@ -183,6 +183,15 @@ public abstract class GlobalState implements Closeable {
    */
   public abstract void replicationStarted(int replicationPort) throws IOException;
 
+  /**
+   * Get the leader manager when multi-primary leader election is enabled.
+   *
+   * @return leader manager, or empty if leader election is disabled
+   */
+  public java.util.Optional<com.yelp.nrtsearch.server.leader.LeaderManager> getLeaderManager() {
+    return java.util.Optional.empty();
+  }
+
   /** Get the data resource name for a given index. Used by remote backend. */
   public abstract String getDataResourceForIndex(String indexName);
 

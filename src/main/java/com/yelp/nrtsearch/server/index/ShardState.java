@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.index;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef.FacetValueType;
@@ -256,12 +257,39 @@ public class ShardState implements Closeable {
     }
   }
 
+  private volatile IsolatedReplicaConfig standbyFollowerConfig;
+
   public boolean isPrimary() {
     return nrtPrimaryNode != null;
   }
 
   public boolean isReplica() {
     return nrtReplicaNode != null;
+  }
+
+  /**
+   * Configure this shard to start as a standby follower: a replica that follows index data from
+   * remote storage with the given polling config, independent of the server isolated replica
+   * config. Must be set before {@link #startReplica}.
+   *
+   * @param config follower config, or null to use the server config
+   */
+  public synchronized void setStandbyFollowerConfig(IsolatedReplicaConfig config) {
+    if (isStarted()) {
+      throw new IllegalStateException("Cannot set standby follower config on started index");
+    }
+    this.standbyFollowerConfig = config;
+  }
+
+  /** If this shard was started as a standby follower. */
+  public boolean isStandbyFollower() {
+    return standbyFollowerConfig != null && isReplica();
+  }
+
+  private IsolatedReplicaConfig getEffectiveIsolatedReplicaConfig(NrtsearchConfig configuration) {
+    return standbyFollowerConfig != null
+        ? standbyFollowerConfig
+        : configuration.getIsolatedReplicaConfig();
   }
 
   /**
@@ -980,7 +1008,9 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
+      IsolatedReplicaConfig isolatedReplicaConfig =
+          getEffectiveIsolatedReplicaConfig(configuration);
+      nrtDataManager.restoreIfNeeded(indexDirFile, isolatedReplicaConfig);
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
@@ -1015,7 +1045,7 @@ public class ShardState implements Closeable {
               configuration.getNodeName(),
               indexDir,
               new ShardSearcherFactory(true, false),
-              configuration.getIsolatedReplicaConfig(),
+              isolatedReplicaConfig,
               nrtDataManager,
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               configuration.getFileCopyConfig().getAckedCopy(),

@@ -31,7 +31,17 @@ public class ReloadStateHandler extends Handler<ReloadStateRequest, ReloadStateR
 
   @Override
   public ReloadStateResponse handle(ReloadStateRequest request) throws Exception {
-    if (getGlobalState().getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
+    boolean isStandby =
+        getGlobalState()
+            .getLeaderManager()
+            .map(m -> m.getRole() == com.yelp.nrtsearch.server.leader.LeaderManager.Role.STANDBY)
+            .orElse(false);
+    if (isStandby
+        || getGlobalState()
+            .getConfiguration()
+            .getIndexStartConfig()
+            .getMode()
+            .equals(Mode.REPLICA)) {
       getGlobalState().reloadStateFromBackend();
     } else {
       logger.info("Skip reloading state since it is not replica");

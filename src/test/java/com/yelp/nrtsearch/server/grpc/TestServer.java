@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.leader.ConditionalObjectStore;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -45,6 +46,7 @@ import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import com.yelp.nrtsearch.test_utils.TestDocumentHelper;
+import com.yelp.nrtsearch.test_utils.WriteThroughConditionalStore;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -282,7 +284,13 @@ public class TestServer {
         AmazonS3Provider.createTestS3AsyncClient(S3_ENDPOINT);
     software.amazon.awssdk.transfer.s3.S3TransferManager transferManager =
         software.amazon.awssdk.transfer.s3.S3TransferManager.builder().s3Client(s3Async).build();
-    return new S3Backend(configuration, new S3Util.S3ClientBundle(s3, s3Async));
+    // s3mock does not enforce conditional writes, use a store that does CAS in process
+    return new S3Backend(configuration, new S3Util.S3ClientBundle(s3, s3Async)) {
+      @Override
+      public ConditionalObjectStore getConditionalObjectStore() {
+        return new WriteThroughConditionalStore(s3, TEST_BUCKET);
+      }
+    };
   }
 
   public void restart() throws IOException {

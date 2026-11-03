@@ -41,9 +41,7 @@ public class PrimaryElectorCreator {
             throw new IllegalArgumentException(
                 S3LeaseElector.TYPE + " leader election requires an S3 remote backend");
           }
-          ConditionalObjectStore store =
-              new S3ConditionalObjectStore(s3Backend.getS3(), s3Backend.getServiceBucket());
-          return S3LeaseElector.fromParams(store, context, params);
+          return S3LeaseElector.fromParams(s3Backend.getConditionalObjectStore(), context, params);
         });
   }
 
