@@ -431,6 +431,9 @@ public class BackendGlobalState extends GlobalState {
           .claimResource(service, uniqueName, RemoteBackend.IndexResourceType.INDEX_STATE);
       getRemoteBackend()
           .claimResource(service, uniqueName, RemoteBackend.IndexResourceType.POINT_STATE);
+      // an unclaimed existing pointer cannot be written, and a fenced write demotes this node
+      getRemoteBackend()
+          .claimResource(service, uniqueName, RemoteBackend.IndexResourceType.WARMING_QUERIES);
     }
 
     @Override

@@ -223,6 +223,29 @@ public class MultiPrimaryLifecycleTest {
     b.verifySimpleDocIds(INDEX, 1, 2, 4);
   }
 
+  /** A new leader can back up warming queries that an earlier leader wrote. */
+  @Test
+  public void testWarmingQueriesWritableAfterFailover() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    String uniqueName = a.getGlobalState().getDataResourceForIndex(INDEX);
+    a.getRemoteBackend().uploadWarmingQueries(a.getServiceName(), uniqueName, "a".getBytes());
+    b.reloadState();
+
+    elect(b);
+    b.getRemoteBackend().uploadWarmingQueries(b.getServiceName(), uniqueName, "b".getBytes());
+    assertTrue(leaderManager(b).isActive());
+    assertEquals(
+        "b",
+        new String(
+            b.getRemoteBackend()
+                .downloadWarmingQueries(b.getServiceName(), uniqueName)
+                .readAllBytes()));
+  }
+
   /** A commit by the old leader that completes before the new leader claims is not lost. */
   @Test
   public void testCommitBeforeClaimIsRestored() throws Exception {
