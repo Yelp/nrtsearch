@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
+import com.yelp.nrtsearch.server.leader.EpochPointerFence;
 import com.yelp.nrtsearch.server.monitoring.S3DownloadStreamWrapper;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
@@ -126,6 +127,7 @@ public class S3Backend implements RemoteBackend {
   private final S3Client s3;
   private final S3AsyncClient s3Async;
   private final String serviceBucket;
+  private volatile EpochPointerFence pointerFence;
   private final S3TransferManager transferManager;
   private final boolean s3Metrics;
   private final GlobalWindowRateLimiter rateLimiter;
@@ -1540,7 +1542,7 @@ public class S3Backend implements RemoteBackend {
             .build();
     s3.putObject(request, RequestBody.fromBytes(data));
 
-    setCurrentResource(prefix, fileName);
+    setCurrentResourceInternal(prefix, fileName);
   }
 
   @Override
@@ -1713,7 +1715,7 @@ public class S3Backend implements RemoteBackend {
             .build();
     s3.putObject(request, RequestBody.fromBytes(data));
 
-    setCurrentResource(prefix, fileName);
+    setCurrentResourceInternal(prefix, fileName);
   }
 
   private InputStream downloadResource(String prefix, String indexIdentifier) throws IOException {
@@ -1834,6 +1836,65 @@ public class S3Backend implements RemoteBackend {
             .build();
     s3.putObject(request, RequestBody.fromBytes(bytes));
     logger.info("Set current resource - prefix: {}, version: {}", prefix, version);
+  }
+
+  /**
+   * Set a resource pointer from server code, fenced when a pointer fence is configured. The public
+   * {@link #setCurrentResource} is left unfenced for operator tooling.
+   */
+  private void setCurrentResourceInternal(String prefix, String version) throws IOException {
+    EpochPointerFence fence = pointerFence;
+    if (fence == null) {
+      setCurrentResource(prefix, version);
+      return;
+    }
+    fence.write(prefix + CURRENT_VERSION, version);
+    logger.info(
+        "Set current resource - prefix: {}, version: {}, epoch: {}",
+        prefix,
+        version,
+        fence.getEpoch());
+  }
+
+  @Override
+  public void setPointerFence(EpochPointerFence fence) {
+    this.pointerFence = fence;
+  }
+
+  /** Get the pointer fence, or null if not fenced. */
+  public EpochPointerFence getPointerFence() {
+    return pointerFence;
+  }
+
+  /** Get the object key of the current pointer for a global resource. */
+  public static String getCurrentPointerKey(String service, GlobalResourceType resourceType) {
+    return switch (resourceType) {
+          case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
+        }
+        + CURRENT_VERSION;
+  }
+
+  /** Get the object key of the current pointer for an index resource. */
+  public static String getCurrentPointerKey(
+      String service, String indexIdentifier, IndexResourceType resourceType) {
+    return getIndexResourcePrefix(service, indexIdentifier, resourceType) + CURRENT_VERSION;
+  }
+
+  @Override
+  public void claimResource(String service, GlobalResourceType resourceType) throws IOException {
+    EpochPointerFence fence = pointerFence;
+    if (fence != null) {
+      fence.claim(getCurrentPointerKey(service, resourceType));
+    }
+  }
+
+  @Override
+  public void claimResource(String service, String indexIdentifier, IndexResourceType resourceType)
+      throws IOException {
+    EpochPointerFence fence = pointerFence;
+    if (fence != null) {
+      fence.claim(getCurrentPointerKey(service, indexIdentifier, resourceType));
+    }
   }
 
   private boolean isNotFoundException(S3Exception e) {

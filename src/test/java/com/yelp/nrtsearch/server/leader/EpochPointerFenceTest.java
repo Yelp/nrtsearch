@@ -1,0 +1,171 @@
+/*
+ * Copyright 2026 Yelp Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.yelp.nrtsearch.server.leader;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.Before;
+import org.junit.Test;
+
+public class EpochPointerFenceTest {
+  private static final String KEY = "svc/idx/point_state/_current";
+  private InMemoryConditionalObjectStore store;
+
+  @Before
+  public void setUp() {
+    store = new InMemoryConditionalObjectStore();
+  }
+
+  private String value() throws Exception {
+    return new String(store.get(KEY).get().data(), StandardCharsets.UTF_8);
+  }
+
+  private long pointerEpoch() throws Exception {
+    return EpochPointerFence.getEpoch(store.get(KEY).get());
+  }
+
+  @Test
+  public void testInactiveRejectsWrites() {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
+    assertThrows(FencedException.class, () -> fence.claim(KEY));
+  }
+
+  @Test
+  public void testCreateAndUpdate() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    assertEquals(Optional.empty(), fence.claim(KEY));
+    fence.write(KEY, "v1");
+    fence.write(KEY, "v2");
+    assertEquals("v2", value());
+    assertEquals(1, pointerEpoch());
+  }
+
+  @Test
+  public void testClaimUnfencedPointer() throws Exception {
+    store.put(KEY, "legacy".getBytes(), Map.of());
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(3);
+    assertEquals(Optional.of("legacy"), fence.claim(KEY));
+    assertEquals(3, pointerEpoch());
+    assertEquals("legacy", value());
+    fence.write(KEY, "v1");
+    assertEquals("v1", value());
+  }
+
+  @Test
+  public void testWriteWithoutClaimOnExistingPointerFails() throws Exception {
+    store.put(KEY, "legacy".getBytes(), Map.of());
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
+    assertEquals("legacy", value());
+  }
+
+  /** The GC pause scenario: old leader resumes after a new leader claimed the pointer. */
+  @Test
+  public void testStaleLeaderFencedAfterNewLeaderClaims() throws Exception {
+    List<FencedException> fencedEvents = new ArrayList<>();
+    EpochPointerFence oldLeader = new EpochPointerFence(store);
+    oldLeader.setOnFenced(fencedEvents::add);
+    oldLeader.activate(1);
+    oldLeader.claim(KEY);
+    oldLeader.write(KEY, "a1");
+
+    EpochPointerFence newLeader = new EpochPointerFence(store);
+    newLeader.activate(2);
+    assertEquals(Optional.of("a1"), newLeader.claim(KEY));
+
+    // old leader still thinks it is active (paused), its write must fail
+    FencedException e = assertThrows(FencedException.class, () -> oldLeader.write(KEY, "a2"));
+    assertTrue(e.getMessage().contains("no longer leader"));
+    assertEquals(1, fencedEvents.size());
+    assertEquals("a1", value());
+
+    newLeader.write(KEY, "b1");
+    assertEquals("b1", value());
+    assertEquals(2, pointerEpoch());
+  }
+
+  /** Old leader writes before the new leader claims: the new leader sees the write. */
+  @Test
+  public void testWriteBeforeClaimIsVisibleToNewLeader() throws Exception {
+    EpochPointerFence oldLeader = new EpochPointerFence(store);
+    oldLeader.activate(1);
+    oldLeader.claim(KEY);
+    oldLeader.write(KEY, "a1");
+    oldLeader.write(KEY, "a2");
+
+    EpochPointerFence newLeader = new EpochPointerFence(store);
+    newLeader.activate(2);
+    assertEquals(Optional.of("a2"), newLeader.claim(KEY));
+    assertThrows(FencedException.class, () -> oldLeader.write(KEY, "a3"));
+  }
+
+  @Test
+  public void testOlderEpochCannotClaimNewerPointer() throws Exception {
+    EpochPointerFence newer = new EpochPointerFence(store);
+    newer.activate(5);
+    newer.claim(KEY);
+    newer.write(KEY, "n1");
+
+    List<FencedException> fencedEvents = new ArrayList<>();
+    EpochPointerFence older = new EpochPointerFence(store);
+    older.setOnFenced(fencedEvents::add);
+    older.activate(4);
+    assertThrows(FencedException.class, () -> older.claim(KEY));
+    assertEquals(1, fencedEvents.size());
+    assertEquals("n1", value());
+  }
+
+  @Test
+  public void testConcurrentCreateOnlyOneWins() throws Exception {
+    EpochPointerFence a = new EpochPointerFence(store);
+    a.activate(1);
+    a.claim(KEY);
+    EpochPointerFence b = new EpochPointerFence(store);
+    b.activate(2);
+    b.claim(KEY);
+    // both saw no pointer; first create wins, second is fenced
+    b.write(KEY, "b1");
+    assertThrows(FencedException.class, () -> a.write(KEY, "a1"));
+    assertEquals("b1", value());
+  }
+
+  @Test
+  public void testDeactivateRejectsWrites() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    fence.claim(KEY);
+    fence.write(KEY, "v1");
+    fence.deactivate();
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v2"));
+    // reactivating at the same epoch requires re-claiming
+    fence.activate(2);
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v2"));
+    fence.claim(KEY);
+    fence.write(KEY, "v2");
+    assertEquals("v2", value());
+  }
+}

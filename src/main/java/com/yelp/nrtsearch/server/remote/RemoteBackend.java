@@ -201,4 +201,35 @@ public interface RemoteBackend extends PluginDownloader {
   InputStreamWithTimestamp downloadPointState(
       String service, String indexIdentifier, UpdateIntervalContext updateIntervalContext)
       throws IOException;
+
+  /**
+   * Set the fence used to guard writes of current resource pointers, for multi-primary leader
+   * election. When set, every resource upload must be done by the active primary after claiming the
+   * resource with {@link #claimResource}. Backends that do not support fencing throw {@link
+   * UnsupportedOperationException}.
+   *
+   * @param fence pointer fence, or null to disable fencing
+   */
+  default void setPointerFence(com.yelp.nrtsearch.server.leader.EpochPointerFence fence) {
+    throw new UnsupportedOperationException("Pointer fencing not supported by this backend");
+  }
+
+  /**
+   * Claim the current pointer of a global resource for the active epoch of the pointer fence. No op
+   * when fencing is not enabled.
+   *
+   * @throws IOException on error, or {@link com.yelp.nrtsearch.server.leader.FencedException} if a
+   *     newer leader owns the resource
+   */
+  default void claimResource(String service, GlobalResourceType resourceType) throws IOException {}
+
+  /**
+   * Claim the current pointer of an index resource for the active epoch of the pointer fence. No op
+   * when fencing is not enabled.
+   *
+   * @throws IOException on error, or {@link com.yelp.nrtsearch.server.leader.FencedException} if a
+   *     newer leader owns the resource
+   */
+  default void claimResource(String service, String indexIdentifier, IndexResourceType resourceType)
+      throws IOException {}
 }
