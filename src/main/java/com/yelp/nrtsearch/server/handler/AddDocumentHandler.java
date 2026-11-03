@@ -435,6 +435,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       try {
         indexState = globalState.getIndexOrThrow(this.indexName);
         shardState = indexState.getShard(0);
+        shardState.verifyWritable("Adding documents");
         idFieldDef = indexState.getIdFieldDef().orElse(null);
         for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
           if (addDocumentRequest.getRequestType().equals(IndexingRequestType.UPDATE_DOC_VALUES)) {

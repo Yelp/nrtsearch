@@ -53,6 +53,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final String nodeName;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
+  private volatile boolean enforcePrimaryGenOrdering = false;
   private final NrtDataManager nrtDataManager;
   final NrtCopyThread nrtCopyThread;
 
@@ -208,6 +209,33 @@ public class NRTReplicaNode extends ReplicaNode {
       primaryAddress.addReplicas(
           indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
     }
+  }
+
+  /**
+   * Set if this replica should reject replication requests from a primary with a generation lower
+   * than the last one seen. Must be called before the node is started.
+   */
+  public void setEnforcePrimaryGenOrdering(boolean enforcePrimaryGenOrdering) {
+    this.enforcePrimaryGenOrdering = enforcePrimaryGenOrdering;
+  }
+
+  /** Get the generation of the last primary this replica has received data from. */
+  public synchronized long getLastPrimaryGenSeen() {
+    return lastPrimaryGen;
+  }
+
+  /**
+   * Called by Lucene before processing a new NRT point or merge pre-copy. Lucene only asserts that
+   * primary generations increase, so a request from a stale primary would otherwise be accepted in
+   * production. When ordering is enforced, reject the request instead.
+   */
+  @Override
+  protected synchronized void maybeNewPrimary(long newPrimaryGen) throws IOException {
+    if (enforcePrimaryGenOrdering && lastPrimaryGen != -1 && newPrimaryGen < lastPrimaryGen) {
+      NrtMetrics.stalePrimaryGenRejected.labelValues(indexName).inc();
+      throw new StalePrimaryGenException(indexName, newPrimaryGen, lastPrimaryGen);
+    }
+    super.maybeNewPrimary(newPrimaryGen);
   }
 
   public synchronized CopyJob launchPreCopyFiles(

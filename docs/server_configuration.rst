@@ -212,6 +212,11 @@ Example server configuration
      - If enabled, the server verifies that the replication index ID matches between primary and replica during file copy.
      - true
 
+   * - enforcePrimaryGenOrdering
+     - bool
+     - If enabled, a primary refuses to start with a primaryGen that is not greater than the primaryGen of its restored index data, and replicas reject replication requests (newNRTPoint, copyFiles) from a primary with a lower primaryGen than the last one seen, returning FAILED_PRECONDITION. Only enable when primary generations are monotonic across nodes (e.g. assigned by leader election); the default primaryGen is the process start time, which may not be ordered across hosts.
+     - false
+
    * - mmapGrouping
      - enum
      - Controls how MMapDirectory groups memory-mapped files into arenas. ``SEGMENT`` groups all files for a segment together, ``SEGMENT_EXCEPT_SI`` excludes segment info files from grouping, ``NONE`` uses no grouping.

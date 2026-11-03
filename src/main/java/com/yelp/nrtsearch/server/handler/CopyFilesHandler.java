@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.nrt.StalePrimaryGenException;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
@@ -120,6 +121,8 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
       job =
           shardState.nrtReplicaNode.launchPreCopyFiles(
               finished, primaryGen, files, primaryId, timeString);
+    } catch (StalePrimaryGenException e) {
+      throw Status.FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException();
     } catch (IOException e) {
       responseObserver.onNext(
           TransferStatus.newBuilder()

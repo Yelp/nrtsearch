@@ -44,6 +44,7 @@ public class ForceMergeDeletesHandler
     try {
       IndexState indexState = getIndexState(forceMergeRequest.getIndexName());
       ShardState shardState = indexState.getShards().get(0);
+      shardState.verifyWritable("Force merge deletes");
       logger.info("Beginning force merge deletes for index: {}", forceMergeRequest.getIndexName());
       shardState.writer.forceMergeDeletes(forceMergeRequest.getDoWait());
     } catch (IOException e) {

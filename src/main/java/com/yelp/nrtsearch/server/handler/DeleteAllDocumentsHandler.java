@@ -46,6 +46,7 @@ public class DeleteAllDocumentsHandler
       throws DeleteAllDocumentsHandlerException {
     final ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
+    shardState.verifyWritable("Deleting all documents");
     long gen;
     try {
       gen = shardState.writer.deleteAll();

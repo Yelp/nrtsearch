@@ -21,7 +21,9 @@ import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
+import com.yelp.nrtsearch.server.nrt.StalePrimaryGenException;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import io.grpc.Status;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +68,9 @@ public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
     long newPrimaryGen = newNRTPointRequest.getPrimaryGen();
     try {
       shardState.nrtReplicaNode.newNRTPoint(newPrimaryGen, version);
+    } catch (StalePrimaryGenException e) {
+      // FAILED_PRECONDITION causes the stale primary to drop this replica
+      throw Status.FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

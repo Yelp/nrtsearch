@@ -54,6 +54,12 @@ public class NrtMetrics {
           .help("Number of failed nrt point copies")
           .labelNames("index")
           .build();
+  public static final Counter stalePrimaryGenRejected =
+      Counter.builder()
+          .name("nrt_stale_primary_gen_rejected_count")
+          .help("Number of replication requests rejected for having a stale primary generation")
+          .labelNames("index")
+          .build();
   public static final Summary nrtPointSize =
       Summary.builder()
           .name("nrt_point_copy_size")
@@ -136,6 +142,7 @@ public class NrtMetrics {
     registry.register(nrtPrimaryPointCount);
     registry.register(nrtPrimaryMergeTime);
     registry.register(nrtPointFailure);
+    registry.register(stalePrimaryGenRejected);
     registry.register(nrtPointSize);
     registry.register(nrtPointTime);
     registry.register(nrtMergeFailure);

@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
@@ -261,6 +262,44 @@ public class ShardState implements Closeable {
 
   public boolean isReplica() {
     return nrtReplicaNode != null;
+  }
+
+  /**
+   * Verify that a primary is not starting with a generation older than the generation of the index
+   * data it restored. Starting with an older generation means a newer primary has already written
+   * this index, and this node must not become a writer.
+   *
+   * @param primaryGen generation this primary will start with
+   * @param restoredPrimaryGen generation from the restored point state, or -1 if none
+   * @param enforce if the check should be enforced
+   * @throws IllegalStateException if enforced and primaryGen is not newer than restoredPrimaryGen
+   */
+  @VisibleForTesting
+  static void verifyPrimaryGenOrdering(long primaryGen, long restoredPrimaryGen, boolean enforce) {
+    if (enforce && restoredPrimaryGen != -1 && primaryGen <= restoredPrimaryGen) {
+      throw new IllegalStateException(
+          String.format(
+              "Cannot start primary with primaryGen %d, restored index data has primaryGen %d",
+              primaryGen, restoredPrimaryGen));
+    }
+  }
+
+  /**
+   * Verify that this shard can accept index writes. Writes are only allowed on a started primary or
+   * standalone shard that has an open writer.
+   *
+   * @param operation name of the write operation, used in the error message
+   * @throws IllegalStateException if this shard cannot accept writes
+   */
+  public void verifyWritable(String operation) {
+    if (isReplica()) {
+      throw new IllegalStateException(
+          operation + " to an index on a replica node is not supported");
+    }
+    if (writer == null || !writer.isOpen()) {
+      throw new IllegalStateException(
+          operation + " requires a started index with an open writer, index: " + name);
+    }
   }
 
   public void waitForGeneration(long gen) throws InterruptedException {
@@ -771,6 +810,10 @@ public class ShardState implements Closeable {
 
       long resolvedPrimaryGen =
           primaryGen == -1 ? indexState.getGlobalState().getGeneration() : primaryGen;
+      verifyPrimaryGenOrdering(
+          resolvedPrimaryGen,
+          nrtDataManager.getLastPrimaryGen(),
+          indexState.getGlobalState().getConfiguration().getEnforcePrimaryGenOrdering());
       HostPort hostPort =
           new HostPort(
               indexState.getGlobalState().getHostName(),
@@ -980,6 +1023,7 @@ public class ShardState implements Closeable {
               configuration.getFilterIncompatibleSegmentReaders(),
               configuration.getLowPriorityCopyPercentage(),
               configuration.getS3ReplicaRefreshDownload());
+      nrtReplicaNode.setEnforcePrimaryGenOrdering(configuration.getEnforcePrimaryGenOrdering());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

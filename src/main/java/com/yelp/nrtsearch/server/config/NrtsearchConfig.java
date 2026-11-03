@@ -109,6 +109,7 @@ public class NrtsearchConfig {
   private final boolean enableGlobalBucketAccess;
   private final int lowPriorityCopyPercentage;
   private final boolean verifyReplicationIndexId;
+  private final boolean enforcePrimaryGenOrdering;
   private final boolean useKeepAliveForReplication;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
@@ -186,6 +187,7 @@ public class NrtsearchConfig {
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
+    enforcePrimaryGenOrdering = configReader.getBoolean("enforcePrimaryGenOrdering", false);
     useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
     mmapGrouping =
         configReader.get(
@@ -372,6 +374,18 @@ public class NrtsearchConfig {
 
   public boolean getVerifyReplicationIndexId() {
     return verifyReplicationIndexId;
+  }
+
+  /**
+   * If primary generation ordering should be enforced. When enabled, a primary will not start with
+   * a generation that is not greater than the generation of the restored index data, and replicas
+   * reject replication requests from a primary with a generation lower than the last one they have
+   * seen. This should only be enabled when primary generations are guaranteed to be monotonic
+   * across nodes (e.g. provided by leader election), not derived from wall clock time on different
+   * hosts.
+   */
+  public boolean getEnforcePrimaryGenOrdering() {
+    return enforcePrimaryGenOrdering;
   }
 
   public boolean getUseKeepAliveForReplication() {

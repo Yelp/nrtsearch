@@ -50,6 +50,7 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
       throws DeleteDocumentsHandlerException {
     final ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
+    shardState.verifyWritable("Deleting documents");
 
     Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
     List<Term> terms = new ArrayList<>();

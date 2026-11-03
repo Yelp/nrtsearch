@@ -48,6 +48,7 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
       throws DeleteByQueryHandlerException {
     final ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
+    shardState.verifyWritable("Deleting documents by query");
 
     List<Query> queryList =
         deleteByQueryRequest.getQueryList().stream()
