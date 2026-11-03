@@ -21,9 +21,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.yelp.nrtsearch.server.config.IsolatedReplicaConfig;
+import com.yelp.nrtsearch.server.config.LazyRemoteDataConfig;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.nrt.lazy.LazyRemoteDirectory;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -42,6 +44,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -315,6 +318,24 @@ public class NrtDataManager implements Closeable {
    */
   public void restoreIfNeeded(Path shardDataDir, IsolatedReplicaConfig isolatedReplicaConfig)
       throws IOException {
+    restoreIfNeeded(shardDataDir, isolatedReplicaConfig, null);
+  }
+
+  /**
+   * Restore index data from the remote backend if needed, leaving lazy files in the remote backend.
+   *
+   * @param shardDataDir Path to the shard index data directory
+   * @param isolatedReplicaConfig Configuration for isolated replica, or null if not an isolated
+   *     replica
+   * @param lazyRemoteDataConfig Configuration for lazy files, or null to download all files. Lazy
+   *     files get a local stub instead of being downloaded.
+   * @throws IOException if an error occurs while restoring the index data
+   */
+  public void restoreIfNeeded(
+      Path shardDataDir,
+      IsolatedReplicaConfig isolatedReplicaConfig,
+      LazyRemoteDataConfig lazyRemoteDataConfig)
+      throws IOException {
     if (restoreIndex == null) {
       return;
     }
@@ -337,8 +358,20 @@ public class NrtDataManager implements Closeable {
 
       long start = System.nanoTime();
       try {
+        Map<String, NrtFileMetaData> filesToDownload = pointState.files;
+        if (lazyRemoteDataConfig != null && lazyRemoteDataConfig.isEnabled()) {
+          Set<String> stubbed =
+              LazyRemoteDirectory.writeStubsForRestore(
+                  shardDataDir, lazyRemoteDataConfig, indexIdentifier, pointState.files);
+          filesToDownload = new HashMap<>(pointState.files);
+          filesToDownload.keySet().removeAll(stubbed);
+          logger.info(
+              "Leaving {} lazy files in remote backend for index: {}",
+              stubbed.size(),
+              indexIdentifier);
+        }
         remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
+            serviceName, indexIdentifier, shardDataDir, filesToDownload);
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -430,6 +463,16 @@ public class NrtDataManager implements Closeable {
    * @return input stream of the index file
    * @throws IOException on error downloading the file
    */
+  /** Unique identifier of the index in the remote backend. */
+  public String getIndexIdentifier() {
+    return indexIdentifier;
+  }
+
+  /** Service name used in the remote backend. */
+  public String getServiceName() {
+    return serviceName;
+  }
+
   public InputStream downloadIndexFile(String fileName, NrtFileMetaData fileMetaData)
       throws IOException {
     return remoteBackend.downloadIndexFile(serviceName, indexIdentifier, fileName, fileMetaData);

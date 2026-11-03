@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.nrt.jobs;
 
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.lazy.LazyRemoteDirectory;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.InputStreamDataInput;
@@ -360,6 +361,11 @@ public class RemoteCopyJob extends VisitableCopyJob {
       Map.Entry<String, FileMetaData> next = iter.next();
       FileMetaData metaData = next.getValue();
       String fileName = next.getKey();
+      if (writeLazyStub(fileName)) {
+        // the file stays in the remote backend, count it as copied
+        totBytesCopied += metaData.length();
+        return false;
+      }
       InputStream remoteFileInputStream =
           dataManager.downloadIndexFile(fileName, nrtFiles.get(fileName));
       current =
@@ -381,6 +387,29 @@ public class RemoteCopyJob extends VisitableCopyJob {
       return false;
     }
     return false;
+  }
+
+  /**
+   * If the destination directory loads this file lazily, write a stub for it instead of copying.
+   *
+   * @return if a stub was written
+   */
+  private boolean writeLazyStub(String fileName) throws IOException {
+    LazyRemoteDirectory lazyDir = LazyRemoteDirectory.unwrap(dest.getDirectory());
+    if (lazyDir == null || !lazyDir.isLazyFile(fileName)) {
+      return false;
+    }
+    NrtFileMetaData nrtFileMetaData = nrtFiles.get(fileName);
+    if (nrtFileMetaData == null
+        || (nrtFileMetaData.compressionType != null
+            && !"NONE".equals(nrtFileMetaData.compressionType))) {
+      return false;
+    }
+    lazyDir.writeStub(fileName, dataManager.getIndexIdentifier(), nrtFileMetaData);
+    if (dest.isVerboseFiles()) {
+      dest.message("file " + fileName + ": stored as lazy remote stub");
+    }
+    return true;
   }
 
   @Override

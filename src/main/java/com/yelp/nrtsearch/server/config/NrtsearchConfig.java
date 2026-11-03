@@ -116,6 +116,7 @@ public class NrtsearchConfig {
   private final boolean s3ReplicaRefreshDownload;
   private final boolean s3RefreshNotifyAfterUpload;
   private final IsolatedReplicaConfig isolatedReplicaConfig;
+  private final LazyRemoteDataConfig lazyRemoteDataConfig;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -198,6 +199,7 @@ public class NrtsearchConfig {
     s3ReplicaRefreshDownload = configReader.getBoolean("s3ReplicaRefreshDownload", false);
     s3RefreshNotifyAfterUpload = configReader.getBoolean("s3RefreshNotifyAfterUpload", false);
     isolatedReplicaConfig = IsolatedReplicaConfig.fromConfig(configReader);
+    lazyRemoteDataConfig = LazyRemoteDataConfig.fromConfig(configReader);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -413,6 +415,11 @@ public class NrtsearchConfig {
 
   public IsolatedReplicaConfig getIsolatedReplicaConfig() {
     return isolatedReplicaConfig;
+  }
+
+  /** Get the config for lazy loading index files from the remote backend on replicas. */
+  public LazyRemoteDataConfig getLazyRemoteDataConfig() {
+    return lazyRemoteDataConfig;
   }
 
   /**

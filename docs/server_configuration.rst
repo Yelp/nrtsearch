@@ -977,3 +977,37 @@ Example server configuration
      - Offset applied to the freshness target in seconds. Must be >= 0 and <= 86400 (1 day).
      - 0
 
+.. list-table:: `Lazy Remote Data Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/LazyRemoteDataConfig.java>`_ (``lazyRemoteData.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - enabled
+     - bool
+     - Leave index files with the configured extensions in the remote backend on isolated replicas, instead of downloading them. Only used when ``isolatedReplicaConfig.enabled`` is true. Reads of these files fetch byte ranges from S3 through an on-disk block cache. Files must be uploaded uncompressed (the default), and are only lazy when not inside a compound file (``.cfs``).
+     - false
+
+   * - extensions
+     - list
+     - File extensions to load lazily, without the dot. ``vec`` holds full precision vectors, which quantized vector fields only read to rescore the top hits.
+     - [vec]
+
+   * - cacheDir
+     - str
+     - Directory for the block cache. Emptied on startup.
+     - ``<indexDir>/lazy_remote_cache``
+
+   * - cacheSizeMB
+     - long
+     - Maximum size of the block cache, shared by all indices on the node. The least recently used blocks are evicted.
+     - 1024
+
+   * - blockSizeKB
+     - int
+     - Size of the byte range read from S3 for each cache miss. Smaller blocks read less data for scattered reads (such as rescoring), larger blocks need fewer requests for sequential reads. Must be between 4 and 65536.
+     - 1024
+

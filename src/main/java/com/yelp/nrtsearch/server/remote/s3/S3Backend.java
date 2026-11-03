@@ -1475,6 +1475,56 @@ public class S3Backend implements RemoteBackend {
     return wrappedStream;
   }
 
+  @Override
+  public byte[] readIndexFileRange(
+      String service,
+      String indexIdentifier,
+      String fileName,
+      NrtFileMetaData fileMetaData,
+      long offset,
+      int length)
+      throws IOException {
+    if (fileMetaData.compressionType != null && !"NONE".equals(fileMetaData.compressionType)) {
+      throw new UnsupportedOperationException(
+          "Range reads need uncompressed files, "
+              + fileName
+              + " is "
+              + fileMetaData.compressionType);
+    }
+    if (offset < 0 || length < 0 || offset + length > fileMetaData.length) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Range [%d, %d) is outside of file %s with length %d",
+              offset, offset + length, fileName, fileMetaData.length));
+    }
+    if (length == 0) {
+      return new byte[0];
+    }
+    String backendKey =
+        getIndexDataPrefix(service, indexIdentifier)
+            + getIndexBackendFileName(fileName, fileMetaData);
+    GetObjectRequest request =
+        GetObjectRequest.builder()
+            .bucket(serviceBucket)
+            .key(backendKey)
+            .range("bytes=" + offset + "-" + (offset + length - 1))
+            .build();
+    byte[] bytes;
+    // wrap the stream so range reads count toward download metrics and rate limits
+    try (InputStream in =
+        wrapDownloadStream(s3.getObject(request), s3Metrics, indexIdentifier, rateLimiter)) {
+      bytes = in.readAllBytes();
+    } catch (S3Exception e) {
+      throw new IOException("Error reading range of " + backendKey, e);
+    }
+    if (bytes.length != length) {
+      throw new IOException(
+          String.format(
+              "Expected %d bytes from range read of %s, got %d", length, backendKey, bytes.length));
+    }
+    return bytes;
+  }
+
   @VisibleForTesting
   static List<FileNamePair> getFileNamePairs(Map<String, NrtFileMetaData> files) {
     List<FileNamePair> fileList = new LinkedList<>();

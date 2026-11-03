@@ -147,6 +147,13 @@ task nrtUtils(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
+task vectorGateway(type: CreateStartScripts) {
+    mainClass = 'com.yelp.nrtsearch.vectors.VectorGatewayCommand'
+    applicationName = 'vector_gateway'
+    outputDir = new File(project.buildDir, 'tmp-app')
+    classpath = startScripts.classpath
+}
+
 distributions {
     main {
         contents {
@@ -156,6 +163,7 @@ distributions {
                 from(nrtsearchServer)
                 from(nrtsearchServerClient)
                 from(nrtUtils)
+                from(vectorGateway)
             }
         }
     }

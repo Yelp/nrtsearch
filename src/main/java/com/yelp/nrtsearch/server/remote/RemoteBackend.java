@@ -170,6 +170,31 @@ public interface RemoteBackend extends PluginDownloader {
       throws IOException;
 
   /**
+   * Read a byte range of an index file from the remote backend, without downloading the whole file.
+   * Only works for files stored uncompressed.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param fileName file name
+   * @param fileMetaData file metadata
+   * @param offset offset of the first byte to read
+   * @param length number of bytes to read
+   * @return the bytes, exactly {@code length} of them
+   * @throws IOException on error reading the range
+   * @throws UnsupportedOperationException if the backend or file does not support range reads
+   */
+  default byte[] readIndexFileRange(
+      String service,
+      String indexIdentifier,
+      String fileName,
+      NrtFileMetaData fileMetaData,
+      long offset,
+      int length)
+      throws IOException {
+    throw new UnsupportedOperationException("Range reads are not supported by this backend");
+  }
+
+  /**
    * Upload NRT point state to the remote backend.
    *
    * @param service service name

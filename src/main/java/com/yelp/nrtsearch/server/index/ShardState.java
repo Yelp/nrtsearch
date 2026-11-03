@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.index;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.yelp.nrtsearch.server.config.LazyRemoteDataConfig;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef.FacetValueType;
@@ -30,6 +31,7 @@ import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.nrt.lazy.LazyRemoteDirectory;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -937,9 +939,25 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
-      nrtDataManager.restoreIfNeeded(indexDirFile, configuration.getIsolatedReplicaConfig());
+      // Lazy remote files are only supported on isolated replicas, which copy all index versions
+      // from the remote backend
+      LazyRemoteDataConfig lazyConfig = configuration.getLazyRemoteDataConfig();
+      boolean lazyRemote =
+          lazyConfig.isEnabled() && configuration.getIsolatedReplicaConfig().isEnabled();
+      nrtDataManager.restoreIfNeeded(
+          indexDirFile, configuration.getIsolatedReplicaConfig(), lazyRemote ? lazyConfig : null);
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+      if (lazyRemote) {
+        origIndexDir =
+            new LazyRemoteDirectory(
+                origIndexDir,
+                indexDirFile,
+                nrtDataManager.getServiceName(),
+                indexState.getGlobalState().getRemoteBackend(),
+                indexState.getGlobalState().getLazyRemoteBlockCache(),
+                lazyConfig);
+      }
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if (!(origIndexDir instanceof MMapDirectory)) {
