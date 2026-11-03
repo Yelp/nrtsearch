@@ -82,6 +82,7 @@ import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.handler.stream.SearchStreamHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.ingestion.IngestionPluginUtils;
+import com.yelp.nrtsearch.server.leader.PrimaryElectorCreator;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.modules.NrtsearchModule;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
@@ -500,6 +501,7 @@ public class NrtsearchServer {
       FileCompressorCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
       HitsLoggerCreator.initialize(configuration, plugins);
+      PrimaryElectorCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);

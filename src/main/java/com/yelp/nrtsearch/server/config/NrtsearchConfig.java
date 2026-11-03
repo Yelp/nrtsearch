@@ -110,6 +110,7 @@ public class NrtsearchConfig {
   private final int lowPriorityCopyPercentage;
   private final boolean verifyReplicationIndexId;
   private final boolean enforcePrimaryGenOrdering;
+  private final LeaderElectionConfig leaderElectionConfig;
   private final boolean useKeepAliveForReplication;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
@@ -187,7 +188,10 @@ public class NrtsearchConfig {
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
-    enforcePrimaryGenOrdering = configReader.getBoolean("enforcePrimaryGenOrdering", false);
+    leaderElectionConfig = LeaderElectionConfig.fromConfig(configReader);
+    // leader election assigns monotonic epochs, so ordering can always be enforced
+    enforcePrimaryGenOrdering =
+        configReader.getBoolean("enforcePrimaryGenOrdering", leaderElectionConfig.isEnabled());
     useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
     mmapGrouping =
         configReader.get(
@@ -386,6 +390,10 @@ public class NrtsearchConfig {
    */
   public boolean getEnforcePrimaryGenOrdering() {
     return enforcePrimaryGenOrdering;
+  }
+
+  public LeaderElectionConfig getLeaderElectionConfig() {
+    return leaderElectionConfig;
   }
 
   public boolean getUseKeepAliveForReplication() {

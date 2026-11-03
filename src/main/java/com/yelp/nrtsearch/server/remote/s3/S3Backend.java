@@ -675,6 +675,11 @@ public class S3Backend implements RemoteBackend {
     return s3;
   }
 
+  /** Get the bucket used for service data. */
+  public String getServiceBucket() {
+    return serviceBucket;
+  }
+
   public S3AsyncClient getS3Async() {
     return s3Async;
   }
