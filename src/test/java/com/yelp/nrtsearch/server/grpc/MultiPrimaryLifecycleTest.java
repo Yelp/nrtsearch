@@ -106,7 +106,42 @@ public class MultiPrimaryLifecycleTest {
     assertFalse(leaderManager(a).isActive());
     StatusRuntimeException e =
         assertThrows(StatusRuntimeException.class, () -> a.createSimpleIndex(INDEX));
-    assertTrue(e.getMessage(), e.getMessage().contains("not the active primary"));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    assertTrue(e.getMessage(), e.getMessage().contains("createIndex requires the active primary"));
+  }
+
+  @Test
+  public void testStandbyReportsLeaderInErrors() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> b.commit(INDEX));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    assertTrue(e.getMessage(), e.getMessage().contains("current leader: " + nodeName(a)));
+  }
+
+  /** A paused old leader must not serve copy state to replicas once it is no longer leader. */
+  @Test
+  public void testStaleLeaderStopsServingReplication() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    String indexId = a.getGlobalState().getIndexStateManagerOrThrow(INDEX).getIndexId();
+    a.getReplicationClient().recvCopyState(INDEX, indexId, 0);
+
+    // revoke a's leadership; its elector reports not leader before the demotion completes
+    cluster.revokeCurrent();
+    StatusRuntimeException e =
+        assertThrows(
+            StatusRuntimeException.class,
+            () -> a.getReplicationClient().recvCopyState(INDEX, indexId, 0));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
   }
 
   @Test

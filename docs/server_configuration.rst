@@ -982,3 +982,27 @@ Example server configuration
      - Offset applied to the freshness target in seconds. Must be >= 0 and <= 86400 (1 day).
      - 0
 
+
+.. list-table:: `Leader Election Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/LeaderElectionConfig.java>`_ (``leaderElection.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - type
+     - str
+     - Leader election type for running multiple primaries with one active. ``none`` disables election. ``s3_lease`` uses a lease object in the service bucket (requires S3 conditional writes). Other types may be registered by a ``PrimaryElectorPlugin``. See :doc:`multi_primary`.
+     - ``none``
+
+   * - claimConcurrency
+     - int
+     - Number of indices to claim and restart in parallel when promoted to active primary.
+     - 32
+
+   * - params
+     - map
+     - Elector specific parameters. For ``s3_lease``: ``ttlMs`` (default 15000), ``safetyMarginMs`` (default 2000, must be < ttlMs/2), ``pollIntervalMs`` (default ttlMs/3), ``leaseKey`` (default ``<serviceName>/leader/lease``).
+     - empty

@@ -148,6 +148,44 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
     }
   }
 
+  /**
+   * Verify this node is the active primary when multi-primary leader election is enabled. No op
+   * when leader election is disabled.
+   *
+   * @param operation operation name for the error message
+   * @throws io.grpc.StatusRuntimeException FAILED_PRECONDITION if not the active primary, with the
+   *     known leader address in the description
+   */
+  protected void verifyActivePrimary(String operation) {
+    verifyActivePrimary(getGlobalState(), operation);
+  }
+
+  /** Static form of {@link #verifyActivePrimary(String)}. */
+  public static void verifyActivePrimary(GlobalState globalState, String operation) {
+    globalState
+        .getLeaderManager()
+        .ifPresent(
+            manager -> {
+              if (!manager.isActive()) {
+                String leader =
+                    manager
+                        .currentLeader()
+                        .map(
+                            l ->
+                                String.format(
+                                    "%s (%s:%d, epoch %d)",
+                                    l.nodeName(), l.host(), l.port(), l.epoch()))
+                        .orElse("unknown");
+                throw Status.FAILED_PRECONDITION
+                    .withDescription(
+                        String.format(
+                            "%s requires the active primary, this node is %s, current leader: %s",
+                            operation, manager.getRole(), leader))
+                    .asRuntimeException();
+              }
+            });
+  }
+
   protected boolean isValidMagicHeader(int magicHeader) {
     return magicHeader == ReplicationServerClient.BINARY_MAGIC;
   }

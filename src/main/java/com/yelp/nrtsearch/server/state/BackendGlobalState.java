@@ -769,6 +769,10 @@ public class BackendGlobalState extends GlobalState {
             .setMode(mode);
 
     // set primary discovery config
+    if (leaderManager != null && !standby) {
+      // promoting a standby that was following remote data, only download changed files
+      indexStateManager.getCurrent().getShard(0).setDeltaRestore(true);
+    }
     if (standby) {
       // standby followers poll remote storage, and do not connect to the active primary
       indexStateManager

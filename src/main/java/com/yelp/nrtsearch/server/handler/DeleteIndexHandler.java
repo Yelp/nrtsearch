@@ -33,6 +33,7 @@ public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexR
   @Override
   public DeleteIndexResponse handle(DeleteIndexRequest deleteIndexRequest) throws Exception {
     logger.info("Received delete index request: {}", deleteIndexRequest);
+    verifyActivePrimary("deleteIndex");
     IndexState indexState = getIndexState(deleteIndexRequest.getIndexName());
     DeleteIndexResponse reply = handle(indexState);
     logger.info("DeleteIndexHandler returned {}", reply);

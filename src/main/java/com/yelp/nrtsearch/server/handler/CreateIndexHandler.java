@@ -32,6 +32,7 @@ public class CreateIndexHandler extends Handler<CreateIndexRequest, CreateIndexR
   @Override
   public CreateIndexResponse handle(CreateIndexRequest req) throws Exception {
     logger.info("Received create index request: {}", req);
+    verifyActivePrimary("createIndex");
     String indexName = req.getIndexName();
     String validIndexNameRegex = "[A-z0-9_-]+";
     if (!indexName.matches(validIndexNameRegex)) {

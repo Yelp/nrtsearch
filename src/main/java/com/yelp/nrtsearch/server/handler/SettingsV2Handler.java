@@ -36,6 +36,7 @@ public class SettingsV2Handler extends Handler<SettingsV2Request, SettingsV2Resp
   @Override
   public SettingsV2Response handle(SettingsV2Request settingsRequest) throws Exception {
     logger.info("Received settings V2 request: {}", settingsRequest);
+    verifyActivePrimary("settingsV2");
     IndexStateManager indexStateManager = getIndexStateManager(settingsRequest.getIndexName());
     SettingsV2Response reply = handle(indexStateManager, settingsRequest);
     logger.info("SettingsV2Handler returned: " + JsonFormat.printer().print(reply));

@@ -258,6 +258,16 @@ public class ShardState implements Closeable {
   }
 
   private volatile IsolatedReplicaConfig standbyFollowerConfig;
+  private volatile boolean deltaRestore = false;
+
+  /**
+   * Set if a primary start should keep local index files that match the restored point state,
+   * downloading only the difference. Used when promoting a standby follower. Must be set before
+   * {@link #startPrimary}.
+   */
+  public void setDeltaRestore(boolean deltaRestore) {
+    this.deltaRestore = deltaRestore;
+  }
 
   public boolean isPrimary() {
     return nrtPrimaryNode != null;
@@ -777,6 +787,7 @@ public class ShardState implements Closeable {
       if (!Files.exists(indexDirFile)) {
         Files.createDirectories(indexDirFile);
       }
+      nrtDataManager.setKeepMatchingLocalFiles(deltaRestore);
       nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState

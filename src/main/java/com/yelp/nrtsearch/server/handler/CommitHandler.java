@@ -45,6 +45,7 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                   .wrap(
                       () -> {
                         try {
+                          verifyActivePrimary("commit");
                           IndexState indexState = getIndexState(commitRequest.getIndexName());
                           long gen = indexState.commit();
                           CommitResponse reply =

@@ -40,6 +40,7 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
   @Override
   public SettingsResponse handle(SettingsRequest settingsRequest) throws Exception {
     logger.info("Received settings request: {}", settingsRequest);
+    verifyActivePrimary("settings");
     IndexState indexState = getIndexState(settingsRequest.getIndexName());
     SettingsResponse reply = handle(indexState, settingsRequest);
     logger.info("SettingsHandler returned {}", reply);

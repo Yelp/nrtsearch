@@ -92,6 +92,9 @@ public class NrtDataManager implements Closeable {
   // Set during restoreIfNeeded, then only accessed by UploadManagerThread
   private volatile NrtPointState lastPointState = null;
 
+  // If restore should keep local files matching the point state, set before restore
+  private volatile boolean keepMatchingLocalFiles = false;
+
   // Set during restoreIfNeeded, then updated by setLastPointState, which only happens on replicas
   // using the isolated replica feature
   private volatile Instant lastPointTimestamp = null;
@@ -195,6 +198,67 @@ public class NrtDataManager implements Closeable {
   @VisibleForTesting
   NrtPointState getLastPointState() {
     return lastPointState;
+  }
+
+  /**
+   * Keep local index files that match the restored point state instead of deleting all local data,
+   * so that only changed files are downloaded. Used when promoting a standby that has been
+   * following remote data. Must be called before {@link #restoreIfNeeded}.
+   */
+  public void setKeepMatchingLocalFiles(boolean keepMatchingLocalFiles) {
+    this.keepMatchingLocalFiles = keepMatchingLocalFiles;
+  }
+
+  /**
+   * Prepare the local directory for a delta restore. Local files that match the point state (same
+   * length and Lucene footer checksum) are kept; all other files are deleted.
+   *
+   * @param shardDataDir local index directory
+   * @param pointFiles files in the point state to restore
+   * @return files that must be downloaded
+   */
+  @VisibleForTesting
+  static Map<String, NrtFileMetaData> prepareDeltaRestore(
+      Path shardDataDir, Map<String, NrtFileMetaData> pointFiles) throws IOException {
+    Map<String, NrtFileMetaData> toDownload = new HashMap<>();
+    java.util.Set<String> keep = new java.util.HashSet<>();
+    try (org.apache.lucene.store.FSDirectory dir =
+        org.apache.lucene.store.FSDirectory.open(shardDataDir)) {
+      for (Map.Entry<String, NrtFileMetaData> entry : pointFiles.entrySet()) {
+        if (localFileMatches(dir, entry.getKey(), entry.getValue())) {
+          keep.add(entry.getKey());
+        } else {
+          toDownload.put(entry.getKey(), entry.getValue());
+        }
+      }
+    }
+    try (java.util.stream.Stream<Path> files = java.nio.file.Files.list(shardDataDir)) {
+      for (Path file : (Iterable<Path>) files::iterator) {
+        if (!keep.contains(file.getFileName().toString())) {
+          java.nio.file.Files.deleteIfExists(file);
+        }
+      }
+    }
+    logger.info(
+        "Delta restore: keeping {} local files, downloading {} files",
+        keep.size(),
+        toDownload.size());
+    return toDownload;
+  }
+
+  private static boolean localFileMatches(
+      org.apache.lucene.store.Directory dir, String fileName, NrtFileMetaData expected) {
+    try {
+      if (dir.fileLength(fileName) != expected.length) {
+        return false;
+      }
+      try (org.apache.lucene.store.IndexInput in =
+          dir.openInput(fileName, org.apache.lucene.store.IOContext.READONCE)) {
+        return org.apache.lucene.codecs.CodecUtil.retrieveChecksum(in) == expected.checksum;
+      }
+    } catch (Exception e) {
+      return false;
+    }
   }
 
   /**
@@ -318,7 +382,7 @@ public class NrtDataManager implements Closeable {
     if (restoreIndex == null) {
       return;
     }
-    if (restoreIndex.getDeleteExistingData()) {
+    if (restoreIndex.getDeleteExistingData() && !keepMatchingLocalFiles) {
       FileUtils.deleteAllFilesInDir(shardDataDir);
     }
     if (hasRestoreData()) {
@@ -337,8 +401,12 @@ public class NrtDataManager implements Closeable {
 
       long start = System.nanoTime();
       try {
+        Map<String, NrtFileMetaData> filesToDownload = pointState.files;
+        if (keepMatchingLocalFiles) {
+          filesToDownload = prepareDeltaRestore(shardDataDir, pointState.files);
+        }
         remoteBackend.downloadIndexFiles(
-            serviceName, indexIdentifier, shardDataDir, pointState.files);
+            serviceName, indexIdentifier, shardDataDir, filesToDownload);
         writeSegmentsFile(pointState.infosBytes, pointState.gen, shardDataDir);
       } finally {
         double timeSpentMs = (System.nanoTime() - start) / 1_000_000.0;

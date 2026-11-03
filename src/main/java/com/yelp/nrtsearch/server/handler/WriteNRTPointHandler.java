@@ -52,6 +52,7 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
 
   private SearcherVersion handle(IndexState indexState, String indexId) {
     final ShardState shardState = indexState.getShard(0);
+    verifyActivePrimary("writeNRTPoint");
 
     if (!shardState.isPrimary()) {
       throw new IllegalArgumentException(

@@ -51,6 +51,7 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
 
   private AddReplicaResponse handle(IndexState indexState, AddReplicaRequest addReplicaRequest) {
     ShardState shardState = indexState.getShard(0);
+    verifyActivePrimary("addReplicas");
     if (!shardState.isPrimary()) {
       throw new IllegalArgumentException(
           "index \"" + indexState.getName() + "\" was not started or is not a primary");

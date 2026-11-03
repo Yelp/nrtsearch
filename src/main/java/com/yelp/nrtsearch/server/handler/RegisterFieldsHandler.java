@@ -32,6 +32,7 @@ public class RegisterFieldsHandler extends Handler<FieldDefRequest, FieldDefResp
   @Override
   public FieldDefResponse handle(FieldDefRequest fieldDefRequest) throws Exception {
     logger.info("Received register fields request: {}", fieldDefRequest);
+    verifyActivePrimary("registerFields");
     IndexStateManager indexStateManager = getIndexStateManager(fieldDefRequest.getIndexName());
     String updatedFields = indexStateManager.updateFields(fieldDefRequest.getFieldList());
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
