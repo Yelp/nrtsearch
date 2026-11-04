@@ -94,6 +94,17 @@ public class NrtsearchClientCommand implements Runnable {
   }
 
   @CommandLine.Option(
+      names = {"--json"},
+      description =
+          "Output response as JSON. Responses containing plugin-defined google.protobuf.Any"
+              + " values may not be serializable; omit --json for those responses.")
+  private boolean json;
+
+  public boolean isJson() {
+    return json;
+  }
+
+  @CommandLine.Option(
       names = {"-V", "--version"},
       description = "Print version information and exit")
   private boolean printVersion;

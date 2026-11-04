@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import static com.yelp.nrtsearch.tools.cli.NrtsearchClientCommand.logger;
-
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
@@ -68,8 +66,7 @@ public class WriteNRTPointCommand implements Callable<Integer> {
       ReplicationServerClient replicationServerClient =
           new ReplicationServerClient(getHostName(), getPort());
       SearcherVersion searcherVersion = replicationServerClient.writeNRTPoint(getIndexName());
-      logger.info("didRefresh: " + searcherVersion.getDidRefresh());
-      logger.info("searcherVersion: " + searcherVersion.getVersion());
+      CliUtils.printMessage(searcherVersion, baseCmd.isJson());
     } finally {
       client.shutdown();
     }

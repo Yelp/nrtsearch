@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.yelp.nrtsearch.server.grpc.IndicesResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
-import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -31,13 +31,8 @@ public class IndicesCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      List<String> indicesList = client.getIndices();
-      System.out.println();
-      if (indicesList.isEmpty()) {
-        System.out.println("No index found");
-      } else {
-        indicesList.forEach(System.out::println);
-      }
+      IndicesResponse response = client.getIndices();
+      CliUtils.printMessage(response, baseCmd.isJson());
     } finally {
       client.shutdown();
     }
