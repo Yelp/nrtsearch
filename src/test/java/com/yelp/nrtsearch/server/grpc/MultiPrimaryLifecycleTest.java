@@ -83,6 +83,12 @@ public class MultiPrimaryLifecycleTest {
     return server.getGlobalState().getNodeName();
   }
 
+  /** Request a state refresh on a leader election node and wait for it to finish. */
+  private static void refreshAndWait(TestServer server) throws Exception {
+    server.reloadState();
+    leaderManager(server).awaitTransitions();
+  }
+
   private long elect(TestServer server) throws Exception {
     long epoch = cluster.elect(nodeName(server));
     leaderManager(server).awaitTransitions();
@@ -117,7 +123,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> b.commit(INDEX));
     assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
     assertTrue(e.getMessage(), e.getMessage().contains("current leader: " + nodeName(a)));
@@ -131,7 +137,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     String indexId = a.getGlobalState().getIndexStateManagerOrThrow(INDEX).getIndexId();
     a.getReplicationClient().recvCopyState(INDEX, indexId, 0);
 
@@ -153,7 +159,7 @@ public class MultiPrimaryLifecycleTest {
     a.commit(INDEX);
 
     // b picks up the index from global state and follows as standby
-    b.reloadState();
+    refreshAndWait(b);
     assertTrue(b.isStarted(INDEX));
     assertTrue(shard(b).isReplica());
     assertTrue(shard(b).isStandbyFollower());
@@ -199,7 +205,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1, 2);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
 
     // b is elected while a still believes it is leader
     cluster.electWithoutRevoking(nodeName(b));
@@ -249,7 +255,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     a.stop();
     assertFalse(cluster.hasLeader());
     elect(b);
@@ -264,7 +270,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     elect(b);
     leaderManager(a).awaitTransitions();
     RuntimeException e =
@@ -286,7 +292,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     java.util.concurrent.atomic.AtomicBoolean stop =
         new java.util.concurrent.atomic.AtomicBoolean();
     java.util.List<Throwable> errors = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -351,7 +357,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     cluster.electWithoutRevoking(nodeName(b));
     leaderManager(b).awaitTransitions();
     a.addSimpleDocs(INDEX, 2);
@@ -404,7 +410,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     assertTrue(shard(b).isStandbyFollower());
     StatusRuntimeException e =
         assertThrows(
@@ -414,7 +420,6 @@ public class MultiPrimaryLifecycleTest {
                     StartIndexRequest.newBuilder()
                         .setIndexName(INDEX)
                         .setMode(Mode.PRIMARY)
-                        .setPrimaryGen(Long.MAX_VALUE)
                         .build()));
     assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
     e =
@@ -438,6 +443,85 @@ public class MultiPrimaryLifecycleTest {
     assertTrue(shard(b).isStandbyFollower());
   }
 
+  /** ReloadState returns without waiting for a refresh to run. */
+  @Test
+  public void testReloadStateDoesNotBlock() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    java.util.concurrent.CountDownLatch block = new java.util.concurrent.CountDownLatch(1);
+    // occupy the transition thread
+    java.lang.reflect.Field f = LeaderManager.class.getDeclaredField("transitionExecutor");
+    f.setAccessible(true);
+    ((java.util.concurrent.ExecutorService) f.get(leaderManager(a)))
+        .execute(
+            () -> {
+              try {
+                block.await();
+              } catch (InterruptedException ignored) {
+              }
+            });
+    long start = System.nanoTime();
+    for (int i = 0; i < 20; i++) {
+      a.reloadState();
+    }
+    assertTrue(System.nanoTime() - start < java.util.concurrent.TimeUnit.SECONDS.toNanos(5));
+    block.countDown();
+    leaderManager(a).awaitTransitions();
+  }
+
+  /**
+   * On the active leader, a refresh keeps primaries primary, and starts an index it finds in global
+   * state but not started (here: one this node only knows about after taking over) as primary.
+   */
+  @Test
+  public void testRefreshOnLeaderStartsPrimary() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    // a creates a second index that b has not loaded
+    a.createSimpleIndex("other_index");
+    a.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("other_index").build());
+    a.addSimpleDocs("other_index", 7);
+    a.commit("other_index");
+    // b is elected without having refreshed: promotion's reload picks up both indices
+    elect(b);
+    assertTrue(shard(b).isPrimary());
+    refreshAndWait(b);
+    assertTrue(shard(b).isPrimary());
+    ShardState other = b.getGlobalState().getIndexOrThrow("other_index").getShard(0);
+    assertTrue(other.isPrimary());
+    assertEquals(leaderManager(b).getActiveEpoch(), other.nrtPrimaryNode.getPrimaryGen());
+    b.verifySimpleDocIds("other_index", 7);
+    b.addSimpleDocs("other_index", 8);
+    b.commit("other_index");
+    b.verifySimpleDocIds("other_index", 7, 8);
+  }
+
+  /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */
+  @Test
+  public void testStartIndexV1RejectsIgnoredFields() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    for (StartIndexRequest request :
+        List.of(
+            StartIndexRequest.newBuilder()
+                .setIndexName(INDEX)
+                .setMode(Mode.PRIMARY)
+                .setRestore(RestoreIndex.newBuilder().setServiceName("s").setResourceName("r"))
+                .build(),
+            StartIndexRequest.newBuilder()
+                .setIndexName(INDEX)
+                .setMode(Mode.PRIMARY)
+                .setPrimaryGen(5)
+                .build())) {
+      StatusRuntimeException e =
+          assertThrows(StatusRuntimeException.class, () -> a.startIndex(request));
+      assertEquals(io.grpc.Status.Code.INVALID_ARGUMENT, e.getStatus().getCode());
+    }
+  }
+
   /** A new leader can back up warming queries that an earlier leader wrote. */
   @Test
   public void testWarmingQueriesWritableAfterFailover() throws Exception {
@@ -448,7 +532,7 @@ public class MultiPrimaryLifecycleTest {
     a.commit(INDEX);
     String uniqueName = a.getGlobalState().getDataResourceForIndex(INDEX);
     a.getRemoteBackend().uploadWarmingQueries(a.getServiceName(), uniqueName, "a".getBytes());
-    b.reloadState();
+    refreshAndWait(b);
 
     elect(b);
     b.getRemoteBackend().uploadWarmingQueries(b.getServiceName(), uniqueName, "b".getBytes());
@@ -469,7 +553,7 @@ public class MultiPrimaryLifecycleTest {
     bootstrap(a);
     a.addSimpleDocs(INDEX, 1);
     a.commit(INDEX);
-    b.reloadState();
+    refreshAndWait(b);
     a.addSimpleDocs(INDEX, 2);
     a.commit(INDEX);
 

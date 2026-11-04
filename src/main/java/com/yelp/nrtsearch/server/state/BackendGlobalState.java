@@ -219,7 +219,8 @@ public class BackendGlobalState extends GlobalState {
         elector,
         election.fence(),
         config.getLeaderElectionConfig().getClaimConcurrency(),
-        new RoleController());
+        new RoleController(),
+        config.getLeaderElectionConfig().getRefreshIntervalMs());
   }
 
   /** Verify configuration is compatible with multi-primary leader election. */
@@ -319,59 +320,23 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public void reloadStateFromBackend() throws IOException {
-    if (leaderManager == null) {
-      reloadStateFromBackendLocked();
+    if (leaderManager != null) {
+      // with leader election, the leader manager owns all changes to index managers; request a
+      // refresh, which runs between role changes. Does not wait for it.
+      leaderManager.requestRefresh();
       return;
     }
-    // with leader election, reloads run on the leader manager transition thread, so they never run
-    // concurrently with each other or with a role change; this is what keeps index managers from
-    // being replaced, closed, or started by two actors at once
-    leaderManager.runSerialized(this::reloadForLeaderElection);
+    reloadStateFromBackendLocked();
   }
 
   /** Reload without leader election, same as before multi-primary support. */
   private synchronized void reloadStateFromBackendLocked() throws IOException {
-    GlobalStateInfo newGlobalStateInfo = loadGlobalState();
-    Map<String, IndexStateManager> newManagerMap = new HashMap<>();
-    for (Map.Entry<String, IndexGlobalState> entry :
-        newGlobalStateInfo.getIndicesMap().entrySet()) {
-      String indexName = entry.getKey();
-      IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
-      if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
-        stateManager =
-            createIndexStateManager(
-                indexName,
-                entry.getValue().getId(),
-                getConfiguration().getLiveSettingsOverride(indexName),
-                stateBackend);
-      }
-      stateManager.load();
-      newManagerMap.put(indexName, stateManager);
-    }
-    ImmutableState newImmutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
+    // replaced managers are not closed here, unchanged from before multi-primary support
+    ImmutableState newImmutableState = buildReloadedState(new ArrayList<>());
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {
       updateStartedIndices(newImmutableState, LeaderStartRole.FROM_ROLE);
     }
     this.immutableState = newImmutableState;
-  }
-
-  /**
-   * Reload state with leader election. Must run on the leader manager transition thread. Index
-   * managers for indices recreated with a new id, or removed, are closed (unlike the reload without
-   * leader election, which leaves them open). Indices are only started as standby followers;
-   * indices become primary only through promotion.
-   */
-  private void reloadForLeaderElection() throws IOException {
-    List<IndexStateManager> replaced = new ArrayList<>();
-    ImmutableState newState;
-    synchronized (this) {
-      newState = buildReloadedState(replaced);
-      immutableState = newState;
-    }
-    closeReplaced(replaced);
-    if (getConfiguration().getIndexStartConfig().getAutoStart()) {
-      updateStartedIndices(newState, LeaderStartRole.STANDBY);
-    }
   }
 
   /**
@@ -461,10 +426,10 @@ public class BackendGlobalState extends GlobalState {
 
   /**
    * Restart an index with a fresh {@link IndexStateManager}, so that it can be started in a
-   * different role; a closed index state cannot be started again. Runs on the leader manager
-   * transition thread (possibly in parallel for different indices), so no reload or other role
-   * change replaces this index concurrently. The global state lock is only held to read and swap
-   * the manager.
+   * different role; a closed index state cannot be started again. Called only by role changes,
+   * which the leader manager runs one at a time (restarting different indices in parallel on a
+   * worker pool), so no refresh or other role change replaces this index concurrently. The global
+   * state lock is only held to read and swap the manager.
    */
   private void restartIndex(String indexName, LeaderStartRole role) throws IOException {
     IndexStateManager current;
@@ -551,6 +516,43 @@ public class BackendGlobalState extends GlobalState {
     @Override
     public void restartAsStandby(String indexName) throws IOException {
       restartIndex(indexName, LeaderStartRole.STANDBY);
+    }
+
+    @Override
+    public void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort)
+        throws IOException {
+      // swap in reloaded state and close replaced managers (fast), then start missing indices one
+      // at a time, stopping as soon as a role change is pending
+      List<IndexStateManager> replaced = new ArrayList<>();
+      ImmutableState newState;
+      synchronized (BackendGlobalState.this) {
+        newState = buildReloadedState(replaced);
+        immutableState = newState;
+      }
+      closeReplaced(replaced);
+      if (!getConfiguration().getIndexStartConfig().getAutoStart()) {
+        return;
+      }
+      for (Map.Entry<String, IndexGlobalState> entry :
+          newState.globalStateInfo.getIndicesMap().entrySet()) {
+        IndexStateManager manager = newState.indexStateManagerMap.get(entry.getKey());
+        if (!entry.getValue().getStarted() || manager.getCurrent().isStarted()) {
+          continue;
+        }
+        if (abort.getAsBoolean()) {
+          logger.info("Refresh stopped early for a pending role change");
+          return;
+        }
+        if (asPrimary) {
+          // the leader starts a missing index as primary only after claiming its remote state
+          claimIndex(entry.getKey());
+        }
+        startIndexFromConfig(
+            entry.getKey(),
+            manager,
+            entry.getValue(),
+            asPrimary ? LeaderStartRole.PRIMARY : LeaderStartRole.STANDBY);
+      }
     }
   }
 
@@ -681,11 +683,18 @@ public class BackendGlobalState extends GlobalState {
     if (leaderManager != null) {
       // with leader election, the node role decides how indices start: standby followers are
       // started by reload, and primaries only by promotion or by the active primary from config
-      if (startIndexRequest.getMode() != Mode.PRIMARY) {
+      if (startIndexRequest.getMode() != Mode.PRIMARY
+          || startIndexRequest.hasRestore()
+          || startIndexRequest.getPrimaryGen() != 0
+          || !startIndexRequest.getPrimaryAddress().isEmpty()
+          || !startIndexRequest.getPrimaryDiscoveryFile().isEmpty()
+          || startIndexRequest.getPort() != 0) {
+        // these would otherwise be ignored: the leader decides restore and primaryGen
         throw Status.INVALID_ARGUMENT
             .withDescription(
-                "With leader election, startIndex only supports PRIMARY mode on the active"
-                    + " primary; use startIndexV2")
+                "With leader election, startIndex only accepts indexName and mode=PRIMARY;"
+                    + " restore, primaryGen and primary discovery are managed by the leader."
+                    + " Use startIndexV2")
             .asRuntimeException();
       }
       Handler.verifyActivePrimary(this, "startIndex");

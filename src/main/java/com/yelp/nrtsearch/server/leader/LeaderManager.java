@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,6 +83,17 @@ public class LeaderManager implements Closeable, LeaderListener {
 
     /** Restart an index as a standby follower, or start it if not started. */
     void restartAsStandby(String indexName) throws IOException;
+
+    /**
+     * Refresh from remote global state: replace managers of recreated or removed indices, then
+     * start indices that should be started but are not, as primary if {@code asPrimary} (after
+     * claiming their remote state), otherwise as standby followers.
+     *
+     * @param asPrimary start missing indices as primary
+     * @param abort checked between index starts; when true, the refresh stops early so a pending
+     *     role change is not delayed
+     */
+    void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort) throws IOException;
   }
 
   private final PrimaryElector elector;
@@ -88,7 +101,10 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
   private static final long CLOSE_WAIT_SECONDS = 60;
-  private volatile Thread transitionThread;
+  private final long refreshIntervalMs;
+  private ScheduledExecutorService refreshScheduler;
+  // guarded by this
+  private boolean refreshQueued = false;
   private final IndexRoleController controller;
   private volatile Role role = Role.STANDBY;
   private volatile long activeEpoch = -1;
@@ -107,6 +123,22 @@ public class LeaderManager implements Closeable, LeaderListener {
       EpochPointerFence fence,
       int claimConcurrency,
       IndexRoleController controller) {
+    this(elector, fence, claimConcurrency, controller, 0);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param refreshIntervalMs interval between periodic state refreshes, or 0 to only refresh on
+   *     request
+   */
+  public LeaderManager(
+      PrimaryElector elector,
+      EpochPointerFence fence,
+      int claimConcurrency,
+      IndexRoleController controller,
+      long refreshIntervalMs) {
+    this.refreshIntervalMs = refreshIntervalMs;
     this.elector = Objects.requireNonNull(elector);
     this.fence = Objects.requireNonNull(fence);
     this.controller = Objects.requireNonNull(controller);
@@ -116,7 +148,6 @@ public class LeaderManager implements Closeable, LeaderListener {
             r -> {
               Thread t = new Thread(r, "LeaderManager-transition");
               t.setDaemon(true);
-              transitionThread = t;
               return t;
             });
     fence.registerFencedListener(this::onFenced);
@@ -125,6 +156,17 @@ public class LeaderManager implements Closeable, LeaderListener {
   /** Start participating in election. Indices should already be started as standby. */
   public void start() {
     elector.start(this);
+    if (refreshIntervalMs > 0) {
+      refreshScheduler =
+          Executors.newSingleThreadScheduledExecutor(
+              r -> {
+                Thread t = new Thread(r, "LeaderManager-refresh");
+                t.setDaemon(true);
+                return t;
+              });
+      refreshScheduler.scheduleWithFixedDelay(
+          this::requestRefresh, refreshIntervalMs, refreshIntervalMs, TimeUnit.MILLISECONDS);
+    }
   }
 
   public Role getRole() {
@@ -269,8 +311,14 @@ public class LeaderManager implements Closeable, LeaderListener {
       return;
     }
     if (!indicesMayBePrimary) {
-      // promotion failed before any index restarted as primary, indices are still standby
+      // promotion failed before any index restarted as primary, indices are still standby; the
+      // promotion's state reload may have replaced some managers, so start any that are missing
       logger.info("Leadership lost before indices became primary, staying standby: {}", reason);
+      try {
+        controller.refresh(false, () -> isClosed() || change != leadershipChangeCount);
+      } catch (Throwable t) {
+        logger.warn("Error starting standby indices after failed promotion", t);
+      }
     } else {
       logger.warn("Demoting to standby: {}", reason);
       try {
@@ -328,54 +376,49 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
   }
 
-  /** Task run on the transition thread. */
-  @FunctionalInterface
-  public interface SerializedTask {
-    void run() throws IOException;
+  /**
+   * Request a refresh from remote global state, to pick up created, recreated, or removed indices.
+   * Does not block. Requests are merged: at most one refresh is queued at a time, and it runs on
+   * the transition thread between role changes. A refresh stops early if a role change is requested
+   * while it runs, and the next refresh (requested or periodic) finishes the work.
+   */
+  public void requestRefresh() {
+    synchronized (this) {
+      if (closed || refreshQueued) {
+        return;
+      }
+      refreshQueued = true;
+    }
+    try {
+      transitionExecutor.execute(this::runRefresh);
+    } catch (RejectedExecutionException e) {
+      // closed
+    }
   }
 
-  /**
-   * Run a task on the transition thread and wait for it, so it never runs concurrently with a role
-   * transition or another serialized task. Used for state reloads, which replace index managers.
-   *
-   * @param task task to run
-   * @throws IOException if the task fails
-   * @throws IllegalStateException if the manager is closed
-   */
-  public void runSerialized(SerializedTask task) throws IOException {
-    if (Thread.currentThread() == transitionThread) {
-      // already serialized; waiting on our own executor would deadlock
-      throw new IllegalStateException("runSerialized called from the transition thread");
-    }
-    Future<?> future;
-    try {
-      future =
-          transitionExecutor.submit(
-              () -> {
-                if (isClosed()) {
-                  throw new IllegalStateException("Leader manager is closed");
-                }
-                task.run();
-                return null;
-              });
-    } catch (java.util.concurrent.RejectedExecutionException e) {
-      throw new IllegalStateException("Leader manager is closed", e);
+  private void runRefresh() {
+    long change;
+    boolean asPrimary;
+    synchronized (this) {
+      refreshQueued = false;
+      if (closed || role == Role.PROMOTING || role == Role.DEMOTING) {
+        // a role change is in progress; it restarts indices itself
+        return;
+      }
+      change = leadershipChangeCount;
+      asPrimary = role == Role.ACTIVE;
     }
     try {
-      future.get();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IOException("Interrupted waiting for serialized task", e);
-    } catch (java.util.concurrent.ExecutionException e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof IOException io) {
-        throw io;
-      }
-      if (cause instanceof RuntimeException re) {
-        throw re;
-      }
-      throw new IOException(cause);
+      controller.refresh(
+          asPrimary,
+          () -> isClosed() || change != leadershipChangeCount || !roleMatches(asPrimary));
+    } catch (Throwable t) {
+      logger.warn("State refresh failed, will retry on next refresh", t);
     }
+  }
+
+  private boolean roleMatches(boolean asPrimary) {
+    return asPrimary ? isActive() : role == Role.STANDBY;
   }
 
   /** Wait for queued transitions to finish, for tests. */
@@ -396,6 +439,9 @@ public class LeaderManager implements Closeable, LeaderListener {
       }
       activeEpoch = -1;
       leadershipChangeCount++;
+    }
+    if (refreshScheduler != null) {
+      refreshScheduler.shutdownNow();
     }
     // stop election first, releasing leadership, so another node can take over while this node
     // waits below

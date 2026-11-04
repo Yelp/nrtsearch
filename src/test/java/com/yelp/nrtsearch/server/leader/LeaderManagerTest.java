@@ -87,6 +87,12 @@ public class LeaderManagerTest {
     final EpochPointerFence fence;
     volatile boolean failClaim = false;
     volatile Runnable onClaim = () -> {};
+    volatile Runnable onRefresh = () -> {};
+    volatile java.util.function.Consumer<java.util.function.BooleanSupplier> onRefreshWithAbort =
+        a -> {};
+    final java.util.concurrent.atomic.AtomicInteger refreshes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    final List<Boolean> refreshRoles = new CopyOnWriteArrayList<>();
 
     RecordingController(EpochPointerFence fence) {
       this.fence = fence;
@@ -120,6 +126,14 @@ public class LeaderManagerTest {
     @Override
     public void restartAsStandby(String indexName) {
       events.add("standby:" + indexName);
+    }
+
+    @Override
+    public void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort) {
+      refreshes.incrementAndGet();
+      refreshRoles.add(asPrimary);
+      onRefresh.run();
+      onRefreshWithAbort.accept(abort);
     }
 
     List<String> restarts() {
@@ -345,31 +359,84 @@ public class LeaderManagerTest {
     assertTrue(elector.closed);
   }
 
+  /** Refresh requests are merged into one queued refresh. */
   @Test
-  public void testRunSerializedRunsOnTransitionThreadInOrder() throws Exception {
-    List<String> order = new CopyOnWriteArrayList<>();
-    manager.runSerialized(() -> order.add(Thread.currentThread().getName()));
-    assertEquals(List.of("LeaderManager-transition"), order);
-  }
-
-  @Test
-  public void testRunSerializedFromTransitionThreadFails() throws Exception {
-    java.util.concurrent.atomic.AtomicReference<Throwable> error =
-        new java.util.concurrent.atomic.AtomicReference<>();
-    manager.runSerialized(
+  public void testRefreshRequestsCoalesced() throws Exception {
+    java.util.concurrent.CountDownLatch block = new java.util.concurrent.CountDownLatch(1);
+    controller.onRefresh =
         () -> {
           try {
-            manager.runSerialized(() -> {});
-          } catch (Throwable t) {
-            error.set(t);
+            block.await();
+          } catch (InterruptedException ignored) {
           }
-        });
-    assertTrue(error.get() instanceof IllegalStateException);
+        };
+    manager.requestRefresh();
+    // wait until the first refresh is running, then request many more
+    long deadline = System.currentTimeMillis() + 5000;
+    while (controller.refreshes.get() == 0 && System.currentTimeMillis() < deadline) {
+      Thread.sleep(5);
+    }
+    for (int i = 0; i < 50; i++) {
+      manager.requestRefresh();
+    }
+    block.countDown();
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    assertEquals(2, controller.refreshes.get());
+  }
+
+  /** A refresh stops when a role change is requested, so promotion is not delayed behind it. */
+  @Test
+  public void testRefreshAbortsForPromotion() throws Exception {
+    java.util.concurrent.CountDownLatch inRefresh = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch elected = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean abortedSeen =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    controller.onRefreshWithAbort =
+        abort -> {
+          inRefresh.countDown();
+          try {
+            elected.await();
+          } catch (InterruptedException ignored) {
+          }
+          abortedSeen.set(abort.getAsBoolean());
+        };
+    manager.requestRefresh();
+    assertTrue(inRefresh.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    elector.elect(10);
+    elected.countDown();
+    manager.awaitTransitions();
+    assertTrue(abortedSeen.get());
+    assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
   }
 
   @Test
-  public void testRunSerializedAfterCloseFails() throws Exception {
+  public void testRefreshUsesCurrentRole() throws Exception {
+    manager.requestRefresh();
+    manager.awaitTransitions();
+    elector.elect(10);
+    manager.awaitTransitions();
+    manager.requestRefresh();
+    manager.awaitTransitions();
+    assertEquals(List.of(false, true), controller.refreshRoles);
+  }
+
+  /**
+   * After a failed promotion, indices left unstarted by its state reload are started as standby.
+   */
+  @Test
+  public void testFailedPromotionRefreshesStandbys() throws Exception {
+    controller.failClaim = true;
+    elector.elect(10);
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    assertEquals(List.of(false), controller.refreshRoles);
+  }
+
+  @Test
+  public void testRefreshAfterCloseIsNoop() throws Exception {
     manager.close();
-    assertThrows(IllegalStateException.class, () -> manager.runSerialized(() -> {}));
+    manager.requestRefresh();
+    assertEquals(0, controller.refreshes.get());
   }
 }

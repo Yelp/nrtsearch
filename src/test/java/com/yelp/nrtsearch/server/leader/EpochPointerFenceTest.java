@@ -335,4 +335,73 @@ public class EpochPointerFenceTest {
     fence.write(KEY, "v2");
     assertEquals(2, writes.get());
   }
+
+  /** The first write to an existing, unowned pointer is a single conditional write. */
+  @Test
+  public void testFirstWriteToExistingPointerSingleWrite() throws Exception {
+    store.put(KEY, "legacy".getBytes(), Map.of());
+    java.util.concurrent.atomic.AtomicInteger writes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    ConditionalObjectStore counting =
+        new ConditionalObjectStore() {
+          @Override
+          public Optional<VersionedObject> get(String key) throws java.io.IOException {
+            return store.get(key);
+          }
+
+          @Override
+          public String putIfAbsent(String key, byte[] data, Map<String, String> metadata)
+              throws java.io.IOException {
+            writes.incrementAndGet();
+            return store.putIfAbsent(key, data, metadata);
+          }
+
+          @Override
+          public String putIfMatch(
+              String key, byte[] data, Map<String, String> metadata, String expectedVersion)
+              throws java.io.IOException {
+            writes.incrementAndGet();
+            return store.putIfMatch(key, data, metadata, expectedVersion);
+          }
+        };
+    EpochPointerFence fence = new EpochPointerFence(counting);
+    fence.activate(1);
+    fence.write(KEY, "v1");
+    assertEquals(1, writes.get());
+    assertEquals("v1", value());
+  }
+
+  /** A write in flight when the fence is deactivated must not create or move the pointer. */
+  @Test
+  public void testDeactivatedDuringWriteDoesNotCreate() throws Exception {
+    java.util.concurrent.atomic.AtomicReference<EpochPointerFence> ref =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    ConditionalObjectStore deactivatingOnGet =
+        new ConditionalObjectStore() {
+          @Override
+          public Optional<VersionedObject> get(String key) throws java.io.IOException {
+            Optional<VersionedObject> result = store.get(key);
+            ref.get().deactivate();
+            return result;
+          }
+
+          @Override
+          public String putIfAbsent(String key, byte[] data, Map<String, String> metadata)
+              throws java.io.IOException {
+            return store.putIfAbsent(key, data, metadata);
+          }
+
+          @Override
+          public String putIfMatch(
+              String key, byte[] data, Map<String, String> metadata, String expectedVersion)
+              throws java.io.IOException {
+            return store.putIfMatch(key, data, metadata, expectedVersion);
+          }
+        };
+    EpochPointerFence fence = new EpochPointerFence(deactivatingOnGet);
+    ref.set(fence);
+    fence.activate(1);
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
+    assertTrue(store.get(KEY).isEmpty());
+  }
 }
