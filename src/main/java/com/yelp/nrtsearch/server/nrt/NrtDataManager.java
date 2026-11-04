@@ -463,6 +463,11 @@ public class NrtDataManager implements Closeable {
    * @return input stream of the index file
    * @throws IOException on error downloading the file
    */
+  public InputStream downloadIndexFile(String fileName, NrtFileMetaData fileMetaData)
+      throws IOException {
+    return remoteBackend.downloadIndexFile(serviceName, indexIdentifier, fileName, fileMetaData);
+  }
+
   /** Unique identifier of the index in the remote backend. */
   public String getIndexIdentifier() {
     return indexIdentifier;
@@ -471,11 +476,6 @@ public class NrtDataManager implements Closeable {
   /** Service name used in the remote backend. */
   public String getServiceName() {
     return serviceName;
-  }
-
-  public InputStream downloadIndexFile(String fileName, NrtFileMetaData fileMetaData)
-      throws IOException {
-    return remoteBackend.downloadIndexFile(serviceName, indexIdentifier, fileName, fileMetaData);
   }
 
   /**

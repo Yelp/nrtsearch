@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.vectors;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,6 +29,12 @@ import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.vectors.IndexConfig.DistanceMetric;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
+import io.grpc.MethodDescriptor;
+import io.grpc.Status;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -478,5 +485,64 @@ public class VectorGatewayIntegrationTest {
       assertEquals("comedy", v.get("metadata").get("genre").asText());
     }
     assertNull(response.get("nextToken"));
+  }
+
+  @Test
+  public void testCreateIndexFailuresLeaveNothingBehind() throws Exception {
+    createIndex("cosine");
+    String nrtIndex = IndexConfig.nrtsearchIndexName(BUCKET, INDEX);
+    assertTrue(server.indices().contains(nrtIndex));
+
+    // a duplicate is a conflict, and doesn't touch the existing nrtsearch index
+    ObjectNode duplicate = req();
+    duplicate.put("dimension", DIM);
+    duplicate.put("distanceMetric", "cosine");
+    HttpResponse<String> response = callRaw("CreateIndex", duplicate);
+    assertEquals(409, response.statusCode());
+    assertTrue(server.isStarted(nrtIndex));
+
+    // the index can be deleted and created again
+    call("DeleteIndex", req());
+    assertFalse(server.indices().contains(nrtIndex));
+    call("CreateIndex", duplicate);
+    assertTrue(server.indices().contains(nrtIndex));
+
+    // a create that fails after the nrtsearch index exists deletes it again, and leaves no
+    // registry entry. Fail startIndexV2 with a client interceptor, after a real createIndex.
+    ClientInterceptor failStart =
+        new ClientInterceptor() {
+          @Override
+          public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
+              MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+            if (method.getFullMethodName().endsWith("/startIndexV2")) {
+              throw Status.UNAVAILABLE.withDescription("injected").asRuntimeException();
+            }
+            return next.newCall(method, callOptions);
+          }
+        };
+    ObjectNode bad = req();
+    bad.put("indexName", "bad-index");
+    bad.put("dimension", DIM);
+    bad.put("distanceMetric", "cosine");
+    VectorService badService =
+        new VectorService(
+            server.getClient().getBlockingStub().withInterceptors(failStart),
+            server.getClient().getAsyncStub(),
+            service.getRegistry(),
+            new VectorService.Options());
+    VectorsException e = assertThrows(VectorsException.class, () -> badService.createIndex(bad));
+    assertEquals(503, e.getHttpStatus());
+    String badNrtIndex = IndexConfig.nrtsearchIndexName(BUCKET, "bad-index");
+    assertFalse(server.indices().contains(badNrtIndex));
+    assertEquals(1, call("ListIndexes", Map.of("vectorBucketName", BUCKET)).get("indexes").size());
+    // the reserved name was released
+    VectorService goodService =
+        new VectorService(
+            server.getClient().getBlockingStub(),
+            server.getClient().getAsyncStub(),
+            service.getRegistry(),
+            new VectorService.Options());
+    goodService.createIndex(bad);
+    assertTrue(server.isStarted(badNrtIndex));
   }
 }

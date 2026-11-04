@@ -18,22 +18,21 @@ package com.yelp.nrtsearch.server.nrt.lazy;
 import com.yelp.nrtsearch.server.config.LazyRemoteDataConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.lucene.store.IndexOutput;
 
 /**
  * Directory for replica index data where some files stay in the remote backend. A lazy file {@code
@@ -41,17 +40,23 @@ import org.slf4j.LoggerFactory;
  * this directory makes it look like a normal file: it is listed, has its real length, and opening
  * it returns a {@link LazyRemoteIndexInput} that reads from the remote backend.
  *
- * <p>Only reads are lazy. Files are only written by copying from the remote backend, which uses
- * {@link #writeStub} for lazy files instead of writing the data.
+ * <p>Stubs are kept in memory while the directory is open, loaded from the stub files when it is
+ * opened and updated as stubs are written and deleted, so looking up a lazy file needs no file
+ * system access.
+ *
+ * <p>Copy jobs write stubs like any other copied file: to a temp file ({@link #createStubTemp}),
+ * which is renamed to the stub when the job finishes, or deleted if the job is cancelled.
  */
 public class LazyRemoteDirectory extends FilterDirectory {
-  private static final Logger logger = LoggerFactory.getLogger(LazyRemoteDirectory.class);
-
   private final Path path;
   private final String service;
   private final RemoteBackend remoteBackend;
   private final RemoteBlockCache cache;
   private final LazyRemoteDataConfig config;
+  // index file name -> stub, for every stub file in the directory
+  private final Map<String, LazyFileStub> stubs = new ConcurrentHashMap<>();
+  // temp file name -> stub, for stubs written by copy jobs and not yet renamed
+  private final Map<String, LazyFileStub> pendingStubs = new ConcurrentHashMap<>();
 
   /**
    * @param in directory to wrap, holding the local files and stubs
@@ -60,6 +65,7 @@ public class LazyRemoteDirectory extends FilterDirectory {
    * @param remoteBackend backend to read lazy files from
    * @param cache block cache shared by all lazy directories on the node
    * @param config lazy loading config
+   * @throws IOException if the existing stubs can't be read
    */
   public LazyRemoteDirectory(
       Directory in,
@@ -67,13 +73,20 @@ public class LazyRemoteDirectory extends FilterDirectory {
       String service,
       RemoteBackend remoteBackend,
       RemoteBlockCache cache,
-      LazyRemoteDataConfig config) {
+      LazyRemoteDataConfig config)
+      throws IOException {
     super(in);
     this.path = path;
     this.service = service;
     this.remoteBackend = remoteBackend;
     this.cache = cache;
     this.config = config;
+    for (String file : in.listAll()) {
+      if (LazyFileStub.isStubName(file)) {
+        String fileName = LazyFileStub.fileNameForStub(file);
+        stubs.put(fileName, LazyFileStub.read(path, fileName));
+      }
+    }
   }
 
   /**
@@ -111,23 +124,34 @@ public class LazyRemoteDirectory extends FilterDirectory {
 
   /** If the directory has a stub for a file. */
   public boolean hasStub(String fileName) {
-    return Files.exists(path.resolve(LazyFileStub.stubName(fileName)));
+    return stubs.containsKey(fileName);
   }
 
   /**
-   * Store a file as a stub instead of copying its data.
+   * Write a stub for a file to a temp file, as a copy job does for a copied file. Renaming the temp
+   * file to the file name ({@link #rename}) makes the stub visible; deleting it discards the stub.
    *
    * @param fileName index file name
    * @param indexIdentifier remote index identifier
    * @param fileMetaData metadata of the file in the remote backend
+   * @return temp file name
    */
-  public void writeStub(String fileName, String indexIdentifier, NrtFileMetaData fileMetaData)
-      throws IOException {
-    if (fileMetaData.compressionType != null && !"NONE".equals(fileMetaData.compressionType)) {
+  public String createStubTemp(
+      String fileName, String indexIdentifier, NrtFileMetaData fileMetaData) throws IOException {
+    if (fileMetaData.isCompressed()) {
       throw new IllegalArgumentException(
           "Cannot lazy load compressed file " + fileName + ": " + fileMetaData.compressionType);
     }
-    new LazyFileStub(indexIdentifier, fileMetaData).write(path, fileName);
+    LazyFileStub stub = new LazyFileStub(indexIdentifier, fileMetaData);
+    byte[] bytes = stub.toBytes();
+    String tmpName;
+    try (IndexOutput out =
+        in.createTempOutput(LazyFileStub.stubName(fileName), "copy", IOContext.DEFAULT)) {
+      out.writeBytes(bytes, bytes.length);
+      tmpName = out.getName();
+    }
+    pendingStubs.put(tmpName, stub);
+    return tmpName;
   }
 
   /**
@@ -143,14 +167,12 @@ public class LazyRemoteDirectory extends FilterDirectory {
       Path dir,
       LazyRemoteDataConfig config,
       String indexIdentifier,
-      java.util.Map<String, NrtFileMetaData> files)
+      Map<String, NrtFileMetaData> files)
       throws IOException {
     Set<String> stubbed = new LinkedHashSet<>();
-    for (java.util.Map.Entry<String, NrtFileMetaData> entry : files.entrySet()) {
-      NrtFileMetaData meta = entry.getValue();
-      boolean compressed = meta.compressionType != null && !"NONE".equals(meta.compressionType);
-      if (config.isLazyFile(entry.getKey()) && !compressed) {
-        new LazyFileStub(indexIdentifier, meta).write(dir, entry.getKey());
+    for (Map.Entry<String, NrtFileMetaData> entry : files.entrySet()) {
+      if (config.isLazyFile(entry.getKey()) && !entry.getValue().isCompressed()) {
+        new LazyFileStub(indexIdentifier, entry.getValue()).write(dir, entry.getKey());
         stubbed.add(entry.getKey());
       }
     }
@@ -159,12 +181,12 @@ public class LazyRemoteDirectory extends FilterDirectory {
 
   @Override
   public String[] listAll() throws IOException {
-    String[] files = in.listAll();
     Set<String> result = new LinkedHashSet<>();
-    for (String file : files) {
+    for (String file : in.listAll()) {
       if (LazyFileStub.isStubName(file)) {
         result.add(LazyFileStub.fileNameForStub(file));
-      } else if (!file.endsWith(LazyFileStub.STUB_SUFFIX + ".tmp")) {
+      } else {
+        // includes temp files, stub or not, which Lucene manages like other temp files
         result.add(file);
       }
     }
@@ -175,7 +197,7 @@ public class LazyRemoteDirectory extends FilterDirectory {
 
   @Override
   public long fileLength(String name) throws IOException {
-    LazyFileStub stub = LazyFileStub.read(path, name);
+    LazyFileStub stub = stubs.get(name);
     if (stub != null) {
       return stub.fileMetaData.length;
     }
@@ -184,21 +206,15 @@ public class LazyRemoteDirectory extends FilterDirectory {
 
   @Override
   public IndexInput openInput(String name, IOContext context) throws IOException {
-    LazyFileStub stub;
-    try {
-      stub = LazyFileStub.read(path, name);
-    } catch (NoSuchFileException | FileNotFoundException e) {
-      stub = null;
-    }
+    LazyFileStub stub = stubs.get(name);
     if (stub == null) {
       return in.openInput(name, context);
     }
     NrtFileMetaData meta = stub.fileMetaData;
     String indexIdentifier = stub.indexIdentifier;
-    String fileId = indexIdentifier + "/" + S3Backend.getIndexBackendFileName(name, meta);
     return new LazyRemoteIndexInput(
         "LazyRemoteIndexInput(" + name + ")",
-        fileId,
+        stub.fileId(name),
         meta.length,
         meta.header,
         meta.footer,
@@ -209,57 +225,49 @@ public class LazyRemoteDirectory extends FilterDirectory {
 
   @Override
   public void deleteFile(String name) throws IOException {
-    Path stubPath = path.resolve(LazyFileStub.stubName(name));
-    LazyFileStub stub = Files.exists(stubPath) ? LazyFileStub.read(path, name) : null;
+    LazyFileStub stub = stubs.remove(name);
     if (stub != null) {
       in.deleteFile(LazyFileStub.stubName(name));
-      cache.invalidate(
-          stub.indexIdentifier + "/" + S3Backend.getIndexBackendFileName(name, stub.fileMetaData));
-      // a real file may also exist if the file was copied before lazy loading was enabled
-      if (Arrays.asList(in.listAll()).contains(name)) {
-        in.deleteFile(name);
-      }
+      cache.invalidate(stub.fileId(name));
       return;
     }
+    // a pending stub temp file deleted by a cancelled copy job
+    pendingStubs.remove(name);
     in.deleteFile(name);
   }
 
   @Override
   public void rename(String source, String dest) throws IOException {
+    LazyFileStub pending = pendingStubs.remove(source);
+    if (pending != null) {
+      // a copy job finishing a stub: the temp file becomes the stub for dest
+      in.rename(source, LazyFileStub.stubName(dest));
+      LazyFileStub previous = stubs.put(dest, pending);
+      if (previous != null) {
+        cache.invalidate(previous.fileId(dest));
+      }
+      return;
+    }
     // a real file replaces a stub of the same name
-    if (hasStub(dest)) {
+    LazyFileStub previous = stubs.remove(dest);
+    if (previous != null) {
       in.deleteFile(LazyFileStub.stubName(dest));
+      cache.invalidate(previous.fileId(dest));
     }
     in.rename(source, dest);
   }
 
   @Override
   public void sync(Collection<String> names) throws IOException {
-    java.util.List<String> real = new java.util.ArrayList<>();
+    List<String> real = new ArrayList<>(names.size());
     for (String name : names) {
-      real.add(hasStub(name) ? LazyFileStub.stubName(name) : name);
+      real.add(stubs.containsKey(name) ? LazyFileStub.stubName(name) : name);
     }
     in.sync(real);
   }
 
   @Override
-  public Set<String> getPendingDeletions() throws IOException {
-    return in.getPendingDeletions();
-  }
-
-  @Override
   public String toString() {
     return "LazyRemoteDirectory(" + in + ", extensions=" + config.getExtensions() + ")";
-  }
-
-  /** Log cache statistics, for debugging. */
-  public void logStats() {
-    logger.info(
-        "Block cache: {} bytes, hits={}, misses={}, remoteBytes={}, evictions={}",
-        cache.getCurrentBytes(),
-        cache.getHits(),
-        cache.getMisses(),
-        cache.getRemoteBytes(),
-        cache.getEvictions());
   }
 }

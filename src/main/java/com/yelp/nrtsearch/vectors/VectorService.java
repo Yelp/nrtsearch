@@ -31,6 +31,8 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.IndexStatsResponse;
+import com.yelp.nrtsearch.server.grpc.IndicesRequest;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
@@ -140,7 +142,12 @@ public class VectorService {
     this.asyncStub = asyncStub;
     this.registry = registry;
     this.options = options;
-    this.tiering = new IndexTiering(this::startNrtsearchIndex, this::stopNrtsearchIndex, options);
+    this.tiering =
+        new IndexTiering(
+            this::startNrtsearchIndex,
+            this::stopNrtsearchIndex,
+            this::isNrtsearchIndexStarted,
+            options);
   }
 
   public IndexTiering getTiering() {
@@ -221,9 +228,10 @@ public class VectorService {
             IndexConfig.DistanceMetric.parse(text(request, "distanceMetric", true)),
             nonFilterable,
             System.currentTimeMillis());
-    registry.getBucket(bucketName);
-
+    // check the bucket limit and duplicates before creating anything in nrtsearch
+    registry.reserveIndex(bucketName, indexName);
     String nrtIndex = config.nrtsearchIndexName();
+    boolean created = false;
     try {
       blockingStub.createIndex(
           CreateIndexRequest.newBuilder()
@@ -231,11 +239,19 @@ public class VectorService {
               .addAllFields(baseFields(config))
               .setLiveSettings(liveSettings())
               .build());
+      created = true;
       blockingStub.startIndexV2(StartIndexV2Request.newBuilder().setIndexName(nrtIndex).build());
-    } catch (StatusRuntimeException e) {
-      throw fromGrpc("Could not create index " + indexName, e);
+      registry.addIndex(config);
+    } catch (RuntimeException e) {
+      registry.releaseIndex(bucketName, indexName);
+      if (created) {
+        deleteNrtsearchIndexQuietly(nrtIndex);
+      }
+      if (e instanceof StatusRuntimeException sre) {
+        throw fromGrpc("Could not create index " + indexName, sre);
+      }
+      throw e;
     }
-    registry.addIndex(config);
     tiering.markStarted(nrtIndex);
     return obj();
   }
@@ -395,18 +411,21 @@ public class VectorService {
     }
     MetadataSchema schema = config.getMetadataSchema();
     synchronized (schema) {
-      List<Field> fields = schema.addKeys(newKeys);
-      if (fields.isEmpty()) {
+      // another request may have registered some of these keys since they were checked, possibly
+      // with a different type
+      MetadataSchema.AddedKeys added = schema.addKeys(newKeys);
+      if (added.fields().isEmpty()) {
         return;
       }
       try {
         blockingStub.updateFields(
             FieldDefRequest.newBuilder()
                 .setIndexName(config.nrtsearchIndexName())
-                .addAllField(fields)
+                .addAllField(added.fields())
                 .build());
       } catch (StatusRuntimeException e) {
-        schema.removeKeys(newKeys.keySet());
+        // only remove the keys this request added
+        schema.removeKeys(added.keys());
         throw fromGrpc("Could not register metadata fields", e);
       }
       registry.save();
@@ -666,6 +685,30 @@ public class VectorService {
   private void startNrtsearchIndex(String nrtIndex) {
     logger.info("Starting idle index {}", nrtIndex);
     blockingStub.startIndexV2(StartIndexV2Request.newBuilder().setIndexName(nrtIndex).build());
+  }
+
+  /** Delete an nrtsearch index after a failed create, logging rather than throwing on failure. */
+  private void deleteNrtsearchIndexQuietly(String nrtIndex) {
+    try {
+      blockingStub.deleteIndex(DeleteIndexRequest.newBuilder().setIndexName(nrtIndex).build());
+    } catch (RuntimeException e) {
+      logger.warn("Could not delete index {} after a failed create", nrtIndex, e);
+    }
+  }
+
+  /** Ask nrtsearch if an index is started. */
+  private boolean isNrtsearchIndexStarted(String nrtIndex) {
+    try {
+      for (IndexStatsResponse index :
+          blockingStub.indices(IndicesRequest.newBuilder().build()).getIndicesResponseList()) {
+        if (index.getIndexName().equals(nrtIndex)) {
+          return !"not_started".equals(index.getStatsResponse().getState());
+        }
+      }
+    } catch (StatusRuntimeException e) {
+      throw fromGrpc("Could not get index state", e);
+    }
+    throw VectorsException.notFound("nrtsearch index not found: " + nrtIndex);
   }
 
   private void stopNrtsearchIndex(String nrtIndex) {

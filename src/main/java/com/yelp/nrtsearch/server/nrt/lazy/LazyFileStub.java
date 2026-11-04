@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.nrt.lazy;
 
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,20 +56,37 @@ public class LazyFileStub {
     return stubName.substring(0, stubName.length() - STUB_SUFFIX.length());
   }
 
-  /** Write the stub for a file, replacing any existing stub. */
+  /** Id of the remote file contents, unique per index version file, used as the cache key. */
+  public String fileId(String fileName) {
+    return indexIdentifier + "/" + S3Backend.getIndexBackendFileName(fileName, fileMetaData);
+  }
+
+  /** Stub contents as UTF-8 JSON. */
+  public byte[] toBytes() throws IOException {
+    return JsonUtils.objectToJsonStr(this).getBytes(StandardCharsets.UTF_8);
+  }
+
+  public static LazyFileStub fromBytes(byte[] bytes) throws IOException {
+    return JsonUtils.readValue(new String(bytes, StandardCharsets.UTF_8), LazyFileStub.class);
+  }
+
+  /**
+   * Write the stub for a file directly to the file system, replacing any existing stub. Used on
+   * restore, before the index directory is opened.
+   */
   public void write(Path dir, String fileName) throws IOException {
     Path stub = dir.resolve(stubName(fileName));
     Path tmp = dir.resolve(stubName(fileName) + ".tmp");
-    Files.writeString(tmp, JsonUtils.objectToJsonStr(this), StandardCharsets.UTF_8);
+    Files.write(tmp, toBytes());
     Files.move(tmp, stub, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
   }
 
-  /** Read the stub for a file, or null if there is none. */
+  /** Read the stub for a file from the file system, or null if there is none. */
   public static LazyFileStub read(Path dir, String fileName) throws IOException {
     Path stub = dir.resolve(stubName(fileName));
     if (!Files.exists(stub)) {
       return null;
     }
-    return JsonUtils.readValue(Files.readString(stub, StandardCharsets.UTF_8), LazyFileStub.class);
+    return fromBytes(Files.readAllBytes(stub));
   }
 }

@@ -391,6 +391,8 @@ public class RemoteCopyJob extends VisitableCopyJob {
 
   /**
    * If the destination directory loads this file lazily, write a stub for it instead of copying.
+   * The stub is written to a temp file and added to {@code copiedFiles}, like a copied file, so it
+   * is renamed into place in {@link #finish} or deleted if the job is cancelled.
    *
    * @return if a stub was written
    */
@@ -400,14 +402,14 @@ public class RemoteCopyJob extends VisitableCopyJob {
       return false;
     }
     NrtFileMetaData nrtFileMetaData = nrtFiles.get(fileName);
-    if (nrtFileMetaData == null
-        || (nrtFileMetaData.compressionType != null
-            && !"NONE".equals(nrtFileMetaData.compressionType))) {
+    if (nrtFileMetaData == null || nrtFileMetaData.isCompressed()) {
       return false;
     }
-    lazyDir.writeStub(fileName, dataManager.getIndexIdentifier(), nrtFileMetaData);
+    String tmpName =
+        lazyDir.createStubTemp(fileName, dataManager.getIndexIdentifier(), nrtFileMetaData);
+    copiedFiles.put(fileName, tmpName);
     if (dest.isVerboseFiles()) {
-      dest.message("file " + fileName + ": stored as lazy remote stub");
+      dest.message("file " + fileName + ": stored as lazy remote stub " + tmpName);
     }
     return true;
   }

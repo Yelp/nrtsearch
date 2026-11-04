@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.nrt.state;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
@@ -109,6 +110,12 @@ public class NrtFileMetaData {
     result = 31 * result + Arrays.hashCode(header);
     result = 31 * result + Arrays.hashCode(footer);
     return result;
+  }
+
+  /** If the file is stored compressed in the remote backend. */
+  @JsonIgnore
+  public boolean isCompressed() {
+    return compressionType != null && !"NONE".equals(compressionType);
   }
 
   public FileMetaData toFileMetaData() {

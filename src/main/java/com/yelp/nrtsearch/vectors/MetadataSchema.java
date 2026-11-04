@@ -114,12 +114,31 @@ public class MetadataSchema {
     return newKeys;
   }
 
+  /** Keys added by {@link #addKeys}, and their nrtsearch field definitions to register. */
+  public record AddedKeys(List<String> keys, List<Field> fields) {}
+
   /**
-   * Add new keys to the schema, giving each a unique nrtsearch field name.
+   * Add new keys to the schema, giving each a unique nrtsearch field name. Keys already in the
+   * schema are skipped if they have the same type.
    *
-   * @return nrtsearch field definitions to register
+   * @return the keys this call added, and their nrtsearch field definitions to register
+   * @throws VectorsException if a key is already in the schema with a different type; nothing is
+   *     added in that case
    */
-  public synchronized List<Field> addKeys(Map<String, MetadataType> newKeys) {
+  public synchronized AddedKeys addKeys(Map<String, MetadataType> newKeys) {
+    for (Map.Entry<String, MetadataType> entry : newKeys.entrySet()) {
+      MetadataType existing = keyTypes.get(entry.getKey());
+      if (existing != null && existing != entry.getValue()) {
+        throw VectorsException.validation(
+            "Metadata key '"
+                + entry.getKey()
+                + "' has type "
+                + entry.getValue()
+                + " but this index already stores it as "
+                + existing);
+      }
+    }
+    List<String> keys = new ArrayList<>();
     List<Field> fields = new ArrayList<>();
     for (Map.Entry<String, MetadataType> entry : newKeys.entrySet()) {
       if (keyTypes.containsKey(entry.getKey())) {
@@ -128,9 +147,10 @@ public class MetadataSchema {
       String fieldName = uniqueFieldName(entry.getKey());
       keyTypes.put(entry.getKey(), entry.getValue());
       fieldNames.put(entry.getKey(), fieldName);
+      keys.add(entry.getKey());
       fields.add(toField(fieldName, entry.getValue()));
     }
-    return fields;
+    return new AddedKeys(keys, fields);
   }
 
   /** Remove keys, used to roll back a failed field registration. */

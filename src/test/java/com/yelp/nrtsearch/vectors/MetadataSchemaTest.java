@@ -55,7 +55,7 @@ public class MetadataSchemaTest {
   public void testAddKeysCreatesFields() {
     MetadataSchema schema = config.getMetadataSchema();
     List<Field> fields =
-        schema.addKeys(Map.of("a-b", MetadataType.STRING, "a_b", MetadataType.NUMBER));
+        schema.addKeys(Map.of("a-b", MetadataType.STRING, "a_b", MetadataType.NUMBER)).fields();
     assertEquals(2, fields.size());
     String f1 = schema.getFieldName("a-b");
     String f2 = schema.getFieldName("a_b");
@@ -69,7 +69,34 @@ public class MetadataSchemaTest {
     assertEquals(FieldType.ATOM, fieldFor(fields, f1).getType());
     assertEquals(FieldType.DOUBLE, fieldFor(fields, f2).getType());
     // adding again is a no-op
-    assertTrue(schema.addKeys(Map.of("a-b", MetadataType.STRING)).isEmpty());
+    assertTrue(schema.addKeys(Map.of("a-b", MetadataType.STRING)).fields().isEmpty());
+  }
+
+  @Test
+  public void testAddKeysReturnsOnlyAddedKeys() {
+    MetadataSchema schema = config.getMetadataSchema();
+    schema.addKeys(Map.of("year", MetadataType.NUMBER));
+    MetadataSchema.AddedKeys added =
+        schema.addKeys(Map.of("year", MetadataType.NUMBER, "genre", MetadataType.STRING));
+    assertEquals(List.of("genre"), added.keys());
+    assertEquals(1, added.fields().size());
+    // rolling back the second call keeps the key added by the first
+    schema.removeKeys(added.keys());
+    assertEquals(MetadataType.NUMBER, schema.getType("year"));
+    assertEquals(null, schema.getType("genre"));
+  }
+
+  @Test
+  public void testAddKeysRejectsTypeConflict() {
+    // a key registered by another request between the type check and addKeys
+    MetadataSchema schema = config.getMetadataSchema();
+    schema.addKeys(Map.of("year", MetadataType.NUMBER));
+    assertThrows(
+        VectorsException.class,
+        () -> schema.addKeys(Map.of("year", MetadataType.STRING, "genre", MetadataType.STRING)));
+    // nothing was added
+    assertEquals(null, schema.getType("genre"));
+    assertEquals(MetadataType.NUMBER, schema.getType("year"));
   }
 
   private static Field fieldFor(List<Field> fields, String name) {

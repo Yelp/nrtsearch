@@ -189,6 +189,8 @@ public class LazyVectorReplicaIntegrationTest {
     ShardState shard = replica.getGlobalState().getIndexOrThrow(nrtIndex).getShard(0);
     LazyRemoteDirectory lazyDir = LazyRemoteDirectory.unwrap(shard.indexDir);
     assertTrue("replica index dir is " + shard.indexDir, lazyDir != null);
+    // the default directory is mmap, so the lazy directory is not wrapped in NRTCachingDirectory
+    assertTrue("replica index dir is " + shard.indexDir, shard.indexDir == lazyDir);
     Path indexPath = lazyDir.getPath();
 
     // .vec files are stubs, the HNSW graph and quantized vectors are local

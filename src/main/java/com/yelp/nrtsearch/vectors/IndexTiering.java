@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,20 +40,33 @@ public class IndexTiering {
 
   private static class IndexEntry {
     final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    volatile boolean started;
+    // null until the state is known: checked with nrtsearch on first use
+    volatile Boolean started;
     volatile long lastAccessMs;
   }
 
   private final Consumer<String> starter;
   private final Consumer<String> stopper;
+  private final Predicate<String> startedChecker;
   private final long idleStopMs;
   private final Map<String, IndexEntry> entries = new ConcurrentHashMap<>();
   private LongSupplier clock = System::currentTimeMillis;
 
+  /**
+   * @param starter starts a stopped index
+   * @param stopper commits and stops an index
+   * @param startedChecker asks nrtsearch if an index is started, used the first time an index is
+   *     seen (for example after the gateway restarts)
+   * @param options gateway options
+   */
   public IndexTiering(
-      Consumer<String> starter, Consumer<String> stopper, VectorService.Options options) {
+      Consumer<String> starter,
+      Consumer<String> stopper,
+      Predicate<String> startedChecker,
+      VectorService.Options options) {
     this.starter = starter;
     this.stopper = stopper;
+    this.startedChecker = startedChecker;
     this.idleStopMs = options.idleStopMs;
   }
 
@@ -70,9 +84,6 @@ public class IndexTiering {
         index,
         k -> {
           IndexEntry e = new IndexEntry();
-          // Indexes not seen before (e.g. after a gateway restart) are assumed to be started; if
-          // they are not, the first request fails and marks them stopped.
-          e.started = true;
           e.lastAccessMs = clock.getAsLong();
           return e;
         });
@@ -89,9 +100,10 @@ public class IndexTiering {
     entries.remove(index);
   }
 
+  /** If the index is known to be started. False if it is stopped or its state is not known. */
   public boolean isStarted(String index) {
     IndexEntry e = entries.get(index);
-    return e == null || e.started;
+    return e != null && Boolean.TRUE.equals(e.started);
   }
 
   /** Run an action on an index, starting the index first if it is stopped. */
@@ -101,28 +113,39 @@ public class IndexTiering {
     if (!isEnabled()) {
       return action.get();
     }
-    e.lock.readLock().lock();
-    try {
-      if (!e.started) {
-        // upgrade to write lock to start the index
-        e.lock.readLock().unlock();
+    while (true) {
+      if (!Boolean.TRUE.equals(e.started)) {
+        // start in its own block, so a failure leaves no lock held
         e.lock.writeLock().lock();
         try {
-          if (!e.started) {
-            long t0 = System.nanoTime();
-            starter.accept(index);
-            e.started = true;
-            logger.info("Started index {} in {} ms", index, (System.nanoTime() - t0) / 1_000_000);
-          }
-          e.lock.readLock().lock();
+          ensureStarted(index, e);
         } finally {
           e.lock.writeLock().unlock();
         }
       }
-      e.lastAccessMs = clock.getAsLong();
-      return action.get();
-    } finally {
-      e.lock.readLock().unlock();
+      e.lock.readLock().lock();
+      try {
+        // the index may have been stopped between the start and taking the read lock
+        if (Boolean.TRUE.equals(e.started)) {
+          e.lastAccessMs = clock.getAsLong();
+          return action.get();
+        }
+      } finally {
+        e.lock.readLock().unlock();
+      }
+    }
+  }
+
+  /** Make sure the index is started. Called while holding the write lock. */
+  private void ensureStarted(String index, IndexEntry e) {
+    if (e.started == null) {
+      e.started = startedChecker.test(index);
+    }
+    if (!e.started) {
+      long t0 = System.nanoTime();
+      starter.accept(index);
+      e.started = true;
+      logger.info("Started index {} in {} ms", index, (System.nanoTime() - t0) / 1_000_000);
     }
   }
 
@@ -140,7 +163,8 @@ public class IndexTiering {
     long now = clock.getAsLong();
     for (Map.Entry<String, IndexEntry> mapEntry : entries.entrySet()) {
       IndexEntry e = mapEntry.getValue();
-      if (!e.started || now - e.lastAccessMs < idleStopMs) {
+      // indexes in an unknown state are checked on their next request, not stopped here
+      if (!Boolean.TRUE.equals(e.started) || now - e.lastAccessMs < idleStopMs) {
         continue;
       }
       // don't wait for requests in progress, try again next time
@@ -148,7 +172,7 @@ public class IndexTiering {
         continue;
       }
       try {
-        if (e.started && now - e.lastAccessMs >= idleStopMs) {
+        if (Boolean.TRUE.equals(e.started) && now - e.lastAccessMs >= idleStopMs) {
           stopper.accept(mapEntry.getKey());
           e.started = false;
           stopped.add(mapEntry.getKey());

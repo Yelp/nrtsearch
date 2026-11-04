@@ -1484,7 +1484,7 @@ public class S3Backend implements RemoteBackend {
       long offset,
       int length)
       throws IOException {
-    if (fileMetaData.compressionType != null && !"NONE".equals(fileMetaData.compressionType)) {
+    if (fileMetaData.isCompressed()) {
       throw new UnsupportedOperationException(
           "Range reads need uncompressed files, "
               + fileName
@@ -1510,9 +1510,11 @@ public class S3Backend implements RemoteBackend {
             .range("bytes=" + offset + "-" + (offset + length - 1))
             .build();
     byte[] bytes;
-    // wrap the stream so range reads count toward download metrics and rate limits
+    // Range reads are on the query path, so they count toward download metrics but not the
+    // download rate limit, which is meant for bulk restores and copies. Retries for throttling and
+    // server errors come from the S3 client retry policy (maxS3ClientRetries).
     try (InputStream in =
-        wrapDownloadStream(s3.getObject(request), s3Metrics, indexIdentifier, rateLimiter)) {
+        wrapDownloadStream(s3.getObject(request), s3Metrics, indexIdentifier, null)) {
       bytes = in.readAllBytes();
     } catch (S3Exception e) {
       throw new IOException("Error reading range of " + backendKey, e);

@@ -948,6 +948,8 @@ public class ShardState implements Closeable {
           indexDirFile, configuration.getIsolatedReplicaConfig(), lazyRemote ? lazyConfig : null);
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
+      // decide on NRTCachingDirectory from the real directory type, before the lazy wrapper
+      boolean isMMap = origIndexDir instanceof MMapDirectory;
       if (lazyRemote) {
         origIndexDir =
             new LazyRemoteDirectory(
@@ -960,7 +962,7 @@ public class ShardState implements Closeable {
       }
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if (!(origIndexDir instanceof MMapDirectory)) {
+      if (!isMMap) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {

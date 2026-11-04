@@ -23,8 +23,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -58,6 +61,8 @@ public class BucketRegistry {
 
   private final Path file;
   private State state;
+  // index names being created, by bucket; in memory only
+  private final Map<String, Set<String>> reservations = new HashMap<>();
 
   /**
    * @param file file to save the registry to, or null to keep it only in memory
@@ -117,24 +122,52 @@ public class BucketRegistry {
 
   public synchronized void deleteBucket(String name) {
     Bucket bucket = getBucket(name);
-    if (!bucket.indexes.isEmpty()) {
+    Set<String> reserved = reservations.get(name);
+    if (!bucket.indexes.isEmpty() || (reserved != null && !reserved.isEmpty())) {
       throw VectorsException.conflict(
           "Vector bucket " + name + " is not empty, delete its indexes first");
     }
     state.buckets.remove(name);
+    reservations.remove(name);
     save();
   }
 
-  public synchronized void addIndex(IndexConfig config) {
-    Bucket bucket = getBucket(config.getBucketName());
-    if (bucket.indexes.containsKey(config.getIndexName())) {
-      throw VectorsException.conflict("Vector index already exists: " + config.getIndexName());
+  /**
+   * Reserve an index name in a bucket before creating the backing nrtsearch index. The reservation
+   * counts toward the bucket's index limit and blocks other creates of the same name. Follow with
+   * {@link #addIndex} on success or {@link #releaseIndex} on failure.
+   *
+   * @throws VectorsException if the bucket doesn't exist, the name is taken or reserved, or the
+   *     bucket is full
+   */
+  public synchronized void reserveIndex(String bucketName, String indexName) {
+    Bucket bucket = getBucket(bucketName);
+    Set<String> reserved = reservations.computeIfAbsent(bucketName, k -> new HashSet<>());
+    if (bucket.indexes.containsKey(indexName) || reserved.contains(indexName)) {
+      throw VectorsException.conflict("Vector index already exists: " + indexName);
     }
-    if (bucket.indexes.size() >= MAX_INDEXES_PER_BUCKET) {
+    if (bucket.indexes.size() + reserved.size() >= MAX_INDEXES_PER_BUCKET) {
       throw VectorsException.validation(
           "A vector bucket can hold at most " + MAX_INDEXES_PER_BUCKET + " indexes");
     }
-    bucket.indexes.put(config.getIndexName(), config);
+    reserved.add(indexName);
+  }
+
+  /** Release a reservation from {@link #reserveIndex} after a failed create. */
+  public synchronized void releaseIndex(String bucketName, String indexName) {
+    Set<String> reserved = reservations.get(bucketName);
+    if (reserved != null) {
+      reserved.remove(indexName);
+    }
+  }
+
+  /** Add an index whose name was reserved with {@link #reserveIndex}. */
+  public synchronized void addIndex(IndexConfig config) {
+    Set<String> reserved = reservations.get(config.getBucketName());
+    if (reserved == null || !reserved.remove(config.getIndexName())) {
+      throw new IllegalStateException("Vector index was not reserved: " + config.getIndexName());
+    }
+    getBucket(config.getBucketName()).indexes.put(config.getIndexName(), config);
     save();
   }
 

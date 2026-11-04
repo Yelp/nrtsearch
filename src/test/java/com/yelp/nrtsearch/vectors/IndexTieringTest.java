@@ -33,7 +33,7 @@ public class IndexTieringTest {
     AtomicLong now = new AtomicLong(1000);
     VectorService.Options options = new VectorService.Options();
     options.idleStopMs = 100;
-    IndexTiering tiering = new IndexTiering(started::add, stopped::add, options);
+    IndexTiering tiering = new IndexTiering(started::add, stopped::add, i -> true, options);
     tiering.setClock(now::get);
 
     tiering.markStarted("a");
@@ -58,10 +58,64 @@ public class IndexTieringTest {
   @Test
   public void testDisabled() {
     List<String> stopped = new ArrayList<>();
-    IndexTiering tiering = new IndexTiering(s -> {}, stopped::add, new VectorService.Options());
+    IndexTiering tiering =
+        new IndexTiering(s -> {}, stopped::add, i -> true, new VectorService.Options());
     tiering.markStarted("a");
     assertFalse(tiering.isEnabled());
     assertTrue(tiering.stopIdleIndexes().isEmpty());
     assertEquals("x", tiering.withIndex("a", () -> "x"));
+  }
+
+  @Test
+  public void testStartFailurePropagates() {
+    VectorService.Options options = new VectorService.Options();
+    options.idleStopMs = 100;
+    int[] attempts = {0};
+    IndexTiering tiering =
+        new IndexTiering(
+            i -> {
+              if (attempts[0]++ == 0) {
+                throw new IllegalStateException("start failed");
+              }
+            },
+            i -> {},
+            i -> false,
+            options);
+    // the start error is thrown, not an IllegalMonitorStateException from the lock
+    IllegalStateException e =
+        org.junit.Assert.assertThrows(
+            IllegalStateException.class, () -> tiering.withIndex("a", () -> "x"));
+    assertEquals("start failed", e.getMessage());
+    assertFalse(tiering.isStarted("a"));
+    // the next request tries again, with no locks left held
+    assertEquals("x", tiering.withIndex("a", () -> "x"));
+    assertTrue(tiering.isStarted("a"));
+    assertEquals(2, attempts[0]);
+  }
+
+  @Test
+  public void testUnknownIndexStateIsChecked() {
+    // after a gateway restart, an index stopped by the previous gateway is started again
+    VectorService.Options options = new VectorService.Options();
+    options.idleStopMs = 100;
+    List<String> started = new ArrayList<>();
+    List<String> checked = new ArrayList<>();
+    IndexTiering tiering =
+        new IndexTiering(
+            started::add,
+            i -> {},
+            i -> {
+              checked.add(i);
+              return i.equals("running");
+            },
+            options);
+    assertEquals("x", tiering.withIndex("stopped", () -> "x"));
+    assertEquals("y", tiering.withIndex("running", () -> "y"));
+    assertEquals(List.of("stopped"), started);
+    // the state is only checked once per index
+    tiering.withIndex("stopped", () -> "x");
+    assertEquals(List.of("stopped", "running"), checked);
+    // an index whose state is unknown is not stopped as idle
+    assertFalse(tiering.isStarted("never-used"));
   }
 }

@@ -99,11 +99,17 @@ public class LazyRemoteDirectoryTest {
             });
   }
 
+  /** Write a stub the way a copy job does: to a temp file, then rename into place. */
+  private void addStub(String name) throws Exception {
+    String tmp = dir.createStubTemp(name, "index-id", meta);
+    dir.rename(tmp, name);
+  }
+
   @Test
   public void testStubLooksLikeFile() throws Exception {
     assertTrue(dir.isLazyFile("_0.vec"));
     assertFalse(dir.isLazyFile("_0.vex"));
-    dir.writeStub("_0.vec", "index-id", meta);
+    addStub("_0.vec");
     try (IndexOutput out = base.createOutput("_0.vex", IOContext.DEFAULT)) {
       out.writeByte((byte) 1);
     }
@@ -124,25 +130,89 @@ public class LazyRemoteDirectoryTest {
   }
 
   @Test
+  public void testPendingStubInvisibleUntilRenamed() throws Exception {
+    String tmp = dir.createStubTemp("_0.vec", "index-id", meta);
+    // the temp file is listed like any copy temp file, the stub isn't visible yet
+    assertEquals(List.of(tmp), Arrays.asList(dir.listAll()));
+    assertFalse(dir.hasStub("_0.vec"));
+    assertThrows(java.nio.file.NoSuchFileException.class, () -> dir.fileLength("_0.vec"));
+
+    dir.rename(tmp, "_0.vec");
+    assertTrue(dir.hasStub("_0.vec"));
+    assertEquals(List.of("_0.vec"), Arrays.asList(dir.listAll()));
+    assertEquals(fileBytes.length, dir.fileLength("_0.vec"));
+  }
+
+  @Test
+  public void testCancelledStubLeavesExistingFileUnchanged() throws Exception {
+    // the replica already has _0.vec as a real file
+    try (IndexOutput out = base.createOutput("_0.vec", IOContext.DEFAULT)) {
+      out.writeByte((byte) 7);
+    }
+    // a copy job writes a stub for it, then is cancelled and deletes its temp files
+    String tmp = dir.createStubTemp("_0.vec", "index-id", meta);
+    dir.deleteFile(tmp);
+    assertEquals(List.of("_0.vec"), Arrays.asList(dir.listAll()));
+    assertFalse(dir.hasStub("_0.vec"));
+    assertEquals(1, dir.fileLength("_0.vec"));
+    // and a later rename of the deleted temp name is not treated as a stub
+    try (IndexOutput out = base.createOutput("other_tmp", IOContext.DEFAULT)) {
+      out.writeByte((byte) 8);
+    }
+    dir.rename("other_tmp", "_1.vec");
+    assertFalse(dir.hasStub("_1.vec"));
+  }
+
+  @Test
+  public void testStubsLoadedOnOpen() throws Exception {
+    addStub("_0.vec");
+    LazyRemoteDirectory reopened =
+        new LazyRemoteDirectory(
+            base, path, "service", backend, new RemoteBlockCache.Memory(1024, 1024), config);
+    assertTrue(reopened.hasStub("_0.vec"));
+    assertEquals(fileBytes.length, reopened.fileLength("_0.vec"));
+  }
+
+  @Test
+  public void testLookupsDontReadStubFiles() throws Exception {
+    addStub("_0.vec");
+    // stubs are served from memory: replacing the stub file on disk is not seen
+    Files.writeString(path.resolve(LazyFileStub.stubName("_0.vec")), "not json");
+    assertEquals(fileBytes.length, dir.fileLength("_0.vec"));
+    try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT)) {
+      assertEquals(fileBytes.length, in.length());
+    }
+  }
+
+  @Test
   public void testDeleteAndRename() throws Exception {
-    dir.writeStub("_0.vec", "index-id", meta);
+    addStub("_0.vec");
     dir.deleteFile("_0.vec");
     assertEquals(0, dir.listAll().length);
     assertNull(LazyFileStub.read(path, "_0.vec"));
+    assertFalse(dir.hasStub("_0.vec"));
 
     // a real file renamed onto a stub's name replaces the stub
-    dir.writeStub("_1.vec", "index-id", meta);
+    addStub("_1.vec");
     try (IndexOutput out = base.createOutput("tmp_1", IOContext.DEFAULT)) {
       out.writeByte((byte) 7);
     }
     dir.rename("tmp_1", "_1.vec");
     assertFalse(dir.hasStub("_1.vec"));
+    assertNull(LazyFileStub.read(path, "_1.vec"));
     assertEquals(1, dir.fileLength("_1.vec"));
+
+    // a stub replaces a real file of the same name, after the deleter removed the real file
+    String tmp = dir.createStubTemp("_1.vec", "index-id", meta);
+    base.deleteFile("_1.vec");
+    dir.rename(tmp, "_1.vec");
+    assertTrue(dir.hasStub("_1.vec"));
+    assertEquals(fileBytes.length, dir.fileLength("_1.vec"));
   }
 
   @Test
   public void testSync() throws Exception {
-    dir.writeStub("_0.vec", "index-id", meta);
+    addStub("_0.vec");
     dir.sync(List.of("_0.vec"));
   }
 
@@ -161,8 +231,12 @@ public class LazyRemoteDirectoryTest {
         LazyRemoteDirectory.writeStubsForRestore(
             path, config, "index-id", Map.of("_0.vec", meta, "_0.vex", meta, "_1.vec", compressed));
     assertEquals(Set.of("_0.vec"), stubbed);
-    assertTrue(dir.hasStub("_0.vec"));
-    assertFalse(dir.hasStub("_1.vec"));
+    // restore writes stubs before the directory is opened
+    LazyRemoteDirectory opened =
+        new LazyRemoteDirectory(
+            base, path, "service", backend, new RemoteBlockCache.Memory(1024, 1024), config);
+    assertTrue(opened.hasStub("_0.vec"));
+    assertFalse(opened.hasStub("_1.vec"));
   }
 
   @Test
@@ -170,7 +244,7 @@ public class LazyRemoteDirectoryTest {
     NrtFileMetaData compressed = new NrtFileMetaData(meta.header, meta.footer, 10, 1, "p", "t");
     compressed.compressionType = "ZSTD";
     assertThrows(
-        IllegalArgumentException.class, () -> dir.writeStub("_0.vec", "index-id", compressed));
+        IllegalArgumentException.class, () -> dir.createStubTemp("_0.vec", "index-id", compressed));
   }
 
   @Test
