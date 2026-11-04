@@ -114,11 +114,18 @@ done | tee "$RESULTS/summary.txt"
 disk_usage() {
   local dir="$1"
   [[ -d "$dir" ]] || { echo "  (no index data at $dir)"; return; }
-  find "$dir" -type f -name '*.*' | awk -F. '{print $NF}' | sort -u | while read -r ext; do
-    bytes="$(find "$dir" -type f -name "*.$ext" -exec du -k {} + | awk '{s += $1} END {print s * 1024}')"
-    printf '  %-8s %10.1f MB\n' ".$ext" "$(echo "$bytes / 1048576" | bc -l)"
-  done
-  printf '  %-8s %10.1f MB\n' total "$(du -sk "$dir" | awk '{print $1 / 1024}')"
+  # bytes on disk by file extension, in one du pass; /usr/bin/du since some environments wrap du
+  find "$dir" -type f -print0 | xargs -0 /usr/bin/du -k 2> /dev/null | awk '
+    {
+      name = $2; sub(/.*\//, "", name)
+      ext = (name ~ /\./) ? "." name : "(other)"; sub(/^.*\./, ".", ext)
+      kb[ext] += $1; total += $1
+    }
+    END {
+      for (e in kb) printf "  %-8s %10.1f MB\n", e, kb[e] / 1024 | "sort"
+      close("sort")
+      printf "  %-8s %10.1f MB\n", "total", total / 1024
+    }'
 }
 {
   echo "Local disk, lazy replica ($BENCH_HOME/replica_lazy/index):"

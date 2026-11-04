@@ -36,7 +36,43 @@ import picocli.CommandLine;
 public class VectorBenchCommand implements Runnable {
 
   public static void main(String[] args) {
-    System.exit(new CommandLine(new VectorBenchCommand()).execute(args));
+    // gRPC logs startup details such as epoll support at INFO through java.util.logging
+    java.util.logging.Logger.getLogger("io.grpc").setLevel(java.util.logging.Level.WARNING);
+    CommandLine commandLine = new CommandLine(new VectorBenchCommand());
+    commandLine.setExecutionExceptionHandler(VectorBenchCommand::handleError);
+    System.exit(commandLine.execute(args));
+  }
+
+  /** Print a one line message for errors a user can act on, and a stack trace otherwise. */
+  static int handleError(
+      Exception e, CommandLine commandLine, CommandLine.ParseResult parseResult) {
+    Throwable cause = e;
+    while (cause.getCause() != null
+        && !(cause instanceof io.grpc.StatusRuntimeException)
+        && !(cause instanceof BenchClient.BenchException)) {
+      cause = cause.getCause();
+    }
+    if (cause instanceof io.grpc.StatusRuntimeException sre
+        && sre.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE) {
+      commandLine
+          .getErr()
+          .println(
+              "error: can't connect to nrtsearch ("
+                  + sre.getStatus().getDescription()
+                  + "). Check the node is running and --host/--port are right"
+                  + " (cluster.sh status).");
+      return 1;
+    }
+    if (cause instanceof io.grpc.StatusRuntimeException sre) {
+      commandLine.getErr().println("error: " + sre.getStatus());
+      return 1;
+    }
+    if (cause instanceof BenchClient.BenchException) {
+      commandLine.getErr().println("error: " + cause.getMessage());
+      return 1;
+    }
+    e.printStackTrace(commandLine.getErr());
+    return 1;
   }
 
   @Override

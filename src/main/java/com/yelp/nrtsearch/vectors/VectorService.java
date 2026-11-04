@@ -330,8 +330,10 @@ public class VectorService {
         Field.newBuilder()
             .setName(VECTOR_FIELD)
             .setType(FieldType.VECTOR)
+            // no doc values: they would store every vector a second time. Returning vector data
+            // reads the search index's full precision vectors (.vec) instead, which replicas can
+            // leave in S3.
             .setSearch(true)
-            .setStoreDocValues(true)
             .setVectorDimensions(config.getDimension())
             .setVectorSimilarity(config.getDistanceMetric().getNrtsearchSimilarity())
             .setVectorIndexingOptions(vectorOptions)

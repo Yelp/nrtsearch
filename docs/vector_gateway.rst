@@ -155,6 +155,8 @@ Each vector index is an nrtsearch index named ``vb_<bucket>__<index>``, with the
      - ``VECTOR``
      - HNSW with scalar quantization (``--quantizedBits``, 7 by default). Query results are
        rescored with the full precision vectors (``rescore_vector``, ``--rescoreOversample``).
+       No doc values, so each vector is stored once; ``returnData`` reads the full precision
+       vectors of the search index.
    * - ``_meta``
      - ``ATOM`` (stored)
      - All metadata as JSON, returned with ``returnMetadata``.

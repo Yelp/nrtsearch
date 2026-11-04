@@ -77,6 +77,9 @@ public class LazyVectorReplicaIntegrationTest {
     TestServer.cleanupAll();
   }
 
+  /** Vectors put, by key, to check returned data against. */
+  private static final java.util.Map<String, float[]> PUT_VECTORS = new java.util.HashMap<>();
+
   private static ObjectNode req() {
     ObjectNode node = MAPPER.createObjectNode();
     node.put("vectorBucketName", BUCKET);
@@ -92,9 +95,12 @@ public class LazyVectorReplicaIntegrationTest {
         ObjectNode vector = array.addObject();
         vector.put("key", String.format("doc-%05d", i));
         ArrayNode data = vector.putObject("data").putArray("float32");
+        float[] values = new float[DIM];
         for (int d = 0; d < DIM; d++) {
-          data.add((float) random.nextGaussian());
+          values[d] = (float) random.nextGaussian();
+          data.add(values[d]);
         }
+        PUT_VECTORS.put(String.format("doc-%05d", i), values);
         vector.putObject("metadata").put("group", i % 3);
       }
       service.putVectors(put);
@@ -125,6 +131,14 @@ public class LazyVectorReplicaIntegrationTest {
     List<Double> d = new ArrayList<>();
     response.get("vectors").forEach(v -> d.add(v.get("distance").asDouble()));
     return d;
+  }
+
+  private static long sizeOf(Path p) {
+    try {
+      return Files.size(p);
+    } catch (IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
   }
 
   private static List<Path> files(Path dir, String suffix) throws IOException {
@@ -199,6 +213,8 @@ public class LazyVectorReplicaIntegrationTest {
     assertFalse(files(indexPath, ".vex").isEmpty());
     assertFalse(files(indexPath, ".veq").isEmpty());
     assertTrue(files(indexPath, ".cfs").isEmpty());
+    // vectors are stored once, in the vector search files, not again as doc values
+    assertTrue(files(indexPath, ".dvd").stream().allMatch(p -> sizeOf(p) < 64 * 1024));
 
     long vecBytes = 0;
     for (String file : lazyDir.listAll()) {
@@ -284,8 +300,16 @@ public class LazyVectorReplicaIntegrationTest {
     get.put("returnData", true);
     JsonNode primaryGet = primaryService.getVectors(get);
     JsonNode replicaGet = replicaService.getVectors(get);
-    assertEquals(
-        primaryGet.get("vectors").get(0).get("data"), replicaGet.get("vectors").get(0).get("data"));
+    // both return exactly the vector that was put, read from the search index's .vec files (the
+    // vector field has no doc values), which on the replica come from S3
+    float[] putVector = PUT_VECTORS.get("doc-00007");
+    for (JsonNode response : List.of(primaryGet, replicaGet)) {
+      JsonNode data = response.get("vectors").get(0).get("data").get("float32");
+      assertEquals(DIM, data.size());
+      for (int d = 0; d < DIM; d++) {
+        assertEquals(putVector[d], data.get(d).floatValue(), 0f);
+      }
+    }
 
     // a new version is picked up by polling, new .vec files are stubs too
     putVectors(primaryService, 2000, 500, random);
