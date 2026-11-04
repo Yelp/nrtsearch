@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.search.crossindex.CrossIndexLookupManager;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class SearchContext implements FieldFetchContext {
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
   private final MultiRetrieverContext multiRetrieverContext;
+  private final CrossIndexLookupManager crossIndexLookupManager;
 
   public enum VectorScoringMode {
     NONE,
@@ -83,6 +85,7 @@ public class SearchContext implements FieldFetchContext {
     this.explain = builder.explain;
     this.warming = builder.warming;
     this.multiRetrieverContext = builder.multiRetrieverContext;
+    this.crossIndexLookupManager = builder.crossIndexLookupManager;
 
     if (validate) {
       validate();
@@ -206,6 +209,11 @@ public class SearchContext implements FieldFetchContext {
     return multiRetrieverContext;
   }
 
+  /** Get the cross-index lookup manager, or null if no lookups are configured. */
+  public CrossIndexLookupManager getCrossIndexLookupManager() {
+    return crossIndexLookupManager;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -265,6 +273,7 @@ public class SearchContext implements FieldFetchContext {
     private boolean explain;
     private boolean warming;
     private MultiRetrieverContext multiRetrieverContext;
+    private CrossIndexLookupManager crossIndexLookupManager;
 
     private Builder() {}
 
@@ -383,6 +392,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setMultiRetrieverContext(MultiRetrieverContext multiRetrieverContext) {
       this.multiRetrieverContext = multiRetrieverContext;
+      return this;
+    }
+
+    public Builder setCrossIndexLookupManager(CrossIndexLookupManager crossIndexLookupManager) {
+      this.crossIndexLookupManager = crossIndexLookupManager;
       return this;
     }
 

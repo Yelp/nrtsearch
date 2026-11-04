@@ -1,0 +1,42 @@
+{
+  "indexName": "validation_index",
+  "field": [
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": { "name": "standard" },
+          "tokenFilters": [{ "name": "lowercase" }]
+        }
+      }
+    },
+    {
+      "name": "stored_only_field",
+      "type": "ATOM",
+      "search": false,
+      "store": true
+    },
+    {
+      "name": "int_join_field",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "atom_join_field",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "multi_atom_field",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true
+    }
+  ]
+}
