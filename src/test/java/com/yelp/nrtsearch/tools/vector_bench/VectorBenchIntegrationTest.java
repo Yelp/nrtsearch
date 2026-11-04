@@ -215,6 +215,74 @@ public class VectorBenchIntegrationTest {
     assertTrue(replicaInfo, replicaInfo.contains("lazy cache"));
   }
 
+  /**
+   * The order that broke on a real cluster: the replica starts after setup but before load, so it
+   * has no metadata fields, and filtered queries fail until its state is reloaded.
+   */
+  @Test
+  public void testReplicaStartedBeforeLoadIsReloaded() throws Exception {
+    TestServer primary =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withRemoteStateBackend(false)
+            .build();
+    Path registry = folder.getRoot().toPath().resolve("registry.json");
+    Path queries = folder.getRoot().toPath().resolve("queries.bin");
+    List<String> dataset =
+        List.of("--count", "2000", "--dim", "16", "--clusters", "10", "--seed", "9");
+    List<String> primaryTarget =
+        List.of("--port", String.valueOf(primary.getPort()), "--registryFile", registry.toString());
+    run(args("setup", primaryTarget, dataset));
+    String nrtIndex = IndexConfig.nrtsearchIndexName("bench", "vectors");
+    primary.commit(nrtIndex);
+
+    // replica starts now, before any metadata field exists
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, primary.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withoutPrimary()
+            .withRemoteStateBackend(true)
+            .withAdditionalConfig(
+                String.join(
+                    "\n",
+                    "isolatedReplicaConfig:",
+                    "  enabled: true",
+                    "  pollingIntervalSeconds: 1",
+                    "lazyRemoteData:",
+                    "  enabled: true"))
+            .build();
+    assertTrue(replica.isStarted(nrtIndex));
+
+    run(args("load", primaryTarget, dataset));
+    primary.refresh(nrtIndex);
+    primary.commit(nrtIndex);
+    run(
+        args(
+            "groundtruth",
+            dataset,
+            List.of("--out", queries.toString(), "--queries", "20", "--filteredPct", "50")));
+    List<String> replicaTarget =
+        List.of("--port", String.valueOf(replica.getPort()), "--registryFile", registry.toString());
+    // wait for the replica to copy the loaded data
+    for (int i = 0; i < 50; i++) {
+      if (number(run(args("info", replicaTarget, List.of())), "([0-9,]+) vectors,") >= 2000) {
+        break;
+      }
+      Thread.sleep(200);
+    }
+
+    String output =
+        run(
+            args(
+                "query",
+                replicaTarget,
+                List.of("--queries", queries.toString(), "--duration", "2", "--warmup", "0")));
+    assertTrue(output, output.contains("is missing fields (field \"m_category\" is unknown)"));
+    assertTrue(output, output.contains("err=0"));
+    assertTrue("recall", number(output, "Recall@10:\\s+([0-9.]+)") >= 0.9);
+  }
+
   @SafeVarargs
   private static String[] args(String command, List<String>... parts) {
     List<String> all = new ArrayList<>();

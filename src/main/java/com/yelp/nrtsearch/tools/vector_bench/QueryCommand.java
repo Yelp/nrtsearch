@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -131,6 +132,7 @@ public class QueryCommand implements Callable<Integer> {
     RateLimiter limiter = new RateLimiter(qps);
 
     try (BenchClient client = target.client(concurrency, true)) {
+      probe(client, queries, mHost, mPort);
       ExecutorService executor = Executors.newFixedThreadPool(concurrency);
       CacheMetrics.Snapshot before = null;
       long measureStart = 0;
@@ -144,15 +146,7 @@ public class QueryCommand implements Callable<Integer> {
                       long scheduled = limiter.acquire();
                       QuerySet.Query query =
                           queries.get((int) (nextQuery.getAndIncrement() % queries.size()));
-                      ObjectNode request = target.request();
-                      request.put("topK", topK);
-                      ArrayNode data = request.putObject("queryVector").putArray("float32");
-                      for (float f : query.vector()) {
-                        data.add(f);
-                      }
-                      if (query.category() != null) {
-                        request.putObject("filter").put("category", query.category());
-                      }
+                      ObjectNode request = request(query);
                       try {
                         JsonNode response = client.call("QueryVectors", request);
                         long nanos = System.nanoTime() - scheduled;
@@ -245,6 +239,59 @@ public class QueryCommand implements Callable<Integer> {
       }
     }
     return 0;
+  }
+
+  private ObjectNode request(QuerySet.Query query) {
+    ObjectNode request = target.request();
+    request.put("topK", topK);
+    ArrayNode data = request.putObject("queryVector").putArray("float32");
+    for (float f : query.vector()) {
+      data.add(f);
+    }
+    if (query.category() != null) {
+      request.putObject("filter").put("category", query.category());
+    }
+    return request;
+  }
+
+  /**
+   * Send one unfiltered and one filtered query before measuring. Replicas load field definitions at
+   * startup and on reloadState only, so a replica started before metadata fields were added fails
+   * filtered queries with an unknown field. Reload its state and try again.
+   */
+  private void probe(BenchClient client, List<QuerySet.Query> queries, String host, int port)
+      throws Exception {
+    List<QuerySet.Query> probes = new ArrayList<>();
+    queries.stream().filter(q -> q.category() == null).findFirst().ifPresent(probes::add);
+    queries.stream().filter(q -> q.category() != null).findFirst().ifPresent(probes::add);
+    for (QuerySet.Query query : probes) {
+      try {
+        client.call("QueryVectors", request(query));
+      } catch (BenchClient.BenchException e) {
+        if (host == null || !e.getMessage().contains("is unknown")) {
+          throw e;
+        }
+        java.util.regex.Matcher field =
+            java.util.regex.Pattern.compile("field \"[^\"]*\" is unknown").matcher(e.getMessage());
+        System.out.printf(
+            "Node %s:%d is missing fields (%s); reloading its index state%n",
+            host, port, field.find() ? field.group() : "unknown field");
+        reloadState(host, port);
+        client.call("QueryVectors", request(query));
+      }
+    }
+  }
+
+  static void reloadState(String host, int port) {
+    io.grpc.ManagedChannel channel =
+        io.grpc.ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
+    try {
+      com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.newBlockingStub(channel)
+          .withDeadlineAfter(60, TimeUnit.SECONDS)
+          .reloadState(com.yelp.nrtsearch.server.grpc.ReloadStateRequest.getDefaultInstance());
+    } finally {
+      channel.shutdownNow();
+    }
   }
 
   /** Fraction of the exact topK neighbors that are in the response. */

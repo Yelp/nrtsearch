@@ -60,6 +60,9 @@ if [[ -z "${SKIP_LOAD:-}" ]]; then
   # replicas only start indexes created after they started when told to reload
   "$SCRIPT_DIR/cluster.sh" reload
   run load --port "$PRIMARY_PORT" --registryFile "$REGISTRY" "${dataset[@]}" | tee "$RESULTS/load.txt"
+  # load adds a field per metadata key on the primary; replicas only load field definitions at
+  # startup and on reloadState, so reload them again to see the new fields
+  "$SCRIPT_DIR/cluster.sh" reload
 fi
 
 if [[ ! -f "$QUERY_SET" ]]; then
