@@ -444,7 +444,7 @@ public class MultiPrimaryLifecycleTest {
     assertTrue(shard(b).isStandbyFollower());
   }
 
-  /** ReloadState returns without waiting for a refresh to run. */
+  /** On the active primary, ReloadState returns without waiting behind role changes. */
   @Test
   public void testReloadStateDoesNotBlock() throws Exception {
     TestServer a = primaryServer();
@@ -536,6 +536,63 @@ public class MultiPrimaryLifecycleTest {
     // the refresh still runs in the background
     leaderManager(b).awaitTransitions();
     assertTrue(shard(b).isStandbyFollower());
+  }
+
+  /**
+   * A standby stops its follower of an index stopped on the leader, and stays stopped on takeover.
+   */
+  @Test
+  public void testStandbyStopsIndexStoppedOnLeader() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    refreshAndWait(b);
+    assertTrue(b.isStarted(INDEX));
+    a.stopIndex(INDEX);
+    refreshAndWait(b);
+    assertFalse(b.isStarted(INDEX));
+    elect(b);
+    assertFalse(b.isStarted(INDEX));
+    // the new leader can start it again
+    b.startIndexV2(StartIndexV2Request.newBuilder().setIndexName(INDEX).build());
+    assertTrue(shard(b).isPrimary());
+    b.verifySimpleDocIds(INDEX, 1);
+  }
+
+  /** Promotion stops a follower of an index the previous leader stopped, even without a refresh. */
+  @Test
+  public void testPromotionStopsFollowerOfStoppedIndex() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    refreshAndWait(b);
+    assertTrue(shard(b).isStandbyFollower());
+    a.stopIndex(INDEX);
+    // b is elected before refreshing
+    elect(b);
+    assertFalse(b.isStarted(INDEX));
+  }
+
+  /** ReloadState during a role change waits for the refresh after it, instead of skipping. */
+  @Test
+  public void testReloadDuringRoleChangeWaits() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.createSimpleIndex("other_index");
+    a.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("other_index").build());
+    a.commit("other_index");
+    // a role change on b: lose leadership that b never had is a no-op, so elect and revoke a
+    elect(b);
+    elect(a);
+    // b is demoting or standby; reload must pick up other_index as a standby follower
+    b.reloadState();
+    leaderManager(b).awaitTransitions();
+    assertTrue(b.getGlobalState().getIndexOrThrow("other_index").getShard(0).isStandbyFollower());
   }
 
   /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */

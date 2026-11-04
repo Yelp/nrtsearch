@@ -31,12 +31,10 @@ public class ReloadStateHandler extends Handler<ReloadStateRequest, ReloadStateR
 
   @Override
   public ReloadStateResponse handle(ReloadStateRequest request) throws Exception {
-    boolean isStandby =
-        getGlobalState()
-            .getLeaderManager()
-            .map(m -> m.getRole() == com.yelp.nrtsearch.server.leader.LeaderManager.Role.STANDBY)
-            .orElse(false);
-    if (isStandby
+    // with leader election, always route to the leader manager: it refreshes standbys (after any
+    // pending role change) and does nothing on the active primary
+    boolean leaderElection = getGlobalState().getLeaderManager().isPresent();
+    if (leaderElection
         || getGlobalState()
             .getConfiguration()
             .getIndexStartConfig()

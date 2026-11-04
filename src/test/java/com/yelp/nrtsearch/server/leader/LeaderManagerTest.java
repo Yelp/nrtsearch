@@ -127,11 +127,22 @@ public class LeaderManagerTest {
       events.add("standby:" + indexName);
     }
 
+    volatile RuntimeException refreshError = null;
+
     @Override
-    public void refreshStandby(java.util.function.BooleanSupplier abort) {
+    public boolean refreshStandby(java.util.function.BooleanSupplier abort) {
       refreshes.incrementAndGet();
       onRefresh.run();
       onRefreshWithAbort.accept(abort);
+      if (refreshError != null) {
+        throw refreshError;
+      }
+      return !abort.getAsBoolean();
+    }
+
+    @Override
+    public void stopIndicesNotStarted() {
+      events.add("stopNotStarted");
     }
 
     List<String> restarts() {
@@ -516,5 +527,70 @@ public class LeaderManagerTest {
     manager.close();
     manager.requestRefresh();
     assertEquals(0, controller.refreshes.get());
+  }
+
+  /** A failed refresh fails the waiting request instead of reporting success. */
+  @Test
+  public void testFailedRefreshFailsWaiter() throws Exception {
+    controller.refreshError = new IllegalStateException("remote unavailable");
+    java.util.concurrent.CompletableFuture<Void> done = manager.requestRefresh();
+    java.util.concurrent.ExecutionException e =
+        assertThrows(
+            java.util.concurrent.ExecutionException.class,
+            () -> done.get(5, java.util.concurrent.TimeUnit.SECONDS));
+    assertTrue(e.getCause() instanceof IllegalStateException);
+    // a later request can still succeed
+    controller.refreshError = null;
+    manager.requestRefresh().get(5, java.util.concurrent.TimeUnit.SECONDS);
+  }
+
+  /**
+   * Requests made while a refresh is deferred for a role change are completed after it, without
+   * relying on a periodic refresh (none is configured in this test).
+   */
+  @Test
+  public void testDeferredRefreshDoesNotStrandLaterRequests() throws Exception {
+    java.util.concurrent.CountDownLatch inClaim = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch proceed = new java.util.concurrent.CountDownLatch(1);
+    controller.failClaim = true;
+    controller.onClaim =
+        () -> {
+          inClaim.countDown();
+          try {
+            proceed.await();
+          } catch (InterruptedException ignored) {
+          }
+        };
+    elector.elect(10);
+    assertTrue(inClaim.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    java.util.concurrent.CompletableFuture<Void> a = manager.requestRefresh();
+    java.util.concurrent.CompletableFuture<Void> b = manager.requestRefresh();
+    proceed.countDown();
+    a.get(10, java.util.concurrent.TimeUnit.SECONDS);
+    b.get(10, java.util.concurrent.TimeUnit.SECONDS);
+    java.util.concurrent.CompletableFuture<Void> c = manager.requestRefresh();
+    c.get(10, java.util.concurrent.TimeUnit.SECONDS);
+  }
+
+  /** Each demotion triggers exactly one refresh (merged with any requested meanwhile). */
+  @Test
+  public void testOneRefreshPerDemotion() throws Exception {
+    elector.elect(10);
+    manager.awaitTransitions();
+    int before = controller.refreshes.get();
+    elector.lose();
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    assertEquals(before + 1, controller.refreshes.get());
+  }
+
+  /** Promotion stops indices not started in global state before starting the others. */
+  @Test
+  public void testPromotionStopsIndicesNotStarted() throws Exception {
+    elector.elect(10);
+    manager.awaitTransitions();
+    int stop = controller.events.indexOf("stopNotStarted");
+    int primary = controller.events.indexOf("primary:idx:10");
+    assertTrue(stop >= 0 && stop < primary);
   }
 }

@@ -235,7 +235,6 @@ public class EpochPointerFence {
     }
   }
 
-  /** Record an owned version, only if the fence is still at the epoch it was written in. */
   /**
    * Record an owned version after a successful conditional write.
    *

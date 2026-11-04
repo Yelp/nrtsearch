@@ -49,7 +49,10 @@ changes). Standbys follow it by refreshing from remote storage periodically
 ``ReloadState`` requests a refresh and waits up to ``leaderElection.reloadWaitMs`` (default 60s) for one that
 started after the request; if it does not finish in time the request fails with ``DEADLINE_EXCEEDED`` and the
 refresh continues in the background. On the active primary, ``ReloadState`` does nothing. A refresh never runs
-during a role change, and stops early if one is pending; it is run again afterwards.
+during a role change, and stops early if one is pending; it is run again afterwards. A refresh checks for a
+pending role change between indices, so in the worst case a promotion waits for one standby index to finish
+restoring from remote storage. A refresh also stops standby indices that are no longer started in global state,
+and a newly elected primary stops any such index before starting the others as primary.
 
 Durability
 ----------

@@ -86,6 +86,10 @@ public class BackendStateManager implements IndexStateManager {
     // If this state was restored from an index snapshot, it may have the previous index
     // name. Let's fix it here so that it updates on the next commit.
     stateInfo = fixIndexName(stateInfo, indexName);
+    if (currentState != null && stateInfo.equals(currentState.getIndexStateInfo())) {
+      // unchanged (every committed change increments gen), keep the current state
+      return;
+    }
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
             new FieldAndFacetState(),

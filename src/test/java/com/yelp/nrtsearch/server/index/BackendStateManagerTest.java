@@ -151,6 +151,39 @@ public class BackendStateManagerTest {
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
 
+  /** Reloading unchanged index state keeps the current state instead of rebuilding it. */
+  @Test
+  public void testReloadUnchangedStateKeepsCurrent() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    BackendStateManager stateManager =
+        new MockStateManager("test_index", "test_id", mockBackend, mockGlobalState);
+    IndexStateInfo state = IndexStateInfo.newBuilder().setIndexName("test_index").setGen(3).build();
+    when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
+        .thenReturn(state);
+    ImmutableIndexState mockState = mock(ImmutableIndexState.class);
+    when(mockState.getIndexStateInfo()).thenReturn(state);
+    MockStateManager.nextState = mockState;
+    MockStateManager.expectedState = state;
+    stateManager.load();
+    assertSame(mockState, stateManager.getCurrent());
+
+    // second load of the same state: not rebuilt
+    MockStateManager.nextState = mock(ImmutableIndexState.class);
+    stateManager.load();
+    assertSame(mockState, stateManager.getCurrent());
+
+    // changed state is rebuilt
+    IndexStateInfo changed = state.toBuilder().setGen(4).build();
+    when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
+        .thenReturn(changed);
+    ImmutableIndexState next = mock(ImmutableIndexState.class);
+    MockStateManager.nextState = next;
+    MockStateManager.expectedState = changed;
+    stateManager.load();
+    assertSame(next, stateManager.getCurrent());
+  }
+
   @Test
   public void testLoadsExistingState_liveSettingsOverride() throws IOException {
     StateBackend mockBackend = mock(StateBackend.class);

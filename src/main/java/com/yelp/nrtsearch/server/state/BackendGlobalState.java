@@ -539,7 +539,7 @@ public class BackendGlobalState extends GlobalState {
     }
 
     @Override
-    public void refreshStandby(java.util.function.BooleanSupplier abort) throws IOException {
+    public boolean refreshStandby(java.util.function.BooleanSupplier abort) throws IOException {
       // load remote state without holding the global state lock, checking for a pending role
       // change between index loads; only the swap is done under the lock
       ImmutableState current = immutableState;
@@ -552,7 +552,7 @@ public class BackendGlobalState extends GlobalState {
           if (abort.getAsBoolean()) {
             logger.info("Refresh stopped early for a pending role change");
             closeReplaced(created);
-            return;
+            return false;
           }
           String indexName = entry.getKey();
           IndexStateManager manager = current.indexStateManagerMap.get(indexName);
@@ -565,7 +565,7 @@ public class BackendGlobalState extends GlobalState {
                     stateBackend);
             created.add(manager);
           }
-          // a standby follows field and settings changes by reloading index state
+          // a standby follows field and settings changes; unchanged index state is not rebuilt
           manager.load();
           newManagerMap.put(indexName, manager);
         }
@@ -576,9 +576,9 @@ public class BackendGlobalState extends GlobalState {
       List<IndexStateManager> replaced = new ArrayList<>();
       synchronized (BackendGlobalState.this) {
         if (immutableState != current) {
-          // a role change replaced managers while loading; drop this refresh, the next one retries
+          // managers were replaced while loading; retry
           closeReplaced(created);
-          return;
+          return false;
         }
         for (Map.Entry<String, IndexStateManager> entry : current.indexStateManagerMap.entrySet()) {
           if (newManagerMap.get(entry.getKey()) != entry.getValue()) {
@@ -588,22 +588,69 @@ public class BackendGlobalState extends GlobalState {
         immutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
       }
       closeReplaced(replaced);
-      if (!getConfiguration().getIndexStartConfig().getAutoStart()) {
-        return;
-      }
+      // make local started indices match remote state: stop followers of indices that are no
+      // longer started, start followers of indices that are
       for (Map.Entry<String, IndexGlobalState> entry :
           newGlobalStateInfo.getIndicesMap().entrySet()) {
         IndexStateManager manager = newManagerMap.get(entry.getKey());
-        if (!entry.getValue().getStarted() || manager.getCurrent().isStarted()) {
+        boolean wanted = entry.getValue().getStarted();
+        boolean running = manager.getCurrent().isStarted();
+        if (wanted == running) {
           continue;
         }
         if (abort.getAsBoolean()) {
           logger.info("Refresh stopped early for a pending role change");
-          return;
+          return false;
         }
-        startIndexFromConfig(entry.getKey(), manager, entry.getValue(), LeaderStartRole.STANDBY);
+        if (running) {
+          logger.info("Stopping standby index no longer started: {}", entry.getKey());
+          replaceWithUnstarted(entry.getKey(), manager, entry.getValue());
+        } else if (getConfiguration().getIndexStartConfig().getAutoStart()) {
+          startIndexFromConfig(entry.getKey(), manager, entry.getValue(), LeaderStartRole.STANDBY);
+        }
+      }
+      return true;
+    }
+
+    @Override
+    public void stopIndicesNotStarted() throws IOException {
+      ImmutableState current = immutableState;
+      for (Map.Entry<String, IndexGlobalState> entry :
+          current.globalStateInfo.getIndicesMap().entrySet()) {
+        IndexStateManager manager = current.indexStateManagerMap.get(entry.getKey());
+        if (!entry.getValue().getStarted() && manager.getCurrent().isStarted()) {
+          logger.info("Stopping index not started in global state: {}", entry.getKey());
+          replaceWithUnstarted(entry.getKey(), manager, entry.getValue());
+        }
       }
     }
+  }
+
+  /**
+   * Stop an index locally without changing global state, by replacing its manager with a fresh,
+   * unstarted one (a closed index state can not be started again). Only called by leader
+   * transitions and refreshes, which run one at a time.
+   */
+  private void replaceWithUnstarted(
+      String indexName, IndexStateManager current, IndexGlobalState indexGlobalState)
+      throws IOException {
+    IndexStateManager fresh =
+        createIndexStateManager(
+            indexName,
+            indexGlobalState.getId(),
+            getConfiguration().getLiveSettingsOverride(indexName),
+            stateBackend);
+    fresh.load();
+    synchronized (this) {
+      if (immutableState.indexStateManagerMap.get(indexName) != current) {
+        fresh.close();
+        return;
+      }
+      Map<String, IndexStateManager> managers = new HashMap<>(immutableState.indexStateManagerMap);
+      managers.put(indexName, fresh);
+      immutableState = new ImmutableState(immutableState.globalStateInfo, managers);
+    }
+    current.close();
   }
 
   @Override
