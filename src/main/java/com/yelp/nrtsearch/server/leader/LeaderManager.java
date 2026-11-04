@@ -88,6 +88,7 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
   private static final long CLOSE_WAIT_SECONDS = 60;
+  private volatile Thread transitionThread;
   private final IndexRoleController controller;
   private volatile Role role = Role.STANDBY;
   private volatile long activeEpoch = -1;
@@ -115,6 +116,7 @@ public class LeaderManager implements Closeable, LeaderListener {
             r -> {
               Thread t = new Thread(r, "LeaderManager-transition");
               t.setDaemon(true);
+              transitionThread = t;
               return t;
             });
     fence.registerFencedListener(this::onFenced);
@@ -323,6 +325,56 @@ public class LeaderManager implements Closeable, LeaderListener {
       }
     } finally {
       pool.shutdownNow();
+    }
+  }
+
+  /** Task run on the transition thread. */
+  @FunctionalInterface
+  public interface SerializedTask {
+    void run() throws IOException;
+  }
+
+  /**
+   * Run a task on the transition thread and wait for it, so it never runs concurrently with a role
+   * transition or another serialized task. Used for state reloads, which replace index managers.
+   *
+   * @param task task to run
+   * @throws IOException if the task fails
+   * @throws IllegalStateException if the manager is closed
+   */
+  public void runSerialized(SerializedTask task) throws IOException {
+    if (Thread.currentThread() == transitionThread) {
+      // already serialized; waiting on our own executor would deadlock
+      throw new IllegalStateException("runSerialized called from the transition thread");
+    }
+    Future<?> future;
+    try {
+      future =
+          transitionExecutor.submit(
+              () -> {
+                if (isClosed()) {
+                  throw new IllegalStateException("Leader manager is closed");
+                }
+                task.run();
+                return null;
+              });
+    } catch (java.util.concurrent.RejectedExecutionException e) {
+      throw new IllegalStateException("Leader manager is closed", e);
+    }
+    try {
+      future.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted waiting for serialized task", e);
+    } catch (java.util.concurrent.ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof IOException io) {
+        throw io;
+      }
+      if (cause instanceof RuntimeException re) {
+        throw re;
+      }
+      throw new IOException(cause);
     }
   }
 

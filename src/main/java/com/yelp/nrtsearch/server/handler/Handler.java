@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.leader.FencedException;
+import com.yelp.nrtsearch.server.leader.NotActivePrimaryException;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
@@ -178,28 +179,31 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
                                     "%s (%s:%d, epoch %d)",
                                     l.nodeName(), l.host(), l.port(), l.epoch()))
                         .orElse("unknown");
-                throw Status.FAILED_PRECONDITION
-                    .withDescription(
-                        String.format(
-                            "%s requires the active primary, this node is %s, current leader: %s",
-                            operation, manager.getRole(), leader))
-                    .asRuntimeException();
+                throw new NotActivePrimaryException(
+                    String.format(
+                        "%s requires the active primary, this node is %s, current leader: %s",
+                        operation, manager.getRole(), leader));
               }
             });
   }
 
   /**
-   * Find the status to report for an error in the cause chain, e.g. wrapped by an executor: a gRPC
-   * status exception, or FAILED_PRECONDITION for a write fenced because this node is no longer the
-   * active primary, so clients can redirect to the leader instead of retrying this node.
+   * Find the status to report for an error: the error itself if it is a gRPC status exception (as
+   * before multi-primary support), otherwise FAILED_PRECONDITION if a {@link
+   * NotActivePrimaryException} or {@link FencedException} is in the cause chain, meaning this node
+   * is not the active primary, so clients can redirect to the leader instead of retrying. Other
+   * wrapped status exceptions (e.g. from calls to other nodes) are not unwrapped.
    *
    * @param t error
    * @return status exception to report, or null to report a generic error
    */
   public static StatusRuntimeException findStatusException(Throwable t) {
+    if (t instanceof StatusRuntimeException sre) {
+      return sre;
+    }
     for (Throwable c = t; c != null; c = c.getCause()) {
-      if (c instanceof StatusRuntimeException sre) {
-        return sre;
+      if (c instanceof NotActivePrimaryException notActive) {
+        return notActive;
       }
       if (c instanceof FencedException fenced) {
         return Status.FAILED_PRECONDITION

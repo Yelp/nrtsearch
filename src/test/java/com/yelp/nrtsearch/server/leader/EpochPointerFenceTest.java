@@ -299,4 +299,40 @@ public class EpochPointerFenceTest {
     assertThrows(FencedException.class, () -> older.write(KEY, "o"));
     assertEquals("n", value());
   }
+
+  /** Creating a pointer that does not exist yet is a single request: the GET plus one create. */
+  @Test
+  public void testCreatePointerSingleWrite() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger writes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    ConditionalObjectStore counting =
+        new ConditionalObjectStore() {
+          @Override
+          public Optional<VersionedObject> get(String key) throws java.io.IOException {
+            return store.get(key);
+          }
+
+          @Override
+          public String putIfAbsent(String key, byte[] data, Map<String, String> metadata)
+              throws java.io.IOException {
+            writes.incrementAndGet();
+            return store.putIfAbsent(key, data, metadata);
+          }
+
+          @Override
+          public String putIfMatch(
+              String key, byte[] data, Map<String, String> metadata, String expectedVersion)
+              throws java.io.IOException {
+            writes.incrementAndGet();
+            return store.putIfMatch(key, data, metadata, expectedVersion);
+          }
+        };
+    EpochPointerFence fence = new EpochPointerFence(counting);
+    fence.activate(1);
+    fence.write(KEY, "v1");
+    assertEquals(1, writes.get());
+    assertEquals("v1", value());
+    fence.write(KEY, "v2");
+    assertEquals(2, writes.get());
+  }
 }

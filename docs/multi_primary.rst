@@ -69,7 +69,7 @@ compare-and-set:
 
 Since S3 derives an object's ETag from its content, every fenced pointer write also changes the pointer content:
 a fenced ``_current`` object contains the resource name, then a newline and a ``#nrt-fence epoch=<E> nonce=<N>``
-marker. Servers and ``nrt_utils`` tools read the resource name as everything before the ``\n#nrt-fence`` marker,
+marker. Servers and ``nrt_utils`` tools read the resource name as everything before the ``\n#nrt-fence `` marker (including the trailing space),
 or the whole content if there is no marker (unfenced pointers). A marker without a valid ``epoch`` is reported as
 a malformed pointer, and promotion fails rather than claiming state it cannot order; fix the pointer with
 ``nrt_utils`` before retrying. Servers from before multi-primary support cannot read fenced pointers, so all nodes

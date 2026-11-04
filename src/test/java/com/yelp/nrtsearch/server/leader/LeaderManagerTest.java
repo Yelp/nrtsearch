@@ -344,4 +344,32 @@ public class LeaderManagerTest {
     assertFalse(leaderWhileWaiting.get());
     assertTrue(elector.closed);
   }
+
+  @Test
+  public void testRunSerializedRunsOnTransitionThreadInOrder() throws Exception {
+    List<String> order = new CopyOnWriteArrayList<>();
+    manager.runSerialized(() -> order.add(Thread.currentThread().getName()));
+    assertEquals(List.of("LeaderManager-transition"), order);
+  }
+
+  @Test
+  public void testRunSerializedFromTransitionThreadFails() throws Exception {
+    java.util.concurrent.atomic.AtomicReference<Throwable> error =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    manager.runSerialized(
+        () -> {
+          try {
+            manager.runSerialized(() -> {});
+          } catch (Throwable t) {
+            error.set(t);
+          }
+        });
+    assertTrue(error.get() instanceof IllegalStateException);
+  }
+
+  @Test
+  public void testRunSerializedAfterCloseFails() throws Exception {
+    manager.close();
+    assertThrows(IllegalStateException.class, () -> manager.runSerialized(() -> {}));
+  }
 }

@@ -271,9 +271,11 @@ public class MultiPrimaryLifecycleTest {
         assertThrows(
             RuntimeException.class,
             () -> a.addDocs(java.util.stream.Stream.of(a.getSimpleDocRequest(INDEX, 2))));
-    StatusRuntimeException status =
-        com.yelp.nrtsearch.server.handler.AddDocumentHandler.findStatusException(e);
-    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, status.getStatus().getCode());
+    // the test helper wraps the client side status exception
+    assertTrue(e.getCause() instanceof StatusRuntimeException);
+    assertEquals(
+        io.grpc.Status.Code.FAILED_PRECONDITION,
+        ((StatusRuntimeException) e.getCause()).getStatus().getCode());
   }
 
   /** A state reload while indices change role must not start a replaced (closed) index manager. */
@@ -392,6 +394,48 @@ public class MultiPrimaryLifecycleTest {
     b.commit(INDEX);
     b.verifySimpleDocIds(INDEX, 1, 2);
     assertTrue(leaderManager(b).isActive());
+  }
+
+  /** A standby can not start, or stop, indices; indices become primary only by promotion. */
+  @Test
+  public void testStartAndStopRejectedOnStandby() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    assertTrue(shard(b).isStandbyFollower());
+    StatusRuntimeException e =
+        assertThrows(
+            StatusRuntimeException.class,
+            () ->
+                b.startIndex(
+                    StartIndexRequest.newBuilder()
+                        .setIndexName(INDEX)
+                        .setMode(Mode.PRIMARY)
+                        .setPrimaryGen(Long.MAX_VALUE)
+                        .build()));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    e =
+        assertThrows(
+            StatusRuntimeException.class,
+            () -> b.startIndexV2(StartIndexV2Request.newBuilder().setIndexName(INDEX).build()));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    e = assertThrows(StatusRuntimeException.class, () -> b.stopIndex(INDEX));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    // replica mode start requests are not supported with leader election
+    e =
+        assertThrows(
+            StatusRuntimeException.class,
+            () ->
+                a.startIndex(
+                    StartIndexRequest.newBuilder()
+                        .setIndexName(INDEX)
+                        .setMode(Mode.REPLICA)
+                        .build()));
+    assertEquals(io.grpc.Status.Code.INVALID_ARGUMENT, e.getStatus().getCode());
+    assertTrue(shard(b).isStandbyFollower());
   }
 
   /** A new leader can back up warming queries that an earlier leader wrote. */

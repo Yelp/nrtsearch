@@ -121,16 +121,36 @@ public class EpochPointerFence {
    * @throws FencedException if not active, or the pointer has a newer epoch
    */
   public Optional<String> claim(String key) throws IOException {
-    long claimEpoch = requireActive(key);
+    ClaimResult result = claimFor(key, requireActive(key), TOMBSTONE_VALUE);
+    return result.created() ? Optional.empty() : result.previousValue();
+  }
+
+  /**
+   * Result of claiming a pointer.
+   *
+   * @param created if the pointer did not exist and was created with the given value
+   * @param previousValue value of the pointer before the claim, empty if absent or a tombstone
+   */
+  private record ClaimResult(boolean created, Optional<String> previousValue) {}
+
+  /**
+   * Claim a pointer for an epoch, creating it with {@code valueIfAbsent} if it does not exist.
+   *
+   * @param key pointer object key
+   * @param claimEpoch epoch to claim for
+   * @param valueIfAbsent value to create the pointer with if it does not exist
+   * @throws FencedException if the pointer has a newer epoch
+   */
+  private ClaimResult claimFor(String key, long claimEpoch, String valueIfAbsent)
+      throws IOException {
     for (int attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
       Optional<VersionedObject> current = store.get(key);
       if (current.isEmpty()) {
         try {
           String version =
-              store.putIfAbsent(
-                  key, encode(TOMBSTONE_VALUE, claimEpoch), epochMetadata(claimEpoch));
+              store.putIfAbsent(key, encode(valueIfAbsent, claimEpoch), epochMetadata(claimEpoch));
           recordOwned(key, version, claimEpoch);
-          return Optional.empty();
+          return new ClaimResult(true, Optional.empty());
         } catch (PreconditionFailedException e) {
           logger.info("Pointer {} created while claiming, retrying", key);
           continue;
@@ -154,7 +174,7 @@ public class EpochPointerFence {
             store.putIfMatch(
                 key, encode(value, claimEpoch), epochMetadata(claimEpoch), obj.version());
         recordOwned(key, version, claimEpoch);
-        return result;
+        return new ClaimResult(false, result);
       } catch (PreconditionFailedException e) {
         logger.info("Pointer {} changed while claiming, retrying", key);
       }
@@ -182,8 +202,11 @@ public class EpochPointerFence {
     if (owned == null) {
       // first write of a pointer not claimed during promotion, e.g. for an index created by this
       // leader. Claim it now: this fails if a newer leader owns it, and otherwise makes this epoch
-      // the owner, so an older leader can not create or move it
-      claim(key);
+      // the owner, so an older leader can not create or move it. A pointer that does not exist yet
+      // is created with the value directly, in a single request.
+      if (claimFor(key, writeEpoch, value).created()) {
+        return;
+      }
       owned = ownedVersions.get(key);
       if (owned == null) {
         throw new FencedException(

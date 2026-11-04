@@ -65,4 +65,28 @@ public class VerifyActivePrimaryTest {
     assertTrue(e.getMessage(), e.getMessage().contains("this node is DEMOTING"));
     assertTrue(e.getMessage(), e.getMessage().contains("node_b (host_b:1, epoch 7)"));
   }
+
+  @Test
+  public void testStatusMapping() {
+    // top level status is reported as is
+    StatusRuntimeException notFound = Status.NOT_FOUND.asRuntimeException();
+    assertEquals(notFound, Handler.findStatusException(notFound));
+    // wrapped unrelated status (e.g. from a call to another node) is not unwrapped
+    assertEquals(null, Handler.findStatusException(new RuntimeException(notFound)));
+    // fenced writes and leadership errors are reported as FAILED_PRECONDITION when wrapped
+    assertEquals(
+        Status.Code.FAILED_PRECONDITION,
+        Handler.findStatusException(
+                new RuntimeException(
+                    new java.util.concurrent.ExecutionException(
+                        new com.yelp.nrtsearch.server.leader.FencedException("fenced", 3))))
+            .getStatus()
+            .getCode());
+    com.yelp.nrtsearch.server.leader.NotActivePrimaryException notActive =
+        new com.yelp.nrtsearch.server.leader.NotActivePrimaryException("not leader");
+    assertEquals(
+        notActive,
+        Handler.findStatusException(
+            new RuntimeException(new java.util.concurrent.ExecutionException(notActive))));
+  }
 }

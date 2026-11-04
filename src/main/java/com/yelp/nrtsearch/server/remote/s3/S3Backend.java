@@ -906,13 +906,11 @@ public class S3Backend implements RemoteBackend {
    * by a multi-primary leader before any resource existed is a tombstone, and counts as absent.
    */
   private boolean currentPointerExists(String prefix) throws IOException {
-    if (!S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION)) {
-      return false;
-    }
+    // a single GET: pointers are tiny, and the content is needed to recognize tombstones
     try {
       return !getCurrentResourceNameOrEmpty(prefix).isEmpty();
     } catch (IllegalArgumentException e) {
-      // deleted between the existence check and the read
+      // not found
       return false;
     }
   }
