@@ -333,4 +333,29 @@ public class VectorBenchUnitTest {
       }
     }
   }
+
+  @Test
+  public void testIndexDirFindsCurrentAndStaleVersions() throws Exception {
+    Path stateDir = folder.newFolder("state").toPath();
+    Path indexDir = folder.newFolder("index").toPath();
+    for (String id : List.of("aaa", "bbb", "ccc")) {
+      Files.createDirectories(indexDir.resolve("vb_bench__vectors-" + id).resolve("shard0"));
+    }
+    Files.createDirectories(indexDir.resolve("lazy_remote_cache"));
+    Files.createDirectories(indexDir.resolve("vb_other__index-zzz"));
+    Files.createDirectories(stateDir.resolve("global_state"));
+    Files.writeString(
+        IndexDirCommand.stateFile(stateDir),
+        "{\"gen\":\"4\",\"indices\":{\"vb_bench__vectors\":{\"id\":\"bbb\",\"started\":true}}}");
+
+    assertEquals(
+        "vb_bench__vectors-bbb", IndexDirCommand.currentDirName(stateDir, "vb_bench__vectors"));
+    assertEquals(null, IndexDirCommand.currentDirName(stateDir, "vb_missing__index"));
+    assertEquals(
+        List.of("vb_bench__vectors-aaa", "vb_bench__vectors-bbb", "vb_bench__vectors-ccc"),
+        IndexDirCommand.versionDirs(indexDir, "vb_bench__vectors").stream()
+            .map(p -> p.getFileName().toString())
+            .toList());
+    assertEquals(null, IndexDirCommand.currentDirName(folder.newFolder("empty").toPath(), "x"));
+  }
 }

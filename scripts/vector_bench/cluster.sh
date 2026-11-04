@@ -8,6 +8,8 @@
 #   cluster.sh reload                           make replicas load indexes created since they
 #                                               started (after vector_bench setup)
 #   cluster.sh status                           show which nodes are running
+#   cluster.sh prune                            delete data of earlier index versions on
+#                                               stopped nodes
 #   cluster.sh logs <node>                      follow a node's log
 #   cluster.sh clean                            stop everything and delete local data
 #
@@ -277,13 +279,37 @@ case "${1:-}" in
     [[ -n "${2:-}" ]] || die "logs needs a node: primary, lazy or local"
     tail -f "$(log_file "$2")"
     ;;
+  prune)
+    # Every setup creates a new version of the index with its own directory. Nodes don't delete
+    # the old ones, and replicas keep them open until restarted, so prune stopped nodes only.
+    for node in "${ALL_NODES[@]}"; do
+      config="$(node_config "$node")"
+      [[ -d "$BENCH_HOME/$config/index" ]] || continue
+      if is_running "$node"; then
+        echo "$node: running, skipped (stop it first)"
+        continue
+      fi
+      # without the node's cluster state there's no way to tell the current version
+      if [[ ! -f "$BENCH_HOME/$config/state/global_state/state.json" ]]; then
+        echo "$node: no cluster state in $BENCH_HOME/$config/state, skipped"
+        continue
+      fi
+      while read -r dir; do
+        [[ -n "$dir" ]] || continue
+        echo "$node: removing $dir ($(/usr/bin/du -sh "$dir" | cut -f1))"
+        rm -rf "$dir"
+      done < <("$INSTALL_BIN/vector_bench" indexdir --stale --stateDir "$BENCH_HOME/$config/state" \
+        --indexDir "$BENCH_HOME/$config/index")
+    done
+    ;;
   clean)
     "$0" stop all
     echo "Deleting $BENCH_HOME (index data in s3://${BENCH_BUCKET:-<bucket>}/$BENCH_SERVICE is kept)"
     rm -rf "$BENCH_HOME"
     ;;
   *)
-    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+    # the comment block at the top of this file
+    sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac

@@ -127,10 +127,21 @@ disk_usage() {
       printf "  %-8s %10.1f MB\n", "total", total / 1024
     }'
 }
+# Each version of the index (every setup) has its own directory, and replicas keep the old ones,
+# so measure only the version the node is serving.
+node_disk() {
+  local label="$1" node="$2" dir stale
+  dir="$("$BENCH" indexdir --stateDir "$BENCH_HOME/$node/state" --indexDir "$BENCH_HOME/$node/index")"
+  echo "Local disk, $label ($dir):"
+  disk_usage "$dir"
+  stale="$("$BENCH" indexdir --stale --stateDir "$BENCH_HOME/$node/state" \
+    --indexDir "$BENCH_HOME/$node/index" | wc -l | tr -d ' ')"
+  if [[ "$stale" -gt 0 ]]; then
+    echo "  ($stale earlier versions of the index are also on disk; cluster.sh prune removes them)"
+  fi
+}
 {
-  echo "Local disk, lazy replica ($BENCH_HOME/replica_lazy/index):"
-  disk_usage "$BENCH_HOME/replica_lazy/index"
-  echo "Local disk, local replica ($BENCH_HOME/replica_local/index):"
-  disk_usage "$BENCH_HOME/replica_local/index"
+  node_disk "lazy replica" replica_lazy
+  node_disk "local replica" replica_local
 } | tee -a "$RESULTS/summary.txt"
 echo "Results in $RESULTS"

@@ -31,6 +31,7 @@ import picocli.CommandLine;
       GroundTruthCommand.class,
       QueryCommand.class,
       InfoCommand.class,
+      IndexDirCommand.class,
       CommandLine.HelpCommand.class
     })
 public class VectorBenchCommand implements Runnable {

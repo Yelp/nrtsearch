@@ -152,4 +152,18 @@ updates are not reflected in it.
 
 `setup` deletes and recreates the index on the primary. Running replicas only start indexes
 created after they started when told to, so run `cluster.sh reload` after `setup` (the benchmark
-script does). `cluster.sh clean` stops everything and deletes local data; data in S3 is kept.
+script does). Replicas also only load new field definitions on reload; `query` detects a replica
+missing fields and reloads it.
+
+Each version of the index has its own data directory, `<indexDir>/vb_<bucket>__<index>-<id>`.
+Nodes don't delete the directories of earlier versions, and replicas keep earlier versions open
+until restarted. The benchmark measures disk use of the current version only, and notes how many
+earlier versions are on disk. To reclaim the space:
+
+```bash
+scripts/vector_bench/cluster.sh stop && scripts/vector_bench/cluster.sh prune
+scripts/vector_bench/cluster.sh start
+```
+
+`vector_bench indexdir --stateDir ... --indexDir ...` prints a node's current version directory.
+`cluster.sh clean` stops everything and deletes all local data; data in S3 is kept.
