@@ -404,4 +404,39 @@ public class EpochPointerFenceTest {
     assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
     assertTrue(store.get(KEY).isEmpty());
   }
+
+  /** A conditional write that lands after the fence moved is reported as fenced, not success. */
+  @Test
+  public void testWriteLandingAfterDeactivateIsFenced() throws Exception {
+    java.util.concurrent.atomic.AtomicReference<EpochPointerFence> ref =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    ConditionalObjectStore deactivatingOnPut =
+        new ConditionalObjectStore() {
+          @Override
+          public Optional<VersionedObject> get(String key) throws java.io.IOException {
+            return store.get(key);
+          }
+
+          @Override
+          public String putIfAbsent(String key, byte[] data, Map<String, String> metadata)
+              throws java.io.IOException {
+            String v = store.putIfAbsent(key, data, metadata);
+            ref.get().deactivate();
+            return v;
+          }
+
+          @Override
+          public String putIfMatch(
+              String key, byte[] data, Map<String, String> metadata, String expectedVersion)
+              throws java.io.IOException {
+            String v = store.putIfMatch(key, data, metadata, expectedVersion);
+            ref.get().deactivate();
+            return v;
+          }
+        };
+    EpochPointerFence fence = new EpochPointerFence(deactivatingOnPut);
+    ref.set(fence);
+    fence.activate(1);
+    assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
+  }
 }

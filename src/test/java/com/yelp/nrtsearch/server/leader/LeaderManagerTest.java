@@ -92,7 +92,6 @@ public class LeaderManagerTest {
         a -> {};
     final java.util.concurrent.atomic.AtomicInteger refreshes =
         new java.util.concurrent.atomic.AtomicInteger();
-    final List<Boolean> refreshRoles = new CopyOnWriteArrayList<>();
 
     RecordingController(EpochPointerFence fence) {
       this.fence = fence;
@@ -129,9 +128,8 @@ public class LeaderManagerTest {
     }
 
     @Override
-    public void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort) {
+    public void refreshStandby(java.util.function.BooleanSupplier abort) {
       refreshes.incrementAndGet();
-      refreshRoles.add(asPrimary);
       onRefresh.run();
       onRefreshWithAbort.accept(abort);
     }
@@ -410,15 +408,15 @@ public class LeaderManagerTest {
     assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
   }
 
+  /** The active primary is the source of global state; a refresh there does nothing. */
   @Test
-  public void testRefreshUsesCurrentRole() throws Exception {
-    manager.requestRefresh();
-    manager.awaitTransitions();
+  public void testRefreshIsNoopOnActivePrimary() throws Exception {
     elector.elect(10);
     manager.awaitTransitions();
-    manager.requestRefresh();
-    manager.awaitTransitions();
-    assertEquals(List.of(false, true), controller.refreshRoles);
+    int before = controller.refreshes.get();
+    manager.requestRefresh().get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals(before, controller.refreshes.get());
+    assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
   }
 
   /**
@@ -430,7 +428,87 @@ public class LeaderManagerTest {
     elector.elect(10);
     manager.awaitTransitions();
     manager.awaitTransitions();
-    assertEquals(List.of(false), controller.refreshRoles);
+    assertTrue(controller.refreshes.get() >= 1);
+    assertEquals(LeaderManager.Role.STANDBY, manager.getRole());
+  }
+
+  /**
+   * A promotion queued while a refresh is waiting in the queue (before the refresh starts) must
+   * still make the refresh stop early.
+   */
+  @Test
+  public void testRefreshAbortsForPromotionQueuedBeforeItStarts() throws Exception {
+    java.util.concurrent.CountDownLatch blocker = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean abortSeen =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    // occupy the transition thread so refresh and promotion queue up behind it
+    java.lang.reflect.Field f = LeaderManager.class.getDeclaredField("transitionExecutor");
+    f.setAccessible(true);
+    ((java.util.concurrent.ExecutorService) f.get(manager))
+        .execute(
+            () -> {
+              try {
+                blocker.await();
+              } catch (InterruptedException ignored) {
+              }
+            });
+    controller.onRefreshWithAbort = abort -> abortSeen.set(abort.getAsBoolean());
+    manager.requestRefresh();
+    elector.elect(10);
+    blocker.countDown();
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    // the queued refresh saw the pending promotion and was deferred without running; after
+    // promotion the node is active, where a refresh does nothing
+    assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
+    assertEquals(0, controller.refreshes.get());
+  }
+
+  /** A refresh requested while one is running completes only after a refresh that started later. */
+  @Test
+  public void testRequestDuringRefreshWaitsForNext() throws Exception {
+    java.util.concurrent.CountDownLatch inFirst = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch releaseFirst = new java.util.concurrent.CountDownLatch(1);
+    controller.onRefresh =
+        () -> {
+          if (controller.refreshes.get() == 1) {
+            inFirst.countDown();
+            try {
+              releaseFirst.await();
+            } catch (InterruptedException ignored) {
+            }
+          }
+        };
+    java.util.concurrent.CompletableFuture<Void> first = manager.requestRefresh();
+    assertTrue(inFirst.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    java.util.concurrent.CompletableFuture<Void> second = manager.requestRefresh();
+    assertFalse(first == second);
+    releaseFirst.countDown();
+    first.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    second.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals(2, controller.refreshes.get());
+  }
+
+  /** A refresh requested during a role change runs after it. */
+  @Test
+  public void testRefreshDuringTransitionRunsAfter() throws Exception {
+    java.util.concurrent.CountDownLatch inClaim = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch proceed = new java.util.concurrent.CountDownLatch(1);
+    controller.failClaim = true;
+    controller.onClaim =
+        () -> {
+          inClaim.countDown();
+          try {
+            proceed.await();
+          } catch (InterruptedException ignored) {
+          }
+        };
+    elector.elect(10);
+    assertTrue(inClaim.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    java.util.concurrent.CompletableFuture<Void> done = manager.requestRefresh();
+    proceed.countDown();
+    done.get(10, java.util.concurrent.TimeUnit.SECONDS);
+    assertTrue(controller.refreshes.get() >= 1);
   }
 
   @Test

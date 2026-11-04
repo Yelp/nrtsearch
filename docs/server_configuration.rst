@@ -1002,6 +1002,16 @@ Example server configuration
      - Number of indices to claim and restart in parallel when promoted to active primary.
      - 32
 
+   * - refreshIntervalMs
+     - long
+     - Interval in ms at which standbys refresh global state from remote storage, to follow created, recreated, or deleted indices. 0 disables periodic refresh.
+     - 30000
+
+   * - reloadWaitMs
+     - long
+     - Maximum time in ms a ``ReloadState`` request waits for the refresh it requests, before returning ``DEADLINE_EXCEEDED``.
+     - 60000
+
    * - params
      - map
      - Elector specific parameters. For ``s3_lease``: ``ttlMs`` (default 15000), ``safetyMarginMs`` (default 2000, must be < ttlMs/2), ``pollIntervalMs`` (default ttlMs/3), ``leaseKey`` (default ``<serviceName>/leader/lease``).

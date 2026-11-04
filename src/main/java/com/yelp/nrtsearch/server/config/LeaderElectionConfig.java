@@ -29,6 +29,7 @@ import java.util.Objects;
  *   type: s3_lease        # none, s3_lease, or a type registered by a PrimaryElectorPlugin
  *   claimConcurrency: 32  # parallelism when claiming index state on promotion
  *   refreshIntervalMs: 30000  # periodic refresh of remote global state, 0 to disable
+ *   reloadWaitMs: 60000   # max time ReloadState waits for its refresh
  *   params:               # elector specific parameters
  *     ttlMs: 15000
  * </pre>
@@ -38,10 +39,12 @@ public class LeaderElectionConfig {
   public static final String NONE = "none";
   public static final int DEFAULT_CLAIM_CONCURRENCY = 32;
   public static final long DEFAULT_REFRESH_INTERVAL_MS = 30_000;
+  public static final long DEFAULT_RELOAD_WAIT_MS = 60_000;
 
   private final String type;
   private final int claimConcurrency;
   private final long refreshIntervalMs;
+  private final long reloadWaitMs;
   private final Map<String, Object> params;
 
   public static LeaderElectionConfig fromConfig(YamlConfigReader configReader) {
@@ -51,9 +54,12 @@ public class LeaderElectionConfig {
         configReader.getInteger(CONFIG_PREFIX + "claimConcurrency", DEFAULT_CLAIM_CONCURRENCY);
     long refreshIntervalMs =
         configReader.getLong(CONFIG_PREFIX + "refreshIntervalMs", DEFAULT_REFRESH_INTERVAL_MS);
+    long reloadWaitMs =
+        configReader.getLong(CONFIG_PREFIX + "reloadWaitMs", DEFAULT_RELOAD_WAIT_MS);
     Map<String, Object> params =
         configReader.get(CONFIG_PREFIX + "params", LeaderElectionConfig::readParams, Map.of());
-    return new LeaderElectionConfig(type, claimConcurrency, refreshIntervalMs, params);
+    return new LeaderElectionConfig(
+        type, claimConcurrency, refreshIntervalMs, reloadWaitMs, params);
   }
 
   @SuppressWarnings("unchecked")
@@ -67,7 +73,11 @@ public class LeaderElectionConfig {
   }
 
   public LeaderElectionConfig(
-      String type, int claimConcurrency, long refreshIntervalMs, Map<String, Object> params) {
+      String type,
+      int claimConcurrency,
+      long refreshIntervalMs,
+      long reloadWaitMs,
+      Map<String, Object> params) {
     this.type = Objects.requireNonNull(type);
     if (claimConcurrency <= 0) {
       throw new IllegalArgumentException("claimConcurrency must be > 0");
@@ -77,6 +87,10 @@ public class LeaderElectionConfig {
     }
     this.claimConcurrency = claimConcurrency;
     this.refreshIntervalMs = refreshIntervalMs;
+    if (reloadWaitMs <= 0) {
+      throw new IllegalArgumentException("reloadWaitMs must be > 0");
+    }
+    this.reloadWaitMs = reloadWaitMs;
     this.params = Collections.unmodifiableMap(new HashMap<>(params));
   }
 
@@ -100,6 +114,14 @@ public class LeaderElectionConfig {
    */
   public long getRefreshIntervalMs() {
     return refreshIntervalMs;
+  }
+
+  /**
+   * How long ReloadState waits for the refresh it requests; on timeout it returns DEADLINE_EXCEEDED
+   * and the refresh continues in the background.
+   */
+  public long getReloadWaitMs() {
+    return reloadWaitMs;
   }
 
   /** Elector specific params. */

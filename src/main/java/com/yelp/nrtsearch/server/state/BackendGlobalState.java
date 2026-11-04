@@ -67,6 +67,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.IOUtils;
@@ -322,8 +325,25 @@ public class BackendGlobalState extends GlobalState {
   public void reloadStateFromBackend() throws IOException {
     if (leaderManager != null) {
       // with leader election, the leader manager owns all changes to index managers; request a
-      // refresh, which runs between role changes. Does not wait for it.
-      leaderManager.requestRefresh();
+      // refresh, which runs between role changes, and wait a bounded time for it
+      long timeoutMs = getConfiguration().getLeaderElectionConfig().getReloadWaitMs();
+      try {
+        leaderManager.requestRefresh().get(timeoutMs, TimeUnit.MILLISECONDS);
+      } catch (TimeoutException e) {
+        // the refresh is still queued or running and will complete in the background
+        throw Status.DEADLINE_EXCEEDED
+            .withDescription(
+                "State refresh did not finish within "
+                    + timeoutMs
+                    + "ms, it continues in the"
+                    + " background")
+            .asRuntimeException();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Interrupted waiting for state refresh", e);
+      } catch (ExecutionException e) {
+        throw new IOException("State refresh failed", e.getCause());
+      }
       return;
     }
     reloadStateFromBackendLocked();
@@ -519,23 +539,61 @@ public class BackendGlobalState extends GlobalState {
     }
 
     @Override
-    public void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort)
-        throws IOException {
-      // swap in reloaded state and close replaced managers (fast), then start missing indices one
-      // at a time, stopping as soon as a role change is pending
+    public void refreshStandby(java.util.function.BooleanSupplier abort) throws IOException {
+      // load remote state without holding the global state lock, checking for a pending role
+      // change between index loads; only the swap is done under the lock
+      ImmutableState current = immutableState;
+      GlobalStateInfo newGlobalStateInfo = loadGlobalState();
+      Map<String, IndexStateManager> newManagerMap = new HashMap<>();
+      List<IndexStateManager> created = new ArrayList<>();
+      try {
+        for (Map.Entry<String, IndexGlobalState> entry :
+            newGlobalStateInfo.getIndicesMap().entrySet()) {
+          if (abort.getAsBoolean()) {
+            logger.info("Refresh stopped early for a pending role change");
+            closeReplaced(created);
+            return;
+          }
+          String indexName = entry.getKey();
+          IndexStateManager manager = current.indexStateManagerMap.get(indexName);
+          if (manager == null || !entry.getValue().getId().equals(manager.getIndexId())) {
+            manager =
+                createIndexStateManager(
+                    indexName,
+                    entry.getValue().getId(),
+                    getConfiguration().getLiveSettingsOverride(indexName),
+                    stateBackend);
+            created.add(manager);
+          }
+          // a standby follows field and settings changes by reloading index state
+          manager.load();
+          newManagerMap.put(indexName, manager);
+        }
+      } catch (IOException | RuntimeException e) {
+        closeReplaced(created);
+        throw e;
+      }
       List<IndexStateManager> replaced = new ArrayList<>();
-      ImmutableState newState;
       synchronized (BackendGlobalState.this) {
-        newState = buildReloadedState(replaced);
-        immutableState = newState;
+        if (immutableState != current) {
+          // a role change replaced managers while loading; drop this refresh, the next one retries
+          closeReplaced(created);
+          return;
+        }
+        for (Map.Entry<String, IndexStateManager> entry : current.indexStateManagerMap.entrySet()) {
+          if (newManagerMap.get(entry.getKey()) != entry.getValue()) {
+            replaced.add(entry.getValue());
+          }
+        }
+        immutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
       }
       closeReplaced(replaced);
       if (!getConfiguration().getIndexStartConfig().getAutoStart()) {
         return;
       }
       for (Map.Entry<String, IndexGlobalState> entry :
-          newState.globalStateInfo.getIndicesMap().entrySet()) {
-        IndexStateManager manager = newState.indexStateManagerMap.get(entry.getKey());
+          newGlobalStateInfo.getIndicesMap().entrySet()) {
+        IndexStateManager manager = newManagerMap.get(entry.getKey());
         if (!entry.getValue().getStarted() || manager.getCurrent().isStarted()) {
           continue;
         }
@@ -543,15 +601,7 @@ public class BackendGlobalState extends GlobalState {
           logger.info("Refresh stopped early for a pending role change");
           return;
         }
-        if (asPrimary) {
-          // the leader starts a missing index as primary only after claiming its remote state
-          claimIndex(entry.getKey());
-        }
-        startIndexFromConfig(
-            entry.getKey(),
-            manager,
-            entry.getValue(),
-            asPrimary ? LeaderStartRole.PRIMARY : LeaderStartRole.STANDBY);
+        startIndexFromConfig(entry.getKey(), manager, entry.getValue(), LeaderStartRole.STANDBY);
       }
     }
   }

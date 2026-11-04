@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -469,34 +470,72 @@ public class MultiPrimaryLifecycleTest {
     leaderManager(a).awaitTransitions();
   }
 
-  /**
-   * On the active leader, a refresh keeps primaries primary, and starts an index it finds in global
-   * state but not started (here: one this node only knows about after taking over) as primary.
-   */
+  /** A refresh on the active leader does not reload or restart its primary indices. */
   @Test
-  public void testRefreshOnLeaderStartsPrimary() throws Exception {
+  public void testRefreshOnLeaderLeavesPrimariesAlone() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    ShardState before = shard(a);
+    refreshAndWait(a);
+    assertSame(before, shard(a));
+    assertTrue(shard(a).isPrimary());
+    // uncommitted docs in the primary writer are still there
+    a.addSimpleDocs(INDEX, 2);
+    a.commit(INDEX);
+    a.verifySimpleDocIds(INDEX, 1, 2);
+  }
+
+  /** A standby picks up an index created on the leader with a refresh. */
+  @Test
+  public void testStandbyRefreshPicksUpNewIndex() throws Exception {
     TestServer a = primaryServer();
     TestServer b = primaryServer();
     bootstrap(a);
-    a.addSimpleDocs(INDEX, 1);
-    a.commit(INDEX);
-    // a creates a second index that b has not loaded
     a.createSimpleIndex("other_index");
     a.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("other_index").build());
     a.addSimpleDocs("other_index", 7);
     a.commit("other_index");
-    // b is elected without having refreshed: promotion's reload picks up both indices
-    elect(b);
-    assertTrue(shard(b).isPrimary());
     refreshAndWait(b);
-    assertTrue(shard(b).isPrimary());
     ShardState other = b.getGlobalState().getIndexOrThrow("other_index").getShard(0);
-    assertTrue(other.isPrimary());
-    assertEquals(leaderManager(b).getActiveEpoch(), other.nrtPrimaryNode.getPrimaryGen());
+    assertTrue(other.isStandbyFollower());
+    elect(b);
     b.verifySimpleDocIds("other_index", 7);
-    b.addSimpleDocs("other_index", 8);
-    b.commit("other_index");
-    b.verifySimpleDocIds("other_index", 7, 8);
+    assertTrue(b.getGlobalState().getIndexOrThrow("other_index").getShard(0).isPrimary());
+  }
+
+  /** ReloadState waits a bounded time for its refresh, then returns DEADLINE_EXCEEDED. */
+  @Test
+  public void testReloadStateBoundedWait() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withRemoteStateBackend(false)
+            .withAdditionalConfig(LEADER_CONFIG + "\n  reloadWaitMs: 200")
+            .withPlugins(List.of(new ManualElectorPlugin(cluster)))
+            .build();
+    bootstrap(a);
+    java.util.concurrent.CountDownLatch blocker = new java.util.concurrent.CountDownLatch(1);
+    java.lang.reflect.Field f = LeaderManager.class.getDeclaredField("transitionExecutor");
+    f.setAccessible(true);
+    ((java.util.concurrent.ExecutorService) f.get(leaderManager(b)))
+        .execute(
+            () -> {
+              try {
+                blocker.await();
+              } catch (InterruptedException ignored) {
+              }
+            });
+    try {
+      StatusRuntimeException e = assertThrows(StatusRuntimeException.class, b::reloadState);
+      assertEquals(io.grpc.Status.Code.DEADLINE_EXCEEDED, e.getStatus().getCode());
+    } finally {
+      blocker.countDown();
+    }
+    // the refresh still runs in the background
+    leaderManager(b).awaitTransitions();
+    assertTrue(shard(b).isStandbyFollower());
   }
 
   /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */

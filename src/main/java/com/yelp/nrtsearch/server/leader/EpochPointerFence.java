@@ -121,28 +121,36 @@ public class EpochPointerFence {
    * @throws FencedException if not active, or the pointer has a newer epoch
    */
   public Optional<String> claim(String key) throws IOException {
-    return claimFor(key, requireActive(key), null);
+    return claimFor(key, requireActive(key), ClaimValue.KEEP_CURRENT, null);
+  }
+
+  /** What value a claim writes. */
+  private enum ClaimValue {
+    /** Keep the current value; a missing pointer becomes a tombstone. */
+    KEEP_CURRENT,
+    /** Write the given value. */
+    SET
   }
 
   /**
-   * Claim a pointer for an epoch with a single conditional write, setting it to {@code newValue}
-   * (or keeping its current value if null; a missing pointer becomes a tombstone).
+   * Claim a pointer for an epoch with a single conditional write.
    *
    * @param key pointer object key
    * @param claimEpoch epoch to claim for
-   * @param newValue value to write, or null to keep the current value
+   * @param claimValue whether to keep the current value or set {@code newValue}
+   * @param newValue value to write, when claimValue is SET
    * @return value of the pointer before the claim, empty if absent or a tombstone
    * @throws FencedException if the fence is no longer at claimEpoch, or the pointer has a newer
    *     epoch
    */
-  private Optional<String> claimFor(String key, long claimEpoch, String newValue)
-      throws IOException {
+  private Optional<String> claimFor(
+      String key, long claimEpoch, ClaimValue claimValue, String newValue) throws IOException {
     for (int attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
       Optional<VersionedObject> current = store.get(key);
       // the fence may have been deactivated (leadership lost) while this was in flight
       requireEpoch(key, claimEpoch);
       if (current.isEmpty()) {
-        String value = newValue != null ? newValue : TOMBSTONE_VALUE;
+        String value = claimValue == ClaimValue.SET ? newValue : TOMBSTONE_VALUE;
         try {
           String version =
               store.putIfAbsent(key, encode(value, claimEpoch), epochMetadata(claimEpoch));
@@ -165,7 +173,7 @@ public class EpochPointerFence {
       }
       Optional<String> previous =
           isAbsent(body) ? Optional.empty() : Optional.of(decodeValue(body));
-      String value = newValue != null ? newValue : decodeValue(body);
+      String value = claimValue == ClaimValue.SET ? newValue : decodeValue(body);
       try {
         // the body changes (epoch, nonce), so the version changes and older owners are fenced
         String version =
@@ -195,14 +203,13 @@ public class EpochPointerFence {
     if (value.isEmpty()) {
       throw new IllegalArgumentException("Pointer value must not be empty");
     }
-    byte[] data = encode(value, writeEpoch);
     Owned owned = ownedVersions.get(key);
     if (owned == null) {
       // first write of a pointer not claimed during promotion, e.g. for an index created by this
       // leader: claim it by writing the value, in a single conditional write. This fails if a newer
       // leader owns it, and otherwise makes this epoch the owner, so an older leader can not create
       // or move it.
-      claimFor(key, writeEpoch, value);
+      claimFor(key, writeEpoch, ClaimValue.SET, value);
       return;
     }
     if (owned.epoch() != writeEpoch) {
@@ -214,7 +221,9 @@ public class EpochPointerFence {
           writeEpoch);
     }
     try {
-      String version = store.putIfMatch(key, data, epochMetadata(writeEpoch), owned.version());
+      String version =
+          store.putIfMatch(
+              key, encode(value, writeEpoch), epochMetadata(writeEpoch), owned.version());
       recordOwned(key, version, writeEpoch);
     } catch (PreconditionFailedException e) {
       ownedVersions.remove(key, owned);
@@ -227,10 +236,27 @@ public class EpochPointerFence {
   }
 
   /** Record an owned version, only if the fence is still at the epoch it was written in. */
-  private synchronized void recordOwned(String key, String version, long writtenEpoch) {
-    if (epoch == writtenEpoch) {
-      ownedVersions.put(key, new Owned(version, writtenEpoch));
+  /**
+   * Record an owned version after a successful conditional write.
+   *
+   * <p>If the fence moved to another epoch (leadership lost) while the write was in flight, the
+   * write is reported as fenced, so the caller does not treat it as durable, e.g. acknowledge a
+   * commit. The object was still written; this is safe because a new leader claims every pointer
+   * before using it, so it either sees and supersedes this write, or (if it claimed first) this
+   * write's compare-and-set failed.
+   *
+   * @throws FencedException if the fence is no longer at the epoch of the write
+   */
+  private synchronized void recordOwned(String key, String version, long writtenEpoch)
+      throws FencedException {
+    if (epoch != writtenEpoch) {
+      throw new FencedException(
+          String.format(
+              "Pointer %s written in epoch %d after the fence moved to epoch %d",
+              key, writtenEpoch, epoch),
+          writtenEpoch);
     }
+    ownedVersions.put(key, new Owned(version, writtenEpoch));
   }
 
   /** Require the fence to still be at the given epoch. */

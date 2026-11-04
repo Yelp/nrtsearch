@@ -23,12 +23,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,15 +88,14 @@ public class LeaderManager implements Closeable, LeaderListener {
     void restartAsStandby(String indexName) throws IOException;
 
     /**
-     * Refresh from remote global state: replace managers of recreated or removed indices, then
-     * start indices that should be started but are not, as primary if {@code asPrimary} (after
-     * claiming their remote state), otherwise as standby followers.
+     * Refresh a standby from remote global state: replace managers of recreated or removed indices,
+     * reload index state, and start indices that should be started as standby followers. Only
+     * called on a standby; the active primary is the source of global state.
      *
-     * @param asPrimary start missing indices as primary
-     * @param abort checked between index starts; when true, the refresh stops early so a pending
-     *     role change is not delayed
+     * @param abort checked between index loads and starts; when true, the refresh stops early so a
+     *     pending role change is not delayed
      */
-    void refresh(boolean asPrimary, java.util.function.BooleanSupplier abort) throws IOException;
+    void refreshStandby(BooleanSupplier abort) throws IOException;
   }
 
   private final PrimaryElector elector;
@@ -102,9 +104,18 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final ExecutorService transitionExecutor;
   private static final long CLOSE_WAIT_SECONDS = 60;
   private final long refreshIntervalMs;
-  private ScheduledExecutorService refreshScheduler;
+  private volatile ScheduledExecutorService refreshScheduler;
   // guarded by this
   private boolean refreshQueued = false;
+  // a refresh was requested while a role change was running; run it after the role change
+  private boolean refreshDeferred = false;
+  // role changes queued but not yet started; a refresh stops early while any are pending
+  private final AtomicInteger pendingTransitions = new AtomicInteger();
+  // completes when the next refresh to start (after any request so far) finishes; a refresh takes
+  // this future when it starts, so a request during a running refresh waits for the next one
+  private CompletableFuture<Void> nextRefreshDone = new CompletableFuture<>();
+  // future of the refresh currently running (or deferred), completed when it finishes
+  private CompletableFuture<Void> runningRefreshDone;
   private final IndexRoleController controller;
   private volatile Role role = Role.STANDBY;
   private volatile long activeEpoch = -1;
@@ -203,7 +214,13 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
     long change = ++leadershipChangeCount;
     lossHandled = false;
-    transitionExecutor.execute(() -> promote(leaderInfo, change));
+    pendingTransitions.incrementAndGet();
+    transitionExecutor.execute(
+        () -> {
+          pendingTransitions.decrementAndGet();
+          promote(leaderInfo, change);
+          runDeferredRefresh();
+        });
   }
 
   @Override
@@ -219,8 +236,15 @@ public class LeaderManager implements Closeable, LeaderListener {
       role = Role.DEMOTING;
     }
     activeEpoch = -1;
+    pendingTransitions.incrementAndGet();
     transitionExecutor.execute(
-        () -> demote("leadership lost at epoch " + leaderInfo.epoch(), change));
+        () -> {
+          pendingTransitions.decrementAndGet();
+          demote("leadership lost at epoch " + leaderInfo.epoch(), change);
+          // demotion only restarts indices it knew about; pick up any global state changes
+          requestRefresh();
+          runDeferredRefresh();
+        });
   }
 
   private void onFenced(FencedException e) {
@@ -315,7 +339,8 @@ public class LeaderManager implements Closeable, LeaderListener {
       // promotion's state reload may have replaced some managers, so start any that are missing
       logger.info("Leadership lost before indices became primary, staying standby: {}", reason);
       try {
-        controller.refresh(false, () -> isClosed() || change != leadershipChangeCount);
+        controller.refreshStandby(
+            () -> isClosed() || pendingTransitions.get() > 0 || change != leadershipChangeCount);
       } catch (Throwable t) {
         logger.warn("Error starting standby indices after failed promotion", t);
       }
@@ -377,48 +402,99 @@ public class LeaderManager implements Closeable, LeaderListener {
   }
 
   /**
-   * Request a refresh from remote global state, to pick up created, recreated, or removed indices.
-   * Does not block. Requests are merged: at most one refresh is queued at a time, and it runs on
-   * the transition thread between role changes. A refresh stops early if a role change is requested
-   * while it runs, and the next refresh (requested or periodic) finishes the work.
+   * Request a refresh from remote global state, so a standby picks up created, recreated, or
+   * removed indices. Does not block. Requests are merged: at most one refresh is queued at a time,
+   * and it runs on the transition thread between role changes. A refresh stops early if a role
+   * change is pending, and is run again after it. On the active primary, which is the source of
+   * global state, a refresh does nothing.
+   *
+   * @return future completing when a refresh covering this request has finished
    */
-  public void requestRefresh() {
+  public CompletableFuture<Void> requestRefresh() {
+    CompletableFuture<Void> done;
     synchronized (this) {
-      if (closed || refreshQueued) {
-        return;
+      done = nextRefreshDone;
+      if (closed) {
+        done.complete(null);
+        return done;
+      }
+      if (refreshQueued) {
+        return done;
       }
       refreshQueued = true;
     }
     try {
       transitionExecutor.execute(this::runRefresh);
     } catch (RejectedExecutionException e) {
-      // closed
+      synchronized (this) {
+        refreshQueued = false;
+        done.complete(null);
+      }
     }
+    return done;
   }
 
   private void runRefresh() {
-    long change;
-    boolean asPrimary;
+    BooleanSupplier abort;
     synchronized (this) {
       refreshQueued = false;
-      if (closed || role == Role.PROMOTING || role == Role.DEMOTING) {
-        // a role change is in progress; it restarts indices itself
+      if (runningRefreshDone == null) {
+        // take the future of requests made so far; later requests wait for the next refresh
+        runningRefreshDone = nextRefreshDone;
+        nextRefreshDone = new CompletableFuture<>();
+      }
+      if (closed || role == Role.ACTIVE) {
+        // the active primary is the source of global state, nothing to refresh
+        finishRefreshLocked();
         return;
       }
-      change = leadershipChangeCount;
-      asPrimary = role == Role.ACTIVE;
+      if (role == Role.PROMOTING || role == Role.DEMOTING || pendingTransitions.get() > 0) {
+        // run after the pending role change instead
+        refreshDeferred = true;
+        return;
+      }
+      long change = leadershipChangeCount;
+      abort =
+          () ->
+              isClosed()
+                  || pendingTransitions.get() > 0
+                  || change != leadershipChangeCount
+                  || role != Role.STANDBY;
     }
     try {
-      controller.refresh(
-          asPrimary,
-          () -> isClosed() || change != leadershipChangeCount || !roleMatches(asPrimary));
+      controller.refreshStandby(abort);
     } catch (Throwable t) {
       logger.warn("State refresh failed, will retry on next refresh", t);
     }
+    synchronized (this) {
+      if (abort.getAsBoolean() && !closed && role != Role.ACTIVE) {
+        // stopped early for a role change; finish after it
+        refreshDeferred = true;
+        return;
+      }
+      finishRefreshLocked();
+    }
   }
 
-  private boolean roleMatches(boolean asPrimary) {
-    return asPrimary ? isActive() : role == Role.STANDBY;
+  /** Run a refresh deferred for a role change. Runs on the transition thread. */
+  private void runDeferredRefresh() {
+    boolean run;
+    synchronized (this) {
+      run = refreshDeferred && pendingTransitions.get() == 0;
+      if (run) {
+        refreshDeferred = false;
+      }
+    }
+    if (run) {
+      runRefresh();
+    }
+  }
+
+  private void finishRefreshLocked() {
+    if (runningRefreshDone != null) {
+      runningRefreshDone.complete(null);
+      runningRefreshDone = null;
+    }
   }
 
   /** Wait for queued transitions to finish, for tests. */
@@ -440,8 +516,14 @@ public class LeaderManager implements Closeable, LeaderListener {
       activeEpoch = -1;
       leadershipChangeCount++;
     }
-    if (refreshScheduler != null) {
-      refreshScheduler.shutdownNow();
+    ScheduledExecutorService scheduler = refreshScheduler;
+    if (scheduler != null) {
+      scheduler.shutdownNow();
+    }
+    synchronized (this) {
+      // release any waiting reload requests
+      finishRefreshLocked();
+      nextRefreshDone.complete(null);
     }
     // stop election first, releasing leadership, so another node can take over while this node
     // waits below
