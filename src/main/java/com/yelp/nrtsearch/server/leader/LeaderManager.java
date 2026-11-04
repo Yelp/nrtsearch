@@ -87,6 +87,7 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final EpochPointerFence fence;
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
+  private static final long CLOSE_WAIT_SECONDS = 60;
   private final IndexRoleController controller;
   private volatile Role role = Role.STANDBY;
   private volatile long activeEpoch = -1;
@@ -179,21 +180,42 @@ public class LeaderManager implements Closeable, LeaderListener {
   }
 
   private void onFenced(FencedException e) {
+    synchronized (this) {
+      // a write from an earlier epoch may be fenced by this node's own newer claim; only a write
+      // in the epoch currently held means another node took over
+      long current = fence.getEpoch();
+      if (e.getEpoch() <= 0 || e.getEpoch() != current) {
+        logger.info(
+            "Ignoring fenced write from epoch {}, current epoch is {}", e.getEpoch(), current);
+        return;
+      }
+    }
     logger.warn("Remote state write fenced, resigning leadership", e);
-    resignAndDemote(activeEpoch);
+    resignAndDemote(e.getEpoch(), leadershipChangeCount);
   }
 
   /**
    * Stop acting as leader: demote now, then resign from the elector. The elector may also report
-   * the loss through {@link #onLost}, possibly asynchronously; only the first report demotes.
+   * the loss through {@link #onLost}, possibly asynchronously; only the first report demotes. Does
+   * nothing if leadership changed since {@code change}, so a stale failure never gives up newer
+   * leadership.
+   *
+   * @param epoch epoch being given up
+   * @param change leadership change count the caller observed
    */
-  private void resignAndDemote(long epoch) {
-    onLost(new LeaderInfo("", "", "", 0, 0, epoch));
+  private void resignAndDemote(long epoch, long change) {
+    synchronized (this) {
+      if (change != leadershipChangeCount) {
+        logger.info("Not resigning for stale epoch {}, leadership has changed", epoch);
+        return;
+      }
+      onLost(new LeaderInfo("", "", "", 0, 0, epoch));
+    }
     elector.resign();
   }
 
   private void promote(LeaderInfo leaderInfo, long change) {
-    if (change != leadershipChangeCount) {
+    if (isClosed() || change != leadershipChangeCount) {
       logger.info("Skipping stale promotion for epoch {}", leaderInfo.epoch());
       return;
     }
@@ -221,19 +243,23 @@ public class LeaderManager implements Closeable, LeaderListener {
       }
       logger.info("Active primary at epoch {}, indices: {}", epoch, indices);
     } catch (Throwable t) {
-      logger.error("Failed to promote at epoch {}, resigning", epoch, t);
-      resignAndDemote(epoch);
+      logger.error("Failed to promote at epoch {}", epoch, t);
+      resignAndDemote(epoch, change);
     }
   }
 
+  private synchronized boolean isClosed() {
+    return closed;
+  }
+
   private void checkStillLeader(long change, long epoch) throws IOException {
-    if (change != leadershipChangeCount || !elector.isLeader()) {
+    if (isClosed() || change != leadershipChangeCount || !elector.isLeader()) {
       throw new FencedException("Leadership changed during promotion at epoch " + epoch);
     }
   }
 
   private void demote(String reason, long change) {
-    if (change != leadershipChangeCount) {
+    if (isClosed() || change != leadershipChangeCount) {
       logger.info("Skipping stale demotion: {}", reason);
       return;
     }
@@ -307,10 +333,28 @@ public class LeaderManager implements Closeable, LeaderListener {
   public void close() throws IOException {
     synchronized (this) {
       closed = true;
+      // no further remote state writes; also stops replica notifications, which are only sent after
+      // a successful (fenced) upload. Indices are not restarted, they are closed by shutdown.
+      fence.deactivate();
+      if (role != Role.STANDBY) {
+        role = Role.DEMOTING;
+      }
+      activeEpoch = -1;
+      leadershipChangeCount++;
     }
-    // stop transitions first, so resigning below does not restart indices during shutdown
-    transitionExecutor.shutdownNow();
-    fence.deactivate();
+    // let a running transition finish, so it does not leave index managers started that nothing
+    // will close; queued transitions are dropped. Interrupt only as a last resort, since an
+    // interrupt during NIO closes the channel.
+    transitionExecutor.shutdown();
+    try {
+      if (!transitionExecutor.awaitTermination(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)) {
+        logger.warn("Leader transition did not finish in {}s, interrupting", CLOSE_WAIT_SECONDS);
+        transitionExecutor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      transitionExecutor.shutdownNow();
+    }
     elector.close();
   }
 }

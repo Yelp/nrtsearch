@@ -205,4 +205,46 @@ public class EpochPointerFenceTest {
     fence.activate(1);
     assertThrows(IllegalArgumentException.class, () -> fence.write(KEY, "a\nb"));
   }
+
+  /** A write that started in epoch N must not use the version claimed in epoch N+1. */
+  @Test
+  public void testWriteDoesNotUseVersionFromNewerEpoch() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    fence.claim(KEY);
+    fence.write(KEY, "v1");
+    fence.activate(2);
+    fence.claim(KEY);
+    // simulate a write that read epoch 1 before activation: owned version is now tagged epoch 2
+    java.lang.reflect.Field f = EpochPointerFence.class.getDeclaredField("epoch");
+    f.setAccessible(true);
+    f.setLong(fence, 1);
+    FencedException e = assertThrows(FencedException.class, () -> fence.write(KEY, "stale"));
+    assertEquals(1, e.getEpoch());
+    f.setLong(fence, 2);
+    assertEquals("v1", value());
+    fence.write(KEY, "v2");
+    assertEquals("v2", value());
+  }
+
+  @Test
+  public void testFencedExceptionCarriesEpoch() throws Exception {
+    EpochPointerFence a = new EpochPointerFence(store);
+    a.activate(1);
+    a.claim(KEY);
+    a.write(KEY, "a");
+    EpochPointerFence b = new EpochPointerFence(store);
+    b.activate(2);
+    b.claim(KEY);
+    FencedException e = assertThrows(FencedException.class, () -> a.write(KEY, "a2"));
+    assertEquals(1, e.getEpoch());
+  }
+
+  @Test
+  public void testMalformedFenceLine() {
+    assertThrows(
+        IllegalStateException.class, () -> EpochPointerFence.decodeEpoch("v\n#nrt-fence epoch=x"));
+    assertThrows(
+        IllegalStateException.class, () -> EpochPointerFence.decodeEpoch("v\n#nrt-fence nonce=1"));
+  }
 }

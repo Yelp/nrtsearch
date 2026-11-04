@@ -233,6 +233,8 @@ public class S3LeaseElectorTest {
     Node leader = a;
     Node other = b;
     for (int i = 0; i < 5; i++) {
+      // a node that resigned in the previous round must wait out its re-acquire backoff
+      other.clock().advanceMs(TTL + 1);
       other.tick();
       leader.elector().resign();
       leader.elector().drainListener();
@@ -332,5 +334,46 @@ public class S3LeaseElectorTest {
     assertTrue(System.nanoTime() - start < java.util.concurrent.TimeUnit.SECONDS.toNanos(1));
     release.countDown();
     renewal.join(5000);
+  }
+
+  /** After resigning, the node does not immediately re-acquire its released lease. */
+  @Test
+  public void testResignDoesNotImmediatelyReacquire() throws Exception {
+    Node a = node("a");
+    a.tick();
+    a.elector().resign();
+    a.elector().drainListener();
+    a.clock().advanceMs(POLL);
+    a.tick();
+    assertFalse(a.elector().isLeader());
+    // another node takes the released lease right away
+    Node b = node("b");
+    b.tick();
+    assertTrue(b.elector().isLeader());
+  }
+
+  /** A node that resigned alone may become leader again after the backoff. */
+  @Test
+  public void testReacquireAfterBackoff() throws Exception {
+    Node a = node("a");
+    a.tick();
+    long epoch = a.elector().getLeaderEpoch();
+    a.elector().resign();
+    a.clock().advanceMs(TTL + 1);
+    a.tick();
+    assertTrue(a.elector().isLeader());
+    assertEquals(epoch + 1, a.elector().getLeaderEpoch());
+  }
+
+  /** Close releases the lease, and no later tick re-acquires it. */
+  @Test
+  public void testCloseDoesNotReacquire() throws Exception {
+    Node a = node("a");
+    a.tick();
+    a.elector().close();
+    a.clock().advanceMs(5 * TTL);
+    a.elector().tick();
+    assertFalse(a.elector().isLeader());
+    assertTrue(new String(store.get(KEY).get().data()).contains("\"released\":true"));
   }
 }

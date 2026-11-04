@@ -34,6 +34,7 @@ import com.yelp.nrtsearch.server.monitoring.IndexingMetrics;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Context;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -228,6 +229,12 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
           return String.valueOf(highestGen);
         } catch (Exception e) {
           logger.warn("error while trying to addDocuments", e);
+          // keep the status of errors like FAILED_PRECONDITION (not the active primary), so
+          // clients can tell they should redirect instead of retrying
+          StatusRuntimeException statusError = findStatusException(e);
+          if (statusError != null) {
+            throw statusError;
+          }
           throw Status.INTERNAL
               .withDescription("error while trying to addDocuments ")
               .augmentDescription(e.getMessage())
@@ -723,5 +730,25 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
     public Long call() throws Exception {
       return runIndexingJob();
     }
+  }
+
+  /**
+   * Find the status to report for an error in the cause chain, e.g. wrapped by an executor: a gRPC
+   * status exception, or FAILED_PRECONDITION for a write fenced because this node is no longer the
+   * active primary.
+   */
+  public static StatusRuntimeException findStatusException(Throwable t) {
+    for (Throwable c = t; c != null; c = c.getCause()) {
+      if (c instanceof StatusRuntimeException sre) {
+        return sre;
+      }
+      if (c instanceof com.yelp.nrtsearch.server.leader.FencedException fenced) {
+        return Status.FAILED_PRECONDITION
+            .withDescription(fenced.getMessage())
+            .withCause(fenced)
+            .asRuntimeException();
+      }
+    }
+    return null;
   }
 }

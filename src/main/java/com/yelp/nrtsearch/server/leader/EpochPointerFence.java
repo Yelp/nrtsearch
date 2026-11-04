@@ -54,7 +54,12 @@ public class EpochPointerFence {
   private static final int MAX_CLAIM_ATTEMPTS = 10;
 
   private final ConditionalObjectStore store;
-  private final ConcurrentHashMap<String, String> ownedVersions = new ConcurrentHashMap<>();
+
+  /** Version of a pointer this node owns, and the epoch it was written in. */
+  private record Owned(String version, long epoch) {}
+
+  // only versions written in the current epoch may be used as an If-Match condition
+  private final ConcurrentHashMap<String, Owned> ownedVersions = new ConcurrentHashMap<>();
   private volatile long epoch = -1;
   private final AtomicReference<Consumer<FencedException>> fencedListener = new AtomicReference<>();
 
@@ -128,7 +133,8 @@ public class EpochPointerFence {
         throw fenced(
             String.format(
                 "Cannot claim %s for epoch %d, pointer has newer epoch %d",
-                key, claimEpoch, pointerEpoch));
+                key, claimEpoch, pointerEpoch),
+            claimEpoch);
       }
       String value = decodeValue(body);
       try {
@@ -136,7 +142,7 @@ public class EpochPointerFence {
         String version =
             store.putIfMatch(
                 key, encode(value, claimEpoch), epochMetadata(claimEpoch), obj.version());
-        ownedVersions.put(key, version);
+        recordOwned(key, version, claimEpoch);
         return Optional.of(value);
       } catch (PreconditionFailedException e) {
         logger.info("Pointer {} changed while claiming, retrying", key);
@@ -158,35 +164,49 @@ public class EpochPointerFence {
       throw new IllegalArgumentException("Pointer value must be a single line: " + value);
     }
     byte[] data = encode(value, writeEpoch);
-    String expected = ownedVersions.get(key);
+    Owned owned = ownedVersions.get(key);
+    if (owned != null && owned.epoch() != writeEpoch) {
+      // the epoch changed after this write started; the version belongs to a newer claim
+      throw fenced(
+          String.format(
+              "Pointer %s write started in epoch %d, but fence is now at epoch %d",
+              key, writeEpoch, owned.epoch()),
+          writeEpoch);
+    }
     try {
       String version =
-          expected == null
+          owned == null
               ? store.putIfAbsent(key, data, epochMetadata(writeEpoch))
-              : store.putIfMatch(key, data, epochMetadata(writeEpoch), expected);
-      // epoch could have changed during the write, only record for the epoch we wrote with
-      if (epoch == writeEpoch) {
-        ownedVersions.put(key, version);
-      }
+              : store.putIfMatch(key, data, epochMetadata(writeEpoch), owned.version());
+      recordOwned(key, version, writeEpoch);
     } catch (PreconditionFailedException e) {
-      ownedVersions.remove(key);
+      ownedVersions.remove(key, owned);
       throw fenced(
           String.format(
               "Pointer %s was modified by another node, epoch %d is no longer leader",
-              key, writeEpoch));
+              key, writeEpoch),
+          writeEpoch);
+    }
+  }
+
+  /** Record an owned version, only if the fence is still at the epoch it was written in. */
+  private synchronized void recordOwned(String key, String version, long writtenEpoch) {
+    if (epoch == writtenEpoch) {
+      ownedVersions.put(key, new Owned(version, writtenEpoch));
     }
   }
 
   private long requireActive(String key) throws FencedException {
     long current = epoch;
     if (current <= 0) {
-      throw new FencedException("Cannot modify " + key + ", node is not the active primary");
+      throw new FencedException(
+          "Cannot modify " + key + ", node is not the active primary", current);
     }
     return current;
   }
 
-  private FencedException fenced(String message) {
-    FencedException e = new FencedException(message);
+  private FencedException fenced(String message, long fencedEpoch) {
+    FencedException e = new FencedException(message, fencedEpoch);
     logger.warn(message);
     Consumer<FencedException> listener = fencedListener.get();
     try {
@@ -228,9 +248,13 @@ public class EpochPointerFence {
     }
     for (String part : body.substring(idx + FENCE_LINE_PREFIX.length()).trim().split(" ")) {
       if (part.startsWith("epoch=")) {
-        return Long.parseLong(part.substring("epoch=".length()));
+        try {
+          return Long.parseLong(part.substring("epoch=".length()));
+        } catch (NumberFormatException e) {
+          throw new IllegalStateException("Malformed fence line in pointer: " + body, e);
+        }
       }
     }
-    throw new IllegalStateException("Fenced pointer missing epoch: " + body);
+    throw new IllegalStateException("Malformed fence line in pointer, missing epoch: " + body);
   }
 }

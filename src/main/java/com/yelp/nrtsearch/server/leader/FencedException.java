@@ -23,11 +23,25 @@ import java.io.IOException;
  * has not been promoted.
  */
 public class FencedException extends IOException {
-  public FencedException(String message) {
+  private final long epoch;
+
+  /**
+   * Constructor.
+   *
+   * @param message error message
+   * @param epoch epoch of the fenced operation, or -1 if not associated with an epoch
+   */
+  public FencedException(String message, long epoch) {
     super(message);
+    this.epoch = epoch;
   }
 
-  public FencedException(String message, Throwable cause) {
-    super(message, cause);
+  public FencedException(String message) {
+    this(message, -1);
+  }
+
+  /** Epoch of the fenced operation, or -1 if not associated with an epoch. */
+  public long getEpoch() {
+    return epoch;
   }
 }

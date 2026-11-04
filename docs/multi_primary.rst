@@ -66,9 +66,12 @@ compare-and-set:
 * A write that the old primary completed before the claim is seen by the new primary, which restores from it.
 
 Since S3 derives an object's ETag from its content, every fenced pointer write also changes the pointer content:
-a fenced ``_current`` object contains the resource name followed by a ``#nrt-fence epoch=<E> nonce=<N>`` line.
-Servers and ``nrt_utils`` tools read only the first line. Servers from before multi-primary support cannot read
-fenced pointers, so all nodes of a cluster must be upgraded before enabling leader election.
+a fenced ``_current`` object contains the resource name, then a newline and a ``#nrt-fence epoch=<E> nonce=<N>``
+marker. Servers and ``nrt_utils`` tools read the resource name as everything before the ``\n#nrt-fence`` marker,
+or the whole content if there is no marker (unfenced pointers). A marker without a valid ``epoch`` is reported as
+a malformed pointer, and promotion fails rather than claiming state it cannot order; fix the pointer with
+``nrt_utils`` before retrying. Servers from before multi-primary support cannot read fenced pointers, so all nodes
+of a cluster must be upgraded before enabling leader election.
 
 Replicas reject replication requests with a lower ``primaryGen`` than they have already seen
 (``enforcePrimaryGenOrdering``, enabled automatically with leader election).

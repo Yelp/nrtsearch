@@ -34,6 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class StartIndexProcessor {
+  // keyed by server (ephemeral id) and index name; servers in the same JVM (tests) do not block
+  // each other
   private static final Set<String> startingIndices = new HashSet<>();
 
   private final String serviceName;
@@ -101,23 +103,24 @@ public class StartIndexProcessor {
       NrtDataManager.StartOptions startOptions)
       throws StartIndexProcessorException {
     String indexName = indexState.getName();
+    String startKey = ephemeralId + "/" + indexName;
     synchronized (startingIndices) {
       if (indexState.isStarted()) {
         throw new IllegalArgumentException(String.format("Index %s is already started", indexName));
       }
       // Ensure that the index is not already being started
-      if (startingIndices.contains(indexName)) {
+      if (startingIndices.contains(startKey)) {
         throw new IllegalArgumentException(
             String.format("Index %s is already being started", indexName));
       }
-      startingIndices.add(indexName);
+      startingIndices.add(startKey);
     }
 
     try {
       return processInternal(indexState, startIndexRequest, startOptions);
     } finally {
       synchronized (startingIndices) {
-        startingIndices.remove(indexName);
+        startingIndices.remove(startKey);
       }
     }
   }

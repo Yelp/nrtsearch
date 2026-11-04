@@ -300,6 +300,9 @@ public class ShardState implements Closeable {
    * @throws IllegalStateException if this shard cannot accept writes
    */
   public void verifyWritable(String operation) {
+    // with leader election, check leadership first, so writes to a standby (or demoting) node fail
+    // with FAILED_PRECONDITION naming the leader, which clients can use to redirect
+    Handler.verifyActivePrimary(indexStateManager.getCurrent().getGlobalState(), operation);
     if (isReplica()) {
       throw new IllegalStateException(
           operation + " to an index on a replica node is not supported");
@@ -308,8 +311,6 @@ public class ShardState implements Closeable {
       throw new IllegalStateException(
           operation + " requires a started index with an open writer, index: " + name);
     }
-    // with leader election, a primary index may still be open while this node is demoting
-    Handler.verifyActivePrimary(indexStateManager.getCurrent().getGlobalState(), operation);
   }
 
   public void waitForGeneration(long gen) throws InterruptedException {

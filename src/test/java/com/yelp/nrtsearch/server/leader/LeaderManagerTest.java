@@ -84,6 +84,7 @@ public class LeaderManagerTest {
     final List<String> events = new CopyOnWriteArrayList<>();
     final EpochPointerFence fence;
     volatile boolean failClaim = false;
+    volatile Runnable onClaim = () -> {};
 
     RecordingController(EpochPointerFence fence) {
       this.fence = fence;
@@ -102,6 +103,7 @@ public class LeaderManagerTest {
 
     @Override
     public void claimIndex(String indexName) throws IOException {
+      onClaim.run();
       if (failClaim) {
         throw new FencedException("newer leader");
       }
@@ -213,5 +215,92 @@ public class LeaderManagerTest {
     manager.awaitTransitions();
     assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
     assertEquals(List.of("primary:idx:10", "standby:idx", "primary:idx:12"), controller.restarts());
+  }
+
+  /**
+   * A promotion for an old epoch fails after this node already lost it and won a newer epoch. The
+   * failure must not give up the newer leadership.
+   */
+  @Test
+  public void testStalePromotionFailureKeepsNewerLeadership() throws Exception {
+    java.util.concurrent.CountDownLatch inClaim = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch proceed = new java.util.concurrent.CountDownLatch(1);
+    controller.onClaim =
+        () -> {
+          if (fence.getEpoch() == 10) {
+            inClaim.countDown();
+            try {
+              proceed.await();
+            } catch (InterruptedException e) {
+              throw new RuntimeException(e);
+            }
+            controller.failClaim = true;
+          } else {
+            controller.failClaim = false;
+          }
+        };
+    elector.elect(10);
+    assertTrue(inClaim.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    // lose epoch 10 and win epoch 11 while promotion for 10 is still running
+    elector.lose();
+    elector.elect(11);
+    int resignsBefore = elector.resignCount;
+    proceed.countDown();
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    assertEquals(resignsBefore, elector.resignCount);
+    assertTrue(elector.isLeader());
+    assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
+    assertEquals(11, manager.getActiveEpoch());
+  }
+
+  /** A write from an earlier epoch, fenced by this node's own newer claim, must not resign. */
+  @Test
+  public void testOwnStaleWriteDoesNotResign() throws Exception {
+    elector.elect(10);
+    manager.awaitTransitions();
+    fence.write(KEY, "v10");
+    // re-elected at 11 (e.g. after a transient loss); 11 claims the pointer
+    elector.lose();
+    manager.awaitTransitions();
+    elector.elect(11);
+    manager.awaitTransitions();
+    int resignsBefore = elector.resignCount;
+    // a write that captured epoch 10 completes now: simulate by a fence at epoch 10 on same store
+    EpochPointerFence stale = new EpochPointerFence(store);
+    stale.activate(10);
+    FencedException e = new FencedException("stale", 10);
+    // deliver through the manager's listener path
+    java.lang.reflect.Method m =
+        LeaderManager.class.getDeclaredMethod("onFenced", FencedException.class);
+    m.setAccessible(true);
+    m.invoke(manager, e);
+    manager.awaitTransitions();
+    assertEquals(resignsBefore, elector.resignCount);
+    assertEquals(LeaderManager.Role.ACTIVE, manager.getRole());
+  }
+
+  /** Close waits for a running promotion instead of abandoning it. */
+  @Test
+  public void testCloseWaitsForRunningTransition() throws Exception {
+    java.util.concurrent.CountDownLatch inClaim = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean interrupted =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    controller.onClaim =
+        () -> {
+          inClaim.countDown();
+          try {
+            Thread.sleep(300);
+          } catch (InterruptedException e) {
+            interrupted.set(true);
+          }
+        };
+    elector.elect(10);
+    assertTrue(inClaim.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    manager.close();
+    assertFalse(interrupted.get());
+    // promotion saw the close and did not restart indices as primary
+    assertEquals(List.of(), controller.restarts());
+    assertFalse(fence.isActive());
   }
 }

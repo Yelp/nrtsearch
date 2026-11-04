@@ -174,7 +174,8 @@ public class MultiPrimaryLifecycleTest {
         assertThrows(RuntimeException.class, () -> a.addSimpleDocs(INDEX, 99));
     assertTrue(
         writeError.getMessage(),
-        writeError.getMessage().contains("on a replica node is not supported"));
+        writeError.getMessage().contains("FAILED_PRECONDITION")
+            && writeError.getMessage().contains("current leader: " + nodeName(b)));
 
     b.addSimpleDocs(INDEX, 4);
     b.commit(INDEX);
@@ -252,6 +253,91 @@ public class MultiPrimaryLifecycleTest {
     assertFalse(cluster.hasLeader());
     elect(b);
     b.verifySimpleDocIds(INDEX, 1);
+  }
+
+  /** Adding documents on a standby returns FAILED_PRECONDITION, not INTERNAL. */
+  @Test
+  public void testAddDocumentsOnStandbyIsFailedPrecondition() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    elect(b);
+    leaderManager(a).awaitTransitions();
+    RuntimeException e =
+        assertThrows(
+            RuntimeException.class,
+            () -> a.addDocs(java.util.stream.Stream.of(a.getSimpleDocRequest(INDEX, 2))));
+    StatusRuntimeException status =
+        com.yelp.nrtsearch.server.handler.AddDocumentHandler.findStatusException(e);
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, status.getStatus().getCode());
+  }
+
+  /** A state reload while indices change role must not start a replaced (closed) index manager. */
+  @Test
+  public void testReloadDuringRoleChange() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    java.util.concurrent.atomic.AtomicBoolean stop =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    java.util.List<Throwable> errors = new java.util.concurrent.CopyOnWriteArrayList<>();
+    Thread reloader =
+        new Thread(
+            () -> {
+              while (!stop.get()) {
+                try {
+                  b.getGlobalState().reloadStateFromBackend();
+                } catch (Throwable t) {
+                  errors.add(t);
+                }
+              }
+            });
+    reloader.setDaemon(true);
+    reloader.start();
+    try {
+      for (int i = 0; i < 3; i++) {
+        elect(b);
+        elect(a);
+      }
+    } finally {
+      stop.set(true);
+      reloader.join(10000);
+    }
+    assertEquals(List.of(), errors);
+    elect(b);
+    assertTrue(shard(b).isPrimary());
+    b.verifySimpleDocIds(INDEX, 1);
+    b.addSimpleDocs(INDEX, 2);
+    b.commit(INDEX);
+    b.verifySimpleDocIds(INDEX, 1, 2);
+  }
+
+  /** Once an active node starts shutting down, it no longer publishes remote state. */
+  @Test
+  public void testStoppingLeaderStopsPublishing() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    a.getGlobalState().releaseLeadership();
+    assertFalse(leaderManager(a).getFence().isActive());
+    assertFalse(leaderManager(a).isActive());
+    assertEquals(LeaderManager.Role.DEMOTING, leaderManager(a).getRole());
+    assertThrows(RuntimeException.class, () -> a.addSimpleDocs(INDEX, 2));
+    assertThrows(StatusRuntimeException.class, () -> a.commit(INDEX));
+    // the index upload path is fenced, so no new points are published for replicas to follow
+    String uniqueName = a.getGlobalState().getDataResourceForIndex(INDEX);
+    assertThrows(
+        com.yelp.nrtsearch.server.leader.FencedException.class,
+        () ->
+            a.getRemoteBackend()
+                .uploadWarmingQueries(a.getServiceName(), uniqueName, "x".getBytes()));
   }
 
   /** A new leader can back up warming queries that an earlier leader wrote. */

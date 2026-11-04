@@ -106,6 +106,7 @@ public class S3LeaseElector implements PrimaryElector {
   private long observedAtNanos;
   private long lastSeenEpoch = 0;
   private long renewalCount = 0;
+  private long acquireBlockedUntilNanos = Long.MIN_VALUE;
   private boolean closed = false;
 
   /**
@@ -235,6 +236,11 @@ public class S3LeaseElector implements PrimaryElector {
   private void maybeAcquire() throws IOException {
     Optional<VersionedObject> current = store.get(leaseKey);
     long now = nanoClock.getAsLong();
+    if (now < acquireBlockedUntilNanos) {
+      // recently resigned, only observe the lease
+      current.ifPresent(this::observeOnly);
+      return;
+    }
     if (current.isEmpty()) {
       // the first epoch must be newer than any existing primaryGen, which before leader election
       // was the primary start time in ms
@@ -307,19 +313,31 @@ public class S3LeaseElector implements PrimaryElector {
     return Optional.ofNullable(lastKnownLeader);
   }
 
-  /** Lock free, so callers on request paths never wait behind lease I/O. */
+  /** Held leadership if still valid, read lock free so request paths never wait on lease I/O. */
+  private Held validHeld() {
+    Held current = held;
+    return current != null && nanoClock.getAsLong() < current.validUntilNanos() ? current : null;
+  }
+
   @Override
   public boolean isLeader() {
-    Held current = held;
-    return current != null && nanoClock.getAsLong() < current.validUntilNanos();
+    return validHeld() != null;
   }
 
   /** Epoch of held leadership, or -1 if not leader. */
   public long getLeaderEpoch() {
-    Held current = held;
-    return current != null && nanoClock.getAsLong() < current.validUntilNanos()
-        ? current.info().epoch()
-        : -1;
+    Held current = validHeld();
+    return current != null ? current.info().epoch() : -1;
+  }
+
+  private void observeOnly(VersionedObject obj) {
+    try {
+      Lease lease = parse(obj.data());
+      lastSeenEpoch = Math.max(lastSeenEpoch, lease.holder().epoch());
+      lastKnownLeader = lease.released() ? null : lease.holder();
+    } catch (IOException e) {
+      logger.warn("Could not parse lease", e);
+    }
   }
 
   @Override
@@ -328,6 +346,9 @@ public class S3LeaseElector implements PrimaryElector {
     if (current == null) {
       return;
     }
+    // give other nodes the first chance to take over; otherwise the next tick would immediately
+    // re-acquire the released lease
+    acquireBlockedUntilNanos = nanoClock.getAsLong() + ttlNanos;
     LeaderInfo held = current.info();
     try {
       // keep the epoch in the lease so the next leader increments it
@@ -340,9 +361,10 @@ public class S3LeaseElector implements PrimaryElector {
 
   @Override
   public void close() {
-    resign();
     synchronized (this) {
+      // set before resigning, so a tick can not re-acquire the released lease
       closed = true;
+      resign();
     }
     if (scheduler != null) {
       scheduler.shutdownNow();
