@@ -325,7 +325,8 @@ public class S3LeaseElector implements PrimaryElector {
   }
 
   /** Epoch of held leadership, or -1 if not leader. */
-  public long getLeaderEpoch() {
+  @VisibleForTesting
+  long getLeaderEpoch() {
     Held current = validHeld();
     return current != null ? current.info().epoch() : -1;
   }
@@ -341,11 +342,16 @@ public class S3LeaseElector implements PrimaryElector {
   }
 
   @Override
-  public synchronized void resign() {
+  public synchronized void resign(long epoch) {
     Held current = held;
-    if (current == null) {
+    if (current == null || current.info().epoch() != epoch) {
       return;
     }
+    releaseHeld(current);
+  }
+
+  /** Release held leadership. Must hold the lock. */
+  private void releaseHeld(Held current) {
     // give other nodes the first chance to take over; otherwise the next tick would immediately
     // re-acquire the released lease
     acquireBlockedUntilNanos = nanoClock.getAsLong() + ttlNanos;
@@ -362,9 +368,12 @@ public class S3LeaseElector implements PrimaryElector {
   @Override
   public void close() {
     synchronized (this) {
-      // set before resigning, so a tick can not re-acquire the released lease
+      // set before releasing, so a tick can not re-acquire the released lease
       closed = true;
-      resign();
+      Held current = held;
+      if (current != null) {
+        releaseHeld(current);
+      }
     }
     if (scheduler != null) {
       scheduler.shutdownNow();

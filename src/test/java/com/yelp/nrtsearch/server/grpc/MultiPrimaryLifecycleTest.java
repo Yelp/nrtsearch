@@ -210,7 +210,8 @@ public class MultiPrimaryLifecycleTest {
     // a resumes and accepts a write, but cannot make it durable
     a.addSimpleDocs(INDEX, 3);
     StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> a.commit(INDEX));
-    assertTrue(e.getMessage(), e.getMessage().contains("Error waiting for commit refresh"));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    assertTrue(e.getMessage(), e.getMessage().contains("no longer leader"));
 
     leaderManager(a).awaitTransitions();
     leaderManager(a).awaitTransitions();
@@ -338,6 +339,59 @@ public class MultiPrimaryLifecycleTest {
         () ->
             a.getRemoteBackend()
                 .uploadWarmingQueries(a.getServiceName(), uniqueName, "x".getBytes()));
+  }
+
+  /** A fenced commit is reported as FAILED_PRECONDITION, so clients redirect to the leader. */
+  @Test
+  public void testFencedCommitIsFailedPrecondition() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    b.reloadState();
+    cluster.electWithoutRevoking(nodeName(b));
+    leaderManager(b).awaitTransitions();
+    a.addSimpleDocs(INDEX, 2);
+    StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> a.commit(INDEX));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+  }
+
+  /** A reload during promotion starts indices only as standby; only promotion starts primaries. */
+  @Test
+  public void testReloadNeverStartsPrimary() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    // b has not loaded the index yet; promote b while reloading concurrently
+    java.util.concurrent.atomic.AtomicBoolean stop =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    Thread reloader =
+        new Thread(
+            () -> {
+              while (!stop.get()) {
+                try {
+                  b.getGlobalState().reloadStateFromBackend();
+                } catch (Throwable ignored) {
+                }
+              }
+            });
+    reloader.setDaemon(true);
+    reloader.start();
+    try {
+      elect(b);
+    } finally {
+      stop.set(true);
+      reloader.join(10000);
+    }
+    leaderManager(b).awaitTransitions();
+    assertTrue(leaderManager(b).isActive());
+    b.addSimpleDocs(INDEX, 2);
+    b.commit(INDEX);
+    b.verifySimpleDocIds(INDEX, 1, 2);
+    assertTrue(leaderManager(b).isActive());
   }
 
   /** A new leader can back up warming queries that an earlier leader wrote. */

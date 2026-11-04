@@ -111,8 +111,10 @@ public class EpochPointerFence {
   }
 
   /**
-   * Claim a pointer for the current epoch. If the pointer does not exist, it is left absent and
-   * will be created on first write.
+   * Claim a pointer for the current epoch. If the pointer does not exist, a tombstone owned by the
+   * current epoch is created, so an older leader can not create the pointer after this claim (its
+   * create would succeed, acknowledging data outside this leader's lineage). Readers treat a
+   * tombstone as absent, see {@link #isAbsent}.
    *
    * @param key pointer object key
    * @return current pointer value, or empty if it does not exist
@@ -123,8 +125,16 @@ public class EpochPointerFence {
     for (int attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
       Optional<VersionedObject> current = store.get(key);
       if (current.isEmpty()) {
-        ownedVersions.remove(key);
-        return Optional.empty();
+        try {
+          String version =
+              store.putIfAbsent(
+                  key, encode(TOMBSTONE_VALUE, claimEpoch), epochMetadata(claimEpoch));
+          recordOwned(key, version, claimEpoch);
+          return Optional.empty();
+        } catch (PreconditionFailedException e) {
+          logger.info("Pointer {} created while claiming, retrying", key);
+          continue;
+        }
       }
       VersionedObject obj = current.get();
       String body = new String(obj.data(), StandardCharsets.UTF_8);
@@ -137,13 +147,14 @@ public class EpochPointerFence {
             claimEpoch);
       }
       String value = decodeValue(body);
+      Optional<String> result = isAbsent(body) ? Optional.empty() : Optional.of(value);
       try {
         // the body changes (epoch, nonce), so the version changes and older owners are fenced
         String version =
             store.putIfMatch(
                 key, encode(value, claimEpoch), epochMetadata(claimEpoch), obj.version());
         recordOwned(key, version, claimEpoch);
-        return Optional.of(value);
+        return result;
       } catch (PreconditionFailedException e) {
         logger.info("Pointer {} changed while claiming, retrying", key);
       }
@@ -163,9 +174,24 @@ public class EpochPointerFence {
     if (value.contains("\n")) {
       throw new IllegalArgumentException("Pointer value must be a single line: " + value);
     }
+    if (value.isEmpty()) {
+      throw new IllegalArgumentException("Pointer value must not be empty");
+    }
     byte[] data = encode(value, writeEpoch);
     Owned owned = ownedVersions.get(key);
-    if (owned != null && owned.epoch() != writeEpoch) {
+    if (owned == null) {
+      // first write of a pointer not claimed during promotion, e.g. for an index created by this
+      // leader. Claim it now: this fails if a newer leader owns it, and otherwise makes this epoch
+      // the owner, so an older leader can not create or move it
+      claim(key);
+      owned = ownedVersions.get(key);
+      if (owned == null) {
+        throw new FencedException(
+            String.format("Pointer %s could not be claimed for epoch %d", key, writeEpoch),
+            writeEpoch);
+      }
+    }
+    if (owned.epoch() != writeEpoch) {
       // the epoch changed after this write started; the version belongs to a newer claim
       throw fenced(
           String.format(
@@ -174,10 +200,7 @@ public class EpochPointerFence {
           writeEpoch);
     }
     try {
-      String version =
-          owned == null
-              ? store.putIfAbsent(key, data, epochMetadata(writeEpoch))
-              : store.putIfMatch(key, data, epochMetadata(writeEpoch), owned.version());
+      String version = store.putIfMatch(key, data, epochMetadata(writeEpoch), owned.version());
       recordOwned(key, version, writeEpoch);
     } catch (PreconditionFailedException e) {
       ownedVersions.remove(key, owned);
@@ -221,6 +244,18 @@ public class EpochPointerFence {
 
   private static Map<String, String> epochMetadata(long epoch) {
     return Map.of(EPOCH_METADATA_KEY, Long.toString(epoch));
+  }
+
+  /** Value of a claimed pointer that has no resource yet. */
+  static final String TOMBSTONE_VALUE = "";
+
+  /**
+   * If a pointer body refers to no resource: a tombstone created by a claim of an absent pointer.
+   *
+   * @param body pointer object content
+   */
+  public static boolean isAbsent(String body) {
+    return decodeValue(body).isEmpty();
   }
 
   /** Encode a fenced pointer body. A random nonce makes every write produce distinct content. */

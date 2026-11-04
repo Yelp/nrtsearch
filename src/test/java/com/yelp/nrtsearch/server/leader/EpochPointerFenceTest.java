@@ -77,12 +77,13 @@ public class EpochPointerFenceTest {
   }
 
   @Test
-  public void testWriteWithoutClaimOnExistingPointerFails() throws Exception {
+  public void testFirstWriteClaimsLegacyPointer() throws Exception {
     store.put(KEY, "legacy".getBytes(), Map.of());
     EpochPointerFence fence = new EpochPointerFence(store);
     fence.activate(1);
-    assertThrows(FencedException.class, () -> fence.write(KEY, "v1"));
-    assertEquals("legacy", value());
+    fence.write(KEY, "v1");
+    assertEquals("v1", value());
+    assertEquals(1, pointerEpoch());
   }
 
   /** The GC pause scenario: old leader resumes after a new leader claimed the pointer. */
@@ -163,12 +164,12 @@ public class EpochPointerFenceTest {
     fence.write(KEY, "v1");
     fence.deactivate();
     assertThrows(FencedException.class, () -> fence.write(KEY, "v2"));
-    // reactivating at the same epoch requires re-claiming
+    assertEquals("v1", value());
+    // reactivated at a newer epoch, the first write re-claims the pointer
     fence.activate(2);
-    assertThrows(FencedException.class, () -> fence.write(KEY, "v2"));
-    fence.claim(KEY);
     fence.write(KEY, "v2");
     assertEquals("v2", value());
+    assertEquals(2, pointerEpoch());
   }
 
   /**
@@ -246,5 +247,56 @@ public class EpochPointerFenceTest {
         IllegalStateException.class, () -> EpochPointerFence.decodeEpoch("v\n#nrt-fence epoch=x"));
     assertThrows(
         IllegalStateException.class, () -> EpochPointerFence.decodeEpoch("v\n#nrt-fence nonce=1"));
+  }
+
+  /**
+   * The new leader claims a pointer that does not exist yet. An older leader then tries to create
+   * it; that must fail, otherwise it could acknowledge a commit outside the new leader's lineage,
+   * and the new leader's own first write must still succeed.
+   */
+  @Test
+  public void testOldLeaderCannotCreatePointerAfterClaim() throws Exception {
+    EpochPointerFence oldLeader = new EpochPointerFence(store);
+    oldLeader.activate(1);
+    assertEquals(Optional.empty(), oldLeader.claim(KEY));
+
+    EpochPointerFence newLeader = new EpochPointerFence(store);
+    newLeader.activate(2);
+    assertEquals(Optional.empty(), newLeader.claim(KEY));
+
+    assertThrows(FencedException.class, () -> oldLeader.write(KEY, "old"));
+    newLeader.write(KEY, "new");
+    assertEquals("new", value());
+    assertEquals(2, pointerEpoch());
+  }
+
+  @Test
+  public void testClaimOfAbsentCreatesTombstone() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(3);
+    assertEquals(Optional.empty(), fence.claim(KEY));
+    String body = new String(store.get(KEY).get().data(), StandardCharsets.UTF_8);
+    assertTrue(EpochPointerFence.isAbsent(body));
+    assertEquals(3, EpochPointerFence.decodeEpoch(body));
+    // a later claim (e.g. re-promotion) still reports it absent
+    fence.activate(4);
+    assertEquals(Optional.empty(), fence.claim(KEY));
+  }
+
+  /** The first write of an unclaimed pointer claims it, unless a newer epoch owns it. */
+  @Test
+  public void testWriteClaimsUnclaimedPointer() throws Exception {
+    EpochPointerFence fence = new EpochPointerFence(store);
+    fence.activate(1);
+    fence.write(KEY, "v");
+    assertEquals("v", value());
+
+    EpochPointerFence newer = new EpochPointerFence(store);
+    newer.activate(2);
+    newer.write(KEY, "n");
+    EpochPointerFence older = new EpochPointerFence(store);
+    older.activate(1);
+    assertThrows(FencedException.class, () -> older.write(KEY, "o"));
+    assertEquals("n", value());
   }
 }

@@ -66,17 +66,19 @@ public class LeaderManagerTest {
     }
 
     @Override
-    public void resign() {
+    public synchronized void resign(long epoch) {
       resignCount++;
-      if (held != null) {
+      if (held != null && held.epoch() == epoch) {
         lose();
       }
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
       closed = true;
-      resign();
+      if (held != null) {
+        lose();
+      }
     }
   }
 
@@ -302,5 +304,44 @@ public class LeaderManagerTest {
     // promotion saw the close and did not restart indices as primary
     assertEquals(List.of(), controller.restarts());
     assertFalse(fence.isActive());
+  }
+
+  /** Close releases leadership before waiting for a running transition. */
+  @Test
+  public void testCloseReleasesLeadershipBeforeWaiting() throws Exception {
+    java.util.concurrent.CountDownLatch inClaim = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch proceed = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean leaderWhileWaiting =
+        new java.util.concurrent.atomic.AtomicBoolean(true);
+    controller.onClaim =
+        () -> {
+          inClaim.countDown();
+          try {
+            proceed.await();
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+        };
+    elector.elect(10);
+    assertTrue(inClaim.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    Thread closer =
+        new Thread(
+            () -> {
+              try {
+                manager.close();
+              } catch (Exception ignored) {
+              }
+            });
+    closer.start();
+    // while close waits for the transition, leadership is already released
+    long deadline = System.currentTimeMillis() + 5000;
+    while (elector.isLeader() && System.currentTimeMillis() < deadline) {
+      Thread.sleep(10);
+    }
+    leaderWhileWaiting.set(elector.isLeader());
+    proceed.countDown();
+    closer.join(10000);
+    assertFalse(leaderWhileWaiting.get());
+    assertTrue(elector.closed);
   }
 }

@@ -64,6 +64,8 @@ compare-and-set:
 * After a pointer is claimed, every write to it by an older primary fails, no matter how long that primary was
   paused. The old primary then resigns and becomes a standby.
 * A write that the old primary completed before the claim is seen by the new primary, which restores from it.
+* A pointer that does not exist yet is claimed by creating an empty (tombstone) pointer owned by the new epoch, so
+  an old primary can not create it afterwards. Servers and tools treat a tombstone as a missing resource.
 
 Since S3 derives an object's ETag from its content, every fenced pointer write also changes the pointer content:
 a fenced ``_current`` object contains the resource name, then a newline and a ``#nrt-fence epoch=<E> nonce=<N>``
@@ -81,6 +83,7 @@ Custom electors
 
 Plugins can provide an elector by implementing ``PrimaryElectorPlugin`` and returning a
 ``PrimaryElectorProvider`` for a type name, which can then be used in ``leaderElection.type``. An elector must
-provide strictly increasing epochs across leadership changes, and must report ``isLeader() == false`` as soon as
-leadership may have been lost. A faulty elector can delay failover, but cannot corrupt index data, since writes
+provide strictly increasing epochs across leadership changes, must report ``isLeader() == false`` as soon as
+leadership may have been lost, must make ``resign(epoch)`` give up leadership only if it is still held at that
+epoch (checked atomically), and must not acquire leadership after ``close()``. A faulty elector can delay failover, but cannot corrupt index data, since writes
 are fenced as described above.

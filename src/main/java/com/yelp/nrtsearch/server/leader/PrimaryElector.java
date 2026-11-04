@@ -51,8 +51,19 @@ public interface PrimaryElector extends Closeable {
   boolean isLeader();
 
   /**
-   * Give up leadership if held. The node may be elected again later. If leadership was held, {@link
-   * LeaderListener#onLost(LeaderInfo)} is invoked.
+   * Stop participating in election and give up leadership if held, whatever the epoch. After close,
+   * the elector must not acquire leadership again.
    */
-  void resign();
+  @Override
+  void close();
+
+  /**
+   * Give up leadership, but only if it is currently held at the given epoch. The check and release
+   * must be atomic, so that a request to give up a lost epoch never releases a newer one acquired
+   * since. The node may be elected again later. If leadership was given up, {@link
+   * LeaderListener#onLost(LeaderInfo)} is invoked.
+   *
+   * @param epoch epoch to give up
+   */
+  void resign(long epoch);
 }

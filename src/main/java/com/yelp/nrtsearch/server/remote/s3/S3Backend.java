@@ -886,7 +886,7 @@ public class S3Backend implements RemoteBackend {
         switch (resourceType) {
           case GLOBAL_STATE -> getGlobalStateResourcePrefix(service);
         };
-    return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
+    return currentPointerExists(prefix);
   }
 
   @Override
@@ -898,7 +898,23 @@ public class S3Backend implements RemoteBackend {
           case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
           case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
         };
-    return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
+    return currentPointerExists(prefix);
+  }
+
+  /**
+   * If the current pointer for a resource prefix exists and refers to a resource. A pointer claimed
+   * by a multi-primary leader before any resource existed is a tombstone, and counts as absent.
+   */
+  private boolean currentPointerExists(String prefix) throws IOException {
+    if (!S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION)) {
+      return false;
+    }
+    try {
+      return !getCurrentResourceNameOrEmpty(prefix).isEmpty();
+    } catch (IllegalArgumentException e) {
+      // deleted between the existence check and the read
+      return false;
+    }
   }
 
   /**
@@ -1821,6 +1837,17 @@ public class S3Backend implements RemoteBackend {
    * @throws IOException if an error occurs while fetching the current resource version
    */
   public String getCurrentResourceName(String prefix) throws IOException {
+    String name = getCurrentResourceNameOrEmpty(prefix);
+    if (name.isEmpty()) {
+      // tombstone, claimed by a multi-primary leader before any resource existed
+      throw new IllegalArgumentException(
+          String.format("Object s3://%s/%s%s not found", serviceBucket, prefix, CURRENT_VERSION));
+    }
+    return name;
+  }
+
+  /** Read a current pointer value, empty for a tombstone. */
+  private String getCurrentResourceNameOrEmpty(String prefix) throws IOException {
     String key = prefix + CURRENT_VERSION;
     try {
       GetObjectRequest request = GetObjectRequest.builder().bucket(serviceBucket).key(key).build();

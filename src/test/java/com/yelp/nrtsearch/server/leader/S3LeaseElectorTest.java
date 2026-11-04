@@ -203,7 +203,7 @@ public class S3LeaseElectorTest {
     Node b = node("b");
     a.tick();
     b.tick();
-    a.elector().resign();
+    a.elector().resign(a.elector().getLeaderEpoch());
     a.elector().drainListener();
     assertFalse(a.elector().isLeader());
     assertEquals(List.of("elected:" + e1(a), "lost:" + e1(a)), a.listener().get());
@@ -236,7 +236,7 @@ public class S3LeaseElectorTest {
       // a node that resigned in the previous round must wait out its re-acquire backoff
       other.clock().advanceMs(TTL + 1);
       other.tick();
-      leader.elector().resign();
+      leader.elector().resign(leader.elector().getLeaderEpoch());
       leader.elector().drainListener();
       other.tick();
       assertTrue(other.elector().isLeader());
@@ -341,7 +341,7 @@ public class S3LeaseElectorTest {
   public void testResignDoesNotImmediatelyReacquire() throws Exception {
     Node a = node("a");
     a.tick();
-    a.elector().resign();
+    a.elector().resign(a.elector().getLeaderEpoch());
     a.elector().drainListener();
     a.clock().advanceMs(POLL);
     a.tick();
@@ -358,7 +358,7 @@ public class S3LeaseElectorTest {
     Node a = node("a");
     a.tick();
     long epoch = a.elector().getLeaderEpoch();
-    a.elector().resign();
+    a.elector().resign(a.elector().getLeaderEpoch());
     a.clock().advanceMs(TTL + 1);
     a.tick();
     assertTrue(a.elector().isLeader());
@@ -375,5 +375,16 @@ public class S3LeaseElectorTest {
     a.elector().tick();
     assertFalse(a.elector().isLeader());
     assertTrue(new String(store.get(KEY).get().data()).contains("\"released\":true"));
+  }
+
+  /** Resigning an epoch that is no longer held does not release newer leadership. */
+  @Test
+  public void testResignStaleEpochKeepsNewer() throws Exception {
+    Node a = node("a");
+    a.tick();
+    long epoch = a.elector().getLeaderEpoch();
+    a.elector().resign(epoch - 1);
+    assertTrue(a.elector().isLeader());
+    assertEquals(epoch, a.elector().getLeaderEpoch());
   }
 }

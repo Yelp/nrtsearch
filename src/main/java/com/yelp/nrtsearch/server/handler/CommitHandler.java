@@ -71,8 +71,9 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                           }
                           logger.warn(
                               String.format("Error handling commit request: %s", requestStr), e);
-                          if (e instanceof StatusRuntimeException) {
-                            responseObserver.onError(e);
+                          StatusRuntimeException statusError = findStatusException(e);
+                          if (statusError != null) {
+                            responseObserver.onError(statusError);
                           } else {
                             responseObserver.onError(
                                 Status.INTERNAL

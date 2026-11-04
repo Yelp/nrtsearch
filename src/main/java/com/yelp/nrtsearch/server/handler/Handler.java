@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
+import com.yelp.nrtsearch.server.leader.FencedException;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
@@ -94,8 +95,9 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
         requestStr = protoRequest.toString();
       }
       logger.warn("Error handling " + name + " request: " + requestStr, e);
-      if (e instanceof StatusRuntimeException) {
-        responseObserver.onError(e);
+      StatusRuntimeException statusError = findStatusException(e);
+      if (statusError != null) {
+        responseObserver.onError(statusError);
       } else {
         responseObserver.onError(
             Status.INTERNAL
@@ -184,6 +186,29 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
                     .asRuntimeException();
               }
             });
+  }
+
+  /**
+   * Find the status to report for an error in the cause chain, e.g. wrapped by an executor: a gRPC
+   * status exception, or FAILED_PRECONDITION for a write fenced because this node is no longer the
+   * active primary, so clients can redirect to the leader instead of retrying this node.
+   *
+   * @param t error
+   * @return status exception to report, or null to report a generic error
+   */
+  public static StatusRuntimeException findStatusException(Throwable t) {
+    for (Throwable c = t; c != null; c = c.getCause()) {
+      if (c instanceof StatusRuntimeException sre) {
+        return sre;
+      }
+      if (c instanceof FencedException fenced) {
+        return Status.FAILED_PRECONDITION
+            .withDescription(fenced.getMessage())
+            .withCause(fenced)
+            .asRuntimeException();
+      }
+    }
+    return null;
   }
 
   protected boolean isValidMagicHeader(int magicHeader) {

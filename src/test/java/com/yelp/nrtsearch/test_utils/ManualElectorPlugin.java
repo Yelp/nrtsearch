@@ -125,19 +125,28 @@ public class ManualElectorPlugin extends Plugin implements PrimaryElectorPlugin 
     }
 
     @Override
-    public void resign() {
+    public void resign(long epoch) {
       synchronized (cluster) {
-        if (held != null && cluster.leader != null && cluster.leader.sameNode(held)) {
+        LeaderInfo current = held;
+        if (current == null || current.epoch() != epoch) {
+          return;
+        }
+        if (cluster.leader != null && cluster.leader.sameNode(current)) {
           cluster.leader = null;
         }
+        revoke();
       }
-      revoke();
     }
 
     @Override
     public void close() {
-      resign();
-      cluster.electors.remove(localInfo.nodeName(), this);
+      synchronized (cluster) {
+        LeaderInfo current = held;
+        if (current != null) {
+          resign(current.epoch());
+        }
+        cluster.electors.remove(localInfo.nodeName(), this);
+      }
     }
   }
 

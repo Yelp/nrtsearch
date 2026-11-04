@@ -180,6 +180,7 @@ public class LeaderManager implements Closeable, LeaderListener {
   }
 
   private void onFenced(FencedException e) {
+    long change;
     synchronized (this) {
       // a write from an earlier epoch may be fenced by this node's own newer claim; only a write
       // in the epoch currently held means another node took over
@@ -189,9 +190,10 @@ public class LeaderManager implements Closeable, LeaderListener {
             "Ignoring fenced write from epoch {}, current epoch is {}", e.getEpoch(), current);
         return;
       }
+      change = leadershipChangeCount;
     }
     logger.warn("Remote state write fenced, resigning leadership", e);
-    resignAndDemote(e.getEpoch(), leadershipChangeCount);
+    resignAndDemote(e.getEpoch(), change);
   }
 
   /**
@@ -211,7 +213,8 @@ public class LeaderManager implements Closeable, LeaderListener {
       }
       onLost(new LeaderInfo("", "", "", 0, 0, epoch));
     }
-    elector.resign();
+    // only gives up this epoch; if a newer epoch was acquired meanwhile it is kept
+    elector.resign(epoch);
   }
 
   private void promote(LeaderInfo leaderInfo, long change) {
@@ -342,9 +345,12 @@ public class LeaderManager implements Closeable, LeaderListener {
       activeEpoch = -1;
       leadershipChangeCount++;
     }
+    // stop election first, releasing leadership, so another node can take over while this node
+    // waits below
+    elector.close();
     // let a running transition finish, so it does not leave index managers started that nothing
-    // will close; queued transitions are dropped. Interrupt only as a last resort, since an
-    // interrupt during NIO closes the channel.
+    // will close. Queued transitions still run, but return immediately since closed is set.
+    // Interrupt only as a last resort, since an interrupt during NIO closes the channel.
     transitionExecutor.shutdown();
     try {
       if (!transitionExecutor.awaitTermination(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)) {
@@ -355,6 +361,5 @@ public class LeaderManager implements Closeable, LeaderListener {
       Thread.currentThread().interrupt();
       transitionExecutor.shutdownNow();
     }
-    elector.close();
   }
 }
