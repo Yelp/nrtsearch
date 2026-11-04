@@ -40,6 +40,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -544,5 +546,28 @@ public class VectorGatewayIntegrationTest {
             new VectorService.Options());
     goodService.createIndex(bad);
     assertTrue(server.isStarted(badNrtIndex));
+  }
+
+  @Test
+  public void testCreateIndexRegistrySaveFailureCleansUp() throws Exception {
+    call("CreateVectorBucket", Map.of("vectorBucketName", BUCKET));
+    Path registryFile = folder.getRoot().toPath().resolve("registry.json");
+    // make the registry save fail after the nrtsearch index is created and started
+    Path tmp = registryFile.resolveSibling("registry.json.tmp");
+    Files.createDirectory(tmp);
+
+    ObjectNode create = req();
+    create.put("dimension", DIM);
+    create.put("distanceMetric", "cosine");
+    assertEquals(500, callRaw("CreateIndex", create).statusCode());
+    // nothing is left in nrtsearch or the registry
+    assertFalse(server.indices().contains(IndexConfig.nrtsearchIndexName(BUCKET, INDEX)));
+    assertEquals(0, call("ListIndexes", Map.of("vectorBucketName", BUCKET)).get("indexes").size());
+    assertEquals(404, callRaw("GetIndex", req()).statusCode());
+
+    // once saving works the same index can be created
+    Files.delete(tmp);
+    call("CreateIndex", create);
+    assertTrue(server.isStarted(IndexConfig.nrtsearchIndexName(BUCKET, INDEX)));
   }
 }

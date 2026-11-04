@@ -211,6 +211,24 @@ public class LazyRemoteDirectoryTest {
   }
 
   @Test
+  public void testDeleteRemovesRealFileBesideStub() throws Exception {
+    // a replica with a real _0.vec from before lazy loading was enabled, restored with a stub
+    try (IndexOutput out = base.createOutput("_0.vec", IOContext.DEFAULT)) {
+      out.writeByte((byte) 7);
+    }
+    new LazyFileStub("index-id", meta).write(path, "_0.vec");
+    LazyRemoteDirectory opened =
+        new LazyRemoteDirectory(
+            base, path, "service", backend, new RemoteBlockCache.Memory(1024, 1024), config);
+    assertTrue(opened.hasStub("_0.vec"));
+
+    opened.deleteFile("_0.vec");
+    // both the stub and the real file are gone
+    assertEquals(0, opened.listAll().length);
+    assertEquals(0, base.listAll().length);
+  }
+
+  @Test
   public void testSync() throws Exception {
     addStub("_0.vec");
     dir.sync(List.of("_0.vec"));

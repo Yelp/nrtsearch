@@ -104,7 +104,12 @@ public class BucketRegistry {
     }
     Bucket bucket = new Bucket(name, System.currentTimeMillis());
     state.buckets.put(name, bucket);
-    save();
+    try {
+      save();
+    } catch (RuntimeException e) {
+      state.buckets.remove(name);
+      throw e;
+    }
     return bucket;
   }
 
@@ -167,8 +172,15 @@ public class BucketRegistry {
     if (reserved == null || !reserved.remove(config.getIndexName())) {
       throw new IllegalStateException("Vector index was not reserved: " + config.getIndexName());
     }
-    getBucket(config.getBucketName()).indexes.put(config.getIndexName(), config);
-    save();
+    Bucket bucket = getBucket(config.getBucketName());
+    bucket.indexes.put(config.getIndexName(), config);
+    try {
+      save();
+    } catch (RuntimeException e) {
+      // keep memory consistent with the saved registry, the caller cleans up nrtsearch
+      bucket.indexes.remove(config.getIndexName());
+      throw e;
+    }
   }
 
   public synchronized IndexConfig getIndex(String bucketName, String indexName) {

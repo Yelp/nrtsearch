@@ -18,7 +18,9 @@ package com.yelp.nrtsearch.server.nrt.lazy;
 import com.yelp.nrtsearch.server.config.LazyRemoteDataConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -229,6 +231,12 @@ public class LazyRemoteDirectory extends FilterDirectory {
     if (stub != null) {
       in.deleteFile(LazyFileStub.stubName(name));
       cache.invalidate(stub.fileId(name));
+      // a real file can sit beside the stub, if it was copied before lazy loading was enabled
+      try {
+        in.deleteFile(name);
+      } catch (NoSuchFileException | FileNotFoundException e) {
+        // usual case, only the stub exists
+      }
       return;
     }
     // a pending stub temp file deleted by a cancelled copy job
