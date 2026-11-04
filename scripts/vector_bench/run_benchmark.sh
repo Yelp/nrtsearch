@@ -106,5 +106,21 @@ for f in query_local query_lazy_cold query_lazy_warm; do
   echo "$f:"
   grep -E '^(Throughput|Latency|Recall|S3 cache|Warning|Queued)' "$RESULTS/$f.txt" | sed 's/^/  /'
 done | tee "$RESULTS/summary.txt"
-echo "Disk: lazy $(grep -o '[0-9.]* MB on disk' "$RESULTS/info_lazy.txt"), local $(grep -o '[0-9.]* MB on disk' "$RESULTS/info_local.txt")" | tee -a "$RESULTS/summary.txt"
+# Real bytes on local disk, by file type. The index size from info counts lazy files at their
+# full size, though they stay in S3.
+disk_usage() {
+  local dir="$1"
+  [[ -d "$dir" ]] || { echo "  (no index data at $dir)"; return; }
+  find "$dir" -type f -name '*.*' | awk -F. '{print $NF}' | sort -u | while read -r ext; do
+    bytes="$(find "$dir" -type f -name "*.$ext" -exec du -k {} + | awk '{s += $1} END {print s * 1024}')"
+    printf '  %-8s %10.1f MB\n' ".$ext" "$(echo "$bytes / 1048576" | bc -l)"
+  done
+  printf '  %-8s %10.1f MB\n' total "$(du -sk "$dir" | awk '{print $1 / 1024}')"
+}
+{
+  echo "Local disk, lazy replica ($BENCH_HOME/replica_lazy/index):"
+  disk_usage "$BENCH_HOME/replica_lazy/index"
+  echo "Local disk, local replica ($BENCH_HOME/replica_local/index):"
+  disk_usage "$BENCH_HOME/replica_local/index"
+} | tee -a "$RESULTS/summary.txt"
 echo "Results in $RESULTS"

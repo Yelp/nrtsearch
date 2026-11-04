@@ -71,7 +71,8 @@ public class InfoCommand implements Callable<Integer> {
                 : "";
         System.out.printf(
             Locale.ROOT,
-            "%s:%d %s: %,d vectors%s, searcher version %d, %d segments, %.1f MB on disk, state %s%n",
+            "%s:%d %s: %,d vectors%s, searcher version %d, %d segments, index size %.1f MB,"
+                + " state %s%n",
             target.host,
             target.port,
             nrtIndex,

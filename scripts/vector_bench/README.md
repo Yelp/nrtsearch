@@ -70,7 +70,12 @@ query_lazy_warm:
   Latency:    n=24738 err=0 mean=19.30ms p50=17.10ms p90=28.40ms p99=61.20ms ...
   Recall@10:  0.9870 ...
   S3 cache:   hit rate 96.2% (...), S3 41.2 MB (0.7 MB/s), 31 GETs/s, avg block load 21.4ms, ...
-Disk: lazy 412.0 MB on disk, local 1,851.3 MB on disk
+Local disk, lazy replica (~/vector_bench/replica_lazy/index):
+  .lazy           0.1 MB
+  .veq          290.4 MB
+  .vex           18.2 MB
+  ...
+  total         412.0 MB
 ```
 
 The numbers above are only an illustration of the format. Common variations:
