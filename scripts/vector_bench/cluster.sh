@@ -12,7 +12,8 @@
 #   cluster.sh clean                            stop everything and delete local data
 #
 # Settings come from the environment; BENCH_BUCKET is required:
-#   BENCH_BUCKET     S3 bucket for index data (required). Uses the default AWS credentials chain.
+#   BENCH_BUCKET     S3 bucket for index data (required)
+#   AWS_PROFILE      AWS credentials profile; any default credentials chain source works
 #   BENCH_SERVICE    service name, the S3 prefix for this cluster (default: vector-bench)
 #   BENCH_HOME       local data, logs and configs (default: ~/vector_bench)
 #   CACHE_TYPE       lazy replica block cache: MEMORY, OFF_HEAP or DISK (default: MEMORY)
@@ -89,35 +90,112 @@ render_config() {
   printf '%s\n' "$content" > "$out"
 }
 
+# Explain why a node can't use S3, from its log. When the bucket lookup fails, nrtsearch keeps
+# running with a dummy S3 client, so the failure only shows later as confusing upload or restore
+# errors. Returns 1 if the log shows the failure.
+check_s3_access() {
+  local node="$1" log
+  log="$(log_file "$node")"
+  if grep -q "failed to get the location of S3 bucket" "$log" 2>/dev/null; then
+    {
+      echo "  $node could not reach s3://$BENCH_BUCKET, and is running with a dummy S3 client."
+      echo "  Usual causes: no AWS credentials in the environment it was started from (set"
+      echo "  AWS_PROFILE, or export keys: eval \"\$(aws configure export-credentials --profile"
+      echo "  <name> --format env)\"), or a wrong bucket name. The AWS error:"
+      grep -A 3 "failed to get the location of S3 bucket" "$log" |
+        grep -m 2 -E "Exception|Caused by" | sed 's/^/    /' || true
+    } >&2
+    return 1
+  fi
+  return 0
+}
+
 wait_ready() {
-  local node="$1" port
+  local node="$1" port log
   port="$(node_port "$node")"
+  log="$(log_file "$node")"
   for _ in $(seq 1 120); do
-    if ! is_running "$node"; then
-      echo "  $node exited during startup; last log lines:" >&2
-      tail -n 30 "$(log_file "$node")" >&2
+    if ! check_s3_access "$node"; then
+      stop_node "$node" > /dev/null
       return 1
     fi
-    if grep -q "Server started, listening on $port" "$(log_file "$node")" 2>/dev/null; then
+    if ! is_running "$node"; then
+      echo "  $node exited during startup; last log lines:" >&2
+      tail -n 30 "$log" >&2
+      return 1
+    fi
+    if grep -q "Server started, listening on $port" "$log" 2>/dev/null; then
+      if ! grep -q "S3 region: " "$log"; then
+        echo "  warning: $node started but its log doesn't show the S3 bucket region" >&2
+      fi
       echo "  $node ready on port $port"
       return 0
     fi
     sleep 1
   done
-  echo "  $node did not report ready within 120s; see $(log_file "$node")" >&2
+  echo "  $node did not report ready within 120s; see $log" >&2
   return 1
+}
+
+# Isolated replicas read the cluster state the primary writes to S3, and can't create it. Check it
+# exists before starting one, with the AWS CLI if installed, else from the local primary's log.
+check_global_state() {
+  local node="$1" key="$BENCH_SERVICE/global_state/_current" primary_log err
+  if command -v aws > /dev/null; then
+    if err="$(aws s3api head-object --bucket "$BENCH_BUCKET" --key "$key" 2>&1 > /dev/null)"; then
+      return 0
+    fi
+    if grep -qE "Not Found|404" <<< "$err"; then
+      {
+        echo "error: can't start $node: there is no cluster state at s3://$BENCH_BUCKET/$key"
+        echo "  The primary writes it on its first start with S3 access. Start the primary first"
+        echo "  (cluster.sh start primary), and check BENCH_BUCKET ($BENCH_BUCKET) and"
+        echo "  BENCH_SERVICE ($BENCH_SERVICE) match the ones the primary was started with."
+      } >&2
+    else
+      echo "error: can't start $node: checking s3://$BENCH_BUCKET/$key failed:" >&2
+      sed 's/^/  /' <<< "$err" >&2
+    fi
+    return 1
+  fi
+  # no AWS CLI: rely on the local primary, which logs loading or creating the state
+  primary_log="$(log_file primary)"
+  if ! is_running primary; then
+    echo "  note: can't check the cluster state in S3 (no aws CLI) and the primary isn't" \
+      "running here; starting $node anyway" >&2
+    return 0
+  fi
+  if ! check_s3_access primary; then
+    echo "error: can't start $node until the primary can reach S3; restart it with" \
+      "credentials: cluster.sh restart primary" >&2
+    return 1
+  fi
+  if ! grep -qE "Loaded remote state|Committed state" "$primary_log"; then
+    echo "error: can't start $node: the primary's log doesn't show it loaded or wrote the" \
+      "cluster state in S3; see $primary_log" >&2
+    return 1
+  fi
+  return 0
 }
 
 start_node() {
   local node="$1" config
   config="$(node_config "$node")"
+  [[ -n "${BENCH_BUCKET:-}" ]] || die "set BENCH_BUCKET to the S3 bucket to use"
   if is_running "$node"; then
     echo "$node already running (pid $(cat "$(pid_file "$node")"))"
+    # a node started earlier, perhaps without credentials, may be running without S3
+    if ! check_s3_access "$node"; then
+      echo "  restart it from a shell with AWS credentials: cluster.sh restart $node" >&2
+      return 1
+    fi
     return 0
   fi
   [[ -x "$INSTALL_BIN/nrtsearch_server" ]] ||
     die "$INSTALL_BIN/nrtsearch_server not found; run ./gradlew installDist first"
-  [[ -n "${BENCH_BUCKET:-}" ]] || die "set BENCH_BUCKET to the S3 bucket to use"
+  if [[ "$node" != primary ]]; then
+    check_global_state "$node" || return 1
+  fi
   mkdir -p "$BENCH_HOME"/{run,logs,config} "$BENCH_HOME/$config"
   render_config "$SCRIPT_DIR/config/$config.yaml" "$BENCH_HOME/config/$config.yaml"
   echo "Starting $node with $BENCH_HOME/config/$config.yaml"
@@ -125,6 +203,8 @@ start_node() {
     nohup "$INSTALL_BIN/nrtsearch_server" "$BENCH_HOME/config/$config.yaml" \
     > "$(log_file "$node")" 2>&1 &
   echo $! > "$(pid_file "$node")"
+  # tracked by pid file; disown so the shell doesn't report the job when it's stopped
+  disown
   wait_ready "$node"
 }
 

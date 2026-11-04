@@ -11,13 +11,36 @@ full precision vectors in S3 (lazy remote data) with one that keeps every file o
 ## Setup
 
 You need a real S3 bucket: nrtsearch talks to AWS S3 and has no option for another endpoint.
-Credentials come from the default AWS chain (environment, `~/.aws`, instance role).
 
 ```bash
 ./gradlew installDist
 export BENCH_BUCKET=my-bucket          # required
+export AWS_PROFILE=dev                 # or any other way of giving AWS credentials, see below
 scripts/vector_bench/cluster.sh start  # primary on 50051, lazy replica on 50061, local on 50071
 ```
+
+### AWS credentials
+
+The servers use the AWS SDK's default credential chain, from the environment `cluster.sh` is run
+in: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, then the `AWS_PROFILE` profile (or `default`)
+in `~/.aws/credentials` and `~/.aws/config`, then an instance or container role. Profiles that
+assume a role, or that use `credential_process`, work.
+
+SSO profiles (`sso_session`, `sso_start_url`) don't: the SSO modules of the SDK aren't on the
+server's classpath. Export temporary keys instead, and restart the nodes when they expire:
+
+```bash
+aws sso login --profile my-sso-profile
+eval "$(aws configure export-credentials --profile my-sso-profile --format env)"
+```
+
+The `botoCfgPath` server setting can't select a profile; it always uses `[default]`.
+
+If a node can't reach the bucket, nrtsearch keeps running with a dummy S3 client and fails later.
+`cluster.sh start` checks each node's log for this and stops with the AWS error, including for a
+node that was already running. Before starting a replica it also checks that the primary has
+written the cluster state to S3 (with the `aws` CLI if installed, otherwise from the primary's
+log), since replicas can only read it.
 
 The cluster keeps local data, logs and rendered configs in `~/vector_bench` (`BENCH_HOME`), and
 index data in `s3://$BENCH_BUCKET/vector-bench/` (`BENCH_SERVICE`). Run `cluster.sh` without
