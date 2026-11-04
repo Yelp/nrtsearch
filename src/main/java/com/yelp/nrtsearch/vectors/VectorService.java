@@ -118,6 +118,12 @@ public class VectorService {
     public boolean disableCompoundFiles = true;
 
     /**
+     * Refresh the index after every write, so the next query sees it (strong consistency). Turn off
+     * for high write rates, and rely on the server's periodic refresh instead.
+     */
+    public boolean refreshOnWrite = true;
+
+    /**
      * Stop an index after this long without requests, and start it again from S3 on the next
      * request. 0 disables tiering. Needs the nrtsearch server to use REMOTE data location.
      */
@@ -398,7 +404,9 @@ public class VectorService {
             docs.add(toDocument(nrtIndex, vector, config));
           }
           addDocuments(docs);
-          refresh(nrtIndex);
+          if (options.refreshOnWrite) {
+            refresh(nrtIndex);
+          }
           return null;
         });
     return obj();
@@ -521,7 +529,9 @@ public class VectorService {
           } catch (StatusRuntimeException e) {
             throw fromGrpc("Could not delete vectors", e);
           }
-          refresh(nrtIndex);
+          if (options.refreshOnWrite) {
+            refresh(nrtIndex);
+          }
           return null;
         });
     return obj();

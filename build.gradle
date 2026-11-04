@@ -154,6 +154,13 @@ task vectorGateway(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
+task vectorBench(type: CreateStartScripts) {
+    mainClass = 'com.yelp.nrtsearch.tools.vector_bench.VectorBenchCommand'
+    applicationName = 'vector_bench'
+    outputDir = new File(project.buildDir, 'tmp-app')
+    classpath = startScripts.classpath
+}
+
 distributions {
     main {
         contents {
@@ -164,6 +171,7 @@ distributions {
                 from(nrtsearchServerClient)
                 from(nrtUtils)
                 from(vectorGateway)
+                from(vectorBench)
             }
         }
     }

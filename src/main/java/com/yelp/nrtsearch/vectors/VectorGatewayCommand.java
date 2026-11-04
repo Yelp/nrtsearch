@@ -109,6 +109,13 @@ public class VectorGatewayCommand implements Callable<Integer> {
   private boolean compoundFiles;
 
   @CommandLine.Option(
+      names = {"--noRefreshOnWrite"},
+      description =
+          "Don't refresh after each PutVectors and DeleteVectors. Writes become visible at the"
+              + " server's next periodic refresh, instead of before the call returns")
+  private boolean noRefreshOnWrite;
+
+  @CommandLine.Option(
       names = {"--threads"},
       description = "Number of HTTP request threads (default: ${DEFAULT-VALUE})",
       defaultValue = "32")
@@ -176,6 +183,7 @@ public class VectorGatewayCommand implements Callable<Integer> {
     options.rescoreOversample = rescoreOversample;
     options.minNumCandidates = minNumCandidates;
     options.disableCompoundFiles = !compoundFiles;
+    options.refreshOnWrite = !noRefreshOnWrite;
     return options;
   }
 

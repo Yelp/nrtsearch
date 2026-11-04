@@ -1,0 +1,24 @@
+# Isolated replica that downloads every file: the baseline to compare the lazy replica against.
+# ${...} values are filled in by cluster.sh.
+nodeName: "bench_replica_local"
+hostName: "localhost"
+port: ${LOCAL_PORT}
+replicationPort: ${LOCAL_REPLICATION_PORT}
+stateDir: "${BENCH_HOME}/replica_local/state"
+indexDir: "${BENCH_HOME}/replica_local/index"
+bucketName: "${BENCH_BUCKET}"
+serviceName: "${BENCH_SERVICE}"
+stateConfig:
+  backendType: REMOTE
+  remote:
+    readOnly: true
+indexStartConfig:
+  autoStart: true
+  mode: REPLICA
+  dataLocationType: REMOTE
+isolatedReplicaConfig:
+  enabled: true
+  pollingIntervalSeconds: ${POLL_SECONDS}
+threadPoolConfiguration:
+  search:
+    maxThreads: 16

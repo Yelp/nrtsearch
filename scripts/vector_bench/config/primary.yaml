@@ -1,0 +1,25 @@
+# Primary: takes all writes, uploads every refreshed index version to S3 so isolated replicas
+# can pick it up. ${...} values are filled in by cluster.sh.
+nodeName: "bench_primary"
+hostName: "localhost"
+port: ${PRIMARY_PORT}
+replicationPort: ${PRIMARY_REPLICATION_PORT}
+stateDir: "${BENCH_HOME}/primary/state"
+indexDir: "${BENCH_HOME}/primary/index"
+bucketName: "${BENCH_BUCKET}"
+serviceName: "${BENCH_SERVICE}"
+stateConfig:
+  backendType: REMOTE
+  remote:
+    readOnly: false
+indexStartConfig:
+  autoStart: true
+  mode: PRIMARY
+  dataLocationType: REMOTE
+# upload each refreshed version, not only commits, so replicas stay seconds behind
+s3RefreshUpload: true
+threadPoolConfiguration:
+  index:
+    maxThreads: 16
+  search:
+    maxThreads: 16
