@@ -17,49 +17,53 @@ package com.yelp.nrtsearch.server.grpc.discovery;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolver;
+import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolverProvider;
 import com.yelp.nrtsearch.clientlib.leader.LeaderResolver;
 import com.yelp.nrtsearch.clientlib.leader.SeedSources;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerGrpc;
 import com.yelp.nrtsearch.server.grpc.ResolveLeaderRequest;
+import com.yelp.nrtsearch.server.grpc.ResolveLeaderResponse;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.NameResolver;
-import io.grpc.NameResolverProvider;
-import java.net.URI;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Provides a {@link NameResolver} that resolves the active primary of a multi-primary cluster by
- * calling resolveLeader on the replication service of seed nodes, and targets the confirmed
- * leader's replication port.
+ * Leader name resolution for replicas: asks the replication service of seed nodes with
+ * resolveLeader, and targets the confirmed leader's replication port. Shares the resolver and probe
+ * channel handling with the client side {@link LeaderNameResolverProvider}.
  */
-public class LeaderRpcNameResolverProvider extends NameResolverProvider {
-  public static final String SCHEME = "nrtleader";
+public final class LeaderRpcNameResolverProvider {
+  public static final String SCHEME = LeaderNameResolverProvider.SCHEME;
   private static final long PROBE_TIMEOUT_MS = 2000;
 
-  private final Supplier<Collection<Node>> seeds;
-  private final long pollIntervalMs;
+  private LeaderRpcNameResolverProvider() {}
 
   /**
-   * Constructor.
+   * Create a provider for replicas.
    *
    * @param seeds seed nodes (host and replication port) to ask for the leader
    * @param pollIntervalMs how often to re-resolve the leader
    */
-  public LeaderRpcNameResolverProvider(Supplier<Collection<Node>> seeds, long pollIntervalMs) {
-    this.seeds = seeds;
-    this.pollIntervalMs = pollIntervalMs;
+  public static LeaderNameResolverProvider create(
+      Supplier<Collection<Node>> seeds, long pollIntervalMs) {
+    return new LeaderNameResolverProvider(
+        seeds,
+        pollIntervalMs,
+        LeaderRpcNameResolverProvider::callReplication,
+        LeaderResolver::replicationAddress);
   }
 
-  /** Seeds from a static host and replication port. */
-  public static Supplier<Collection<Node>> staticSeeds(String host, int port) {
-    return SeedSources.fixed(List.of(new Node(host, port)));
+  private static ResolveLeaderResponse callReplication(ManagedChannel channel) {
+    return ReplicationServerGrpc.newBlockingStub(channel)
+        .withDeadlineAfter(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .resolveLeader(ResolveLeaderRequest.newBuilder().build());
+  }
+
+  /** Seeds from static hosts and a replication port. */
+  public static Supplier<Collection<Node>> staticSeeds(List<String> hosts, int port) {
+    return SeedSources.fixed(hosts.stream().map(h -> new Node(h, port)).toList());
   }
 
   /**
@@ -71,60 +75,5 @@ public class LeaderRpcNameResolverProvider extends NameResolverProvider {
   public static Supplier<Collection<Node>> fileSeeds(
       ObjectMapper mapper, String file, int portOverride) {
     return SeedSources.file(mapper, file, portOverride);
-  }
-
-  @Override
-  protected boolean isAvailable() {
-    return true;
-  }
-
-  @Override
-  protected int priority() {
-    return 6;
-  }
-
-  @Override
-  public String getDefaultScheme() {
-    return SCHEME;
-  }
-
-  @Override
-  public NameResolver newNameResolver(URI targetUri, NameResolver.Args args) {
-    if (!SCHEME.equals(targetUri.getScheme())) {
-      return null;
-    }
-    ProbeChannels channels = new ProbeChannels();
-    LeaderResolver resolver =
-        new LeaderResolver(seeds, channels::probe, LeaderResolver::replicationAddress);
-    return new LeaderNameResolver(resolver, pollIntervalMs, "") {
-      @Override
-      public synchronized void shutdown() {
-        super.shutdown();
-        channels.close();
-      }
-    };
-  }
-
-  /** Channels to seed and leader nodes, reused across polls. */
-  private static class ProbeChannels {
-    private final Map<Node, ManagedChannel> channels = new ConcurrentHashMap<>();
-
-    com.yelp.nrtsearch.server.grpc.ResolveLeaderResponse probe(Node node) {
-      ManagedChannel channel =
-          channels.computeIfAbsent(
-              node,
-              n ->
-                  ManagedChannelBuilder.forAddress(n.getHost(), n.getPort())
-                      .usePlaintext()
-                      .build());
-      return ReplicationServerGrpc.newBlockingStub(channel)
-          .withDeadlineAfter(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-          .resolveLeader(ResolveLeaderRequest.newBuilder().build());
-    }
-
-    void close() {
-      channels.values().forEach(ManagedChannel::shutdownNow);
-      channels.clear();
-    }
   }
 }

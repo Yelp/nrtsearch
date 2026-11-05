@@ -767,6 +767,7 @@ public class TestServer {
     private boolean fileDiscovery = false;
     private boolean withoutPrimary = false;
     private String primaryResolver = null;
+    private String primaryHost = "localhost";
 
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
@@ -805,6 +806,12 @@ public class TestServer {
     /** Set primaryDiscovery.resolver, with a fast leader resolve poll for tests. */
     public Builder withPrimaryResolver(String resolver) {
       this.primaryResolver = resolver;
+      return this;
+    }
+
+    /** Set primaryDiscovery.host, e.g. a comma separated list for LEADER_RPC. */
+    public Builder withPrimaryHost(String host) {
+      this.primaryHost = host;
       return this;
     }
 
@@ -914,7 +921,7 @@ public class TestServer {
           return String.join(
               "\n", config, "    file: " + Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
         } else {
-          return String.join("\n", config, "    host: localhost", "    port: " + port);
+          return String.join("\n", config, "    host: " + primaryHost, "    port: " + port);
         }
       } else {
         return config;

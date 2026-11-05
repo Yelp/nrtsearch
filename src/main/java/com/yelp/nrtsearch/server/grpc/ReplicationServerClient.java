@@ -138,33 +138,6 @@ public class ReplicationServerClient implements Closeable {
     this.discoveryFileUpdateIntervalMs = updateIntervalMs;
   }
 
-  /**
-   * Construct client connecting to the active primary of a multi-primary cluster, found by calling
-   * resolveLeader on the given seed nodes and following the confirmed leader.
-   *
-   * @param seeds seed nodes, with replication ports
-   * @param description description of the seeds, for logging
-   * @param pollIntervalMs how often to re-resolve the leader
-   */
-  public ReplicationServerClient(
-      java.util.function.Supplier<java.util.Collection<com.yelp.nrtsearch.clientlib.Node>> seeds,
-      String description,
-      long pollIntervalMs) {
-    this(
-        ManagedChannelBuilder.forTarget(
-                com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider.SCHEME
-                    + ":///leader")
-            .usePlaintext()
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .nameResolverFactory(
-                new com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider(
-                    seeds, pollIntervalMs))
-            .build(),
-        "",
-        0,
-        description);
-  }
-
   /** Construct client for accessing ReplicationServer server using the existing channel. */
   ReplicationServerClient(ManagedChannel channel, String host, int port, String discoveryFile) {
     this.channel = channel;
@@ -213,6 +186,31 @@ public class ReplicationServerClient implements Closeable {
     boolean res = channel.awaitTermination(10, TimeUnit.SECONDS);
     if (!res) {
       logger.warn(String.format("channel on %s shutdown was not shutdown cleanly", this));
+    }
+  }
+
+  /**
+   * Register a replica with the primary.
+   *
+   * @return true if the primary accepted the registration
+   */
+  public boolean tryAddReplicas(
+      String indexName, String indexId, String nodeName, String hostName, int port) {
+    AddReplicaRequest addReplicaRequest =
+        AddReplicaRequest.newBuilder()
+            .setMagicNumber(BINARY_MAGIC)
+            .setIndexName(indexName)
+            .setIndexId(indexId)
+            .setNodeName(nodeName)
+            .setHostName(hostName)
+            .setPort(port)
+            .build();
+    try {
+      this.blockingStub.addReplicas(addReplicaRequest);
+      return true;
+    } catch (Exception e) {
+      logger.warn("Replica could NOT register itself with Primary ", e);
+      return false;
     }
   }
 

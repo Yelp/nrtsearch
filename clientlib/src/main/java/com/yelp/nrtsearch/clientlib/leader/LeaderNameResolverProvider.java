@@ -20,20 +20,20 @@ import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.ResolveLeaderRequest;
 import com.yelp.nrtsearch.server.grpc.ResolveLeaderResponse;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.NameResolverProvider;
 import java.net.URI;
 import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
  * Provides a {@link NameResolver} that targets the active primary of a multi-primary cluster, found
- * by calling resolveLeader on the client service of seed nodes. For ingestion clients, which must
- * send writes to the active primary.
+ * by calling resolveLeader on seed nodes. By default asks the client service and targets the
+ * leader's client port, for ingestion clients, which must send writes to the active primary.
  */
 public class LeaderNameResolverProvider extends NameResolverProvider {
   public static final String SCHEME = "nrtleader";
@@ -41,20 +41,51 @@ public class LeaderNameResolverProvider extends NameResolverProvider {
   /** Target to use with this provider. */
   public static final String TARGET = SCHEME + ":///leader";
 
-  private static final long PROBE_TIMEOUT_MS = 2000;
+  static final long PROBE_TIMEOUT_MS = 2000;
 
   private final Supplier<Collection<Node>> seeds;
   private final long pollIntervalMs;
+  private final Function<ManagedChannel, ResolveLeaderResponse> call;
+  private final Function<ResolveLeaderResponse, Node> leaderAddress;
 
   /**
-   * Constructor.
+   * Constructor, for the client service.
    *
    * @param seeds seed nodes (host and client port) to ask for the leader
    * @param pollIntervalMs how often to re-resolve the leader
    */
   public LeaderNameResolverProvider(Supplier<Collection<Node>> seeds, long pollIntervalMs) {
+    this(
+        seeds,
+        pollIntervalMs,
+        LeaderNameResolverProvider::callClient,
+        LeaderResolver::clientAddress);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param seeds seed nodes to ask for the leader
+   * @param pollIntervalMs how often to re-resolve the leader
+   * @param call calls resolveLeader on a channel to a seed
+   * @param leaderAddress address to target, from the leader's answer
+   */
+  public LeaderNameResolverProvider(
+      Supplier<Collection<Node>> seeds,
+      long pollIntervalMs,
+      Function<ManagedChannel, ResolveLeaderResponse> call,
+      Function<ResolveLeaderResponse, Node> leaderAddress) {
     this.seeds = seeds;
     this.pollIntervalMs = pollIntervalMs;
+    this.call = call;
+    this.leaderAddress = leaderAddress;
+  }
+
+  /** Call resolveLeader on the client service. */
+  public static ResolveLeaderResponse callClient(ManagedChannel channel) {
+    return LuceneServerGrpc.newBlockingStub(channel)
+        .withDeadlineAfter(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .resolveLeader(ResolveLeaderRequest.newBuilder().build());
   }
 
   @Override
@@ -77,29 +108,23 @@ public class LeaderNameResolverProvider extends NameResolverProvider {
     if (!SCHEME.equals(targetUri.getScheme())) {
       return null;
     }
-    Map<Node, ManagedChannel> channels = new ConcurrentHashMap<>();
-    LeaderResolver.Probe probe =
-        node -> {
-          ManagedChannel channel =
-              channels.computeIfAbsent(
-                  node,
-                  n ->
-                      ManagedChannelBuilder.forAddress(n.getHost(), n.getPort())
-                          .usePlaintext()
-                          .build());
-          ResolveLeaderResponse response =
-              LuceneServerGrpc.newBlockingStub(channel)
-                  .withDeadlineAfter(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                  .resolveLeader(ResolveLeaderRequest.newBuilder().build());
-          return response;
-        };
-    LeaderResolver resolver = new LeaderResolver(seeds, probe, LeaderResolver::clientAddress);
+    ProbeChannels channels = new ProbeChannels();
+    ExecutorService probeExecutor =
+        Executors.newCachedThreadPool(
+            r -> {
+              Thread t = new Thread(r, "LeaderNameResolver-probe");
+              t.setDaemon(true);
+              return t;
+            });
+    LeaderResolver resolver =
+        LeaderResolver.grpc(seeds, channels, call, leaderAddress, probeExecutor);
     return new LeaderNameResolver(resolver, pollIntervalMs, "") {
       @Override
       public synchronized void shutdown() {
         super.shutdown();
-        channels.values().forEach(ManagedChannel::shutdownNow);
-        channels.clear();
+        // closed before shutting down channels, so a poll still running can not create new ones
+        channels.close();
+        probeExecutor.shutdownNow();
       }
     };
   }

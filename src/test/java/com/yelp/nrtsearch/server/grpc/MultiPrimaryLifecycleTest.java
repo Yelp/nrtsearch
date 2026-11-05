@@ -43,7 +43,8 @@ public class MultiPrimaryLifecycleTest {
           "s3RefreshUpload: true",
           "s3RefreshNotifyAfterUpload: true",
           "leaderElection:",
-          "  type: " + ManualElectorPlugin.TYPE);
+          "  type: " + ManualElectorPlugin.TYPE,
+          "  allowLoopbackHost: true");
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
   private ManualElectorPlugin.Cluster cluster;
@@ -761,6 +762,88 @@ public class MultiPrimaryLifecycleTest {
     } finally {
       client.shutdown();
     }
+  }
+
+  /**
+   * A replica with a static host list (all primaries share the replication port in production; in
+   * this single machine test both hosts reach the same port) resolves the leader through it, and
+   * all its indices share one leader resolver, released when the replica stops.
+   */
+  @Test
+  public void testReplicaHostListSharesResolver() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.createSimpleIndex("other_index");
+    a.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("other_index").build());
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    a.commit("other_index");
+    refreshAndWait(b);
+    int sharedBefore = sharedClients();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, a.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withPrimaryResolver("LEADER_RPC")
+            .withPrimaryHost("localhost,127.0.0.1")
+            .withSyncInitialNrtPoint(true)
+            .withAdditionalConfig(
+                "s3RefreshUpload: true\n"
+                    + "s3RefreshNotifyAfterUpload: true\n"
+                    + "replicaReplicationPortPingInterval: 300")
+            .build();
+    // two indices, one shared leader client
+    assertEquals(sharedBefore + 1, sharedClients());
+    replica.verifySimpleDocIds(INDEX, 1);
+    replica.stop();
+    assertEquals(sharedBefore, sharedClients());
+  }
+
+  /**
+   * A replica seeded with all primaries keeps following after the original leader is stopped
+   * entirely: the remaining seed reports the new leader.
+   */
+  @Test
+  public void testReplicaFollowsAfterLeaderStopped() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1);
+    a.commit(INDEX);
+    refreshAndWait(b);
+    java.nio.file.Path seeds = folder.getRoot().toPath().resolve(TestServer.DISCOVERY_FILE);
+    java.nio.file.Files.writeString(
+        seeds,
+        "[{\"host\":\"localhost\",\"port\":"
+            + a.getReplicationPort()
+            + "},{\"host\":\"localhost\",\"port\":"
+            + b.getReplicationPort()
+            + "}]");
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, 0, IndexDataLocationType.REMOTE)
+            .withPrimaryResolver("LEADER_RPC")
+            .withSyncInitialNrtPoint(true)
+            .withAdditionalConfig(
+                "s3RefreshUpload: true\n"
+                    + "s3RefreshNotifyAfterUpload: true\n"
+                    + "replicaReplicationPortPingInterval: 300")
+            .build();
+    replica.verifySimpleDocIds(INDEX, 1);
+    // the leader goes away completely
+    a.stop();
+    elect(b);
+    b.addSimpleDocs(INDEX, 2);
+    b.commit(INDEX);
+    replica.waitForReplication(INDEX, b, 30000);
+    replica.verifySimpleDocIds(INDEX, 1, 2);
+  }
+
+  private static int sharedClients() throws Exception {
+    java.lang.reflect.Method m = SharedLeaderClients.class.getDeclaredMethod("size");
+    m.setAccessible(true);
+    return (int) m.invoke(null);
   }
 
   /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */

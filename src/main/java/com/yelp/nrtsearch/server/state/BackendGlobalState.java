@@ -202,6 +202,8 @@ public class BackendGlobalState extends GlobalState {
             () ->
                 new IllegalArgumentException(
                     "Leader election is enabled, but leader election components were not provided"));
+    // fail fast on an unknown elector type, before the server binds ports
+    PrimaryElectorCreator.getInstance().validateType(config.getLeaderElectionConfig().getType());
     // the elector is created when election starts, after both servers are listening, so the
     // leader info it advertises (e.g. for resolveLeader) has the bound ports
     java.util.function.Supplier<PrimaryElector> electorFactory =
@@ -231,6 +233,18 @@ public class BackendGlobalState extends GlobalState {
         config.getLeaderElectionConfig().getRefreshIntervalMs());
   }
 
+  static boolean isLoopbackHost(String host) {
+    if (host == null || host.isBlank()) {
+      return true;
+    }
+    String h = host.trim().toLowerCase(java.util.Locale.ROOT);
+    return h.equals("localhost")
+        || h.equals("::1")
+        || h.equals("[::1]")
+        || h.startsWith("127.")
+        || h.equals("0.0.0.0");
+  }
+
   /** Verify configuration is compatible with multi-primary leader election. */
   static void validateLeaderElectionConfig(NrtsearchConfig config) {
     IndexStartConfig startConfig = config.getIndexStartConfig();
@@ -254,6 +268,12 @@ public class BackendGlobalState extends GlobalState {
     }
     if (!config.getEnforcePrimaryGenOrdering()) {
       errors.add("enforcePrimaryGenOrdering must be true");
+    }
+    // the leader advertises hostName to replicas and clients (resolveLeader); a loopback name would
+    // make every other node dial itself
+    if (isLoopbackHost(config.getHostName())
+        && !config.getLeaderElectionConfig().allowLoopbackHost()) {
+      errors.add("hostName must be reachable by other nodes, got: " + config.getHostName());
     }
     if (!errors.isEmpty()) {
       throw new IllegalArgumentException(
@@ -444,6 +464,11 @@ public class BackendGlobalState extends GlobalState {
       // with leader election every node boots as a standby; ignored without leader election
       updateStartedIndices(immutableState, LeaderStartRole.STANDBY);
     }
+  }
+
+  @Override
+  public int getBoundPort() {
+    return resolvedPort > 0 ? resolvedPort : getPort();
   }
 
   @Override

@@ -211,6 +211,11 @@ public abstract class GlobalState implements Closeable {
    */
   public void serverStarted(int port) {}
 
+  /** Bound client port once the server is listening, otherwise the configured port. */
+  public int getBoundPort() {
+    return getPort();
+  }
+
   /**
    * Get the leader manager when multi-primary leader election is enabled.
    *

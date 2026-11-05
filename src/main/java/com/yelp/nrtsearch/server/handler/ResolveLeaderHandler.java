@@ -63,7 +63,7 @@ public class ResolveLeaderHandler extends Handler<ResolveLeaderRequest, ResolveL
               globalState.getEphemeralId(),
               globalState.getNodeName(),
               globalState.getHostName(),
-              globalState.getPort(),
+              globalState.getBoundPort(),
               globalState.getReplicationPort(),
               0);
       return toResponse(self, true);

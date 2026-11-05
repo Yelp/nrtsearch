@@ -45,6 +45,7 @@ public class LeaderElectionConfig {
   private final int claimConcurrency;
   private final long refreshIntervalMs;
   private final long reloadWaitMs;
+  private final boolean allowLoopbackHost;
   private final Map<String, Object> params;
 
   public static LeaderElectionConfig fromConfig(YamlConfigReader configReader) {
@@ -56,10 +57,12 @@ public class LeaderElectionConfig {
         configReader.getLong(CONFIG_PREFIX + "refreshIntervalMs", DEFAULT_REFRESH_INTERVAL_MS);
     long reloadWaitMs =
         configReader.getLong(CONFIG_PREFIX + "reloadWaitMs", DEFAULT_RELOAD_WAIT_MS);
+    // only for running several nodes on one machine, e.g. tests and local development
+    boolean allowLoopbackHost = configReader.getBoolean(CONFIG_PREFIX + "allowLoopbackHost", false);
     Map<String, Object> params =
         configReader.get(CONFIG_PREFIX + "params", LeaderElectionConfig::readParams, Map.of());
     return new LeaderElectionConfig(
-        type, claimConcurrency, refreshIntervalMs, reloadWaitMs, params);
+        type, claimConcurrency, refreshIntervalMs, reloadWaitMs, allowLoopbackHost, params);
   }
 
   @SuppressWarnings("unchecked")
@@ -77,7 +80,9 @@ public class LeaderElectionConfig {
       int claimConcurrency,
       long refreshIntervalMs,
       long reloadWaitMs,
+      boolean allowLoopbackHost,
       Map<String, Object> params) {
+    this.allowLoopbackHost = allowLoopbackHost;
     this.type = Objects.requireNonNull(type);
     if (claimConcurrency <= 0) {
       throw new IllegalArgumentException("claimConcurrency must be > 0");
@@ -122,6 +127,14 @@ public class LeaderElectionConfig {
    */
   public long getReloadWaitMs() {
     return reloadWaitMs;
+  }
+
+  /**
+   * If a loopback hostName (e.g. localhost) is allowed with leader election. Only for running
+   * several nodes on one machine; otherwise other nodes would be told to connect to themselves.
+   */
+  public boolean allowLoopbackHost() {
+    return allowLoopbackHost;
   }
 
   /** Elector specific params. */

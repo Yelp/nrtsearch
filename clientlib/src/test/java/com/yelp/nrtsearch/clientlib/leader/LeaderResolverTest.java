@@ -197,4 +197,97 @@ public class LeaderResolverTest {
   private static Attributes unused() {
     return Attributes.EMPTY;
   }
+
+  /** When the highest epoch answer is the leader's own, no separate confirm call is made. */
+  @Test
+  public void testConfirmSkippedWhenSeedIsLeader() {
+    answers.put(A, leader("a", 3, true));
+    java.util.concurrent.atomic.AtomicInteger calls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    LeaderResolver resolver =
+        new LeaderResolver(
+            () -> List.of(A),
+            node -> {
+              calls.incrementAndGet();
+              return answers.get(node);
+            },
+            LeaderResolver::clientAddress);
+    assertEquals(new LeaderResolver.Resolved(A, 3), resolver.resolve().get());
+    assertEquals(1, calls.get());
+  }
+
+  /** Seeds are probed in parallel, so slow seeds do not add up. */
+  @Test
+  public void testSeedsProbedInParallel() throws Exception {
+    java.util.concurrent.ExecutorService executor =
+        java.util.concurrent.Executors.newCachedThreadPool();
+    try {
+      answers.put(C, leader("c", 1, true));
+      LeaderResolver resolver =
+          new LeaderResolver(
+              () -> List.of(A, B, C),
+              node -> {
+                if (!node.equals(C)) {
+                  Thread.sleep(500);
+                  throw new RuntimeException("timeout");
+                }
+                return answers.get(node);
+              },
+              LeaderResolver::clientAddress,
+              executor,
+              (seeds, candidate) -> {});
+      long start = System.nanoTime();
+      assertEquals(new LeaderResolver.Resolved(C, 1), resolver.resolve().get());
+      long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+      assertTrue("took " + elapsedMs, elapsedMs < 900);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  /**
+   * Probe channels are closed for nodes no longer seeds or the leader, and not created after close.
+   */
+  @Test
+  public void testProbeChannelsPrunedAndClosed() {
+    ProbeChannels channels = new ProbeChannels();
+    channels.get(A);
+    channels.get(B);
+    channels.get(C);
+    assertEquals(3, channels.size());
+    channels.retain(List.of(A, B));
+    assertEquals(2, channels.size());
+    channels.close();
+    assertEquals(0, channels.size());
+    try {
+      channels.get(A);
+      org.junit.Assert.fail("expected closed");
+    } catch (IllegalStateException expected) {
+      // a poll racing shutdown can not leak a new channel
+    }
+    assertEquals(0, channels.size());
+  }
+
+  /** The grpc resolver prunes channels to the current seeds plus the candidate. */
+  @Test
+  public void testGrpcResolverPrunesRemovedSeeds() {
+    ProbeChannels channels = new ProbeChannels();
+    java.util.concurrent.atomic.AtomicReference<List<Node>> seeds =
+        new java.util.concurrent.atomic.AtomicReference<>(List.of(A, B, C));
+    LeaderResolver resolver =
+        LeaderResolver.grpc(
+            seeds::get,
+            channels,
+            channel -> {
+              throw new RuntimeException("unreachable");
+            },
+            LeaderResolver::clientAddress,
+            Runnable::run);
+    resolver.resolve();
+    assertEquals(3, channels.size());
+    seeds.set(List.of(A));
+    resolver.resolve();
+    assertEquals(1, channels.size());
+    channels.close();
+  }
 }

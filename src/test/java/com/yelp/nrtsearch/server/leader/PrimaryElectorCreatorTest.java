@@ -121,4 +121,17 @@ public class PrimaryElectorCreatorTest {
         config("enforcePrimaryGenOrdering: false\nleaderElection:\n  type: s3_lease\n");
     assertFalse(config.getEnforcePrimaryGenOrdering());
   }
+
+  @Test
+  public void testValidateType() {
+    NrtsearchConfig config = config("");
+    PrimaryElectorCreator.initialize(config, List.of(new TestElectorPlugin()));
+    PrimaryElectorCreator.getInstance().validateType("test_elector");
+    PrimaryElectorCreator.getInstance().validateType("s3_lease");
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> PrimaryElectorCreator.getInstance().validateType("nope"));
+    assertTrue(e.getMessage().contains("Unknown leader election type: nope"));
+  }
 }

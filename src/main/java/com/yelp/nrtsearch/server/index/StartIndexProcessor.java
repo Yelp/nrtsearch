@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPort;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
+import com.yelp.nrtsearch.server.grpc.SharedLeaderClients;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider;
@@ -30,6 +31,7 @@ import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
@@ -247,17 +249,18 @@ public class StartIndexProcessor {
   private ReplicationServerClient getPrimaryClientForRequest(StartIndexRequest request) {
     if (primaryResolver == IndexStartConfig.PrimaryResolverType.LEADER_RPC) {
       // follow the active primary of a multi-primary cluster, asking the configured nodes
+      // one leader resolver per seed source, shared by all replica indices of this server
       if (!request.getPrimaryAddress().isEmpty()) {
-        return new ReplicationServerClient(
-            LeaderRpcNameResolverProvider.staticSeeds(
-                request.getPrimaryAddress(), request.getPort()),
-            request.getPrimaryAddress() + ":" + request.getPort(),
+        List<String> hosts = IndexStartConfig.splitHosts(request.getPrimaryAddress());
+        return SharedLeaderClients.acquire(
+            "hosts:" + String.join(",", hosts) + ":" + request.getPort(),
+            LeaderRpcNameResolverProvider.staticSeeds(hosts, request.getPort()),
             leaderResolvePollMs);
       } else if (!request.getPrimaryDiscoveryFile().isEmpty()) {
-        return new ReplicationServerClient(
+        return SharedLeaderClients.acquire(
+            "file:" + request.getPrimaryDiscoveryFile() + ":" + request.getPort(),
             LeaderRpcNameResolverProvider.fileSeeds(
                 new ObjectMapper(), request.getPrimaryDiscoveryFile(), request.getPort()),
-            request.getPrimaryDiscoveryFile(),
             leaderResolvePollMs);
       }
       throw new IllegalArgumentException(

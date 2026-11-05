@@ -72,6 +72,18 @@ public class PrimaryElectorCreator {
   }
 
   /**
+   * Verify an elector type is registered.
+   *
+   * @throws IllegalArgumentException if not
+   */
+  public void validateType(String type) {
+    if (!providers.containsKey(type)) {
+      throw new IllegalArgumentException(
+          "Unknown leader election type: " + type + ", must be one of: " + providers.keySet());
+    }
+  }
+
+  /**
    * Initialize the singleton instance, registering types from {@link PrimaryElectorPlugin}s.
    *
    * @param configuration server configuration

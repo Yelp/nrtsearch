@@ -26,7 +26,9 @@ Enabling
     params:
       ttlMs: 15000
 
-Startup fails if any of the settings above are not compatible with leader election.
+Startup fails if any of the settings above are not compatible with leader election. ``hostName`` must be an address
+other nodes can reach, since it is advertised to replicas and clients; loopback names such as ``localhost`` are
+rejected unless ``leaderElection.allowLoopbackHost: true`` (only for running several nodes on one machine).
 
 Roles
 -----
@@ -61,9 +63,11 @@ Every node answers ``resolveLeader`` (on both the client and replication service
 knows: its node name, host, client and replication ports, and leadership epoch, plus whether the responding node is
 itself the active primary.
 
-Replicas follow the active primary with ``primaryDiscovery.resolver: LEADER_RPC``. The configured primary
-``host``/``port``, or the nodes in the discovery ``file``, are used as seeds and should list all primaries (with
-replication ports). Every ``leaderResolvePollMs`` (default 2000) the replica asks the seeds, takes the answer with
+Replicas follow the active primary with ``primaryDiscovery.resolver: LEADER_RPC``. The nodes in the discovery
+``file``, or a comma separated ``host`` list with a shared replication ``port``, are used as seeds and should list
+all primaries. A single ``host`` is rejected, since if that host is the primary that fails the replica can never
+find the new leader; set ``primaryDiscovery.allowSingleLeaderSeed: true`` if it is a load balanced or DNS name for
+all primaries. All replica indices of a server share one resolver per seed source. Every ``leaderResolvePollMs`` (default 2000) the replica asks the seeds, takes the answer with
 the highest epoch, and only switches to it once that node confirms it is the leader at that epoch. When no leader
 can be confirmed, the replica keeps its current primary. ``enforcePrimaryGenOrdering`` defaults to true for these
 replicas. After registering with a new primary, a replica syncs to its current index version (with

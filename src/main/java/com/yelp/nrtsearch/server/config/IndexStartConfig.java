@@ -16,7 +16,10 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.yelp.nrtsearch.server.grpc.Mode;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /** Configuration class for starting indices from global state. */
 public class IndexStartConfig {
@@ -73,6 +76,20 @@ public class IndexStartConfig {
         configReader.getInteger(
             CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "leaderResolvePollMs",
             DEFAULT_LEADER_RESOLVE_POLL_MS);
+    boolean allowSingleLeaderSeed =
+        configReader.getBoolean(
+            CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "allowSingleLeaderSeed", false);
+    if (primaryResolver == PrimaryResolverType.LEADER_RPC
+        && discoveryFile.isEmpty()
+        && splitHosts(discoveryHost).size() < 2
+        && !allowSingleLeaderSeed) {
+      // if that single host is the primary that fails, the replica can never find the new leader
+      throw new IllegalArgumentException(
+          "primaryDiscovery.resolver LEADER_RPC needs a discovery file or a comma separated list of"
+              + " all primary hosts; a single host can not find a new leader if it fails. Set"
+              + " primaryDiscovery.allowSingleLeaderSeed: true if the host is a load balanced name"
+              + " for all primaries");
+    }
     IndexDataLocationType dataLocationType =
         IndexDataLocationType.valueOf(
             configReader.getString(CONFIG_PREFIX + "dataLocationType", "LOCAL"));
@@ -166,6 +183,14 @@ public class IndexStartConfig {
   /** Get primary replication port. */
   public Integer getDiscoveryPort() {
     return discoveryPort;
+  }
+
+  /** Split a comma separated host list, trimming and dropping empty entries. */
+  public static List<String> splitHosts(String hosts) {
+    return Arrays.stream(hosts.split(","))
+        .map(String::trim)
+        .filter(h -> !h.isEmpty())
+        .collect(Collectors.toList());
   }
 
   /** How replicas find the primary to replicate from. */

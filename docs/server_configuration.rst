@@ -972,6 +972,11 @@ Example server configuration
      - How often ``LEADER_RPC`` replicas re-resolve the active primary, in ms.
      - 2000
 
+   * - allowSingleLeaderSeed
+     - bool
+     - Allow ``LEADER_RPC`` with a single ``host`` (no discovery file), when it is a load balanced name for all primaries.
+     - false
+
 .. list-table:: `Isolated Replica Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/IsolatedReplicaConfig.java>`_ (``isolatedReplicaConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1
@@ -1025,6 +1030,11 @@ Example server configuration
      - long
      - Interval in ms at which standbys refresh global state from remote storage, to follow created, recreated, or deleted indices. 0 disables periodic refresh.
      - 30000
+
+   * - allowLoopbackHost
+     - bool
+     - Allow a loopback ``hostName`` (e.g. ``localhost``) with leader election. Only for running several nodes on one machine.
+     - false
 
    * - reloadWaitMs
      - long

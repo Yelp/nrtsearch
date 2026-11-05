@@ -1214,8 +1214,18 @@ public class ShardState implements Closeable {
 
   public static class KeepAlive implements Runnable, Closeable {
     private static final Logger logger = LoggerFactory.getLogger(KeepAlive.class);
+    private static final long SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS = 5000;
     private volatile boolean exit = false;
     private final int pingIntervalMs;
+    private final java.util.concurrent.atomic.AtomicBoolean syncRunning =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    private final java.util.concurrent.ExecutorService syncExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor(
+            r -> {
+              Thread t = new Thread(r, "KeepAlive-sync");
+              t.setDaemon(true);
+              return t;
+            });
     private final ShardState shardState;
 
     KeepAlive(ShardState shardState) {
@@ -1238,26 +1248,17 @@ public class ShardState implements Closeable {
               && shardState.isStarted()
               && !shardState.nrtReplicaNode.isKnownToPrimary()
               && !exit) {
-            nrtReplicaNode
-                .getPrimaryAddress()
-                .addReplicas(
-                    shardState.indexStateManager.getCurrent().getName(),
-                    shardState.indexStateManager.getIndexId(),
-                    nrtReplicaNode.getNodeName(),
-                    nrtReplicaNode.getHostPort().getHostName(),
-                    nrtReplicaNode.getHostPort().getPort());
-            // a primary only pushes points on refresh, so after registering with a new primary
-            // (e.g. after a restart or failover) catch up to its current point now, as on start
-            NrtsearchConfig configuration =
-                shardState.indexStateManager.getCurrent().getGlobalState().getConfiguration();
-            if (configuration.getSyncInitialNrtPoint() && !exit) {
-              try {
-                nrtReplicaNode.syncFromCurrentPrimary(
-                    configuration.getInitialSyncPrimaryWaitMs(),
-                    configuration.getInitialSyncMaxTimeMs());
-              } catch (IOException | RuntimeException e) {
-                logger.warn("Failed to sync from primary after registering", e);
-              }
+            boolean registered =
+                nrtReplicaNode
+                    .getPrimaryAddress()
+                    .tryAddReplicas(
+                        shardState.indexStateManager.getCurrent().getName(),
+                        shardState.indexStateManager.getIndexId(),
+                        nrtReplicaNode.getNodeName(),
+                        nrtReplicaNode.getHostPort().getHostName(),
+                        nrtReplicaNode.getHostPort().getPort());
+            if (registered) {
+              maybeSyncAfterRegister(nrtReplicaNode);
             }
           }
         } catch (InterruptedException e) {
@@ -1273,8 +1274,42 @@ public class ShardState implements Closeable {
       }
     }
 
+    /**
+     * A primary only pushes points on refresh, so after registering with a new primary (e.g. after
+     * a restart or failover) catch up to its current point, as on start. Runs off the ping thread
+     * with a short wait for the primary, and at most one at a time.
+     */
+    private void maybeSyncAfterRegister(NRTReplicaNode nrtReplicaNode) {
+      NrtsearchConfig configuration =
+          shardState.indexStateManager.getCurrent().getGlobalState().getConfiguration();
+      if (!configuration.getSyncInitialNrtPoint()
+          || exit
+          || !syncRunning.compareAndSet(false, true)) {
+        return;
+      }
+      try {
+        syncExecutor.execute(
+            () -> {
+              try {
+                nrtReplicaNode.syncFromCurrentPrimary(
+                    Math.min(
+                        SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS,
+                        configuration.getInitialSyncPrimaryWaitMs()),
+                    configuration.getInitialSyncMaxTimeMs());
+              } catch (IOException | RuntimeException e) {
+                logger.warn("Failed to sync from primary after registering", e);
+              } finally {
+                syncRunning.set(false);
+              }
+            });
+      } catch (java.util.concurrent.RejectedExecutionException e) {
+        syncRunning.set(false);
+      }
+    }
+
     @Override
     public void close() {
+      syncExecutor.shutdownNow();
       exit = true;
     }
   }
