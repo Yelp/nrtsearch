@@ -29,7 +29,7 @@ import java.util.Objects;
  *   type: s3_lease        # none, s3_lease, or a type registered by a PrimaryElectorPlugin
  *   claimConcurrency: 32  # parallelism when claiming index state on promotion
  *   refreshIntervalMs: 30000  # periodic refresh of remote global state, 0 to disable
- *   reloadWaitMs: 60000   # max time ReloadState waits for its refresh
+ *   reloadWaitMs: 10000   # max time ReloadState waits for its refresh
  *   params:               # elector specific parameters
  *     ttlMs: 15000
  * </pre>
@@ -39,7 +39,7 @@ public class LeaderElectionConfig {
   public static final String NONE = "none";
   public static final int DEFAULT_CLAIM_CONCURRENCY = 32;
   public static final long DEFAULT_REFRESH_INTERVAL_MS = 30_000;
-  public static final long DEFAULT_RELOAD_WAIT_MS = 60_000;
+  public static final long DEFAULT_RELOAD_WAIT_MS = 10_000;
 
   private final String type;
   private final int claimConcurrency;

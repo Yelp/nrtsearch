@@ -129,6 +129,10 @@ public class LeaderManagerTest {
 
     volatile RuntimeException refreshError = null;
 
+    // number of upcoming refreshes to report as dropped (state changed underneath them)
+    final java.util.concurrent.atomic.AtomicInteger dropNext =
+        new java.util.concurrent.atomic.AtomicInteger();
+
     @Override
     public boolean refreshStandby(java.util.function.BooleanSupplier abort) {
       refreshes.incrementAndGet();
@@ -136,6 +140,9 @@ public class LeaderManagerTest {
       onRefreshWithAbort.accept(abort);
       if (refreshError != null) {
         throw refreshError;
+      }
+      if (dropNext.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+        return false;
       }
       return !abort.getAsBoolean();
     }
@@ -523,10 +530,76 @@ public class LeaderManagerTest {
   }
 
   @Test
-  public void testRefreshAfterCloseIsNoop() throws Exception {
+  public void testRefreshAfterCloseFails() throws Exception {
     manager.close();
-    manager.requestRefresh();
+    java.util.concurrent.CompletableFuture<Void> done = manager.requestRefresh();
+    java.util.concurrent.ExecutionException e =
+        assertThrows(
+            java.util.concurrent.ExecutionException.class,
+            () -> done.get(1, java.util.concurrent.TimeUnit.SECONDS));
+    assertTrue(e.getCause() instanceof IllegalStateException);
     assertEquals(0, controller.refreshes.get());
+  }
+
+  /** A refresh stopped by close fails its waiters at once instead of leaving them to time out. */
+  @Test
+  public void testRefreshStoppedByCloseFailsWaiters() throws Exception {
+    java.util.concurrent.CountDownLatch inRefresh = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    controller.onRefresh =
+        () -> {
+          inRefresh.countDown();
+          try {
+            release.await();
+          } catch (InterruptedException ignored) {
+          }
+        };
+    java.util.concurrent.CompletableFuture<Void> done = manager.requestRefresh();
+    assertTrue(inRefresh.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    Thread closer =
+        new Thread(
+            () -> {
+              try {
+                manager.close();
+              } catch (Exception ignored) {
+              }
+            });
+    closer.start();
+    // wait until close has marked the manager closed, then let the refresh observe it
+    long deadline = System.currentTimeMillis() + 5000;
+    while (manager.getRole() != LeaderManager.Role.STANDBY
+        && System.currentTimeMillis() < deadline) {
+      Thread.sleep(5);
+    }
+    Thread.sleep(100);
+    release.countDown();
+    java.util.concurrent.ExecutionException e =
+        assertThrows(
+            java.util.concurrent.ExecutionException.class,
+            () -> done.get(5, java.util.concurrent.TimeUnit.SECONDS));
+    assertTrue(e.getCause() instanceof IllegalStateException);
+    closer.join(10000);
+  }
+
+  /** A refresh dropped because state changed under it is retried without waiting for a request. */
+  @Test
+  public void testDroppedRefreshRetriedNow() throws Exception {
+    controller.dropNext.set(2);
+    manager.requestRefresh().get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals(3, controller.refreshes.get());
+  }
+
+  /** Retries of dropped refreshes are bounded; waiters then wait for a later refresh. */
+  @Test
+  public void testDroppedRefreshRetriesBounded() throws Exception {
+    controller.dropNext.set(100);
+    java.util.concurrent.CompletableFuture<Void> done = manager.requestRefresh();
+    manager.awaitTransitions();
+    assertFalse(done.isDone());
+    assertEquals(4, controller.refreshes.get());
+    controller.dropNext.set(0);
+    manager.requestRefresh().get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertTrue(done.isDone());
   }
 
   /** A failed refresh fails the waiting request instead of reporting success. */

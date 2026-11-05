@@ -112,6 +112,9 @@ public class LeaderManager implements Closeable, LeaderListener {
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
   private static final long CLOSE_WAIT_SECONDS = 60;
+  // retries of a refresh dropped because state changed under it; afterwards the waiters wait for
+  // the next periodic or requested refresh
+  private static final int MAX_IMMEDIATE_REFRESH_RETRIES = 3;
   private final long refreshIntervalMs;
   private volatile ScheduledExecutorService refreshScheduler;
   // role changes queued but not yet started; a refresh stops early while any are pending
@@ -423,7 +426,11 @@ public class LeaderManager implements Closeable, LeaderListener {
     CompletableFuture<Void> done = new CompletableFuture<>();
     boolean queue;
     synchronized (this) {
-      if (closed || (role == Role.ACTIVE && pendingTransitions.get() == 0)) {
+      if (closed) {
+        done.completeExceptionally(closedException());
+        return done;
+      }
+      if (role == Role.ACTIVE && pendingTransitions.get() == 0) {
         // nothing to refresh on the active primary, the source of global state
         done.complete(null);
         return done;
@@ -449,6 +456,7 @@ public class LeaderManager implements Closeable, LeaderListener {
    * primary, which is the source of global state, waiters complete at once.
    */
   private void drainRefreshes() {
+    int immediateRetries = 0;
     while (true) {
       List<CompletableFuture<Void>> waiters;
       BooleanSupplier abort;
@@ -457,7 +465,11 @@ public class LeaderManager implements Closeable, LeaderListener {
         if (refreshWaiters.isEmpty()) {
           return;
         }
-        if (closed || role == Role.ACTIVE) {
+        if (closed) {
+          completeAll(takeWaiters(), closedException());
+          return;
+        }
+        if (role == Role.ACTIVE) {
           completeAll(takeWaiters(), null);
           return;
         }
@@ -481,22 +493,34 @@ public class LeaderManager implements Closeable, LeaderListener {
       } catch (Throwable t) {
         error = t;
       }
+      boolean retryNow = false;
       synchronized (this) {
         if (error != null) {
           logger.warn("State refresh failed", error);
           completeAll(waiters, error);
         } else if (finished) {
           completeAll(waiters, null);
+        } else if (closed) {
+          // close() already released waiters; do not strand these
+          completeAll(waiters, closedException());
         } else {
-          // stopped early for a role change, or state changed underneath it: retry afterwards
           refreshWaiters.addAll(0, waiters);
+          // stopped early: if a role change is pending it calls this again afterwards; otherwise
+          // state changed underneath the refresh, retry now
+          retryNow =
+              role == Role.STANDBY
+                  && pendingTransitions.get() == 0
+                  && immediateRetries++ < MAX_IMMEDIATE_REFRESH_RETRIES;
         }
       }
-      if (!finished && error == null) {
-        // the pending role change runs next and calls this again afterwards
+      if (!finished && error == null && !retryNow) {
         return;
       }
     }
+  }
+
+  private static IllegalStateException closedException() {
+    return new IllegalStateException("Leader manager is closed, state refresh not run");
   }
 
   /** Must hold the lock. */
@@ -540,8 +564,8 @@ public class LeaderManager implements Closeable, LeaderListener {
       scheduler.shutdownNow();
     }
     synchronized (this) {
-      // release any waiting reload requests
-      completeAll(takeWaiters(), null);
+      // release any waiting reload requests; no refresh ran for them
+      completeAll(takeWaiters(), closedException());
     }
     // stop election first, releasing leadership, so another node can take over while this node
     // waits below

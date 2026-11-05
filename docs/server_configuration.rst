@@ -1009,8 +1009,8 @@ Example server configuration
 
    * - reloadWaitMs
      - long
-     - Maximum time in ms a ``ReloadState`` request waits for the refresh it requests, before returning ``DEADLINE_EXCEEDED``.
-     - 60000
+     - Maximum time in ms a ``ReloadState`` request waits for the refresh it requests, before returning ``DEADLINE_EXCEEDED``. Requests during shutdown fail with ``UNAVAILABLE``.
+     - 10000
 
    * - params
      - map

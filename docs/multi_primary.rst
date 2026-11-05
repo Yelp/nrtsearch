@@ -46,7 +46,7 @@ State refresh
 The active primary is the source of global state (index creation, start, deletion, field and settings
 changes). Standbys follow it by refreshing from remote storage periodically
 (``leaderElection.refreshIntervalMs``, default 30s) and on ``ReloadState`` requests. With leader election,
-``ReloadState`` requests a refresh and waits up to ``leaderElection.reloadWaitMs`` (default 60s) for one that
+``ReloadState`` requests a refresh and waits up to ``leaderElection.reloadWaitMs`` (default 10s) for one that
 started after the request; if it does not finish in time the request fails with ``DEADLINE_EXCEEDED`` and the
 refresh continues in the background. On the active primary, ``ReloadState`` does nothing. A refresh never runs
 during a role change, and stops early if one is pending; it is run again afterwards. A refresh checks for a
