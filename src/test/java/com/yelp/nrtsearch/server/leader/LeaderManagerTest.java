@@ -537,7 +537,7 @@ public class LeaderManagerTest {
         assertThrows(
             java.util.concurrent.ExecutionException.class,
             () -> done.get(1, java.util.concurrent.TimeUnit.SECONDS));
-    assertTrue(e.getCause() instanceof IllegalStateException);
+    assertTrue(e.getCause() instanceof LeaderManager.ClosedException);
     assertEquals(0, controller.refreshes.get());
   }
 
@@ -577,7 +577,7 @@ public class LeaderManagerTest {
         assertThrows(
             java.util.concurrent.ExecutionException.class,
             () -> done.get(5, java.util.concurrent.TimeUnit.SECONDS));
-    assertTrue(e.getCause() instanceof IllegalStateException);
+    assertTrue(e.getCause() instanceof LeaderManager.ClosedException);
     closer.join(10000);
   }
 
@@ -612,6 +612,8 @@ public class LeaderManagerTest {
             java.util.concurrent.ExecutionException.class,
             () -> done.get(5, java.util.concurrent.TimeUnit.SECONDS));
     assertTrue(e.getCause() instanceof IllegalStateException);
+    // a real failure is not reported as shutdown
+    assertFalse(e.getCause() instanceof LeaderManager.ClosedException);
     // a later request can still succeed
     controller.refreshError = null;
     manager.requestRefresh().get(5, java.util.concurrent.TimeUnit.SECONDS);

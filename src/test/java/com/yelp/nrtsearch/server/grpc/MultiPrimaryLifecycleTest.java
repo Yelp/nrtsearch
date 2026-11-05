@@ -595,6 +595,36 @@ public class MultiPrimaryLifecycleTest {
     assertTrue(b.getGlobalState().getIndexOrThrow("other_index").getShard(0).isStandbyFollower());
   }
 
+  /**
+   * A deterministic refresh failure is not reported as UNAVAILABLE "shutting down", which clients
+   * would retry. Here global state lists an index whose index state does not exist, so loading it
+   * throws IllegalStateException.
+   */
+  @Test
+  public void testRefreshFailureNotReportedAsShutdown() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    refreshAndWait(b);
+    // the active leader writes global state referencing a missing index state
+    GlobalStateInfo current = a.getGlobalState().getStateInfo();
+    GlobalStateInfo broken =
+        current.toBuilder()
+            .putIndices(
+                "missing_index",
+                IndexGlobalState.newBuilder().setId("no_such_id").setStarted(true).build())
+            .setGen(current.getGen() + 1)
+            .build();
+    a.getRemoteBackend()
+        .uploadGlobalState(
+            a.getServiceName(),
+            com.yelp.nrtsearch.server.state.StateUtils.globalStateToUTF8(broken));
+    StatusRuntimeException e = assertThrows(StatusRuntimeException.class, b::reloadState);
+    assertFalse(e.getMessage(), e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE);
+    assertFalse(e.getMessage(), e.getMessage().contains("shutting down"));
+    assertTrue(e.getMessage(), e.getMessage().contains("No committed state for index"));
+  }
+
   /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */
   @Test
   public void testStartIndexV1RejectsIgnoredFields() throws Exception {

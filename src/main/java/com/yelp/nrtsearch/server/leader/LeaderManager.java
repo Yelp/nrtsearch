@@ -519,8 +519,18 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
   }
 
-  private static IllegalStateException closedException() {
-    return new IllegalStateException("Leader manager is closed, state refresh not run");
+  /**
+   * Reported to refresh requests that were not run because the leader manager closed (server
+   * shutdown). A distinct type, so callers do not mistake other failures for shutdown.
+   */
+  public static class ClosedException extends IllegalStateException {
+    public ClosedException() {
+      super("Leader manager is closed, state refresh not run");
+    }
+  }
+
+  private static ClosedException closedException() {
+    return new ClosedException();
   }
 
   /** Must hold the lock. */

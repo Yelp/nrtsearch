@@ -342,14 +342,15 @@ public class BackendGlobalState extends GlobalState {
         Thread.currentThread().interrupt();
         throw new IOException("Interrupted waiting for state refresh", e);
       } catch (ExecutionException e) {
-        if (e.getCause() instanceof IllegalStateException) {
+        if (e.getCause() instanceof LeaderManager.ClosedException) {
           // shutting down
           throw Status.UNAVAILABLE
               .withDescription("Server is shutting down, state refresh not run")
               .withCause(e.getCause())
               .asRuntimeException();
         }
-        throw new IOException("State refresh failed", e.getCause());
+        // include the cause, so clients see why the refresh failed
+        throw new IOException("State refresh failed: " + e.getCause(), e.getCause());
       }
       return;
     }
