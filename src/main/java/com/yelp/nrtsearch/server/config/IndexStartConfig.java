@@ -23,6 +23,19 @@ public class IndexStartConfig {
   public static final String CONFIG_PREFIX = "indexStartConfig.";
   public static final String PRIMARY_DISCOVERY_PREFIX = "primaryDiscovery.";
 
+  /** How a replica finds the primary to replicate from. */
+  public enum PrimaryResolverType {
+    /** The primary in the discovery file, or the static host/port. */
+    FILE,
+    /**
+     * With multi-primary leader election: ask the nodes in the discovery file (or the static
+     * host/port) for the active primary with resolveLeader, and follow the confirmed leader.
+     */
+    LEADER_RPC
+  }
+
+  public static final int DEFAULT_LEADER_RESOLVE_POLL_MS = 2000;
+
   public enum IndexDataLocationType {
     LOCAL,
     REMOTE
@@ -34,6 +47,8 @@ public class IndexStartConfig {
   private final Integer discoveryPort;
   private final String discoveryFile;
   private final IndexDataLocationType dataLocationType;
+  private final PrimaryResolverType primaryResolver;
+  private final int leaderResolvePollMs;
 
   /**
    * Create instance from provided configuration reader.
@@ -51,11 +66,25 @@ public class IndexStartConfig {
         configReader.getInteger(CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "port", 0);
     String discoveryFile =
         configReader.getString(CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "file", "");
+    PrimaryResolverType primaryResolver =
+        PrimaryResolverType.valueOf(
+            configReader.getString(CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "resolver", "FILE"));
+    int leaderResolvePollMs =
+        configReader.getInteger(
+            CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "leaderResolvePollMs",
+            DEFAULT_LEADER_RESOLVE_POLL_MS);
     IndexDataLocationType dataLocationType =
         IndexDataLocationType.valueOf(
             configReader.getString(CONFIG_PREFIX + "dataLocationType", "LOCAL"));
     return new IndexStartConfig(
-        autoStart, mode, discoveryHost, discoveryPort, discoveryFile, dataLocationType);
+        autoStart,
+        mode,
+        discoveryHost,
+        discoveryPort,
+        discoveryFile,
+        dataLocationType,
+        primaryResolver,
+        leaderResolvePollMs);
   }
 
   /**
@@ -75,6 +104,37 @@ public class IndexStartConfig {
       Integer discoveryPort,
       String discoveryFile,
       IndexDataLocationType dataLocationType) {
+    this(
+        autoStart,
+        mode,
+        discoveryHost,
+        discoveryPort,
+        discoveryFile,
+        dataLocationType,
+        PrimaryResolverType.FILE,
+        DEFAULT_LEADER_RESOLVE_POLL_MS);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param primaryResolver how replicas find the primary
+   * @param leaderResolvePollMs how often LEADER_RPC replicas re-resolve the leader
+   */
+  public IndexStartConfig(
+      boolean autoStart,
+      Mode mode,
+      String discoveryHost,
+      Integer discoveryPort,
+      String discoveryFile,
+      IndexDataLocationType dataLocationType,
+      PrimaryResolverType primaryResolver,
+      int leaderResolvePollMs) {
+    if (leaderResolvePollMs <= 0) {
+      throw new IllegalArgumentException("leaderResolvePollMs must be > 0");
+    }
+    this.primaryResolver = primaryResolver;
+    this.leaderResolvePollMs = leaderResolvePollMs;
     this.autoStart = autoStart;
     this.mode = mode;
     this.discoveryHost = discoveryHost;
@@ -106,6 +166,16 @@ public class IndexStartConfig {
   /** Get primary replication port. */
   public Integer getDiscoveryPort() {
     return discoveryPort;
+  }
+
+  /** How replicas find the primary to replicate from. */
+  public PrimaryResolverType getPrimaryResolver() {
+    return primaryResolver;
+  }
+
+  /** How often LEADER_RPC replicas re-resolve the leader, in ms. */
+  public int getLeaderResolvePollMs() {
+    return leaderResolvePollMs;
   }
 
   /** Get path to discovery file containing primary host/port. */

@@ -15,12 +15,15 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPort;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider;
 import com.yelp.nrtsearch.server.handler.Handler.HandlerException;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -47,6 +50,8 @@ public class StartIndexProcessor {
   private final boolean s3RefreshNotifyAfterUpload;
   private final int discoveryFileUpdateIntervalMs;
   private final boolean requireIdField;
+  private final IndexStartConfig.PrimaryResolverType primaryResolver;
+  private final int leaderResolvePollMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
 
   /**
@@ -73,6 +78,40 @@ public class StartIndexProcessor {
       boolean s3RefreshNotifyAfterUpload,
       int discoveryFileUpdateIntervalMs,
       boolean requireIdField) {
+    this(
+        serviceName,
+        ephemeralId,
+        remoteBackend,
+        indexStateManager,
+        remoteCommit,
+        s3RefreshUpload,
+        s3RefreshNotifyAfterUpload,
+        discoveryFileUpdateIntervalMs,
+        requireIdField,
+        IndexStartConfig.PrimaryResolverType.FILE,
+        IndexStartConfig.DEFAULT_LEADER_RESOLVE_POLL_MS);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param primaryResolver how replicas find the primary
+   * @param leaderResolvePollMs how often LEADER_RPC replicas re-resolve the leader
+   */
+  public StartIndexProcessor(
+      String serviceName,
+      String ephemeralId,
+      RemoteBackend remoteBackend,
+      IndexStateManager indexStateManager,
+      boolean remoteCommit,
+      boolean s3RefreshUpload,
+      boolean s3RefreshNotifyAfterUpload,
+      int discoveryFileUpdateIntervalMs,
+      boolean requireIdField,
+      IndexStartConfig.PrimaryResolverType primaryResolver,
+      int leaderResolvePollMs) {
+    this.primaryResolver = primaryResolver;
+    this.leaderResolvePollMs = leaderResolvePollMs;
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.remoteBackend = remoteBackend;
@@ -206,6 +245,24 @@ public class StartIndexProcessor {
   }
 
   private ReplicationServerClient getPrimaryClientForRequest(StartIndexRequest request) {
+    if (primaryResolver == IndexStartConfig.PrimaryResolverType.LEADER_RPC) {
+      // follow the active primary of a multi-primary cluster, asking the configured nodes
+      if (!request.getPrimaryAddress().isEmpty()) {
+        return new ReplicationServerClient(
+            LeaderRpcNameResolverProvider.staticSeeds(
+                request.getPrimaryAddress(), request.getPort()),
+            request.getPrimaryAddress() + ":" + request.getPort(),
+            leaderResolvePollMs);
+      } else if (!request.getPrimaryDiscoveryFile().isEmpty()) {
+        return new ReplicationServerClient(
+            LeaderRpcNameResolverProvider.fileSeeds(
+                new ObjectMapper(), request.getPrimaryDiscoveryFile(), request.getPort()),
+            request.getPrimaryDiscoveryFile(),
+            leaderResolvePollMs);
+      }
+      throw new IllegalArgumentException(
+          "primaryDiscovery.resolver LEADER_RPC requires a primary host or discovery file");
+    }
     if (!request.getPrimaryAddress().isEmpty()) {
       return new ReplicationServerClient(request.getPrimaryAddress(), request.getPort());
     } else if (!request.getPrimaryDiscoveryFile().isEmpty()) {

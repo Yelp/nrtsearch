@@ -1246,6 +1246,19 @@ public class ShardState implements Closeable {
                     nrtReplicaNode.getNodeName(),
                     nrtReplicaNode.getHostPort().getHostName(),
                     nrtReplicaNode.getHostPort().getPort());
+            // a primary only pushes points on refresh, so after registering with a new primary
+            // (e.g. after a restart or failover) catch up to its current point now, as on start
+            NrtsearchConfig configuration =
+                shardState.indexStateManager.getCurrent().getGlobalState().getConfiguration();
+            if (configuration.getSyncInitialNrtPoint() && !exit) {
+              try {
+                nrtReplicaNode.syncFromCurrentPrimary(
+                    configuration.getInitialSyncPrimaryWaitMs(),
+                    configuration.getInitialSyncMaxTimeMs());
+              } catch (IOException | RuntimeException e) {
+                logger.warn("Failed to sync from primary after registering", e);
+              }
+            }
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();

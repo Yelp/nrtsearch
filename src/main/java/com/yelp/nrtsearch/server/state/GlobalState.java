@@ -204,6 +204,14 @@ public abstract class GlobalState implements Closeable {
   public abstract void replicationStarted(int replicationPort) throws IOException;
 
   /**
+   * Called once the client gRPC server is listening, after {@link #replicationStarted}. With leader
+   * election, this starts participating in election, advertising the bound ports.
+   *
+   * @param port bound client port
+   */
+  public void serverStarted(int port) {}
+
+  /**
    * Get the leader manager when multi-primary leader election is enabled.
    *
    * @return leader manager, or empty if leader election is disabled

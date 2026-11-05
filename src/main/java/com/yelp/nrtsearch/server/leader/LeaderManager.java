@@ -107,7 +107,9 @@ public class LeaderManager implements Closeable, LeaderListener {
     void stopIndicesNotStarted() throws IOException;
   }
 
-  private final PrimaryElector elector;
+  // created by start(), once the local node's bound ports are known
+  private final java.util.function.Supplier<PrimaryElector> electorFactory;
+  private volatile PrimaryElector elector;
   private final EpochPointerFence fence;
   private final int claimConcurrency;
   private final ExecutorService transitionExecutor;
@@ -142,23 +144,26 @@ public class LeaderManager implements Closeable, LeaderListener {
       EpochPointerFence fence,
       int claimConcurrency,
       IndexRoleController controller) {
-    this(elector, fence, claimConcurrency, controller, 0);
+    this(() -> elector, fence, claimConcurrency, controller, 0);
+    Objects.requireNonNull(elector);
   }
 
   /**
    * Constructor.
    *
+   * @param electorFactory creates the elector when election starts, after the server ports are
+   *     bound, so the elector can advertise them
    * @param refreshIntervalMs interval between periodic state refreshes, or 0 to only refresh on
    *     request
    */
   public LeaderManager(
-      PrimaryElector elector,
+      java.util.function.Supplier<PrimaryElector> electorFactory,
       EpochPointerFence fence,
       int claimConcurrency,
       IndexRoleController controller,
       long refreshIntervalMs) {
     this.refreshIntervalMs = refreshIntervalMs;
-    this.elector = Objects.requireNonNull(elector);
+    this.electorFactory = Objects.requireNonNull(electorFactory);
     this.fence = Objects.requireNonNull(fence);
     this.controller = Objects.requireNonNull(controller);
     this.claimConcurrency = claimConcurrency;
@@ -172,9 +177,23 @@ public class LeaderManager implements Closeable, LeaderListener {
     fence.registerFencedListener(this::onFenced);
   }
 
-  /** Start participating in election. Indices should already be started as standby. */
+  /**
+   * Start participating in election. Indices should already be started as standby. Must be called
+   * once, after the server is listening, so the elector advertises the bound ports.
+   */
   public void start() {
-    elector.start(this);
+    PrimaryElector created;
+    synchronized (this) {
+      if (closed) {
+        return;
+      }
+      if (elector != null) {
+        throw new IllegalStateException("Leader manager already started");
+      }
+      created = Objects.requireNonNull(electorFactory.get());
+      elector = created;
+    }
+    created.start(this);
     if (refreshIntervalMs > 0) {
       refreshScheduler =
           Executors.newSingleThreadScheduledExecutor(
@@ -194,7 +213,8 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   /** If this node is the active primary, able to accept writes. */
   public boolean isActive() {
-    return role == Role.ACTIVE && elector.isLeader();
+    PrimaryElector e = elector;
+    return role == Role.ACTIVE && e != null && e.isLeader();
   }
 
   /** Epoch of active leadership, or -1. */
@@ -212,7 +232,8 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   /** Last known leader of the cluster. */
   public Optional<LeaderInfo> currentLeader() {
-    return elector.currentLeader();
+    PrimaryElector e = elector;
+    return e == null ? Optional.empty() : e.currentLeader();
   }
 
   @Override
@@ -288,7 +309,10 @@ public class LeaderManager implements Closeable, LeaderListener {
       onLost(new LeaderInfo("", "", "", 0, 0, epoch));
     }
     // only gives up this epoch; if a newer epoch was acquired meanwhile it is kept
-    elector.resign(epoch);
+    PrimaryElector e = elector;
+    if (e != null) {
+      e.resign(epoch);
+    }
   }
 
   private void promote(LeaderInfo leaderInfo, long change) {
@@ -333,6 +357,7 @@ public class LeaderManager implements Closeable, LeaderListener {
 
   private void checkStillLeader(long change, long epoch) throws IOException {
     if (isClosed() || change != leadershipChangeCount || !elector.isLeader()) {
+      // elector is non-null here: leadership changes only come from a started elector
       throw new FencedException("Leadership changed during promotion at epoch " + epoch);
     }
   }
@@ -579,7 +604,13 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
     // stop election first, releasing leadership, so another node can take over while this node
     // waits below
-    elector.close();
+    PrimaryElector started;
+    synchronized (this) {
+      started = elector;
+    }
+    if (started != null) {
+      started.close();
+    }
     // let a running transition finish, so it does not leave index managers started that nothing
     // will close. Queued transitions still run, but return immediately since closed is set.
     // Interrupt only as a last resort, since an interrupt during NIO closes the channel.

@@ -83,7 +83,8 @@ import org.slf4j.LoggerFactory;
 public class BackendGlobalState extends GlobalState {
   private static final Logger logger = LoggerFactory.getLogger(BackendGlobalState.class);
 
-  private int resolvedReplicationPort;
+  private volatile int resolvedReplicationPort;
+  private volatile int resolvedPort;
 
   /**
    * State class containing immutable persistent and ephemeral global state, stored together so that
@@ -201,25 +202,29 @@ public class BackendGlobalState extends GlobalState {
             () ->
                 new IllegalArgumentException(
                     "Leader election is enabled, but leader election components were not provided"));
-    LeaderInfo localInfo =
-        new LeaderInfo(
-            getEphemeralId(),
-            getNodeName(),
-            getHostName(),
-            getPort(),
-            config.getReplicationPort(),
-            -1);
-    PrimaryElector elector =
-        PrimaryElectorCreator.getInstance()
-            .createElector(
-                new PrimaryElectorContext(
-                    config, localInfo, election.conditionalStore(), prometheusRegistry))
-            .orElseThrow();
+    // the elector is created when election starts, after both servers are listening, so the
+    // leader info it advertises (e.g. for resolveLeader) has the bound ports
+    java.util.function.Supplier<PrimaryElector> electorFactory =
+        () -> {
+          LeaderInfo localInfo =
+              new LeaderInfo(
+                  getEphemeralId(),
+                  getNodeName(),
+                  getHostName(),
+                  resolvedPort,
+                  resolvedReplicationPort,
+                  -1);
+          return PrimaryElectorCreator.getInstance()
+              .createElector(
+                  new PrimaryElectorContext(
+                      config, localInfo, election.conditionalStore(), prometheusRegistry))
+              .orElseThrow();
+        };
     logger.info(
         "Leader election enabled, type: {}, starting as standby",
         config.getLeaderElectionConfig().getType());
     return new LeaderManager(
-        elector,
+        electorFactory,
         election.fence(),
         config.getLeaderElectionConfig().getClaimConcurrency(),
         new RoleController(),
@@ -439,6 +444,11 @@ public class BackendGlobalState extends GlobalState {
       // with leader election every node boots as a standby; ignored without leader election
       updateStartedIndices(immutableState, LeaderStartRole.STANDBY);
     }
+  }
+
+  @Override
+  public void serverStarted(int port) {
+    this.resolvedPort = port;
     if (leaderManager != null) {
       leaderManager.start();
     }
@@ -910,7 +920,9 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getS3RefreshUpload(),
             getConfiguration().getS3RefreshNotifyAfterUpload(),
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
-            getConfiguration().getRequireIdField());
+            getConfiguration().getRequireIdField(),
+            getConfiguration().getIndexStartConfig().getPrimaryResolver(),
+            getConfiguration().getIndexStartConfig().getLeaderResolvePollMs());
     try {
       return startIndexHandler.process(
           indexStateManager.getCurrent(), startIndexRequest, startOptions);

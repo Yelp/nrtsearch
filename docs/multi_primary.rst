@@ -54,6 +54,43 @@ pending role change between indices, so in the worst case a promotion waits for 
 restoring from remote storage. A refresh also stops standby indices that are no longer started in global state,
 and a newly elected primary stops any such index before starting the others as primary.
 
+Finding the active primary
+--------------------------
+
+Every node answers ``resolveLeader`` (on both the client and replication services) with the active primary it
+knows: its node name, host, client and replication ports, and leadership epoch, plus whether the responding node is
+itself the active primary.
+
+Replicas follow the active primary with ``primaryDiscovery.resolver: LEADER_RPC``. The configured primary
+``host``/``port``, or the nodes in the discovery ``file``, are used as seeds and should list all primaries (with
+replication ports). Every ``leaderResolvePollMs`` (default 2000) the replica asks the seeds, takes the answer with
+the highest epoch, and only switches to it once that node confirms it is the leader at that epoch. When no leader
+can be confirmed, the replica keeps its current primary. ``enforcePrimaryGenOrdering`` defaults to true for these
+replicas. After registering with a new primary, a replica syncs to its current index version (with
+``syncInitialNrtPoint``). The default ``FILE`` resolver is unchanged, and requires the file to list only the active
+primary.
+
+.. code-block:: yaml
+
+  indexStartConfig:
+    mode: REPLICA
+    primaryDiscovery:
+      file: /path/to/all_primaries.json
+      resolver: LEADER_RPC
+
+Ingestion clients must send writes to the active primary. The Java client can follow it with a seed list of the
+primaries' client ports:
+
+.. code-block:: java
+
+  NrtSearchClient client =
+      new NrtSearchClient.Builder(
+              new NrtSearchClient.Builder.Leader(
+                  List.of(new Node("primary-a", 8000), new Node("primary-b", 8000))))
+          .build();
+
+Writes sent to a standby fail with ``FAILED_PRECONDITION`` naming the current leader.
+
 Durability
 ----------
 

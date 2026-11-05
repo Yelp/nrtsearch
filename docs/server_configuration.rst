@@ -953,6 +953,25 @@ Example server configuration
      - Where index data is located. ``LOCAL`` means data is on local disk. ``REMOTE`` means data is in external storage (e.g. S3) and must be downloaded on startup.
      - ``LOCAL``
 
+.. list-table:: `Primary Discovery Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/IndexStartConfig.java>`_ (``indexStartConfig.primaryDiscovery.*``, multi-primary additions)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - resolver
+     - enum
+     - How replicas find the primary. ``FILE`` uses the host/port or the single node in the discovery file. ``LEADER_RPC`` asks the host/port or all nodes in the discovery file for the active primary with ``resolveLeader``, for multi-primary clusters. See :doc:`multi_primary`.
+     - ``FILE``
+
+   * - leaderResolvePollMs
+     - int
+     - How often ``LEADER_RPC`` replicas re-resolve the active primary, in ms.
+     - 2000
+
 .. list-table:: `Isolated Replica Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/IsolatedReplicaConfig.java>`_ (``isolatedReplicaConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1

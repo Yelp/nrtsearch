@@ -17,7 +17,10 @@ package com.yelp.nrtsearch.clientlib.grpc;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.clientlib.NodeAddressesFileNameResolverProvider;
+import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolverProvider;
+import com.yelp.nrtsearch.clientlib.leader.SeedSources;
 import com.yelp.nrtsearch.server.grpc.ChannelConfig;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.codec.LZ4Codec;
@@ -25,6 +28,8 @@ import io.grpc.CompressorRegistry;
 import io.grpc.DecompressorRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -218,6 +223,51 @@ public class NrtSearchClient {
       public int getUpdateInterval() {
         return updateInterval;
       }
+    }
+
+    /**
+     * Seed nodes for following the active primary of a multi-primary cluster (leader election).
+     * Writes must go to the active primary; a client built from this resolves it with resolveLeader
+     * and follows failovers.
+     */
+    public static class Leader {
+      private static final long DEFAULT_POLL_INTERVAL_MS = 2000;
+      private final Supplier<Collection<Node>> seeds;
+      private final long pollIntervalMs;
+
+      /**
+       * Constructor.
+       *
+       * @param seeds source of seed nodes (host and client port), e.g. {@link
+       *     com.yelp.nrtsearch.clientlib.leader.SeedSources}
+       * @param pollIntervalMs how often to re-resolve the leader
+       */
+      public Leader(Supplier<Collection<Node>> seeds, long pollIntervalMs) {
+        this.seeds = seeds;
+        this.pollIntervalMs = pollIntervalMs;
+      }
+
+      /**
+       * Constructor, with a fixed list of seeds.
+       *
+       * @param seeds seed nodes (host and client port), e.g. all primaries of the cluster
+       */
+      public Leader(List<Node> seeds) {
+        this(SeedSources.fixed(seeds), DEFAULT_POLL_INTERVAL_MS);
+      }
+    }
+
+    /**
+     * Creates a new Builder that follows the active primary of a multi-primary cluster.
+     *
+     * @param leader seed nodes for finding the leader
+     */
+    public Builder(Leader leader) {
+      channelBuilderSupplier =
+          () ->
+              ManagedChannelBuilder.forTarget(LeaderNameResolverProvider.TARGET)
+                  .nameResolverFactory(
+                      new LeaderNameResolverProvider(leader.seeds, leader.pollIntervalMs));
     }
 
     /**

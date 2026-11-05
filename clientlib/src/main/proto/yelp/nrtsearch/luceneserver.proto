@@ -125,6 +125,14 @@ service LuceneServer {
         };
     }
 
+    // With multi-primary leader election, get the active primary of the cluster as known by this
+    // node. Clients can ask any node and send writes to the leader it reports.
+    rpc resolveLeader (ResolveLeaderRequest) returns (ResolveLeaderResponse) {
+        option (google.api.http) = {
+            get: "/v1/resolve_leader"
+        };
+    }
+
     // Adds a stream of Documents to an index. Changes are not durable until after the next successful @commit call.
     rpc addDocuments (stream AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
@@ -405,6 +413,11 @@ service ReplicationServer {
     // Invoked externally on primary to find the list of replica nodes this node is connected to for binary
     // replication for an index
     rpc getConnectedNodes (GetNodesRequest) returns (GetNodesResponse) {
+    }
+
+    // With multi-primary leader election, get the active primary of the cluster as known by this
+    // node. Used by replicas to find the primary to replicate from.
+    rpc resolveLeader (ResolveLeaderRequest) returns (ResolveLeaderResponse) {
     }
 }
 
@@ -997,6 +1010,27 @@ message ReloadStateRequest {
 
 // Response from Server for reloadState
 message ReloadStateResponse {
+}
+
+message ResolveLeaderRequest {
+}
+
+// The active primary as known by the responding node.
+message ResolveLeaderResponse {
+    // If the responding node is the active primary
+    bool isLeader = 1;
+    // Unique id of the leader process
+    string leaderId = 2;
+    // Node name of the leader
+    string nodeName = 3;
+    // Host of the leader
+    string host = 4;
+    // Client gRPC port of the leader
+    int32 port = 5;
+    // Replication gRPC port of the leader
+    int32 replicationPort = 6;
+    // Leadership epoch, strictly increasing across leaders; higher is newer
+    int64 epoch = 7;
 }
 
 // Creates a snapshot in the index, which is saved point-in-time view of the last commit in the

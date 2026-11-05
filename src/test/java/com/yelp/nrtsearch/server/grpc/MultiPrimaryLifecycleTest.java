@@ -625,6 +625,144 @@ public class MultiPrimaryLifecycleTest {
     assertTrue(e.getMessage(), e.getMessage().contains("No committed state for index"));
   }
 
+  private static ResolveLeaderResponse resolveClient(TestServer server) {
+    return server
+        .getClient()
+        .getBlockingStub()
+        .resolveLeader(ResolveLeaderRequest.newBuilder().build());
+  }
+
+  private static ResolveLeaderResponse resolveReplication(TestServer server) {
+    return server
+        .getReplicationClient()
+        .getBlockingStub()
+        .resolveLeader(ResolveLeaderRequest.newBuilder().build());
+  }
+
+  /** resolveLeader reports the active primary, with its bound ports, from every node. */
+  @Test
+  public void testResolveLeader() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    // no leader yet
+    StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> resolveClient(a));
+    assertEquals(io.grpc.Status.Code.UNAVAILABLE, e.getStatus().getCode());
+
+    long epochA = elect(a);
+    for (TestServer server : List.of(a, b)) {
+      for (ResolveLeaderResponse r : List.of(resolveClient(server), resolveReplication(server))) {
+        assertEquals(nodeName(a), r.getNodeName());
+        assertEquals(a.getPort(), r.getPort());
+        assertEquals(a.getReplicationPort(), r.getReplicationPort());
+        assertEquals(epochA, r.getEpoch());
+        assertEquals(server == a, r.getIsLeader());
+      }
+    }
+
+    long epochB = elect(b);
+    ResolveLeaderResponse fromA = resolveClient(a);
+    assertEquals(nodeName(b), fromA.getNodeName());
+    assertEquals(b.getPort(), fromA.getPort());
+    assertEquals(epochB, fromA.getEpoch());
+    assertFalse(fromA.getIsLeader());
+    assertTrue(resolveClient(b).getIsLeader());
+  }
+
+  /**
+   * A replica with primaryDiscovery.resolver LEADER_RPC follows the active primary, given all
+   * primaries as seeds, and follows a failover without any discovery change.
+   */
+  @Test
+  public void testReplicaFollowsLeaderAcrossFailover() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    a.addSimpleDocs(INDEX, 1, 2);
+    a.commit(INDEX);
+    refreshAndWait(b);
+
+    // seed file lists both primaries' replication ports
+    java.nio.file.Path seeds = folder.getRoot().toPath().resolve(TestServer.DISCOVERY_FILE);
+    java.nio.file.Files.writeString(
+        seeds,
+        "[{\"host\":\"localhost\",\"port\":"
+            + a.getReplicationPort()
+            + "},{\"host\":\"localhost\",\"port\":"
+            + b.getReplicationPort()
+            + "}]");
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, 0, IndexDataLocationType.REMOTE)
+            .withPrimaryResolver("LEADER_RPC")
+            .withSyncInitialNrtPoint(true)
+            .withAdditionalConfig(
+                "s3RefreshUpload: true\n"
+                    + "s3RefreshNotifyAfterUpload: true\n"
+                    + "replicaReplicationPortPingInterval: 300")
+            .build();
+    assertTrue(replica.getConfiguration().getEnforcePrimaryGenOrdering());
+    replica.verifySimpleDocIds(INDEX, 1, 2);
+
+    a.addSimpleDocs(INDEX, 3);
+    a.commit(INDEX);
+    replica.waitForReplication(INDEX, a, 20000);
+    replica.verifySimpleDocIds(INDEX, 1, 2, 3);
+
+    // fail over to b; the replica's seeds do not change
+    elect(b);
+    b.addSimpleDocs(INDEX, 4);
+    b.commit(INDEX);
+    replica.waitForReplication(INDEX, b, 30000);
+    replica.verifySimpleDocIds(INDEX, 1, 2, 3, 4);
+  }
+
+  /**
+   * An ingestion client built from all primaries as seeds sends writes to the active primary, and
+   * follows a failover without reconfiguration.
+   */
+  @Test
+  public void testIngestionClientFollowsLeader() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    refreshAndWait(b);
+    com.yelp.nrtsearch.clientlib.grpc.NrtSearchClient client =
+        new com.yelp.nrtsearch.clientlib.grpc.NrtSearchClient.Builder(
+                new com.yelp.nrtsearch.clientlib.grpc.NrtSearchClient.Builder.Leader(
+                    com.yelp.nrtsearch.clientlib.leader.SeedSources.fixed(
+                        List.of(
+                            new com.yelp.nrtsearch.clientlib.Node("localhost", a.getPort()),
+                            new com.yelp.nrtsearch.clientlib.Node("localhost", b.getPort()))),
+                    100))
+            .build();
+    try {
+      com.yelp.nrtsearch.test_utils.TestDocumentHelper.addDocuments(
+          client.getAsyncStub(), java.util.stream.Stream.of(a.getSimpleDocRequest(INDEX, 1)));
+      client.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(INDEX).build());
+      a.verifySimpleDocIds(INDEX, 1);
+
+      elect(b);
+      // the client resolves the new leader within a few polls
+      long deadline = System.currentTimeMillis() + 10000;
+      while (true) {
+        try {
+          com.yelp.nrtsearch.test_utils.TestDocumentHelper.addDocuments(
+              client.getAsyncStub(), java.util.stream.Stream.of(a.getSimpleDocRequest(INDEX, 2)));
+          client.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(INDEX).build());
+          break;
+        } catch (RuntimeException e) {
+          if (System.currentTimeMillis() > deadline) {
+            throw e;
+          }
+          Thread.sleep(100);
+        }
+      }
+      b.verifySimpleDocIds(INDEX, 1, 2);
+    } finally {
+      client.shutdown();
+    }
+  }
+
   /** StartIndex v1 rejects fields the leader would otherwise silently ignore. */
   @Test
   public void testStartIndexV1RejectsIgnoredFields() throws Exception {

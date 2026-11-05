@@ -67,6 +67,7 @@ import com.yelp.nrtsearch.server.handler.RegisterFieldsHandler;
 import com.yelp.nrtsearch.server.handler.ReleaseSnapshotHandler;
 import com.yelp.nrtsearch.server.handler.ReloadStateHandler;
 import com.yelp.nrtsearch.server.handler.ReplicaCurrentSearchingVersionHandler;
+import com.yelp.nrtsearch.server.handler.ResolveLeaderHandler;
 import com.yelp.nrtsearch.server.handler.SearchHandler;
 import com.yelp.nrtsearch.server.handler.SearchV2Handler;
 import com.yelp.nrtsearch.server.handler.SendRawFileHandler;
@@ -253,6 +254,8 @@ public class NrtsearchServer {
             .build()
             .start();
     logger.info("Server started, listening on " + configuration.getPort() + " for messages");
+    // with leader election, start participating now that both servers are listening
+    globalState.serverStarted(server.getPort());
     BootstrapMetrics.nrtsearchBootstrapTimer.set((System.nanoTime() - startNs) / 1_000_000_000.0);
   }
 
@@ -397,6 +400,7 @@ public class NrtsearchServer {
     private final RegisterFieldsHandler registerFieldsHandler;
     private final ReleaseSnapshotHandler releaseSnapshotHandler;
     private final ReloadStateHandler reloadStateHandler;
+    private final ResolveLeaderHandler resolveLeaderHandler;
     private final SearchHandler searchHandler;
     private final SearchStreamHandler searchStreamHandler;
     private final SearchV2Handler searchV2Handler;
@@ -494,6 +498,7 @@ public class NrtsearchServer {
       registerFieldsHandler = new RegisterFieldsHandler(globalState);
       releaseSnapshotHandler = new ReleaseSnapshotHandler(globalState);
       reloadStateHandler = new ReloadStateHandler(globalState);
+      resolveLeaderHandler = new ResolveLeaderHandler(globalState);
       searchHandler = new SearchHandler(globalState);
       searchStreamHandler = new SearchStreamHandler(globalState);
       searchV2Handler = new SearchV2Handler(globalState, searchHandler);
@@ -712,6 +717,12 @@ public class NrtsearchServer {
     }
 
     @Override
+    public void resolveLeader(
+        ResolveLeaderRequest request, StreamObserver<ResolveLeaderResponse> responseObserver) {
+      Handler.handleUnaryRequest("resolveLeader", request, responseObserver, resolveLeaderHandler);
+    }
+
+    @Override
     public void status(
         HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
       Handler.handleUnaryRequest("status", request, responseObserver, statusHandler);
@@ -818,6 +829,7 @@ public class NrtsearchServer {
     private final AddReplicaHandler addReplicaHandler;
     private final CopyFilesHandler copyFilesHandler;
     private final GetNodesInfoHandler getNodesInfoHandler;
+    private final ResolveLeaderHandler replicationResolveLeaderHandler;
     private final NewNRTPointHandler newNRTPointHandler;
     private final RecvCopyStateHandler recvCopyStateHandler;
     private final RecvRawFileHandler recvRawFileHandler;
@@ -831,6 +843,7 @@ public class NrtsearchServer {
       addReplicaHandler = new AddReplicaHandler(globalState, verifyIndexId);
       copyFilesHandler = new CopyFilesHandler(globalState, verifyIndexId);
       getNodesInfoHandler = new GetNodesInfoHandler(globalState);
+      replicationResolveLeaderHandler = new ResolveLeaderHandler(globalState);
       newNRTPointHandler = new NewNRTPointHandler(globalState, verifyIndexId);
       recvCopyStateHandler = new RecvCopyStateHandler(globalState, verifyIndexId);
       recvRawFileHandler = new RecvRawFileHandler(globalState, verifyIndexId);
@@ -905,6 +918,13 @@ public class NrtsearchServer {
         GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
       Handler.handleUnaryRequest(
           "getConnectedNodes", getNodesRequest, responseObserver, getNodesInfoHandler);
+    }
+
+    @Override
+    public void resolveLeader(
+        ResolveLeaderRequest request, StreamObserver<ResolveLeaderResponse> responseObserver) {
+      Handler.handleUnaryRequest(
+          "resolveLeader", request, responseObserver, replicationResolveLeaderHandler);
     }
   }
 }

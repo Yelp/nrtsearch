@@ -364,6 +364,7 @@ public class TestServer {
         break;
       }
     }
+    serverImpl.getGlobalState().serverStarted(server.getPort());
     client = new NrtsearchClient("localhost", server.getPort());
     replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }
@@ -765,6 +766,7 @@ public class TestServer {
     private IndexDataLocationType locationType = IndexDataLocationType.LOCAL;
     private boolean fileDiscovery = false;
     private boolean withoutPrimary = false;
+    private String primaryResolver = null;
 
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
@@ -797,6 +799,12 @@ public class TestServer {
       this.port = port;
       this.locationType = locationType;
       this.fileDiscovery = mode == Mode.REPLICA && port <= 0;
+      return this;
+    }
+
+    /** Set primaryDiscovery.resolver, with a fast leader resolve poll for tests. */
+    public Builder withPrimaryResolver(String resolver) {
+      this.primaryResolver = resolver;
       return this;
     }
 
@@ -897,6 +905,11 @@ public class TestServer {
               "  mode: " + mode);
       if (!withoutPrimary) {
         config = String.join("\n", config, "  primaryDiscovery:");
+        if (primaryResolver != null) {
+          config =
+              String.join(
+                  "\n", config, "    resolver: " + primaryResolver, "    leaderResolvePollMs: 200");
+        }
         if (fileDiscovery) {
           return String.join(
               "\n", config, "    file: " + Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));

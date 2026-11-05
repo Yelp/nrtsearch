@@ -189,9 +189,14 @@ public class NrtsearchConfig {
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
     leaderElectionConfig = LeaderElectionConfig.fromConfig(configReader);
-    // leader election assigns monotonic epochs, so ordering can always be enforced
+    // leader election assigns monotonic epochs, so ordering can always be enforced, both on the
+    // primaries and on replicas following the elected leader
     enforcePrimaryGenOrdering =
-        configReader.getBoolean("enforcePrimaryGenOrdering", leaderElectionConfig.isEnabled());
+        configReader.getBoolean(
+            "enforcePrimaryGenOrdering",
+            leaderElectionConfig.isEnabled()
+                || indexStartConfig.getPrimaryResolver()
+                    == IndexStartConfig.PrimaryResolverType.LEADER_RPC);
     useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
     mmapGrouping =
         configReader.get(
