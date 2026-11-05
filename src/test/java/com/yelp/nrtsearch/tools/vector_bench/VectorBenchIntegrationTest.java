@@ -90,8 +90,16 @@ public class VectorBenchIntegrationTest {
         List.of("--port", String.valueOf(primary.getPort()), "--registryFile", registry.toString());
 
     run(args("setup", primaryTarget, dataset));
-    String load = run(args("load", primaryTarget, dataset, List.of("--threads", "4")));
+    String load =
+        run(
+            args(
+                "load",
+                primaryTarget,
+                dataset,
+                List.of("--threads", "4", "--batch", "100", "--forceMerge", "1")));
     assertTrue(load, load.contains("Loaded 3,000 vectors"));
+    // many concurrent batches make several segments; the merge leaves one
+    assertTrue(load, load.contains("Force merged to 1 segment in"));
 
     run(
         args(
@@ -112,6 +120,7 @@ public class VectorBenchIntegrationTest {
     primary.refresh(nrtIndex);
     String info = run(args("info", primaryTarget, List.of()));
     assertTrue(info, info.contains("3,000 vectors, 0 deleted not yet merged"));
+    assertTrue(info, info.contains(" 1 segment,"));
     assertTrue(info, number(info, "searcher version ([0-9]+)") > 0);
 
     String primaryQuery =

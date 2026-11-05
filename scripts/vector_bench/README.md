@@ -60,9 +60,13 @@ Replicas poll S3 every `POLL_SECONDS` (5) and so lag the primary by a few second
 scripts/vector_bench/run_benchmark.sh
 ```
 
-This creates a 100,000 vector, 768 dimension index, computes exact neighbors for 1,000 queries,
-waits for both replicas, then queries the local replica, the lazy replica with an empty cache, and
-the lazy replica warm. The summary looks like:
+This creates a 100,000 vector, 768 dimension index, merges it to one segment, computes exact
+neighbors for 1,000 queries, waits for both replicas to serve the primary's version, then queries
+the local replica, the lazy replica with an empty cache, and the lazy replica warm.
+
+The merge matters for comparing runs: without it the segment count depends on how the load's
+concurrent writes happened to flush, and query cost grows with the number of segments. Set
+`SEGMENTS=0` to measure the layout as loaded, or `SEGMENTS=8` for a multi-segment index. The summary looks like:
 
 ```
 query_lazy_warm:
@@ -99,7 +103,7 @@ and index (`--bucket bench --index vectors` by default) are recorded in `--regis
 | Command | Does |
 |---|---|
 | `setup` | Create the bucket and index, deleting an existing index of that name. Run against the primary. |
-| `load` | Bulk load vectors with PutVectors. `--threads`, `--batch`, `--start`/`--num` to resume or split. |
+| `load` | Bulk load vectors with PutVectors. `--threads`, `--batch`, `--start`/`--num` to resume or split, `--forceMerge N` to merge afterwards. |
 | `stream` | Steady write stream: `--rate` vectors/s, `--insertPct`, `--deletePct`, rest are updates. |
 | `groundtruth` | Exact neighbors of query vectors by brute force, saved for recall checks. |
 | `query` | Query load at `--qps` or `--concurrency`, reporting latency, recall and S3 cache reads. |

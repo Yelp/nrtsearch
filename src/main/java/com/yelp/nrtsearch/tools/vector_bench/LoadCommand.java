@@ -17,11 +17,19 @@ package com.yelp.nrtsearch.tools.vector_bench;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yelp.nrtsearch.server.grpc.ForceMergeRequest;
+import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
+import com.yelp.nrtsearch.server.grpc.RefreshRequest;
+import com.yelp.nrtsearch.server.grpc.StatsRequest;
+import com.yelp.nrtsearch.vectors.IndexConfig;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import picocli.CommandLine;
 
@@ -66,6 +74,14 @@ public class LoadCommand implements Callable<Integer> {
           "Refresh after every batch, as the S3 Vectors API does. Off by default, which is much"
               + " faster for bulk loads")
   boolean refreshEach;
+
+  @CommandLine.Option(
+      names = {"--forceMerge"},
+      description =
+          "After loading, merge the index down to at most this many segments and refresh, so"
+              + " every run measures the same layout. 0 to skip (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  int forceMerge;
 
   @CommandLine.Option(
       names = {"--noMetadata"},
@@ -146,7 +162,50 @@ public class LoadCommand implements Callable<Integer> {
           loaded.get() / seconds,
           latency.summary().format());
     }
+    if (forceMerge > 0) {
+      forceMerge();
+    }
     return 0;
+  }
+
+  /**
+   * Merge to at most --forceMerge segments, then refresh so the primary publishes the merged
+   * version (replicas pick it up from S3 on their next poll).
+   */
+  private void forceMerge() {
+    if (target.gatewayUrl != null) {
+      throw new CommandLine.ParameterException(
+          new CommandLine(this), "--forceMerge needs direct mode (--host/--port of the primary)");
+    }
+    String nrtIndex = IndexConfig.nrtsearchIndexName(target.bucket, target.index);
+    ManagedChannel channel =
+        ManagedChannelBuilder.forAddress(target.host, target.port).usePlaintext().build();
+    try {
+      LuceneServerGrpc.LuceneServerBlockingStub stub = LuceneServerGrpc.newBlockingStub(channel);
+      long t0 = System.nanoTime();
+      stub.withDeadlineAfter(6, TimeUnit.HOURS)
+          .forceMerge(
+              ForceMergeRequest.newBuilder()
+                  .setIndexName(nrtIndex)
+                  .setMaxNumSegments(forceMerge)
+                  .setDoWait(true)
+                  .build());
+      stub.withDeadlineAfter(10, TimeUnit.MINUTES)
+          .refresh(RefreshRequest.newBuilder().setIndexName(nrtIndex).build());
+      int segments =
+          stub.withDeadlineAfter(1, TimeUnit.MINUTES)
+              .stats(StatsRequest.newBuilder().setIndexName(nrtIndex).build())
+              .getCurrentSearcher()
+              .getNumSegments();
+      System.out.printf(
+          Locale.ROOT,
+          "Force merged to %d segment%s in %.1fs%n",
+          segments,
+          segments == 1 ? "" : "s",
+          (System.nanoTime() - t0) / 1e9);
+    } finally {
+      channel.shutdownNow();
+    }
   }
 
   static Thread progressThread(AtomicLong done, long total, long t0) {

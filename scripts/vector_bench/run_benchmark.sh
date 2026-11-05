@@ -9,6 +9,7 @@
 #   COUNT=100000 DIM=768 CLUSTERS=1000   generated dataset
 #   FVECS=path/base.fvecs QUERY_FVECS=path/query.fvecs   use a standard dataset instead
 #   QUERIES=1000 FILTERED_PCT=20 TOPK=10 QPS=0 CONCURRENCY=8 DURATION=60 WARMUP=10
+#   SEGMENTS=1   force merge to this many segments after loading, 0 to keep the load's layout
 #   SKIP_LOAD=1   reuse the index and query set from an earlier run
 set -euo pipefail
 
@@ -31,6 +32,7 @@ QPS="${QPS:-0}"
 CONCURRENCY="${CONCURRENCY:-8}"
 DURATION="${DURATION:-60}"
 WARMUP="${WARMUP:-10}"
+SEGMENTS="${SEGMENTS:-1}"
 
 REGISTRY="$BENCH_HOME/registry.json"
 QUERY_SET="$BENCH_HOME/queries_${COUNT}.bin"
@@ -51,7 +53,7 @@ run() {
 
 {
   echo "Settings: COUNT=$COUNT DIM=$DIM FVECS=${FVECS:-} QUERIES=$QUERIES TOPK=$TOPK QPS=$QPS"
-  echo "          CONCURRENCY=$CONCURRENCY DURATION=$DURATION WARMUP=$WARMUP"
+  echo "          CONCURRENCY=$CONCURRENCY DURATION=$DURATION WARMUP=$WARMUP SEGMENTS=$SEGMENTS"
   echo "          CACHE_TYPE=${CACHE_TYPE:-MEMORY} CACHE_SIZE_MB=${CACHE_SIZE_MB:-1024} BLOCK_SIZE_KB=${BLOCK_SIZE_KB:-64}"
 } | tee "$RESULTS/settings.txt"
 
@@ -59,7 +61,10 @@ if [[ -z "${SKIP_LOAD:-}" ]]; then
   run setup --port "$PRIMARY_PORT" --registryFile "$REGISTRY" "${dataset[@]}" | tee "$RESULTS/setup.txt"
   # replicas only start indexes created after they started when told to reload
   "$SCRIPT_DIR/cluster.sh" reload
-  run load --port "$PRIMARY_PORT" --registryFile "$REGISTRY" "${dataset[@]}" | tee "$RESULTS/load.txt"
+  # merge to a fixed segment count so runs are comparable; the count otherwise depends on how
+  # concurrent writes happened to flush and merge
+  run load --port "$PRIMARY_PORT" --registryFile "$REGISTRY" "${dataset[@]}" \
+    --forceMerge "$SEGMENTS" | tee "$RESULTS/load.txt"
   # load adds a field per metadata key on the primary; replicas only load field definitions at
   # startup and on reloadState, so reload them again to see the new fields
   "$SCRIPT_DIR/cluster.sh" reload
@@ -72,19 +77,25 @@ if [[ ! -f "$QUERY_SET" ]]; then
   run "${gt[@]}" | tee "$RESULTS/groundtruth.txt"
 fi
 
-# replicas see the data once the primary has refreshed and uploaded, and they have polled
-echo "Waiting for replicas to have all $COUNT vectors"
+# replicas see the data once the primary has refreshed and uploaded, and they have polled; wait
+# for the primary's version, so they serve the merged layout too
+version_of() { sed -n 's/.*searcher version \([0-9]*\).*/\1/p' <<< "$1"; }
+primary_version="$(version_of "$("$BENCH" info --port "$PRIMARY_PORT" 2>/dev/null | head -1)")"
+echo "Waiting for replicas to reach the primary's searcher version $primary_version"
 for port in "$LAZY_PORT" "$LOCAL_PORT"; do
+  v=""
   for _ in $(seq 1 600); do
-    line="$("$BENCH" info --port "$port" --registryFile "$REGISTRY" 2>/dev/null | head -1 || true)"
-    n="$(sed -n 's/^[^ ]* [^ ]*: \([0-9,]*\) vectors.*/\1/p' <<< "$line" | tr -d ,)"
-    if [[ -n "$n" && "$n" -ge "$COUNT" ]]; then
+    line="$("$BENCH" info --port "$port" 2>/dev/null | head -1 || true)"
+    v="$(version_of "$line")"
+    if [[ -n "$v" && -n "$primary_version" && "$v" -ge "$primary_version" ]]; then
       echo "  port $port: $line"
       break
     fi
     sleep 2
   done
-  [[ -n "${n:-}" && "$n" -ge "$COUNT" ]] || echo "  warning: port $port has ${n:-no} vectors after 20 minutes" >&2
+  if [[ -z "$v" || -z "$primary_version" || "$v" -lt "$primary_version" ]]; then
+    echo "  warning: port $port is at version ${v:-unknown} after 20 minutes" >&2
+  fi
 done
 run info --port "$PRIMARY_PORT" --registryFile "$REGISTRY" | tee "$RESULTS/info_primary.txt"
 

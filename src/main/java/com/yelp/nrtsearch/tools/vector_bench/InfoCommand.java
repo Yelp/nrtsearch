@@ -71,7 +71,7 @@ public class InfoCommand implements Callable<Integer> {
                 : "";
         System.out.printf(
             Locale.ROOT,
-            "%s:%d %s: %,d vectors%s, searcher version %d, %d segments, index size %.1f MB,"
+            "%s:%d %s: %,d vectors%s, searcher version %d, %d segment%s, index size %.1f MB,"
                 + " state %s%n",
             target.host,
             target.port,
@@ -80,6 +80,7 @@ public class InfoCommand implements Callable<Integer> {
             deletes,
             version,
             stats.getCurrentSearcher().getNumSegments(),
+            stats.getCurrentSearcher().getNumSegments() == 1 ? "" : "s",
             stats.getDirSize() / 1e6,
             stats.getState());
         CacheMetrics.Snapshot cache = CacheMetrics.scrape(target.host, target.port);
