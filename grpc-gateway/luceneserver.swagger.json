@@ -866,6 +866,29 @@
         ]
       }
     },
+    "/v1/resolve_leader": {
+      "get": {
+        "summary": "With multi-primary leader election, get the active primary of the cluster as known by this\nnode. Clients can ask any node and send writes to the leader it reports.",
+        "operationId": "LuceneServer_resolveLeader",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverResolveLeaderResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/search": {
       "post": {
         "summary": "Execute a search query against an index",
@@ -5621,6 +5644,43 @@
         }
       },
       "title": "Defines a rescorer which is executed after the first search pass"
+    },
+    "luceneserverResolveLeaderResponse": {
+      "type": "object",
+      "properties": {
+        "isLeader": {
+          "type": "boolean",
+          "title": "If the responding node is the active primary"
+        },
+        "leaderId": {
+          "type": "string",
+          "title": "Unique id of the leader process"
+        },
+        "nodeName": {
+          "type": "string",
+          "title": "Node name of the leader"
+        },
+        "host": {
+          "type": "string",
+          "title": "Host of the leader"
+        },
+        "port": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Client gRPC port of the leader"
+        },
+        "replicationPort": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Replication gRPC port of the leader"
+        },
+        "epoch": {
+          "type": "string",
+          "format": "int64",
+          "title": "Leadership epoch, strictly increasing across leaders; higher is newer"
+        }
+      },
+      "description": "The active primary as known by the responding node."
     },
     "luceneserverRestoreIndex": {
       "type": "object",
