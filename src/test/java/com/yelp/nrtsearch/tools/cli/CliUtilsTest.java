@@ -18,8 +18,14 @@ package com.yelp.nrtsearch.tools.cli;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.StringValue;
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -85,6 +91,28 @@ public class CliUtilsTest {
     } catch (InvalidProtocolBufferException e) {
       assertEquals("Expect message object but got: [\"invalid_message\"]", e.getMessage());
     }
+  }
+
+  @Test
+  public void testToJson_anyCollectorResult() throws IOException {
+    SearchResponse response =
+        SearchResponse.newBuilder()
+            .putCollectorResults(
+                "custom",
+                CollectorResult.newBuilder()
+                    .setAnyResult(Any.pack(StringValue.of("custom_value")))
+                    .build())
+            .build();
+
+    JsonObject anyResult =
+        JsonParser.parseString(CliUtils.toJson(response))
+            .getAsJsonObject()
+            .getAsJsonObject("collectorResults")
+            .getAsJsonObject("custom")
+            .getAsJsonObject("anyResult");
+    assertEquals(
+        "type.googleapis.com/google.protobuf.StringValue", anyResult.get("@type").getAsString());
+    assertEquals("custom_value", anyResult.get("value").getAsString());
   }
 
   private IndexLiveSettings getFromParam(String param) throws IOException {

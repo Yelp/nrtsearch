@@ -31,7 +31,7 @@ public class ReloadStateCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.reloadState();
+      CliUtils.printMessage(client.reloadState(), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

@@ -54,7 +54,7 @@ public class DeleteDocumentsCommand implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = Paths.get(getFileName());
-      client.delete(filePath);
+      CliUtils.printMessage(client.delete(filePath), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

@@ -39,7 +39,7 @@ public class DeleteIndexCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.deleteIndex(getIndexName());
+      CliUtils.printMessage(client.deleteIndex(getIndexName()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }
