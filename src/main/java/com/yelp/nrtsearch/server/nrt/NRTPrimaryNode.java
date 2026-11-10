@@ -254,6 +254,9 @@ public class NRTPrimaryNode extends PrimaryNode {
       String nodeName = replicaDetails.getNodeName();
       ReplicationServerClient currentReplicaServerClient = replicaDetails.replicationServerClient;
       try {
+        // TODO: we should use multicast to broadcast files out to replicas
+        // TODO: ... replicas could copy from one another instead of just primary
+        // TODO: we could also prioritize one replica at a time?
         currentReplicaServerClient.newNRTPoint(
             indexName, indexStateManager.getIndexId(), primaryGen, version);
       } catch (StatusRuntimeException e) {

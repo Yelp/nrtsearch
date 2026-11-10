@@ -217,8 +217,7 @@ public class ReplicationServerClient implements Closeable {
 
   /**
    * Get the blocking stub to use for a unary rpc, with the client deadline applied if one is
-   * configured. A new deadline is created for each call, since a deadline is an absolute point in
-   * time.
+   * configured.
    */
   private ReplicationServerBlockingStub unaryStub() {
     if (deadlineMs > 0) {
