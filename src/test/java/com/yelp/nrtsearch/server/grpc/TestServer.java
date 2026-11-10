@@ -768,6 +768,7 @@ public class TestServer {
     private boolean withoutPrimary = false;
     private String primaryResolver = null;
     private String primaryHost = "localhost";
+    private boolean allowSingleLeaderSeed = false;
 
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
@@ -806,6 +807,12 @@ public class TestServer {
     /** Set primaryDiscovery.resolver, with a fast leader resolve poll for tests. */
     public Builder withPrimaryResolver(String resolver) {
       this.primaryResolver = resolver;
+      return this;
+    }
+
+    /** Set primaryDiscovery.allowSingleLeaderSeed. */
+    public Builder withAllowSingleLeaderSeed(boolean allow) {
+      this.allowSingleLeaderSeed = allow;
       return this;
     }
 
@@ -915,7 +922,11 @@ public class TestServer {
         if (primaryResolver != null) {
           config =
               String.join(
-                  "\n", config, "    resolver: " + primaryResolver, "    leaderResolvePollMs: 200");
+                  "\n",
+                  config,
+                  "    resolver: " + primaryResolver,
+                  "    leaderResolvePollMs: 200",
+                  "    allowSingleLeaderSeed: " + allowSingleLeaderSeed);
         }
         if (fileDiscovery) {
           return String.join(

@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.ResolveLeaderRequest;
 import com.yelp.nrtsearch.server.grpc.ResolveLeaderResponse;
 import com.yelp.nrtsearch.server.leader.LeaderInfo;
 import com.yelp.nrtsearch.server.leader.LeaderManager;
+import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
 import java.util.Optional;
@@ -58,6 +59,14 @@ public class ResolveLeaderHandler extends Handler<ResolveLeaderRequest, ResolveL
       return toResponse(leader, manager.isActive() && isSelf(globalState, leader));
     }
     if (globalState.getConfiguration().getIndexStartConfig().getMode() == Mode.PRIMARY) {
+      // an unreachable address would make every resolver dial itself
+      if (BackendGlobalState.isLoopbackHost(globalState.getHostName())) {
+        throw Status.UNAVAILABLE
+            .withDescription(
+                "This primary's hostName is a loopback address, which other nodes can not reach: "
+                    + globalState.getHostName())
+            .asRuntimeException();
+      }
       LeaderInfo self =
           new LeaderInfo(
               globalState.getEphemeralId(),

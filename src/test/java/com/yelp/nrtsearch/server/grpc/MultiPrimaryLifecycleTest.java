@@ -840,6 +840,91 @@ public class MultiPrimaryLifecycleTest {
     replica.verifySimpleDocIds(INDEX, 1, 2);
   }
 
+  private TestServer leaderRpcReplicaWithoutAutoStart(boolean allowSingleLeaderSeed)
+      throws IOException {
+    return TestServer.builder(folder)
+        .withAutoStartConfig(false, Mode.REPLICA, 0, IndexDataLocationType.REMOTE)
+        .withPrimaryResolver("LEADER_RPC")
+        .withPrimaryHost("")
+        .withAllowSingleLeaderSeed(allowSingleLeaderSeed)
+        .withAdditionalConfig("s3RefreshUpload: true\ns3RefreshNotifyAfterUpload: true")
+        .build();
+  }
+
+  /** A StartIndex request with a single primary address is rejected on a LEADER_RPC replica. */
+  @Test
+  public void testStartIndexSingleLeaderSeedRejected() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.commit(INDEX);
+    TestServer replica = leaderRpcReplicaWithoutAutoStart(false);
+    StatusRuntimeException e =
+        assertThrows(
+            StatusRuntimeException.class,
+            () -> replica.startReplicaIndex(INDEX, -1, a.getReplicationPort(), null));
+    assertTrue(e.getMessage(), e.getMessage().contains("single host"));
+    // a host list is accepted
+    replica.startIndex(
+        StartIndexRequest.newBuilder()
+            .setIndexName(INDEX)
+            .setMode(Mode.REPLICA)
+            .setPrimaryAddress("localhost,127.0.0.1")
+            .setPort(a.getReplicationPort())
+            .build());
+    assertTrue(replica.isStarted(INDEX));
+  }
+
+  @Test
+  public void testStartIndexSingleLeaderSeedAllowed() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.commit(INDEX);
+    TestServer replica = leaderRpcReplicaWithoutAutoStart(true);
+    replica.startReplicaIndex(INDEX, -1, a.getReplicationPort(), null);
+    assertTrue(replica.isStarted(INDEX));
+  }
+
+  /** A replica start that fails releases its shared leader client. */
+  @Test
+  public void testFailedReplicaStartReleasesSharedClient() throws Exception {
+    TestServer a = primaryServer();
+    bootstrap(a);
+    a.commit(INDEX);
+    TestServer replica = leaderRpcReplicaWithoutAutoStart(false);
+    int before = sharedClients();
+    // a point state that can not be parsed makes the restore, after the client is acquired, fail
+    String uniqueName = a.getGlobalState().getDataResourceForIndex(INDEX);
+    com.yelp.nrtsearch.server.remote.s3.S3Backend s3 =
+        (com.yelp.nrtsearch.server.remote.s3.S3Backend) a.getRemoteBackend();
+    String pointPrefix =
+        com.yelp.nrtsearch.server.remote.s3.S3Backend.getIndexResourcePrefix(
+            a.getServiceName(),
+            uniqueName,
+            com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType.POINT_STATE);
+    String pointFile = s3.getCurrentResourceName(pointPrefix);
+    s3.getS3()
+        .putObject(
+            r -> r.bucket(s3.getServiceBucket()).key(pointPrefix + pointFile),
+            software.amazon.awssdk.core.sync.RequestBody.fromString("not a point state"));
+    assertThrows(
+        StatusRuntimeException.class,
+        () ->
+            replica.startIndex(
+                StartIndexRequest.newBuilder()
+                    .setIndexName(INDEX)
+                    .setMode(Mode.REPLICA)
+                    .setPrimaryAddress("localhost,127.0.0.1")
+                    .setPort(a.getReplicationPort())
+                    .setRestore(
+                        RestoreIndex.newBuilder()
+                            .setServiceName(a.getServiceName())
+                            .setResourceName(INDEX)
+                            .setDeleteExistingData(true))
+                    .build()));
+    assertFalse(replica.isStarted(INDEX));
+    assertEquals(before, sharedClients());
+  }
+
   private static int sharedClients() throws Exception {
     java.lang.reflect.Method m = SharedLeaderClients.class.getDeclaredMethod("size");
     m.setAccessible(true);

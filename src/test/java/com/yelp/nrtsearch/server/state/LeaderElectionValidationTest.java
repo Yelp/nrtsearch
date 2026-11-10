@@ -80,11 +80,40 @@ public class LeaderElectionValidationTest {
   }
 
   private static IndexStartConfig startConfig(String discovery) {
+    return startConfig("REPLICA", true, discovery);
+  }
+
+  private static IndexStartConfig startConfig(String mode, boolean autoStart, String discovery) {
     return IndexStartConfig.fromConfig(
         new YamlConfigReader(
             new ByteArrayInputStream(
-                ("indexStartConfig:\n  mode: REPLICA\n  primaryDiscovery:\n" + discovery)
+                ("indexStartConfig:\n  mode: "
+                        + mode
+                        + "\n  autoStart: "
+                        + autoStart
+                        + "\n  primaryDiscovery:\n"
+                        + discovery)
                     .getBytes())));
+  }
+
+  /** Addresses come from StartIndex requests: the empty configured host is not validated. */
+  @Test
+  public void testLeaderRpcEmptyHostAccepted() {
+    startConfig("REPLICA", false, "    resolver: LEADER_RPC\n");
+    startConfig("REPLICA", true, "    resolver: LEADER_RPC\n    host: \"\"\n");
+  }
+
+  /** Without autoStart the configured host is not used at startup, so it is not validated. */
+  @Test
+  public void testLeaderRpcSingleHostWithoutAutoStartAccepted() {
+    startConfig(
+        "REPLICA", false, "    resolver: LEADER_RPC\n    host: primary-1\n    port: 9000\n");
+  }
+
+  /** A shared config template on a primary is not validated as a replica seed list. */
+  @Test
+  public void testLeaderRpcOnPrimaryAccepted() {
+    startConfig("PRIMARY", true, "    resolver: LEADER_RPC\n    host: primary-1\n    port: 9000\n");
   }
 
   @Test

@@ -41,7 +41,8 @@ public class LeaderNameResolverProvider extends NameResolverProvider {
   /** Target to use with this provider. */
   public static final String TARGET = SCHEME + ":///leader";
 
-  static final long PROBE_TIMEOUT_MS = 2000;
+  /** Timeout for each resolveLeader call. */
+  public static final long PROBE_TIMEOUT_MS = 2000;
 
   private final Supplier<Collection<Node>> seeds;
   private final long pollIntervalMs;
@@ -108,24 +109,40 @@ public class LeaderNameResolverProvider extends NameResolverProvider {
     if (!SCHEME.equals(targetUri.getScheme())) {
       return null;
     }
+    return new LeaderNameResolver(newTracker(seeds, pollIntervalMs, call, leaderAddress), true, "");
+  }
+
+  /**
+   * Create a leader tracker that calls resolveLeader over gRPC. It owns its probe channels and
+   * threads, released when the tracker is closed.
+   *
+   * @param seeds seed nodes
+   * @param pollIntervalMs how often to re-resolve the leader
+   * @param call calls resolveLeader on a channel to a seed
+   * @param leaderAddress address to target, from the leader's answer
+   */
+  public static LeaderTracker newTracker(
+      Supplier<Collection<Node>> seeds,
+      long pollIntervalMs,
+      Function<ManagedChannel, ResolveLeaderResponse> call,
+      Function<ResolveLeaderResponse, Node> leaderAddress) {
     ProbeChannels channels = new ProbeChannels();
     ExecutorService probeExecutor =
         Executors.newCachedThreadPool(
             r -> {
-              Thread t = new Thread(r, "LeaderNameResolver-probe");
+              Thread t = new Thread(r, "LeaderTracker-probe");
               t.setDaemon(true);
               return t;
             });
     LeaderResolver resolver =
         LeaderResolver.grpc(seeds, channels, call, leaderAddress, probeExecutor);
-    return new LeaderNameResolver(resolver, pollIntervalMs, "") {
-      @Override
-      public synchronized void shutdown() {
-        super.shutdown();
-        // closed before shutting down channels, so a poll still running can not create new ones
-        channels.close();
-        probeExecutor.shutdownNow();
-      }
-    };
+    return new LeaderTracker(
+        resolver,
+        pollIntervalMs,
+        () -> {
+          // closed before shutting down threads, so a poll still running can not create channels
+          channels.close();
+          probeExecutor.shutdownNow();
+        });
   }
 }

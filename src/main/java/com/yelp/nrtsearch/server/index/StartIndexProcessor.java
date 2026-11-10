@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.handler.Handler.HandlerException;
 import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
+import io.grpc.Status;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +55,7 @@ public class StartIndexProcessor {
   private final boolean requireIdField;
   private final IndexStartConfig.PrimaryResolverType primaryResolver;
   private final int leaderResolvePollMs;
+  private final boolean allowSingleLeaderSeed;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
 
   /**
@@ -91,7 +93,8 @@ public class StartIndexProcessor {
         discoveryFileUpdateIntervalMs,
         requireIdField,
         IndexStartConfig.PrimaryResolverType.FILE,
-        IndexStartConfig.DEFAULT_LEADER_RESOLVE_POLL_MS);
+        IndexStartConfig.DEFAULT_LEADER_RESOLVE_POLL_MS,
+        false);
   }
 
   /**
@@ -99,6 +102,7 @@ public class StartIndexProcessor {
    *
    * @param primaryResolver how replicas find the primary
    * @param leaderResolvePollMs how often LEADER_RPC replicas re-resolve the leader
+   * @param allowSingleLeaderSeed allow a single LEADER_RPC seed host in requests
    */
   public StartIndexProcessor(
       String serviceName,
@@ -111,7 +115,9 @@ public class StartIndexProcessor {
       int discoveryFileUpdateIntervalMs,
       boolean requireIdField,
       IndexStartConfig.PrimaryResolverType primaryResolver,
-      int leaderResolvePollMs) {
+      int leaderResolvePollMs,
+      boolean allowSingleLeaderSeed) {
+    this.allowSingleLeaderSeed = allowSingleLeaderSeed;
     this.primaryResolver = primaryResolver;
     this.leaderResolvePollMs = leaderResolvePollMs;
     this.serviceName = serviceName;
@@ -217,6 +223,15 @@ public class StartIndexProcessor {
       indexStateManager.start(mode, nrtDataManager, primaryGen, primaryClient);
     } catch (Exception e) {
       logger.error("Cannot start IndexState/ShardState", e);
+      // this processor owns the client until the index starts; release it (closing is idempotent,
+      // so this is safe if the replica node already closed it)
+      if (primaryClient != null) {
+        try {
+          primaryClient.close();
+        } catch (RuntimeException closeError) {
+          e.addSuppressed(closeError);
+        }
+      }
       throw new StartIndexProcessorException(e);
     }
 
@@ -251,6 +266,11 @@ public class StartIndexProcessor {
       // follow the active primary of a multi-primary cluster, asking the configured nodes
       // one leader resolver per seed source, shared by all replica indices of this server
       if (!request.getPrimaryAddress().isEmpty()) {
+        try {
+          IndexStartConfig.checkLeaderSeeds(request.getPrimaryAddress(), allowSingleLeaderSeed);
+        } catch (IllegalArgumentException e) {
+          throw Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException();
+        }
         List<String> hosts = IndexStartConfig.splitHosts(request.getPrimaryAddress());
         return SharedLeaderClients.acquire(
             "hosts:" + String.join(",", hosts) + ":" + request.getPort(),

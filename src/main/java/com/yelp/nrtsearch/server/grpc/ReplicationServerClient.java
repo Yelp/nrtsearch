@@ -214,24 +214,13 @@ public class ReplicationServerClient implements Closeable {
     }
   }
 
+  /**
+   * Register a replica with the primary. Failures are logged, not thrown, so a replica can start
+   * without a reachable primary (https://github.com/Yelp/nrtsearch/issues/86).
+   */
   public void addReplicas(
       String indexName, String indexId, String nodeName, String hostName, int port) {
-    AddReplicaRequest addReplicaRequest =
-        AddReplicaRequest.newBuilder()
-            .setMagicNumber(BINARY_MAGIC)
-            .setIndexName(indexName)
-            .setIndexId(indexId)
-            .setNodeName(nodeName)
-            .setHostName(hostName)
-            .setPort(port)
-            .build();
-    try {
-      this.blockingStub.addReplicas(addReplicaRequest);
-    } catch (Exception e) {
-      /* Note this should allow the replica to start, but it means it will not be able to get new index updates
-       * from Primary: https://github.com/Yelp/nrtsearch/issues/86 */
-      logger.warn("Replica could NOT register itself with Primary ", e);
-    }
+    tryAddReplicas(indexName, indexId, nodeName, hostName, port);
   }
 
   public Iterator<RawFileChunk> recvRawFile(

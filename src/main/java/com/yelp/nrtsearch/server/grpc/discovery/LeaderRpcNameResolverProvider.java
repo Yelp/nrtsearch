@@ -36,19 +36,16 @@ import java.util.function.Supplier;
  */
 public final class LeaderRpcNameResolverProvider {
   public static final String SCHEME = LeaderNameResolverProvider.SCHEME;
-  private static final long PROBE_TIMEOUT_MS = 2000;
 
   private LeaderRpcNameResolverProvider() {}
 
   /**
-   * Create a provider for replicas.
-   *
-   * @param seeds seed nodes (host and replication port) to ask for the leader
-   * @param pollIntervalMs how often to re-resolve the leader
+   * Create a leader tracker for replicas, which can be shared by the channels of all replica
+   * indices using the same seeds.
    */
-  public static LeaderNameResolverProvider create(
+  public static com.yelp.nrtsearch.clientlib.leader.LeaderTracker newTracker(
       Supplier<Collection<Node>> seeds, long pollIntervalMs) {
-    return new LeaderNameResolverProvider(
+    return LeaderNameResolverProvider.newTracker(
         seeds,
         pollIntervalMs,
         LeaderRpcNameResolverProvider::callReplication,
@@ -57,7 +54,7 @@ public final class LeaderRpcNameResolverProvider {
 
   private static ResolveLeaderResponse callReplication(ManagedChannel channel) {
     return ReplicationServerGrpc.newBlockingStub(channel)
-        .withDeadlineAfter(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .withDeadlineAfter(LeaderNameResolverProvider.PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .resolveLeader(ResolveLeaderRequest.newBuilder().build());
   }
 

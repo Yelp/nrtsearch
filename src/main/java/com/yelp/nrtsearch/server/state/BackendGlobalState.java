@@ -233,7 +233,8 @@ public class BackendGlobalState extends GlobalState {
         config.getLeaderElectionConfig().getRefreshIntervalMs());
   }
 
-  static boolean isLoopbackHost(String host) {
+  /** If a host name is a loopback address (or empty), not reachable from other machines. */
+  public static boolean isLoopbackHost(String host) {
     if (host == null || host.isBlank()) {
       return true;
     }
@@ -947,7 +948,8 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
             getConfiguration().getRequireIdField(),
             getConfiguration().getIndexStartConfig().getPrimaryResolver(),
-            getConfiguration().getIndexStartConfig().getLeaderResolvePollMs());
+            getConfiguration().getIndexStartConfig().getLeaderResolvePollMs(),
+            getConfiguration().getIndexStartConfig().getAllowSingleLeaderSeed());
     try {
       return startIndexHandler.process(
           indexStateManager.getCurrent(), startIndexRequest, startOptions);

@@ -51,6 +51,7 @@ public class IndexStartConfig {
   private final String discoveryFile;
   private final IndexDataLocationType dataLocationType;
   private final PrimaryResolverType primaryResolver;
+  private final boolean allowSingleLeaderSeed;
   private final int leaderResolvePollMs;
 
   /**
@@ -79,16 +80,15 @@ public class IndexStartConfig {
     boolean allowSingleLeaderSeed =
         configReader.getBoolean(
             CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "allowSingleLeaderSeed", false);
+    // only checked where the configured host is actually used: replicas started from config.
+    // An empty host (address given in StartIndex requests) or another mode (shared config
+    // template) is not validated here; StartIndex requests are validated when they are processed.
     if (primaryResolver == PrimaryResolverType.LEADER_RPC
+        && mode == Mode.REPLICA
+        && autoStart
         && discoveryFile.isEmpty()
-        && splitHosts(discoveryHost).size() < 2
-        && !allowSingleLeaderSeed) {
-      // if that single host is the primary that fails, the replica can never find the new leader
-      throw new IllegalArgumentException(
-          "primaryDiscovery.resolver LEADER_RPC needs a discovery file or a comma separated list of"
-              + " all primary hosts; a single host can not find a new leader if it fails. Set"
-              + " primaryDiscovery.allowSingleLeaderSeed: true if the host is a load balanced name"
-              + " for all primaries");
+        && !discoveryHost.isBlank()) {
+      checkLeaderSeeds(discoveryHost, allowSingleLeaderSeed);
     }
     IndexDataLocationType dataLocationType =
         IndexDataLocationType.valueOf(
@@ -101,7 +101,8 @@ public class IndexStartConfig {
         discoveryFile,
         dataLocationType,
         primaryResolver,
-        leaderResolvePollMs);
+        leaderResolvePollMs,
+        allowSingleLeaderSeed);
   }
 
   /**
@@ -129,7 +130,8 @@ public class IndexStartConfig {
         discoveryFile,
         dataLocationType,
         PrimaryResolverType.FILE,
-        DEFAULT_LEADER_RESOLVE_POLL_MS);
+        DEFAULT_LEADER_RESOLVE_POLL_MS,
+        false);
   }
 
   /**
@@ -137,6 +139,7 @@ public class IndexStartConfig {
    *
    * @param primaryResolver how replicas find the primary
    * @param leaderResolvePollMs how often LEADER_RPC replicas re-resolve the leader
+   * @param allowSingleLeaderSeed allow a single LEADER_RPC seed host
    */
   public IndexStartConfig(
       boolean autoStart,
@@ -146,7 +149,9 @@ public class IndexStartConfig {
       String discoveryFile,
       IndexDataLocationType dataLocationType,
       PrimaryResolverType primaryResolver,
-      int leaderResolvePollMs) {
+      int leaderResolvePollMs,
+      boolean allowSingleLeaderSeed) {
+    this.allowSingleLeaderSeed = allowSingleLeaderSeed;
     if (leaderResolvePollMs <= 0) {
       throw new IllegalArgumentException("leaderResolvePollMs must be > 0");
     }
@@ -183,6 +188,28 @@ public class IndexStartConfig {
   /** Get primary replication port. */
   public Integer getDiscoveryPort() {
     return discoveryPort;
+  }
+
+  /**
+   * Verify a static host list can find a new leader when one primary fails: it needs at least two
+   * hosts, unless a single host is explicitly allowed (a load balanced name for all primaries).
+   *
+   * @throws IllegalArgumentException if not
+   */
+  public static void checkLeaderSeeds(String hosts, boolean allowSingleLeaderSeed) {
+    if (splitHosts(hosts).size() < 2 && !allowSingleLeaderSeed) {
+      // if that single host is the primary that fails, the replica can never find the new leader
+      throw new IllegalArgumentException(
+          "primaryDiscovery.resolver LEADER_RPC needs a discovery file or a comma separated list of"
+              + " all primary hosts; a single host can not find a new leader if it fails. Set"
+              + " primaryDiscovery.allowSingleLeaderSeed: true if the host is a load balanced name"
+              + " for all primaries");
+    }
+  }
+
+  /** If a single LEADER_RPC seed host is allowed. */
+  public boolean getAllowSingleLeaderSeed() {
+    return allowSingleLeaderSeed;
   }
 
   /** Split a comma separated host list, trimming and dropping empty entries. */

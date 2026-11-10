@@ -104,93 +104,192 @@ public class LeaderResolverTest {
     assertFalse(resolver(List.of(A, B)).resolve().isPresent());
   }
 
-  /** Records what the name resolver publishes. */
-  static class RecordingListener extends NameResolver.Listener2 {
-    final List<List<EquivalentAddressGroup>> results = new ArrayList<>();
-    final List<Status> errors = new ArrayList<>();
+  /** Records what a tracker publishes. */
+  static class RecordingSubscriber implements LeaderTracker.Subscriber {
+    final List<LeaderResolver.Resolved> leaders = new ArrayList<>();
+    int noLeader = 0;
 
     @Override
-    public void onResult(NameResolver.ResolutionResult result) {
-      results.add(result.getAddresses());
+    public void onLeader(LeaderResolver.Resolved leader) {
+      leaders.add(leader);
     }
 
     @Override
-    public void onError(Status error) {
-      errors.add(error);
+    public void onNoLeader() {
+      noLeader++;
     }
   }
 
-  private static InetSocketAddress address(List<EquivalentAddressGroup> groups) {
-    return (InetSocketAddress) groups.get(0).getAddresses().get(0);
+  private LeaderTracker tracker(List<Node> seeds) {
+    return new LeaderTracker(resolver(seeds), 1000, () -> {});
   }
 
   @Test
-  public void testNameResolverPublishesLeaderChangesOnly() {
+  public void testTrackerPublishesLeaderChangesOnly() {
     answers.put(A, leader("a", 1, true));
-    LeaderNameResolver nameResolver = new LeaderNameResolver(resolver(List.of(A, B)), 1000, "");
-    RecordingListener listener = new RecordingListener();
-    // drive polls manually; start() would schedule them
-    setListener(nameResolver, listener);
-    nameResolver.poll();
-    nameResolver.poll();
-    assertEquals(1, listener.results.size());
-    assertEquals("a", address(listener.results.get(0)).getHostString());
-
+    LeaderTracker tracker = tracker(List.of(A, B));
+    RecordingSubscriber sub = new RecordingSubscriber();
+    tracker.subscribe(sub);
+    tracker.poll();
+    tracker.poll();
+    assertEquals(1, sub.leaders.size());
+    assertEquals("a", sub.leaders.get(0).address().getHost());
     // failover to b
     answers.put(A, leader("b", 2, false));
     answers.put(B, leader("b", 2, true));
-    nameResolver.poll();
-    assertEquals(2, listener.results.size());
-    assertEquals("b", address(listener.results.get(1)).getHostString());
+    tracker.poll();
+    assertEquals(2, sub.leaders.size());
+    assertEquals("b", sub.leaders.get(1).address().getHost());
+    tracker.close();
   }
 
   @Test
-  public void testNameResolverKeepsLeaderWhenUnconfirmed() {
+  public void testTrackerKeepsLeaderWhenUnconfirmed() {
     answers.put(A, leader("a", 1, true));
-    LeaderNameResolver nameResolver = new LeaderNameResolver(resolver(List.of(A)), 1000, "");
-    RecordingListener listener = new RecordingListener();
-    setListener(nameResolver, listener);
-    nameResolver.poll();
-    // a becomes unreachable; no leader confirmed: keep a, publish nothing, no error
+    LeaderTracker tracker = tracker(List.of(A));
+    RecordingSubscriber sub = new RecordingSubscriber();
+    tracker.subscribe(sub);
+    tracker.poll();
     answers.clear();
-    nameResolver.poll();
-    assertEquals(1, listener.results.size());
-    assertTrue(listener.errors.isEmpty());
-    assertEquals(1, nameResolver.getCurrent().get().epoch());
+    tracker.poll();
+    assertEquals(1, sub.leaders.size());
+    assertEquals(0, sub.noLeader);
+    assertEquals(1, tracker.getCurrent().get().epoch());
+    tracker.close();
   }
 
   @Test
-  public void testNameResolverNeverMovesToOlderEpoch() {
+  public void testTrackerNeverMovesToOlderEpoch() {
     answers.put(B, leader("b", 5, true));
-    LeaderNameResolver nameResolver = new LeaderNameResolver(resolver(List.of(A, B)), 1000, "");
-    RecordingListener listener = new RecordingListener();
-    setListener(nameResolver, listener);
-    nameResolver.poll();
+    LeaderTracker tracker = tracker(List.of(A, B));
+    RecordingSubscriber sub = new RecordingSubscriber();
+    tracker.subscribe(sub);
+    tracker.poll();
     answers.clear();
     answers.put(A, leader("a", 4, true));
-    nameResolver.poll();
-    assertEquals(1, listener.results.size());
-    assertEquals(5, nameResolver.getCurrent().get().epoch());
+    tracker.poll();
+    assertEquals(1, sub.leaders.size());
+    assertEquals(5, tracker.getCurrent().get().epoch());
+    tracker.close();
   }
 
   @Test
-  public void testNameResolverErrorBeforeFirstLeader() {
-    LeaderNameResolver nameResolver = new LeaderNameResolver(resolver(List.of(A)), 1000, "");
-    RecordingListener listener = new RecordingListener();
-    setListener(nameResolver, listener);
-    nameResolver.poll();
-    assertEquals(1, listener.errors.size());
-    assertEquals(Status.Code.UNAVAILABLE, listener.errors.get(0).getCode());
+  public void testTrackerNoLeaderBeforeFirst() {
+    LeaderTracker tracker = tracker(List.of(A));
+    RecordingSubscriber sub = new RecordingSubscriber();
+    tracker.subscribe(sub);
+    tracker.poll();
+    assertEquals(1, sub.noLeader);
+    tracker.close();
   }
 
-  private static void setListener(LeaderNameResolver resolver, NameResolver.Listener2 listener) {
-    try {
-      java.lang.reflect.Field f = LeaderNameResolver.class.getDeclaredField("listener");
-      f.setAccessible(true);
-      f.set(resolver, listener);
-    } catch (ReflectiveOperationException e) {
-      throw new RuntimeException(e);
+  /** Many subscribers (e.g. one channel per replica index) share one tracker's resolution. */
+  @Test
+  public void testTrackerSharedBySubscribers() {
+    answers.put(A, leader("a", 1, true));
+    java.util.concurrent.atomic.AtomicInteger probes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    LeaderTracker tracker =
+        new LeaderTracker(
+            new LeaderResolver(
+                () -> List.of(A),
+                node -> {
+                  probes.incrementAndGet();
+                  return answers.get(node);
+                },
+                LeaderResolver::clientAddress),
+            1000,
+            () -> {});
+    List<RecordingSubscriber> subs = new ArrayList<>();
+    for (int i = 0; i < 10; i++) {
+      RecordingSubscriber sub = new RecordingSubscriber();
+      subs.add(sub);
+      tracker.subscribe(sub);
     }
+    tracker.poll();
+    assertEquals(1, probes.get());
+    for (RecordingSubscriber sub : subs) {
+      assertEquals(1, sub.leaders.size());
+    }
+    // a late subscriber is told the current leader at once
+    RecordingSubscriber late = new RecordingSubscriber();
+    tracker.subscribe(late);
+    assertEquals(1, late.leaders.size());
+    tracker.close();
+  }
+
+  /** The name resolver relays tracker results to its gRPC listener. */
+  @Test
+  public void testNameResolverRelaysToListener() {
+    answers.put(A, leader("a", 1, true));
+    LeaderTracker tracker = tracker(List.of(A));
+    LeaderNameResolver nameResolver = new LeaderNameResolver(tracker, false, "");
+    List<List<EquivalentAddressGroup>> results = new ArrayList<>();
+    List<Status> errors = new ArrayList<>();
+    nameResolver.start(
+        new NameResolver.Listener2() {
+          @Override
+          public void onResult(NameResolver.ResolutionResult result) {
+            results.add(result.getAddresses());
+          }
+
+          @Override
+          public void onError(Status error) {
+            errors.add(error);
+          }
+        });
+    tracker.poll();
+    assertEquals(1, results.size());
+    assertEquals(
+        "a", ((InetSocketAddress) results.get(0).get(0).getAddresses().get(0)).getHostString());
+    // not owner: shutting down the name resolver leaves the shared tracker running
+    nameResolver.shutdown();
+    assertTrue(tracker.getCurrent().isPresent());
+    tracker.close();
+  }
+
+  /** Closing an owned name resolver closes its tracker. */
+  @Test
+  public void testOwnedTrackerClosedWithResolver() {
+    java.util.concurrent.atomic.AtomicBoolean closed =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    LeaderTracker tracker = new LeaderTracker(resolver(List.of(A)), 1000, () -> closed.set(true));
+    LeaderNameResolver nameResolver = new LeaderNameResolver(tracker, true, "");
+    nameResolver.start(
+        new NameResolver.Listener2() {
+          @Override
+          public void onResult(NameResolver.ResolutionResult result) {}
+
+          @Override
+          public void onError(Status error) {}
+        });
+    nameResolver.shutdown();
+    assertTrue(closed.get());
+  }
+
+  @Test
+  public void testRetainIgnoresEmptySeeds() {
+    ProbeChannels channels = new ProbeChannels();
+    channels.get(A);
+    channels.retain(List.of());
+    assertEquals(1, channels.size());
+    channels.close();
+  }
+
+  /** A shut down probe executor does not fail resolution with an exception. */
+  @Test
+  public void testRejectedProbeExecutor() {
+    java.util.concurrent.ExecutorService executor =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+    executor.shutdownNow();
+    LeaderResolver resolver =
+        new LeaderResolver(
+            () -> List.of(A, B),
+            node -> answers.get(node),
+            LeaderResolver::clientAddress,
+            executor,
+            (seeds, candidate) -> {});
+    assertFalse(resolver.resolve().isPresent());
   }
 
   @SuppressWarnings("unused")

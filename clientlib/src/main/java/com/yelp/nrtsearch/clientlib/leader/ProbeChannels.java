@@ -48,8 +48,15 @@ public class ProbeChannels implements Closeable {
         n -> ManagedChannelBuilder.forAddress(n.getHost(), n.getPort()).usePlaintext().build());
   }
 
-  /** Close channels to nodes not in {@code inUse}, e.g. seeds removed from a discovery file. */
+  /**
+   * Close channels to nodes not in {@code inUse}, e.g. seeds removed from a discovery file. An
+   * empty set is ignored, since it more likely means a seed source was briefly unreadable than that
+   * every node is gone.
+   */
   public void retain(Collection<Node> inUse) {
+    if (inUse.isEmpty()) {
+      return;
+    }
     Set<Node> keep = Set.copyOf(inUse);
     java.util.List<ManagedChannel> toClose = new java.util.ArrayList<>();
     synchronized (this) {

@@ -208,7 +208,12 @@ public class LeaderResolver {
     }
     List<CompletableFuture<Optional<ResolveLeaderResponse>>> futures = new ArrayList<>();
     for (Node seed : seedList) {
-      futures.add(CompletableFuture.supplyAsync(() -> tryProbe(seed), executor));
+      try {
+        futures.add(CompletableFuture.supplyAsync(() -> tryProbe(seed), executor));
+      } catch (java.util.concurrent.RejectedExecutionException e) {
+        // shutting down
+        return answers;
+      }
     }
     for (int i = 0; i < seedList.size(); i++) {
       try {

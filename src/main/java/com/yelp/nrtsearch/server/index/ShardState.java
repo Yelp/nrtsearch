@@ -1219,6 +1219,8 @@ public class ShardState implements Closeable {
     private final int pingIntervalMs;
     private final java.util.concurrent.atomic.AtomicBoolean syncRunning =
         new java.util.concurrent.atomic.AtomicBoolean();
+    private final java.util.concurrent.atomic.AtomicBoolean syncPending =
+        new java.util.concurrent.atomic.AtomicBoolean();
     private final java.util.concurrent.ExecutorService syncExecutor =
         java.util.concurrent.Executors.newSingleThreadExecutor(
             r -> {
@@ -1277,16 +1279,24 @@ public class ShardState implements Closeable {
     /**
      * A primary only pushes points on refresh, so after registering with a new primary (e.g. after
      * a restart or failover) catch up to its current point, as on start. Runs off the ping thread
-     * with a short wait for the primary, and at most one at a time.
+     * with a short wait for the primary. Re-registration means the primary changed, so a request
+     * while a sync is running (possibly against the previous primary) is not dropped: at most one
+     * more sync is queued and runs when the current one finishes.
      */
     private void maybeSyncAfterRegister(NRTReplicaNode nrtReplicaNode) {
       NrtsearchConfig configuration =
           shardState.indexStateManager.getCurrent().getGlobalState().getConfiguration();
-      if (!configuration.getSyncInitialNrtPoint()
-          || exit
-          || !syncRunning.compareAndSet(false, true)) {
+      if (!configuration.getSyncInitialNrtPoint() || exit) {
         return;
       }
+      if (!syncRunning.compareAndSet(false, true)) {
+        syncPending.set(true);
+        return;
+      }
+      runSync(nrtReplicaNode, configuration);
+    }
+
+    private void runSync(NRTReplicaNode nrtReplicaNode, NrtsearchConfig configuration) {
       try {
         syncExecutor.execute(
             () -> {
@@ -1299,7 +1309,18 @@ public class ShardState implements Closeable {
               } catch (IOException | RuntimeException e) {
                 logger.warn("Failed to sync from primary after registering", e);
               } finally {
-                syncRunning.set(false);
+                if (syncPending.getAndSet(false) && !exit) {
+                  // registered with another primary while syncing: sync again
+                  runSync(nrtReplicaNode, configuration);
+                } else {
+                  syncRunning.set(false);
+                  // a request may have set pending after the check above, before running was
+                  // cleared; take it over if no one else has started a sync since
+                  if (syncPending.get() && !exit && syncRunning.compareAndSet(false, true)) {
+                    syncPending.set(false);
+                    runSync(nrtReplicaNode, configuration);
+                  }
+                }
               }
             });
       } catch (java.util.concurrent.RejectedExecutionException e) {

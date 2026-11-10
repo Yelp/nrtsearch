@@ -16,33 +16,38 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import com.yelp.nrtsearch.clientlib.Node;
+import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolver;
+import com.yelp.nrtsearch.clientlib.leader.LeaderTracker;
 import com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.NameResolver;
+import io.grpc.NameResolverProvider;
+import java.net.URI;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Leader following replication clients shared by all replica indices of a server that use the same
- * seeds, so the leader is resolved once (one set of resolveLeader calls per poll, not one per
- * index) and all indices follow a failover at the same time. Reference counted: the shared channel
- * is shut down when the last index using it closes its client.
+ * Leader following replication clients for replica indices. All indices of a server using the same
+ * seeds share one {@link LeaderTracker}, so the leader is resolved once (one set of resolveLeader
+ * calls per poll, not one per index) and all indices follow a failover together. Each index still
+ * gets its own channel, so replication traffic of one index (e.g. a large merge copy) does not
+ * delay another's. The tracker is reference counted and closed with the last client.
  */
 public final class SharedLeaderClients {
   private static final Logger logger = LoggerFactory.getLogger(SharedLeaderClients.class);
 
   private static final class Shared {
-    final ManagedChannel channel;
+    final LeaderTracker tracker;
     final String description;
     int refs = 0;
 
-    Shared(ManagedChannel channel, String description) {
-      this.channel = channel;
+    Shared(LeaderTracker tracker, String description) {
+      this.tracker = tracker;
       this.description = description;
     }
   }
@@ -64,23 +69,29 @@ public final class SharedLeaderClients {
     String fullKey = key + "#" + pollIntervalMs;
     Shared shared;
     synchronized (SHARED) {
-      shared =
-          SHARED.computeIfAbsent(
-              fullKey,
-              k ->
-                  new Shared(
-                      ManagedChannelBuilder.forTarget(
-                              LeaderRpcNameResolverProvider.SCHEME + ":///leader")
-                          .usePlaintext()
-                          .maxInboundMessageSize(ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE)
-                          .nameResolverFactory(
-                              LeaderRpcNameResolverProvider.create(seeds, pollIntervalMs))
-                          .build(),
-                      key));
+      shared = SHARED.get(fullKey);
+      if (shared == null) {
+        LeaderTracker tracker = LeaderRpcNameResolverProvider.newTracker(seeds, pollIntervalMs);
+        tracker.start();
+        shared = new Shared(tracker, key);
+        SHARED.put(fullKey, shared);
+      }
       shared.refs++;
     }
     Shared finalShared = shared;
-    return new ReplicationServerClient(shared.channel, "", 0, key) {
+    ManagedChannel channel;
+    try {
+      channel =
+          ManagedChannelBuilder.forTarget(LeaderRpcNameResolverProvider.SCHEME + ":///leader")
+              .usePlaintext()
+              .maxInboundMessageSize(ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE)
+              .nameResolverFactory(new SubscriberProvider(shared.tracker))
+              .build();
+    } catch (RuntimeException e) {
+      release(fullKey, finalShared);
+      throw e;
+    }
+    return new ReplicationServerClient(channel, "", 0, key) {
       private boolean released = false;
 
       @Override
@@ -91,38 +102,66 @@ public final class SharedLeaderClients {
           }
           released = true;
         }
-        release(fullKey, finalShared);
+        try {
+          super.close();
+        } finally {
+          release(fullKey, finalShared);
+        }
       }
     };
   }
 
   private static void release(String fullKey, Shared shared) {
-    boolean shutdown;
+    boolean last;
     synchronized (SHARED) {
       shared.refs--;
-      shutdown = shared.refs == 0;
-      if (shutdown) {
+      last = shared.refs == 0;
+      if (last) {
         SHARED.remove(fullKey, shared);
       }
     }
-    if (shutdown) {
-      shared.channel.shutdown();
-      try {
-        if (!shared.channel.awaitTermination(10, TimeUnit.SECONDS)) {
-          shared.channel.shutdownNow();
-        }
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        shared.channel.shutdownNow();
-      }
-      logger.info("Closed shared leader client for {}", shared.description);
+    if (last) {
+      shared.tracker.close();
+      logger.info("Closed shared leader tracker for {}", shared.description);
     }
   }
 
-  /** Number of shared channels, for tests. */
+  /** Number of shared trackers, for tests. */
   static int size() {
     synchronized (SHARED) {
       return SHARED.size();
+    }
+  }
+
+  /** Name resolver provider subscribing a channel to a shared tracker it does not own. */
+  private static final class SubscriberProvider extends NameResolverProvider {
+    private final LeaderTracker tracker;
+
+    SubscriberProvider(LeaderTracker tracker) {
+      this.tracker = tracker;
+    }
+
+    @Override
+    protected boolean isAvailable() {
+      return true;
+    }
+
+    @Override
+    protected int priority() {
+      return 6;
+    }
+
+    @Override
+    public String getDefaultScheme() {
+      return LeaderRpcNameResolverProvider.SCHEME;
+    }
+
+    @Override
+    public NameResolver newNameResolver(URI targetUri, NameResolver.Args args) {
+      if (!LeaderRpcNameResolverProvider.SCHEME.equals(targetUri.getScheme())) {
+        return null;
+      }
+      return new LeaderNameResolver(tracker, false, "");
     }
   }
 }
