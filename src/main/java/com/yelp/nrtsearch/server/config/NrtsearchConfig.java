@@ -64,6 +64,8 @@ public class NrtsearchConfig {
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
   static final long DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   static final long DEFAULT_INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
+  static final long DEFAULT_NEW_NRT_POINT_DEADLINE_MS = 30000; // 30s
+  static final long DEFAULT_REPLICATION_RPC_DEADLINE_MS = 10000; // 10s
   private static final int DEFAULT_MAX_CLAUSE_COUNT = 1024;
   private final int port;
   private final int replicationPort;
@@ -110,6 +112,8 @@ public class NrtsearchConfig {
   private final int lowPriorityCopyPercentage;
   private final boolean verifyReplicationIndexId;
   private final boolean useKeepAliveForReplication;
+  private final long newNRTPointDeadlineMs;
+  private final long replicationRpcDeadlineMs;
   private final DirectoryFactory.MMapGrouping mmapGrouping;
   private final boolean requireIdField;
   private final boolean s3RefreshUpload;
@@ -187,6 +191,10 @@ public class NrtsearchConfig {
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
     useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
+    newNRTPointDeadlineMs =
+        configReader.getLong("newNRTPointDeadlineMs", DEFAULT_NEW_NRT_POINT_DEADLINE_MS);
+    replicationRpcDeadlineMs =
+        configReader.getLong("replicationRpcDeadlineMs", DEFAULT_REPLICATION_RPC_DEADLINE_MS);
     mmapGrouping =
         configReader.get(
             "mmapGrouping",
@@ -376,6 +384,24 @@ public class NrtsearchConfig {
 
   public boolean getUseKeepAliveForReplication() {
     return useKeepAliveForReplication;
+  }
+
+  /**
+   * Get the deadline for the primary to notify a replica of a new NRT point, <= 0 means no
+   * deadline. Replicas that exceed the deadline are dropped by the primary, and re-register through
+   * their keep alive thread. This must be larger than {@link #getReplicationRpcDeadlineMs()}, since
+   * the replica fetches the copy state from the primary while handling the request.
+   */
+  public long getNewNRTPointDeadlineMs() {
+    return newNRTPointDeadlineMs;
+  }
+
+  /**
+   * Get the deadline for unary replication rpcs a replica makes to the primary (addReplicas,
+   * getConnectedNodes, recvCopyState), <= 0 means no deadline.
+   */
+  public long getReplicationRpcDeadlineMs() {
+    return replicationRpcDeadlineMs;
   }
 
   public DirectoryFactory.MMapGrouping getMMapGrouping() {

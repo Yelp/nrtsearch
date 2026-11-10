@@ -16,18 +16,12 @@
 package com.yelp.nrtsearch.server.handler;
 
 import com.yelp.nrtsearch.server.grpc.IndexName;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
-import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Iterator;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.slf4j.Logger;
@@ -43,14 +37,13 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
   @Override
   public SearcherVersion handle(IndexName indexNameRequest) throws Exception {
     IndexStateManager indexStateManager = getIndexStateManager(indexNameRequest.getIndexName());
-    String indexId = indexStateManager.getIndexId();
     IndexState indexState = indexStateManager.getCurrent();
-    SearcherVersion reply = handle(indexState, indexId);
+    SearcherVersion reply = handle(indexState);
     logger.debug("WriteNRTPointHandler returned version {}", reply.getVersion());
     return reply;
   }
 
-  private SearcherVersion handle(IndexState indexState, String indexId) {
+  private SearcherVersion handle(IndexState indexState) {
     final ShardState shardState = indexState.getShard(0);
 
     if (!shardState.isPrimary()) {
@@ -60,56 +53,10 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
     SearcherVersion.Builder searchverVersionBuilder = SearcherVersion.newBuilder();
     try {
       if (shardState.nrtPrimaryNode.flushAndRefresh()) {
-        // Something did get flushed (there were indexing ops since the last flush):
-
-        // nocommit: we used to notify caller of the version, before trying to push to replicas, in
-        // case we crash after flushing but
-        // before notifying all replicas, at which point we have a newer version index than client
-        // knew about?
+        // Something did get flushed (there were indexing ops since the last flush), notify
+        // current replicas
         long version = shardState.nrtPrimaryNode.getCopyStateVersion();
-        Collection<NRTPrimaryNode.ReplicaDetails> replicasInfos =
-            shardState.nrtPrimaryNode.getNodesInfo();
-        shardState.nrtPrimaryNode.message(
-            "send flushed version=" + version + " replica count " + replicasInfos.size());
-
-        // Notify current replicas:
-        Iterator<NRTPrimaryNode.ReplicaDetails> it = replicasInfos.iterator();
-        while (it.hasNext()) {
-          NRTPrimaryNode.ReplicaDetails replicaDetails = it.next();
-          String nodeName = replicaDetails.getNodeName();
-          ReplicationServerClient currentReplicaServerClient =
-              replicaDetails.getReplicationServerClient();
-          try {
-            // TODO: we should use multicast to broadcast files out to replicas
-            // TODO: ... replicas could copy from one another instead of just primary
-            // TODO: we could also prioritize one replica at a time?
-            currentReplicaServerClient.newNRTPoint(
-                indexState.getName(), indexId, shardState.nrtPrimaryNode.getPrimaryGen(), version);
-          } catch (StatusRuntimeException e) {
-            Status status = e.getStatus();
-            if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
-              logger.info(
-                  "NRTPRimaryNode: sendNRTPoint, lost connection to nodeName: "
-                      + nodeName
-                      + " host: "
-                      + replicaDetails.getHostPort().getHostName()
-                      + " port: "
-                      + replicaDetails.getHostPort().getPort());
-              it.remove();
-            }
-          } catch (Exception e) {
-            shardState.nrtPrimaryNode.message(
-                "top: failed to connect "
-                    + nodeName
-                    + " for newNRTPoint; skipping: "
-                    + e.getMessage());
-            logger.info(
-                "top: failed to connect "
-                    + nodeName
-                    + " for newNRTPoint; skipping: "
-                    + e.getMessage());
-          }
-        }
+        shardState.nrtPrimaryNode.sendNewNRTPointToReplicas(version);
         return searchverVersionBuilder.setVersion(version).setDidRefresh(true).build();
       } else {
         SearcherTaxonomyManager.SearcherAndTaxonomy s = shardState.acquire();

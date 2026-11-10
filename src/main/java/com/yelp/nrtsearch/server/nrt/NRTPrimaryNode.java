@@ -235,9 +235,14 @@ public class NRTPrimaryNode extends PrimaryNode {
    * called by the {@link NrtDataManager} once the version is available in the remote backend, so
    * that replicas downloading from S3 do not load an older version.
    *
+   * <p>Replicas that are unavailable, do not respond within the configured deadline ({@link
+   * com.yelp.nrtsearch.server.config.NrtsearchConfig#getNewNRTPointDeadlineMs()}), or cannot
+   * process the point are removed. A replica that is still alive will re-register through its keep
+   * alive thread.
+   *
    * @param version index version to send
    */
-  void sendNewNRTPointToReplicas(long version) {
+  public void sendNewNRTPointToReplicas(long version) {
     logger.info("NRTPrimaryNode: sendNRTPoint");
     logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.nrtPrimaryPointCount.labelValues(indexName).inc();
@@ -259,6 +264,17 @@ public class NRTPrimaryNode extends PrimaryNode {
               nodeName,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
+          currentReplicaServerClient.close();
+          it.remove();
+        } else if (status.getCode().equals(Status.DEADLINE_EXCEEDED.getCode())) {
+          // The replica is connected but not responding (e.g. hung after OOM). Drop it so it
+          // does not stall every refresh, it will re-register if it recovers.
+          logger.warn(
+              "NRTPrimaryNode: sendNRTPoint, nodeName: {} host: {} port: {} did not respond within {}ms, removing replica",
+              nodeName,
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort(),
+              currentReplicaServerClient.getDeadlineMs());
           currentReplicaServerClient.close();
           it.remove();
         } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())

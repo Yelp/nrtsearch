@@ -45,6 +45,7 @@ public class StartIndexProcessor {
   private final boolean s3RefreshNotifyAfterUpload;
   private final int discoveryFileUpdateIntervalMs;
   private final boolean requireIdField;
+  private final long replicationRpcDeadlineMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
 
   /**
@@ -60,6 +61,8 @@ public class StartIndexProcessor {
    *     is uploaded to S3
    * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
    * @param requireIdField whether the index must have an _ID field defined
+   * @param replicationRpcDeadlineMs deadline for unary rpcs from a replica to the primary, <= 0 for
+   *     no deadline
    */
   public StartIndexProcessor(
       String serviceName,
@@ -70,7 +73,8 @@ public class StartIndexProcessor {
       boolean s3RefreshUpload,
       boolean s3RefreshNotifyAfterUpload,
       int discoveryFileUpdateIntervalMs,
-      boolean requireIdField) {
+      boolean requireIdField,
+      long replicationRpcDeadlineMs) {
     this.serviceName = serviceName;
     this.ephemeralId = ephemeralId;
     this.remoteBackend = remoteBackend;
@@ -80,6 +84,7 @@ public class StartIndexProcessor {
     this.s3RefreshNotifyAfterUpload = s3RefreshNotifyAfterUpload;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
     this.requireIdField = requireIdField;
+    this.replicationRpcDeadlineMs = replicationRpcDeadlineMs;
   }
 
   public StartIndexResponse process(IndexState indexState, StartIndexRequest startIndexRequest)
@@ -185,11 +190,13 @@ public class StartIndexProcessor {
 
   private ReplicationServerClient getPrimaryClientForRequest(StartIndexRequest request) {
     if (!request.getPrimaryAddress().isEmpty()) {
-      return new ReplicationServerClient(request.getPrimaryAddress(), request.getPort());
+      return new ReplicationServerClient(
+          request.getPrimaryAddress(), request.getPort(), false, replicationRpcDeadlineMs);
     } else if (!request.getPrimaryDiscoveryFile().isEmpty()) {
       return new ReplicationServerClient(
           new DiscoveryFileAndPort(request.getPrimaryDiscoveryFile(), request.getPort()),
-          discoveryFileUpdateIntervalMs);
+          discoveryFileUpdateIntervalMs,
+          replicationRpcDeadlineMs);
     } else {
       logger.info(
           "No primary address or discovery file provided for index {}", request.getIndexName());

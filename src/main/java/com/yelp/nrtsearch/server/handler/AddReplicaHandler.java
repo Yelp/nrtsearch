@@ -30,11 +30,13 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
   private static final Logger logger = LoggerFactory.getLogger(AddReplicaHandler.class);
 
   private final boolean useKeepAlive;
+  private final long newNRTPointDeadlineMs;
   private final boolean verifyIndexId;
 
   public AddReplicaHandler(GlobalState globalState, boolean verifyIndexId) {
     super(globalState);
     this.useKeepAlive = globalState.getConfiguration().getUseKeepAliveForReplication();
+    this.newNRTPointDeadlineMs = globalState.getConfiguration().getNewNRTPointDeadlineMs();
     this.verifyIndexId = verifyIndexId;
   }
 
@@ -64,7 +66,10 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
           addReplicaRequest.getNodeName(),
           // channel for primary to talk to replica
           new ReplicationServerClient(
-              addReplicaRequest.getHostName(), addReplicaRequest.getPort(), useKeepAlive));
+              addReplicaRequest.getHostName(),
+              addReplicaRequest.getPort(),
+              useKeepAlive,
+              newNRTPointDeadlineMs));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
