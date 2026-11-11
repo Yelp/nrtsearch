@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
@@ -24,8 +25,16 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Rule;
@@ -43,12 +52,14 @@ public class ReplicationDeadlineTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private Server hungReplicaServer;
+  private final List<Server> extraServers = new ArrayList<>();
 
   @After
   public void cleanup() {
     if (hungReplicaServer != null) {
       hungReplicaServer.shutdownNow();
     }
+    extraServers.forEach(Server::shutdownNow);
     TestServer.cleanupServers();
   }
 
@@ -79,11 +90,16 @@ public class ReplicationDeadlineTest {
   }
 
   private void registerReplica(TestServer primaryServer, int replicaPort) throws IOException {
+    registerReplica(primaryServer, HUNG_REPLICA_NAME, replicaPort);
+  }
+
+  private void registerReplica(TestServer primaryServer, String nodeName, int replicaPort)
+      throws IOException {
     String indexId =
         primaryServer.getGlobalState().getIndexStateManagerOrThrow(TEST_INDEX).getIndexId();
     primaryServer
         .getReplicationClient()
-        .addReplicas(TEST_INDEX, indexId, HUNG_REPLICA_NAME, "localhost", replicaPort);
+        .addReplicas(TEST_INDEX, indexId, nodeName, "localhost", replicaPort);
   }
 
   private NRTPrimaryNode getPrimaryNode(TestServer primaryServer) throws IOException {
@@ -136,5 +152,81 @@ public class ReplicationDeadlineTest {
     assertTrue(searcherVersion.getDidRefresh());
     assertTrue(hungReplica.newNRTPointReceived.await(10, TimeUnit.SECONDS));
     assertEquals(0, primaryNode.getNodesInfo().size());
+  }
+
+  /**
+   * A hung replica whose keep alive thread still works re-registers right after the primary drops
+   * it. The broadcast must still finish in bounded time, and must not visit replicas that
+   * registered after it started.
+   */
+  @Test
+  public void testBroadcastBoundedWithConcurrentReRegistration() throws Exception {
+    int deadlineMs = 200;
+    int numReplicas = 3;
+    TestServer primaryServer = startPrimary("newNRTPointDeadlineMs: " + deadlineMs);
+    NRTPrimaryNode primaryNode = getPrimaryNode(primaryServer);
+
+    int[] ports = new int[numReplicas];
+    for (int i = 0; i < numReplicas; ++i) {
+      Server server = ServerBuilder.forPort(0).addService(new HungReplica()).build().start();
+      extraServers.add(server);
+      ports[i] = server.getPort();
+      registerReplica(primaryServer, "hung_replica_" + i, ports[i]);
+    }
+    assertEquals(numReplicas, primaryNode.getNodesInfo().size());
+
+    // Simulate replica keep alive threads: re-register any replica the primary has dropped
+    AtomicBoolean stop = new AtomicBoolean(false);
+    AtomicInteger reRegistrations = new AtomicInteger();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.submit(
+        () -> {
+          while (!stop.get()) {
+            for (int i = 0; i < numReplicas; ++i) {
+              String nodeName = "hung_replica_" + i;
+              boolean known =
+                  primaryNode.getNodesInfo().stream()
+                      .anyMatch(r -> r.getNodeName().equals(nodeName));
+              if (!known) {
+                try {
+                  registerReplica(primaryServer, nodeName, ports[i]);
+                  reRegistrations.incrementAndGet();
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              }
+            }
+            try {
+              Thread.sleep(5);
+            } catch (InterruptedException e) {
+              return;
+            }
+          }
+        });
+
+    ExecutorService broadcastExecutor = Executors.newSingleThreadExecutor();
+    try {
+      // Each replica that was registered when the broadcast started is waited on at most once.
+      // Allow generous slack for scheduling, but far less than repeated visits would take.
+      long maxExpectedMs = (long) numReplicas * deadlineMs + 2000;
+      Future<?> broadcast =
+          broadcastExecutor.submit(() -> primaryNode.sendNewNRTPointToReplicas(1));
+      try {
+        broadcast.get(maxExpectedMs, TimeUnit.MILLISECONDS);
+      } catch (TimeoutException e) {
+        fail(
+            "broadcast did not finish within "
+                + maxExpectedMs
+                + "ms, re-registrations: "
+                + reRegistrations.get());
+      }
+    } finally {
+      // stopping re-registration lets an unbounded broadcast finish, so the test can clean up
+      stop.set(true);
+      executor.shutdownNow();
+      executor.awaitTermination(10, TimeUnit.SECONDS);
+      broadcastExecutor.shutdown();
+      broadcastExecutor.awaitTermination(30, TimeUnit.SECONDS);
+    }
   }
 }
