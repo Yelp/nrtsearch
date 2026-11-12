@@ -36,6 +36,7 @@ public class ReplicationServerClient implements Closeable {
   public static final int BINARY_MAGIC = 0x3414f5c;
   public static final int MAX_MESSAGE_BYTES_SIZE = 1 * 1024 * 1024 * 1024;
   public static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
+  public static final long NO_DEADLINE = 0;
 
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -46,6 +47,7 @@ public class ReplicationServerClient implements Closeable {
   private final String discoveryFile;
   private int discoveryFileUpdateIntervalMs;
   private final ManagedChannel channel;
+  private final long deadlineMs;
 
   public ReplicationServerGrpc.ReplicationServerBlockingStub getBlockingStub() {
     return blockingStub;
@@ -85,7 +87,21 @@ public class ReplicationServerClient implements Closeable {
 
   /** Construct client connecting to ReplicationServer server at {@code host:port}. */
   public ReplicationServerClient(String host, int port, boolean useKeepAlive) {
-    this(createManagedChannel(host, port, useKeepAlive), host, port, "");
+    this(host, port, useKeepAlive, NO_DEADLINE);
+  }
+
+  /**
+   * Construct client connecting to ReplicationServer server at {@code host:port}.
+   *
+   * @param host server host
+   * @param port server port
+   * @param useKeepAlive if keep alive should be enabled on the channel
+   * @param deadlineMs deadline applied to each unary rpc (newNRTPoint, recvCopyState, addReplicas,
+   *     etc.), or <= 0 for no deadline. Not applied to file streaming rpcs (copyFiles, recvRawFile,
+   *     recvRawFileV2).
+   */
+  public ReplicationServerClient(String host, int port, boolean useKeepAlive, long deadlineMs) {
+    this(createManagedChannel(host, port, useKeepAlive), host, port, "", deadlineMs);
   }
 
   private static ManagedChannel createManagedChannel(String host, int port, boolean useKeepAlive) {
@@ -124,6 +140,21 @@ public class ReplicationServerClient implements Closeable {
    * @param updateIntervalMs how often to check if the primary address has been updated
    */
   public ReplicationServerClient(DiscoveryFileAndPort discoveryFileAndPort, int updateIntervalMs) {
+    this(discoveryFileAndPort, updateIntervalMs, NO_DEADLINE);
+  }
+
+  /**
+   * Construct client connecting to a ReplicationServer based on the host/port in a service
+   * discovery file.
+   *
+   * @param discoveryFileAndPort discovery file with potential port override
+   * @param updateIntervalMs how often to check if the primary address has been updated
+   * @param deadlineMs deadline applied to each unary rpc (newNRTPoint, recvCopyState, addReplicas,
+   *     etc.), or <= 0 for no deadline. Not applied to file streaming rpcs (copyFiles, recvRawFile,
+   *     recvRawFileV2).
+   */
+  public ReplicationServerClient(
+      DiscoveryFileAndPort discoveryFileAndPort, int updateIntervalMs, long deadlineMs) {
     this(
         ManagedChannelBuilder.forTarget(discoveryFileAndPort.discoveryFile)
             .usePlaintext()
@@ -134,13 +165,21 @@ public class ReplicationServerClient implements Closeable {
             .build(),
         "",
         discoveryFileAndPort.port,
-        discoveryFileAndPort.discoveryFile);
+        discoveryFileAndPort.discoveryFile,
+        deadlineMs);
     this.discoveryFileUpdateIntervalMs = updateIntervalMs;
   }
 
   /** Construct client for accessing ReplicationServer server using the existing channel. */
   ReplicationServerClient(ManagedChannel channel, String host, int port, String discoveryFile) {
+    this(channel, host, port, discoveryFile, NO_DEADLINE);
+  }
+
+  /** Construct client for accessing ReplicationServer server using the existing channel. */
+  ReplicationServerClient(
+      ManagedChannel channel, String host, int port, String discoveryFile, long deadlineMs) {
     this.channel = channel;
+    this.deadlineMs = deadlineMs;
     blockingStub =
         ReplicationServerGrpc.newBlockingStub(channel)
             .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
@@ -169,6 +208,22 @@ public class ReplicationServerClient implements Closeable {
 
   public String getDiscoveryFile() {
     return discoveryFile;
+  }
+
+  /** Get the deadline applied to unary rpcs, <= 0 means no deadline. */
+  public long getDeadlineMs() {
+    return deadlineMs;
+  }
+
+  /**
+   * Get the blocking stub to use for a unary rpc, with the client deadline applied if one is
+   * configured.
+   */
+  private ReplicationServerBlockingStub unaryStub() {
+    if (deadlineMs > 0) {
+      return blockingStub.withDeadlineAfter(deadlineMs, TimeUnit.MILLISECONDS);
+    }
+    return blockingStub;
   }
 
   @Override
@@ -201,7 +256,7 @@ public class ReplicationServerClient implements Closeable {
             .setPort(port)
             .build();
     try {
-      this.blockingStub.addReplicas(addReplicaRequest);
+      unaryStub().addReplicas(addReplicaRequest);
     } catch (Exception e) {
       /* Note this should allow the replica to start, but it means it will not be able to get new index updates
        * from Primary: https://github.com/Yelp/nrtsearch/issues/86 */
@@ -248,7 +303,7 @@ public class ReplicationServerClient implements Closeable {
             .setIndexName(indexName)
             .setIndexId(indexId)
             .build();
-    return this.blockingStub.recvCopyState(copyStateRequest);
+    return unaryStub().recvCopyState(copyStateRequest);
   }
 
   public Iterator<TransferStatus> copyFiles(
@@ -291,22 +346,24 @@ public class ReplicationServerClient implements Closeable {
             .setPrimaryGen(primaryGen)
             .setVersion(version)
             .build();
-    return this.blockingStub.newNRTPoint(request);
+    return unaryStub().newNRTPoint(request);
   }
 
   public SearcherVersion writeNRTPoint(String indexName) {
-    return blockingStub.writeNRTPoint(
-        IndexName.newBuilder().setMagicNumber(BINARY_MAGIC).setIndexName(indexName).build());
+    return unaryStub()
+        .writeNRTPoint(
+            IndexName.newBuilder().setMagicNumber(BINARY_MAGIC).setIndexName(indexName).build());
   }
 
   public SearcherVersion getCurrentSearcherVersion(String indexName) {
-    return blockingStub.getCurrentSearcherVersion(
-        IndexName.newBuilder().setMagicNumber(BINARY_MAGIC).setIndexName(indexName).build());
+    return unaryStub()
+        .getCurrentSearcherVersion(
+            IndexName.newBuilder().setMagicNumber(BINARY_MAGIC).setIndexName(indexName).build());
   }
 
   public GetNodesResponse getConnectedNodes(String indexName) {
-    return blockingStub.getConnectedNodes(
-        GetNodesRequest.newBuilder().setIndexName(indexName).build());
+    return unaryStub()
+        .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName(indexName).build());
   }
 
   @Override

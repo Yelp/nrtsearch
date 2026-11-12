@@ -80,6 +80,25 @@ public class NrtsearchConfigTest {
   }
 
   @Test
+  public void testReplicationDeadlines_default() {
+    String config = "nodeName: \"server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(
+        NrtsearchConfig.DEFAULT_NEW_NRT_POINT_DEADLINE_MS, luceneConfig.getNewNRTPointDeadlineMs());
+    assertEquals(
+        NrtsearchConfig.DEFAULT_REPLICATION_RPC_DEADLINE_MS,
+        luceneConfig.getReplicationRpcDeadlineMs());
+  }
+
+  @Test
+  public void testReplicationDeadlines_set() {
+    String config = String.join("\n", "newNRTPointDeadlineMs: 5000", "replicationRpcDeadlineMs: 0");
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(5000L, luceneConfig.getNewNRTPointDeadlineMs());
+    assertEquals(0L, luceneConfig.getReplicationRpcDeadlineMs());
+  }
+
+  @Test
   public void testInitialSyncPrimaryWaitMs_default() {
     String config = "nodeName: \"server_foo\"";
     NrtsearchConfig luceneConfig = getForConfig(config);

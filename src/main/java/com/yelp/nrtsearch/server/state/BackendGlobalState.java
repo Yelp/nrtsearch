@@ -456,7 +456,8 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getS3RefreshUpload(),
             getConfiguration().getS3RefreshNotifyAfterUpload(),
             getConfiguration().getDiscoveryFileUpdateIntervalMs(),
-            getConfiguration().getRequireIdField());
+            getConfiguration().getRequireIdField(),
+            getConfiguration().getReplicationRpcDeadlineMs());
     try {
       return startIndexHandler.process(indexStateManager.getCurrent(), startIndexRequest);
     } catch (StartIndexProcessorException e) {

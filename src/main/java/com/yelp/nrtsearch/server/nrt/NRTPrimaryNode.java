@@ -235,20 +235,29 @@ public class NRTPrimaryNode extends PrimaryNode {
    * called by the {@link NrtDataManager} once the version is available in the remote backend, so
    * that replicas downloading from S3 do not load an older version.
    *
+   * <p>Replicas that are unavailable, do not respond within the configured deadline ({@link
+   * com.yelp.nrtsearch.server.config.NrtsearchConfig#getNewNRTPointDeadlineMs()}), or cannot
+   * process the point are removed. A replica that is still alive will re-register through its keep
+   * alive thread.
+   *
    * @param version index version to send
    */
-  void sendNewNRTPointToReplicas(long version) {
+  public void sendNewNRTPointToReplicas(long version) {
     logger.info("NRTPrimaryNode: sendNRTPoint");
     logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.nrtPrimaryPointCount.labelValues(indexName).inc();
 
-    // Notify current replicas:
-    Iterator<ReplicaDetails> it = replicasInfos.iterator();
-    while (it.hasNext()) {
-      ReplicaDetails replicaDetails = it.next();
+    // Notify the replicas registered when the broadcast started. Iterate over a snapshot, since
+    // a dropped replica may re-register while we are still waiting on other replicas. The live
+    // queue iterator would visit the re-registered entry again, so the broadcast would never end.
+    List<ReplicaDetails> replicas = new ArrayList<>(replicasInfos);
+    for (ReplicaDetails replicaDetails : replicas) {
       String nodeName = replicaDetails.getNodeName();
       ReplicationServerClient currentReplicaServerClient = replicaDetails.replicationServerClient;
       try {
+        // TODO: we should use multicast to broadcast files out to replicas
+        // TODO: ... replicas could copy from one another instead of just primary
+        // TODO: we could also prioritize one replica at a time?
         currentReplicaServerClient.newNRTPoint(
             indexName, indexStateManager.getIndexId(), primaryGen, version);
       } catch (StatusRuntimeException e) {
@@ -259,8 +268,17 @@ public class NRTPrimaryNode extends PrimaryNode {
               nodeName,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
-          currentReplicaServerClient.close();
-          it.remove();
+          removeReplica(replicaDetails);
+        } else if (status.getCode().equals(Status.DEADLINE_EXCEEDED.getCode())) {
+          // The replica is connected but not responding (e.g. hung after OOM). Drop it so it
+          // does not stall every refresh, it will re-register if it recovers.
+          logger.warn(
+              "NRTPrimaryNode: sendNRTPoint, nodeName: {} host: {} port: {} did not respond within {}ms, removing replica",
+              nodeName,
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort(),
+              currentReplicaServerClient.getDeadlineMs());
+          removeReplica(replicaDetails);
         } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())
             || status.getCode().equals(Status.NOT_FOUND.getCode())) {
           logger.warn(
@@ -269,8 +287,7 @@ public class NRTPrimaryNode extends PrimaryNode {
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort(),
               status);
-          currentReplicaServerClient.close();
-          it.remove();
+          removeReplica(replicaDetails);
         }
       } catch (Exception e) {
         String msg =
@@ -280,6 +297,20 @@ public class NRTPrimaryNode extends PrimaryNode {
         message(msg);
         logger.warn(msg);
       }
+    }
+  }
+
+  /**
+   * Remove this exact replica entry and close its client. Removal is by identity, since a replica
+   * that re-registered while a broadcast was running has an equal, but distinct, entry that must be
+   * kept.
+   *
+   * @param replicaDetails replica entry to remove
+   */
+  @VisibleForTesting
+  void removeReplica(ReplicaDetails replicaDetails) {
+    if (replicasInfos.removeIf(r -> r == replicaDetails)) {
+      replicaDetails.replicationServerClient.close();
     }
   }
 

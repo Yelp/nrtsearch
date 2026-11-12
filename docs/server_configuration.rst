@@ -112,6 +112,16 @@ Example server configuration
      - If enabled, the primary will enable keepAlive on the replication channel with keepAliveTime 1 minute and keepAliveTimeout 10 seconds. Replicas ignore this option.
      - false
 
+   * - newNRTPointDeadlineMs
+     - long
+     - Deadline in milliseconds for the primary to notify a replica of a new NRT point. A replica that does not respond within this time is removed from the primary's replica list, and re-registers through its keep alive thread if it recovers. This prevents a hung replica from blocking primary refreshes and commits. Should be larger than replicationRpcDeadlineMs, since the replica fetches the copy state from the primary while handling the request. Set to <= 0 to disable.
+     - 30000
+
+   * - replicationRpcDeadlineMs
+     - long
+     - Deadline in milliseconds for unary rpcs that a replica makes to the primary (addReplicas, getConnectedNodes, recvCopyState). Does not apply to file copy streams. Set to <= 0 to disable.
+     - 10000
+
    * - maxClauseCount
      - int
      - Maximum number of clauses in a query

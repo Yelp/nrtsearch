@@ -35,7 +35,9 @@ import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
@@ -170,6 +172,89 @@ public class ReplicationServerClientTest {
       if (client != null) {
         client.close();
       }
+    }
+  }
+
+  /** Replication server that accepts unary calls but never responds, like a hung replica. */
+  private static class HangingReplicationServer
+      extends ReplicationServerGrpc.ReplicationServerImplBase {
+    @Override
+    public void newNRTPoint(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {}
+
+    @Override
+    public void recvCopyState(
+        CopyStateRequest request, StreamObserver<CopyState> responseObserver) {}
+
+    @Override
+    public void addReplicas(
+        AddReplicaRequest request, StreamObserver<AddReplicaResponse> responseObserver) {}
+
+    @Override
+    public void getConnectedNodes(
+        GetNodesRequest request, StreamObserver<GetNodesResponse> responseObserver) {}
+  }
+
+  private Server getHangingReplicationServer() throws IOException {
+    return ServerBuilder.forPort(0).addService(new HangingReplicationServer()).build().start();
+  }
+
+  private void assertDeadlineExceeded(Runnable call) {
+    long startMs = System.currentTimeMillis();
+    try {
+      call.run();
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertEquals(Status.Code.DEADLINE_EXCEEDED, e.getStatus().getCode());
+    }
+    // must not block, deadline is 100ms
+    assertTrue(System.currentTimeMillis() - startMs < 5000);
+  }
+
+  @Test
+  public void testDefaultNoDeadline() {
+    ReplicationServerClient client = new ReplicationServerClient("localhost", 1234);
+    try {
+      assertEquals(ReplicationServerClient.NO_DEADLINE, client.getDeadlineMs());
+    } finally {
+      client.close();
+    }
+  }
+
+  @Test
+  public void testUnaryCallsDeadline() throws IOException {
+    Server replicationServer = getHangingReplicationServer();
+    ReplicationServerClient client =
+        new ReplicationServerClient("localhost", replicationServer.getPort(), false, 100);
+    try {
+      assertEquals(100, client.getDeadlineMs());
+      assertDeadlineExceeded(() -> client.newNRTPoint("test_index", "test_id", 1, 1));
+      assertDeadlineExceeded(() -> client.recvCopyState("test_index", "test_id", 1));
+      assertDeadlineExceeded(() -> client.getConnectedNodes("test_index"));
+      // a new deadline must be used for each call, verify again after previous deadlines expired
+      assertDeadlineExceeded(() -> client.newNRTPoint("test_index", "test_id", 1, 2));
+    } finally {
+      client.close();
+      replicationServer.shutdownNow();
+    }
+  }
+
+  @Test
+  public void testDiscoveryFileClientDeadline() throws IOException {
+    Server replicationServer = getHangingReplicationServer();
+    ReplicationServerClient client = null;
+    try {
+      writeNodeFile(Collections.singletonList(new Node("localhost", replicationServer.getPort())));
+      client =
+          new ReplicationServerClient(
+              new DiscoveryFileAndPort(testFileURI().getPath(), 0), 100, 100);
+      ReplicationServerClient finalClient = client;
+      assertEquals(100, client.getDeadlineMs());
+      assertDeadlineExceeded(() -> finalClient.recvCopyState("test_index", "test_id", 1));
+    } finally {
+      if (client != null) {
+        client.close();
+      }
+      replicationServer.shutdownNow();
     }
   }
 
