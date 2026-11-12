@@ -144,6 +144,55 @@ public class NrtReplicaNodeTest {
     assertTrue(replicaNode.hasPrimaryConnection());
   }
 
+  /** A sync waiting for an unreachable primary stops promptly when its thread is interrupted. */
+  @Test
+  public void testSyncFromCurrentPrimaryStopsOnInterrupt() throws Exception {
+    ReplicationServerClient client = mock(ReplicationServerClient.class);
+    org.mockito.Mockito.when(
+            client.recvCopyState(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt()))
+        .thenThrow(new RuntimeException("unreachable"));
+    NRTReplicaNode replicaNode =
+        new NRTReplicaNode(
+            "test_index",
+            "id",
+            client,
+            new HostPort("host", 0),
+            "testNode",
+            mock(Directory.class),
+            null,
+            mock(IsolatedReplicaConfig.class),
+            null,
+            null,
+            false,
+            false,
+            true,
+            0,
+            false);
+    java.util.concurrent.atomic.AtomicReference<Throwable> error =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    Thread syncer =
+        new Thread(
+            () -> {
+              try {
+                // would wait up to 10 minutes for the primary
+                replicaNode.syncFromCurrentPrimary(600_000, 600_000);
+              } catch (Throwable t) {
+                error.set(t);
+              }
+            });
+    syncer.start();
+    Thread.sleep(200);
+    long start = System.nanoTime();
+    syncer.interrupt();
+    syncer.join(5000);
+    assertFalse("sync did not stop", syncer.isAlive());
+    assertTrue((System.nanoTime() - start) < java.util.concurrent.TimeUnit.SECONDS.toNanos(5));
+    assertTrue(String.valueOf(error.get()), error.get() == null);
+  }
+
   @Test
   public void testHasPrimaryConnection_false() throws IOException {
     NRTReplicaNode replicaNode = getNrtReplicaNodeWithoutPrimary();

@@ -33,6 +33,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The tracker only moves to the same or a newer epoch, never back to an older leader. When no
  * leader can be confirmed, the last confirmed leader is kept.
+ *
+ * <p>Polls and all deliveries to subscribers run on the tracker's single thread, so a subscriber
+ * always sees leaders in order and never receives an older leader after a newer one.
  */
 public class LeaderTracker implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(LeaderTracker.class);
@@ -51,12 +54,15 @@ public class LeaderTracker implements Closeable {
   private final Runnable onClose;
   private final Set<Subscriber> subscribers = new CopyOnWriteArraySet<>();
   private final ScheduledExecutorService executor;
+  // merges refresh requests from many channels into one extra poll
+  private final com.yelp.nrtsearch.clientlib.util.CoalescingRunner refresher;
   // guarded by this
   private LeaderResolver.Resolved current;
   private boolean closed = false;
+  private boolean started = false;
 
   /**
-   * Constructor. Polling starts immediately.
+   * Constructor. Polling starts with {@link #start()}.
    *
    * @param resolver leader resolver
    * @param pollIntervalMs how often to re-resolve the leader
@@ -76,26 +82,42 @@ public class LeaderTracker implements Closeable {
               t.setDaemon(true);
               return t;
             });
+    this.refresher =
+        new com.yelp.nrtsearch.clientlib.util.CoalescingRunner(executor, this::safePoll);
   }
 
-  /** Start polling. */
-  public void start() {
+  /** Start polling. Calling it again has no effect. */
+  public synchronized void start() {
+    if (started || closed) {
+      return;
+    }
+    started = true;
     executor.scheduleWithFixedDelay(this::safePoll, 0, pollIntervalMs, TimeUnit.MILLISECONDS);
   }
 
   /**
-   * Add a subscriber; it is told the current leader (or that there is none) right away.
+   * Add a subscriber. If a leader is known, it is delivered to the subscriber soon, on the tracker
+   * thread, so it is ordered with all later updates.
    *
    * @param subscriber subscriber
    */
   public void subscribe(Subscriber subscriber) {
     subscribers.add(subscriber);
-    LeaderResolver.Resolved leader;
-    synchronized (this) {
-      leader = current;
-    }
-    if (leader != null) {
-      subscriber.onLeader(leader);
+    try {
+      executor.execute(
+          () -> {
+            LeaderResolver.Resolved leader;
+            synchronized (this) {
+              leader = current;
+            }
+            // delivered on the tracker thread: a poll publishing a newer leader runs either before
+            // (so current is already the newer one) or after this delivery
+            if (leader != null && subscribers.contains(subscriber)) {
+              subscriber.onLeader(leader);
+            }
+          });
+    } catch (java.util.concurrent.RejectedExecutionException e) {
+      // closed
     }
   }
 
@@ -103,13 +125,12 @@ public class LeaderTracker implements Closeable {
     subscribers.remove(subscriber);
   }
 
-  /** Re-resolve soon, e.g. when a channel reports a connection failure. */
+  /**
+   * Re-resolve soon, e.g. when a channel reports a connection failure. Requests from many channels
+   * at once are merged.
+   */
   public void refresh() {
-    try {
-      executor.execute(this::safePoll);
-    } catch (java.util.concurrent.RejectedExecutionException e) {
-      // closed
-    }
+    refresher.request();
   }
 
   private void safePoll() {
@@ -120,7 +141,10 @@ public class LeaderTracker implements Closeable {
     }
   }
 
-  /** Resolve once and notify subscribers of any change. Package private for tests. */
+  /**
+   * Resolve once and notify subscribers of any change. Runs on the tracker thread (tests may call
+   * it directly when the tracker is not started). Package private for tests.
+   */
   void poll() {
     Optional<LeaderResolver.Resolved> resolved = resolver.resolve();
     LeaderResolver.Resolved publish = null;
@@ -152,6 +176,11 @@ public class LeaderTracker implements Closeable {
         s.onNoLeader();
       }
     }
+  }
+
+  /** Wait for queued work on the tracker thread (deliveries, refreshes) to finish, for tests. */
+  void awaitIdle() throws Exception {
+    executor.submit(() -> {}).get(10, TimeUnit.SECONDS);
   }
 
   /** Current confirmed leader. */

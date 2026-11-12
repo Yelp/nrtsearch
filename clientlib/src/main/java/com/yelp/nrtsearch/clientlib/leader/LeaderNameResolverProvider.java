@@ -89,6 +89,39 @@ public class LeaderNameResolverProvider extends NameResolverProvider {
         .resolveLeader(ResolveLeaderRequest.newBuilder().build());
   }
 
+  /**
+   * Provider whose channels subscribe to a shared tracker, which they do not own (it is not closed
+   * when a channel shuts down). E.g. one tracker for the channels of all replica indices.
+   *
+   * @param tracker shared, started tracker
+   */
+  public static NameResolverProvider forSharedTracker(LeaderTracker tracker) {
+    return new NameResolverProvider() {
+      @Override
+      protected boolean isAvailable() {
+        return true;
+      }
+
+      @Override
+      protected int priority() {
+        return 6;
+      }
+
+      @Override
+      public String getDefaultScheme() {
+        return SCHEME;
+      }
+
+      @Override
+      public NameResolver newNameResolver(URI targetUri, NameResolver.Args args) {
+        if (!SCHEME.equals(targetUri.getScheme())) {
+          return null;
+        }
+        return new LeaderNameResolver(tracker, false, "");
+      }
+    };
+  }
+
   @Override
   protected boolean isAvailable() {
     return true;

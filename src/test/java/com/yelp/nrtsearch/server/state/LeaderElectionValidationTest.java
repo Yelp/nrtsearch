@@ -96,11 +96,34 @@ public class LeaderElectionValidationTest {
                     .getBytes())));
   }
 
-  /** Addresses come from StartIndex requests: the empty configured host is not validated. */
+  /** Without autoStart, addresses come from StartIndex requests: no discovery is needed. */
   @Test
-  public void testLeaderRpcEmptyHostAccepted() {
+  public void testLeaderRpcEmptyHostWithoutAutoStartAccepted() {
     startConfig("REPLICA", false, "    resolver: LEADER_RPC\n");
-    startConfig("REPLICA", true, "    resolver: LEADER_RPC\n    host: \"\"\n");
+    startConfig("REPLICA", false, "    resolver: LEADER_RPC\n    host: \"\"\n");
+  }
+
+  /** An auto started replica must have somewhere to find the leader. */
+  @Test
+  public void testLeaderRpcAutoStartWithoutDiscoveryRejected() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> startConfig("REPLICA", true, "    resolver: LEADER_RPC\n"));
+    assertTrue(e.getMessage(), e.getMessage().contains("needs primaryDiscovery.host or"));
+  }
+
+  /** The host takes precedence over the file at start, so a single host is rejected with a file. */
+  @Test
+  public void testLeaderRpcSingleHostWithFileRejected() {
+    IllegalArgumentException e =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                startConfig(
+                    "    resolver: LEADER_RPC\n    host: primary-1\n    port: 9000\n"
+                        + "    file: /tmp/primaries.json\n"));
+    assertTrue(e.getMessage(), e.getMessage().contains("single host"));
   }
 
   /** Without autoStart the configured host is not used at startup, so it is not validated. */

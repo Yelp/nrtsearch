@@ -16,14 +16,11 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolver;
+import com.yelp.nrtsearch.clientlib.leader.LeaderNameResolverProvider;
 import com.yelp.nrtsearch.clientlib.leader.LeaderTracker;
 import com.yelp.nrtsearch.server.grpc.discovery.LeaderRpcNameResolverProvider;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.NameResolver;
-import io.grpc.NameResolverProvider;
-import java.net.URI;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +37,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class SharedLeaderClients {
   private static final Logger logger = LoggerFactory.getLogger(SharedLeaderClients.class);
+  private static final long CLOSE_WAIT_MS = 2000;
 
   private static final class Shared {
     final LeaderTracker tracker;
@@ -79,18 +77,19 @@ public final class SharedLeaderClients {
       shared.refs++;
     }
     Shared finalShared = shared;
-    ManagedChannel channel;
+    ManagedChannel builtChannel;
     try {
-      channel =
+      builtChannel =
           ManagedChannelBuilder.forTarget(LeaderRpcNameResolverProvider.SCHEME + ":///leader")
               .usePlaintext()
               .maxInboundMessageSize(ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE)
-              .nameResolverFactory(new SubscriberProvider(shared.tracker))
+              .nameResolverFactory(LeaderNameResolverProvider.forSharedTracker(shared.tracker))
               .build();
     } catch (RuntimeException e) {
       release(fullKey, finalShared);
       throw e;
     }
+    ManagedChannel channel = builtChannel;
     return new ReplicationServerClient(channel, "", 0, key) {
       private boolean released = false;
 
@@ -103,7 +102,16 @@ public final class SharedLeaderClients {
           released = true;
         }
         try {
-          super.close();
+          // the plain close waits up to 10s; use a shorter bound and force the rest, so closing
+          // many replica indices does not add up
+          channel.shutdown();
+          if (!channel.awaitTermination(
+              CLOSE_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+            channel.shutdownNow();
+          }
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          channel.shutdownNow();
         } finally {
           release(fullKey, finalShared);
         }
@@ -130,38 +138,6 @@ public final class SharedLeaderClients {
   static int size() {
     synchronized (SHARED) {
       return SHARED.size();
-    }
-  }
-
-  /** Name resolver provider subscribing a channel to a shared tracker it does not own. */
-  private static final class SubscriberProvider extends NameResolverProvider {
-    private final LeaderTracker tracker;
-
-    SubscriberProvider(LeaderTracker tracker) {
-      this.tracker = tracker;
-    }
-
-    @Override
-    protected boolean isAvailable() {
-      return true;
-    }
-
-    @Override
-    protected int priority() {
-      return 6;
-    }
-
-    @Override
-    public String getDefaultScheme() {
-      return LeaderRpcNameResolverProvider.SCHEME;
-    }
-
-    @Override
-    public NameResolver newNameResolver(URI targetUri, NameResolver.Args args) {
-      if (!LeaderRpcNameResolverProvider.SCHEME.equals(targetUri.getScheme())) {
-        return null;
-      }
-      return new LeaderNameResolver(tracker, false, "");
     }
   }
 }

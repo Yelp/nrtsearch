@@ -59,12 +59,15 @@ public class ResolveLeaderHandler extends Handler<ResolveLeaderRequest, ResolveL
       return toResponse(leader, manager.isActive() && isSelf(globalState, leader));
     }
     if (globalState.getConfiguration().getIndexStartConfig().getMode() == Mode.PRIMARY) {
-      // an unreachable address would make every resolver dial itself
-      if (BackendGlobalState.isLoopbackHost(globalState.getHostName())) {
+      // an unreachable address would make every resolver dial itself; allowed for single machine
+      // setups (e.g. local development) with leaderElection.allowLoopbackHost
+      if (BackendGlobalState.isLoopbackHost(globalState.getHostName())
+          && !globalState.getConfiguration().getLeaderElectionConfig().allowLoopbackHost()) {
         throw Status.UNAVAILABLE
             .withDescription(
                 "This primary's hostName is a loopback address, which other nodes can not reach: "
-                    + globalState.getHostName())
+                    + globalState.getHostName()
+                    + "; set leaderElection.allowLoopbackHost: true for single machine setups")
             .asRuntimeException();
       }
       LeaderInfo self =

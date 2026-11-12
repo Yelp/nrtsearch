@@ -54,6 +54,8 @@ public class NRTReplicaNode extends ReplicaNode {
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
   private final boolean enforcePrimaryGenOrdering;
+  // set when closing; ends syncFromCurrentPrimary loops
+  private volatile boolean syncStopped = false;
   private final NrtDataManager nrtDataManager;
   final NrtCopyThread nrtCopyThread;
 
@@ -326,6 +328,8 @@ public class NRTReplicaNode extends ReplicaNode {
 
   @Override
   public void close() throws IOException {
+    // stop any running syncFromCurrentPrimary before tearing down
+    syncStopped = true;
     nrtCopyThread.close();
     logger.info("CLOSE NRT REPLICA");
     copyJobManager.close();
@@ -390,6 +394,30 @@ public class NRTReplicaNode extends ReplicaNode {
    * @param maxTimeMs max time to attempt initial point sync
    * @throws IOException on issue getting searcher version
    */
+  /** If a sync should stop: the node is closing, or the syncing thread was interrupted. */
+  private boolean shouldStopSync() {
+    if (syncStopped || Thread.currentThread().isInterrupted()) {
+      logger.info("Nrt sync: stopping, replica is closing");
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Sleep between sync attempts.
+   *
+   * @return false if interrupted (the interrupt status is kept) or closing, so the sync stops
+   */
+  private boolean sleepForSync(long ms) {
+    try {
+      Thread.sleep(ms);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+    return !shouldStopSync();
+  }
+
   public void syncFromCurrentPrimary(long primaryWaitMs, long maxTimeMs) throws IOException {
     if (!hasPrimaryConnection()) {
       logger.info("Skipping primary sync, no primary connection available");
@@ -402,6 +430,9 @@ public class NRTReplicaNode extends ReplicaNode {
     // Attempt to get the current index version from the primary, give up if the timeout
     // is exceeded
     while (System.currentTimeMillis() - startMS < primaryWaitMs) {
+      if (shouldStopSync()) {
+        return;
+      }
       try {
         com.yelp.nrtsearch.server.grpc.CopyState copyState =
             primaryAddress.recvCopyState(indexName, indexId, this.id);
@@ -409,10 +440,8 @@ public class NRTReplicaNode extends ReplicaNode {
         lastPrimaryGen = copyState.getPrimaryGen();
         break;
       } catch (Exception ignored) {
-        try {
-          Thread.sleep(NRT_CONNECT_WAIT_MS);
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
+        if (!sleepForSync(NRT_CONNECT_WAIT_MS)) {
+          return;
         }
       }
     }
@@ -426,6 +455,9 @@ public class NRTReplicaNode extends ReplicaNode {
     // updates, or we are unable to start a new copy job. This is needed since long running nrt
     // points may fail if the primary cleans up old commit files.
     while (curVersion < primaryIndexVersion && (System.currentTimeMillis() - startMS < maxTimeMs)) {
+      if (shouldStopSync()) {
+        return;
+      }
       CopyJob job = newNRTPoint(lastPrimaryGen, primaryIndexVersion);
       if (job == null) {
         // A job won't be started if we are already at the target version,
@@ -443,6 +475,9 @@ public class NRTReplicaNode extends ReplicaNode {
           curVersion,
           job.getCopyState().version());
       while (true) {
+        if (shouldStopSync()) {
+          return;
+        }
         curVersion = getCurrentSearchingVersion();
         if (curVersion >= primaryIndexVersion) {
           break;
@@ -453,10 +488,8 @@ public class NRTReplicaNode extends ReplicaNode {
             break;
           }
         }
-        try {
-          Thread.sleep(NRT_SYNC_WAIT_MS);
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
+        if (!sleepForSync(NRT_SYNC_WAIT_MS)) {
+          return;
         }
       }
     }

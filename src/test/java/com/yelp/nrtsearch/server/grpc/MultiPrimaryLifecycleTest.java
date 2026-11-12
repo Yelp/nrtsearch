@@ -925,6 +925,28 @@ public class MultiPrimaryLifecycleTest {
     assertEquals(before, sharedClients());
   }
 
+  /** Without leader election, a loopback primary answers resolveLeader only when allowed. */
+  @Test
+  public void testResolveLeaderLoopbackPrimaryWithoutElection() throws Exception {
+    TestServer plain =
+        TestServer.builder(folder)
+            .withAutoStartConfig(false, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .build();
+    StatusRuntimeException e =
+        assertThrows(StatusRuntimeException.class, () -> resolveClient(plain));
+    assertEquals(io.grpc.Status.Code.UNAVAILABLE, e.getStatus().getCode());
+    assertTrue(e.getMessage(), e.getMessage().contains("allowLoopbackHost"));
+
+    TestServer allowed =
+        TestServer.builder(folder)
+            .withAutoStartConfig(false, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withAdditionalConfig("leaderElection:\n  allowLoopbackHost: true")
+            .build();
+    ResolveLeaderResponse r = resolveClient(allowed);
+    assertTrue(r.getIsLeader());
+    assertEquals(allowed.getPort(), r.getPort());
+  }
+
   private static int sharedClients() throws Exception {
     java.lang.reflect.Method m = SharedLeaderClients.class.getDeclaredMethod("size");
     m.setAccessible(true);

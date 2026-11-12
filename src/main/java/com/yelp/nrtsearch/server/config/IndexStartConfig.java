@@ -80,15 +80,19 @@ public class IndexStartConfig {
     boolean allowSingleLeaderSeed =
         configReader.getBoolean(
             CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "allowSingleLeaderSeed", false);
-    // only checked where the configured host is actually used: replicas started from config.
-    // An empty host (address given in StartIndex requests) or another mode (shared config
-    // template) is not validated here; StartIndex requests are validated when they are processed.
-    if (primaryResolver == PrimaryResolverType.LEADER_RPC
-        && mode == Mode.REPLICA
-        && autoStart
-        && discoveryFile.isEmpty()
-        && !discoveryHost.isBlank()) {
-      checkLeaderSeeds(discoveryHost, allowSingleLeaderSeed);
+    // only checked where the configured discovery is actually used: replicas started from config.
+    // Other modes (a shared config template) and replicas that are only started by requests are
+    // not validated here; StartIndex requests are validated when they are processed.
+    if (primaryResolver == PrimaryResolverType.LEADER_RPC && mode == Mode.REPLICA && autoStart) {
+      if (discoveryHost.isBlank() && discoveryFile.isEmpty()) {
+        throw new IllegalArgumentException(
+            "primaryDiscovery.resolver LEADER_RPC with autoStart needs primaryDiscovery.host or"
+                + " primaryDiscovery.file");
+      }
+      // the host takes precedence over the file when starting, so validate it whenever it is set
+      if (!discoveryHost.isBlank()) {
+        checkLeaderSeeds(discoveryHost, allowSingleLeaderSeed);
+      }
     }
     IndexDataLocationType dataLocationType =
         IndexDataLocationType.valueOf(

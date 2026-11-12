@@ -124,12 +124,21 @@ public class LeaderResolverTest {
     return new LeaderTracker(resolver(seeds), 1000, () -> {});
   }
 
+  private static void awaitIdle(LeaderTracker tracker) {
+    try {
+      tracker.awaitIdle();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   @Test
   public void testTrackerPublishesLeaderChangesOnly() {
     answers.put(A, leader("a", 1, true));
     LeaderTracker tracker = tracker(List.of(A, B));
     RecordingSubscriber sub = new RecordingSubscriber();
     tracker.subscribe(sub);
+    awaitIdle(tracker);
     tracker.poll();
     tracker.poll();
     assertEquals(1, sub.leaders.size());
@@ -149,6 +158,7 @@ public class LeaderResolverTest {
     LeaderTracker tracker = tracker(List.of(A));
     RecordingSubscriber sub = new RecordingSubscriber();
     tracker.subscribe(sub);
+    awaitIdle(tracker);
     tracker.poll();
     answers.clear();
     tracker.poll();
@@ -164,6 +174,7 @@ public class LeaderResolverTest {
     LeaderTracker tracker = tracker(List.of(A, B));
     RecordingSubscriber sub = new RecordingSubscriber();
     tracker.subscribe(sub);
+    awaitIdle(tracker);
     tracker.poll();
     answers.clear();
     answers.put(A, leader("a", 4, true));
@@ -178,6 +189,7 @@ public class LeaderResolverTest {
     LeaderTracker tracker = tracker(List.of(A));
     RecordingSubscriber sub = new RecordingSubscriber();
     tracker.subscribe(sub);
+    awaitIdle(tracker);
     tracker.poll();
     assertEquals(1, sub.noLeader);
     tracker.close();
@@ -206,14 +218,16 @@ public class LeaderResolverTest {
       subs.add(sub);
       tracker.subscribe(sub);
     }
+    awaitIdle(tracker);
     tracker.poll();
     assertEquals(1, probes.get());
     for (RecordingSubscriber sub : subs) {
       assertEquals(1, sub.leaders.size());
     }
-    // a late subscriber is told the current leader at once
+    // a late subscriber is told the current leader, on the tracker thread
     RecordingSubscriber late = new RecordingSubscriber();
     tracker.subscribe(late);
+    awaitIdle(tracker);
     assertEquals(1, late.leaders.size());
     tracker.close();
   }
@@ -388,5 +402,95 @@ public class LeaderResolverTest {
     resolver.resolve();
     assertEquals(1, channels.size());
     channels.close();
+  }
+
+  /**
+   * A subscriber added while a poll publishes a newer leader never ends up on the older one:
+   * deliveries are ordered on the tracker thread.
+   */
+  @Test
+  public void testSubscribeRacingPollNeverEndsOnOlderLeader() throws Exception {
+    answers.put(A, leader("a", 1, true));
+    LeaderTracker tracker = tracker(List.of(A, B));
+    tracker.start();
+    long deadline = System.currentTimeMillis() + 5000;
+    while (!tracker.getCurrent().isPresent() && System.currentTimeMillis() < deadline) {
+      Thread.sleep(5);
+    }
+    for (int i = 0; i < 200; i++) {
+      // failover to b at a higher epoch, racing a new subscriber
+      long epoch = 2 + i;
+      answers.put(A, leader("b", epoch, false));
+      answers.put(B, leader("b", epoch, true));
+      RecordingSubscriber sub = new RecordingSubscriber();
+      tracker.subscribe(sub);
+      tracker.refresh();
+      awaitIdle(tracker);
+      awaitIdle(tracker);
+      List<LeaderResolver.Resolved> seen;
+      synchronized (sub) {
+        seen = new ArrayList<>(sub.leaders);
+      }
+      // epochs delivered to this subscriber never go down, and it ends on the newest
+      for (int k = 1; k < seen.size(); k++) {
+        assertTrue(seen.get(k).epoch() >= seen.get(k - 1).epoch());
+      }
+      assertEquals(epoch, seen.get(seen.size() - 1).epoch());
+      tracker.unsubscribe(sub);
+    }
+    tracker.close();
+  }
+
+  /** Refresh requests from many channels at once are merged into a few polls. */
+  @Test
+  public void testRefreshCoalesced() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger probes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    answers.put(A, leader("a", 1, true));
+    LeaderTracker tracker =
+        new LeaderTracker(
+            new LeaderResolver(
+                () -> List.of(A),
+                node -> {
+                  probes.incrementAndGet();
+                  release.await();
+                  return answers.get(node);
+                },
+                LeaderResolver::clientAddress),
+            1000,
+            () -> {});
+    for (int i = 0; i < 100; i++) {
+      tracker.refresh();
+    }
+    release.countDown();
+    awaitIdle(tracker);
+    awaitIdle(tracker);
+    // one poll for the first request, at most one more for all requests made while it ran
+    assertTrue("probes " + probes.get(), probes.get() <= 2);
+    tracker.close();
+  }
+
+  @Test
+  public void testStartIdempotent() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger probes =
+        new java.util.concurrent.atomic.AtomicInteger();
+    answers.put(A, leader("a", 1, true));
+    LeaderTracker tracker =
+        new LeaderTracker(
+            new LeaderResolver(
+                () -> List.of(A),
+                node -> {
+                  probes.incrementAndGet();
+                  return answers.get(node);
+                },
+                LeaderResolver::clientAddress),
+            60_000,
+            () -> {});
+    tracker.start();
+    tracker.start();
+    awaitIdle(tracker);
+    assertEquals(1, probes.get());
+    tracker.close();
   }
 }

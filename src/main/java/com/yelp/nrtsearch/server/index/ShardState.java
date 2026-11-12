@@ -1090,7 +1090,9 @@ public class ShardState implements Closeable {
       started = true;
     } finally {
       if (!started) {
+        // keepAlive stops its ping loop and sync thread; it may have started before warming failed
         IOUtils.closeWhileHandlingException(
+            keepAlive,
             reopenThread,
             nrtReplicaNode,
             writer,
@@ -1217,10 +1219,6 @@ public class ShardState implements Closeable {
     private static final long SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS = 5000;
     private volatile boolean exit = false;
     private final int pingIntervalMs;
-    private final java.util.concurrent.atomic.AtomicBoolean syncRunning =
-        new java.util.concurrent.atomic.AtomicBoolean();
-    private final java.util.concurrent.atomic.AtomicBoolean syncPending =
-        new java.util.concurrent.atomic.AtomicBoolean();
     private final java.util.concurrent.ExecutorService syncExecutor =
         java.util.concurrent.Executors.newSingleThreadExecutor(
             r -> {
@@ -1228,6 +1226,10 @@ public class ShardState implements Closeable {
               t.setDaemon(true);
               return t;
             });
+    // syncs after re-registration; requests while one runs are merged into one more run
+    private final com.yelp.nrtsearch.clientlib.util.CoalescingRunner syncRunner =
+        new com.yelp.nrtsearch.clientlib.util.CoalescingRunner(
+            syncExecutor, this::syncAfterRegister);
     private final ShardState shardState;
 
     KeepAlive(ShardState shardState) {
@@ -1289,42 +1291,26 @@ public class ShardState implements Closeable {
       if (!configuration.getSyncInitialNrtPoint() || exit) {
         return;
       }
-      if (!syncRunning.compareAndSet(false, true)) {
-        syncPending.set(true);
-        return;
-      }
-      runSync(nrtReplicaNode, configuration);
+      syncRunner.request();
     }
 
-    private void runSync(NRTReplicaNode nrtReplicaNode, NrtsearchConfig configuration) {
+    private void syncAfterRegister() {
+      if (exit) {
+        return;
+      }
+      NRTReplicaNode nrtReplicaNode = shardState.nrtReplicaNode;
+      if (nrtReplicaNode == null) {
+        return;
+      }
+      NrtsearchConfig configuration =
+          shardState.indexStateManager.getCurrent().getGlobalState().getConfiguration();
       try {
-        syncExecutor.execute(
-            () -> {
-              try {
-                nrtReplicaNode.syncFromCurrentPrimary(
-                    Math.min(
-                        SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS,
-                        configuration.getInitialSyncPrimaryWaitMs()),
-                    configuration.getInitialSyncMaxTimeMs());
-              } catch (IOException | RuntimeException e) {
-                logger.warn("Failed to sync from primary after registering", e);
-              } finally {
-                if (syncPending.getAndSet(false) && !exit) {
-                  // registered with another primary while syncing: sync again
-                  runSync(nrtReplicaNode, configuration);
-                } else {
-                  syncRunning.set(false);
-                  // a request may have set pending after the check above, before running was
-                  // cleared; take it over if no one else has started a sync since
-                  if (syncPending.get() && !exit && syncRunning.compareAndSet(false, true)) {
-                    syncPending.set(false);
-                    runSync(nrtReplicaNode, configuration);
-                  }
-                }
-              }
-            });
-      } catch (java.util.concurrent.RejectedExecutionException e) {
-        syncRunning.set(false);
+        nrtReplicaNode.syncFromCurrentPrimary(
+            Math.min(
+                SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS, configuration.getInitialSyncPrimaryWaitMs()),
+            configuration.getInitialSyncMaxTimeMs());
+      } catch (IOException | RuntimeException e) {
+        logger.warn("Failed to sync from primary after registering", e);
       }
     }
 
