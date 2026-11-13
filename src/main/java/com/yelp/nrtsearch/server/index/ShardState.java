@@ -410,6 +410,46 @@ public class ShardState implements Closeable {
     this.doCreate = doCreate;
   }
 
+  /**
+   * Merge entries into the user data recorded with the next commit (Lucene live commit data). The
+   * data is part of the commit point, so with remote commits it is uploaded with the point state
+   * and fenced with it under leader election, and it is restored with the index on another node.
+   * Entries set here are only durable after a later commit; existing entries (e.g. the primary
+   * generation) are kept.
+   *
+   * @param updates entries to set
+   * @throws IllegalStateException if this shard has no open writer
+   */
+  public synchronized void updateCommitUserData(Map<String, String> updates) {
+    if (writer == null || !writer.isOpen()) {
+      throw new IllegalStateException("Index " + name + " has no open writer");
+    }
+    Map<String, String> merged = getCommitUserData();
+    merged.putAll(updates);
+    // increment the version, so the next commit happens even without document changes
+    writer.setLiveCommitData(merged.entrySet(), true);
+  }
+
+  /**
+   * User data that the next commit will record: the user data of the commit this writer was opened
+   * on (e.g. restored from remote storage), plus updates since.
+   *
+   * @throws IllegalStateException if this shard has no open writer
+   */
+  public synchronized Map<String, String> getCommitUserData() {
+    if (writer == null || !writer.isOpen()) {
+      throw new IllegalStateException("Index " + name + " has no open writer");
+    }
+    Map<String, String> data = new HashMap<>();
+    Iterable<Map.Entry<String, String>> live = writer.getLiveCommitData();
+    if (live != null) {
+      for (Map.Entry<String, String> e : live) {
+        data.put(e.getKey(), e.getValue());
+      }
+    }
+    return data;
+  }
+
   /** Commit all state. */
   public long commit() throws IOException {
     long gen;

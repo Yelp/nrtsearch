@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -34,8 +35,17 @@ import java.util.Optional;
  * start/stop.
  */
 public abstract class AbstractIngestor implements Ingestor {
+  /** Prefix of ingestion checkpoint entries in the index commit user data. */
+  public static final String CHECKPOINT_KEY_PREFIX = "ingestion.";
+
+  private static final org.slf4j.Logger logger =
+      org.slf4j.LoggerFactory.getLogger(AbstractIngestor.class);
+
   protected final NrtsearchConfig config;
   protected GlobalState globalState;
+  // indices already checked for an id field, to warn about replay duplicates once per index
+  private final java.util.Set<String> replayChecked =
+      java.util.concurrent.ConcurrentHashMap.newKeySet();
 
   public AbstractIngestor(NrtsearchConfig config) {
     this.config = config;
@@ -88,6 +98,8 @@ public abstract class AbstractIngestor implements Ingestor {
     IndexState indexState = globalState.getIndexOrThrow(indexName);
     ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
+    // only the active primary may write; without leader election this checks for an open writer
+    shardState.verifyWritable("Delete by query (ingestion)");
 
     QueryNodeMapper queryNodeMapper = QueryNodeMapper.getInstance();
     List<org.apache.lucene.search.Query> luceneQueries =
@@ -128,8 +140,78 @@ public abstract class AbstractIngestor implements Ingestor {
   @Override
   public void commit(String indexName) throws IOException {
     verifyInitialized(indexName);
+    com.yelp.nrtsearch.server.handler.Handler.verifyActivePrimary(globalState, "Ingestion commit");
     IndexState indexState = globalState.getIndexOrThrow(indexName);
     indexState.commit();
+  }
+
+  /**
+   * Commit pending changes together with the ingestion position they cover. The checkpoint is
+   * stored in the index commit user data under {@link #CHECKPOINT_KEY_PREFIX}, so it is durable
+   * exactly when the data is: with remote commits and leader election, it is uploaded with the
+   * index point state and fenced with it. A stale primary's commit fails, so its checkpoint never
+   * becomes durable, and a newly elected primary restores the checkpoint with the index data.
+   *
+   * <p>Only include positions of data already added to the index. Keys not given keep their
+   * previous values, so several sources (e.g. Kafka partitions) can commit their own keys.
+   *
+   * @param indexName target index
+   * @param checkpoint ingestion positions, by key (without prefix)
+   * @throws IOException if commit fails; the checkpoint is then not durable
+   */
+  public void commit(String indexName, Map<String, String> checkpoint) throws IOException {
+    verifyInitialized(indexName);
+    com.yelp.nrtsearch.server.handler.Handler.verifyActivePrimary(globalState, "Ingestion commit");
+    IndexState indexState = globalState.getIndexOrThrow(indexName);
+    warnIfReplayUnsafe(indexState);
+    ShardState shardState = indexState.getShard(0);
+    shardState.verifyWritable("Ingestion commit");
+    Map<String, String> prefixed = new java.util.HashMap<>();
+    checkpoint.forEach((k, v) -> prefixed.put(CHECKPOINT_KEY_PREFIX + k, v));
+    shardState.updateCommitUserData(prefixed);
+    indexState.commit();
+  }
+
+  /**
+   * Ingestion checkpoint durable in the index: the entries committed with {@link #commit(String,
+   * Map)}, as restored with the index from remote storage, plus any committed since. Ingestors
+   * should resume from this on every start.
+   *
+   * @param indexName index name
+   * @return checkpoint entries by key (without prefix), empty if none was ever committed
+   * @throws IOException if the index can not be accessed
+   */
+  public Map<String, String> getCommittedCheckpoint(String indexName) throws IOException {
+    verifyInitialized(indexName);
+    IndexState indexState = globalState.getIndexOrThrow(indexName);
+    indexState.verifyStarted();
+    ShardState shardState = indexState.getShard(0);
+    Map<String, String> checkpoint = new java.util.HashMap<>();
+    shardState
+        .getCommitUserData()
+        .forEach(
+            (k, v) -> {
+              if (k.startsWith(CHECKPOINT_KEY_PREFIX)) {
+                checkpoint.put(k.substring(CHECKPOINT_KEY_PREFIX.length()), v);
+              }
+            });
+    return checkpoint;
+  }
+
+  /**
+   * With leader election, a failover replays data since the last committed checkpoint. Without an
+   * id field, replayed documents are added again instead of replacing the existing ones.
+   */
+  private void warnIfReplayUnsafe(IndexState indexState) {
+    if (globalState.getLeaderManager().isEmpty() || !replayChecked.add(indexState.getName())) {
+      return;
+    }
+    if (indexState.getIdFieldDef().isEmpty()) {
+      logger.warn(
+          "Index {} has no id field: after a failover, ingestion replays data since the last"
+              + " committed checkpoint, which adds duplicate documents",
+          indexState.getName());
+    }
   }
 
   private void verifyInitialized(String indexName) throws IOException {

@@ -195,6 +195,80 @@ public class LeaderManagerTest {
   }
 
   /** A fenced write demotes once, even though the elector also reports the loss. */
+  /** Records active listener calls into the controller event list, in order with restarts. */
+  private void addRecordingActiveListener() {
+    manager.addActiveListener(
+        new LeaderManager.ActiveListener() {
+          @Override
+          public void onActive(long epoch) {
+            controller.events.add("active:" + epoch + ":fence=" + fence.getEpoch());
+          }
+
+          @Override
+          public void onInactive() {
+            controller.events.add("inactive:fenceActive=" + fence.isActive());
+          }
+        });
+  }
+
+  private List<String> lifecycleEvents() {
+    return controller.events.stream()
+        .filter(
+            e ->
+                e.startsWith("active")
+                    || e.startsWith("inactive")
+                    || e.startsWith("primary")
+                    || e.startsWith("standby"))
+        .toList();
+  }
+
+  /**
+   * Active listeners run after all indices are primary, and stop before indices restart as standby,
+   * with the fence already inactive.
+   */
+  @Test
+  public void testActiveListenerOrder() throws Exception {
+    addRecordingActiveListener();
+    elector.elect(10);
+    manager.awaitTransitions();
+    elector.lose();
+    manager.awaitTransitions();
+    elector.elect(12);
+    manager.awaitTransitions();
+    assertEquals(
+        List.of(
+            "primary:idx:10",
+            "active:10:fence=10",
+            "inactive:fenceActive=false",
+            "standby:idx",
+            "primary:idx:12",
+            "active:12:fence=12"),
+        lifecycleEvents());
+  }
+
+  /** A failed promotion never starts leader work. */
+  @Test
+  public void testActiveListenerNotCalledOnFailedPromotion() throws Exception {
+    addRecordingActiveListener();
+    controller.failClaim = true;
+    elector.elect(10);
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    assertEquals(List.of(), lifecycleEvents());
+  }
+
+  /** Closing stops leader work once, and no leader work starts after close. */
+  @Test
+  public void testActiveListenerStoppedOnClose() throws Exception {
+    addRecordingActiveListener();
+    elector.elect(10);
+    manager.awaitTransitions();
+    manager.close();
+    assertEquals(
+        List.of("primary:idx:10", "active:10:fence=10", "inactive:fenceActive=false"),
+        lifecycleEvents());
+  }
+
   @Test
   public void testFencedWriteDemotesOnce() throws Exception {
     elector.elect(10);

@@ -82,7 +82,6 @@ import com.yelp.nrtsearch.server.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.handler.stream.SearchStreamHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
-import com.yelp.nrtsearch.server.ingestion.IngestionPluginUtils;
 import com.yelp.nrtsearch.server.leader.LeaderElection;
 import com.yelp.nrtsearch.server.leader.PrimaryElectorCreator;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
@@ -104,7 +103,6 @@ import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
-import com.yelp.nrtsearch.server.plugins.IngestionPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.remote.FileCompressorCreator;
@@ -519,11 +517,9 @@ public class NrtsearchServer {
 
     private void initIngestionPlugin(GlobalState globalState, List<Plugin> plugins)
         throws IOException {
-      for (Plugin plugin : plugins) {
-        if (plugin instanceof IngestionPlugin ingestionPlugin) {
-          IngestionPluginUtils.initializeAndStart(ingestionPlugin, globalState);
-        }
-      }
+      // without leader election plugins start now; with it, only while this node is the active
+      // primary, following leadership
+      com.yelp.nrtsearch.server.ingestion.IngestionManager.initialize(globalState, plugins);
     }
 
     @VisibleForTesting

@@ -107,6 +107,32 @@ public class LeaderManager implements Closeable, LeaderListener {
     void stopIndicesNotStarted() throws IOException;
   }
 
+  /**
+   * Notified when this node starts and stops acting as the active primary, e.g. to run work that
+   * must only happen on the leader, such as ingestion. Callbacks run on the transition thread (or
+   * the closing thread), in order: {@link #onActive} once per leadership term after all indices are
+   * primary, and {@link #onInactive} before indices are restarted as standby, or on close. They may
+   * block for a bounded time; a pending role change waits for them. Safety does not depend on them:
+   * the fence is already inactive when {@link #onInactive} runs, so writes from work still running
+   * fail.
+   */
+  public interface ActiveListener {
+    /**
+     * This node became the active primary.
+     *
+     * @param epoch leadership epoch, also the primaryGen of all indices
+     */
+    void onActive(long epoch);
+
+    /** This node is no longer the active primary (demoting, or shutting down). */
+    void onInactive();
+  }
+
+  private final List<ActiveListener> activeListeners =
+      new java.util.concurrent.CopyOnWriteArrayList<>();
+  // if onActive was delivered without a matching onInactive; guarded by activeListeners
+  private boolean activeNotified = false;
+
   // created by start(), once the local node's bound ports are known
   private final java.util.function.Supplier<PrimaryElector> electorFactory;
   private volatile PrimaryElector elector;
@@ -204,6 +230,45 @@ public class LeaderManager implements Closeable, LeaderListener {
               });
       refreshScheduler.scheduleWithFixedDelay(
           this::requestRefresh, refreshIntervalMs, refreshIntervalMs, TimeUnit.MILLISECONDS);
+    }
+  }
+
+  /** Register a listener for active primary terms. Must be called before {@link #start()}. */
+  public void addActiveListener(ActiveListener listener) {
+    activeListeners.add(Objects.requireNonNull(listener));
+  }
+
+  private void notifyActive(long epoch) {
+    synchronized (activeListeners) {
+      // close() sets closed before notifying inactive under this lock, so a promotion finishing
+      // concurrently with close never starts leader work after it was stopped
+      if (activeNotified || isClosed()) {
+        return;
+      }
+      activeNotified = true;
+      for (ActiveListener l : activeListeners) {
+        try {
+          l.onActive(epoch);
+        } catch (Throwable t) {
+          logger.error("Error in active listener", t);
+        }
+      }
+    }
+  }
+
+  private void notifyInactive() {
+    synchronized (activeListeners) {
+      if (!activeNotified) {
+        return;
+      }
+      activeNotified = false;
+      for (ActiveListener l : activeListeners) {
+        try {
+          l.onInactive();
+        } catch (Throwable t) {
+          logger.error("Error in inactive listener", t);
+        }
+      }
     }
   }
 
@@ -345,6 +410,7 @@ public class LeaderManager implements Closeable, LeaderListener {
         role = Role.ACTIVE;
       }
       logger.info("Active primary at epoch {}, indices: {}", epoch, indices);
+      notifyActive(epoch);
     } catch (Throwable t) {
       logger.error("Failed to promote at epoch {}", epoch, t);
       resignAndDemote(epoch, change);
@@ -367,6 +433,8 @@ public class LeaderManager implements Closeable, LeaderListener {
       logger.info("Skipping stale demotion: {}", reason);
       return;
     }
+    // stop leader only work (e.g. ingestion) before indices restart; the fence is already inactive
+    notifyInactive();
     if (!indicesMayBePrimary) {
       // promotion failed before any index restarted as primary, indices are still standby
       logger.info("Leadership lost before indices became primary, staying standby: {}", reason);
@@ -598,6 +666,8 @@ public class LeaderManager implements Closeable, LeaderListener {
     if (scheduler != null) {
       scheduler.shutdownNow();
     }
+    // stop leader only work before releasing leadership and closing indices
+    notifyInactive();
     synchronized (this) {
       // release any waiting reload requests; no refresh ran for them
       completeAll(takeWaiters(), closedException());

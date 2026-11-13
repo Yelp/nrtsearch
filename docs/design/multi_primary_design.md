@@ -452,6 +452,51 @@ new NrtSearchClient.Builder(new NrtSearchClient.Builder.Leader(
 Uses the client service port; default poll 2s; `Leader(Supplier<Collection<Node>>, pollMs)` accepts any seed
 source (`SeedSources.fixed`, `SeedSources.file`, re-read every poll).
 
+## 12.5 Ingestion plugins
+
+Ingestion plugins (`IngestionPlugin`, e.g. Kafka and Paimon in `nrtsearch-ingestion-plugins`) index directly on
+the primary, so with election they must follow leadership and must not lose source data across failovers.
+
+**Lifecycle** (`ingestion.IngestionManager`): without election, plugins start once at boot as before. With
+election, each ingestor is initialized at boot and registered as a `LeaderManager.ActiveListener`:
+
+- `onActive(epoch)` is called on the transition thread after all indices are primary; each ingestor's `start()`
+  runs on its own thread (it may block for the whole term).
+- `onInactive()` is called at the start of demotion (fence already inactive, before indices restart as standby)
+  and on close; it calls `stop()` and waits up to 60s, then interrupts. Delivery is ordered and paired; no
+  `onActive` after close.
+- An ingestor must declare `supportsLeaderElection()`; otherwise startup fails. Supporting ingestors can be
+  started again after `stop()` (fresh threads and source connections per term).
+
+**Checkpoint** (`AbstractIngestor`):
+
+- `commit(index, checkpoint)` merges `ingestion.<key>` entries into the Lucene live commit data
+  (`ShardState.updateCommitUserData`, incrementing the version so the commit happens even with no document
+  changes) and commits. With remote commits the commit user data is part of the uploaded point (infos), so it is
+  durable exactly when the data is, and fenced with it: a stale primary's commit fails, so its checkpoint never
+  becomes durable.
+- `getCommittedCheckpoint(index)` returns the entries as restored with the index (the writer's live commit data).
+  Verified: a restored primary sees the last commit's user data; a refresh upload after that carries the newer
+  data but the older checkpoint. So the restored checkpoint is never ahead of the restored data — a failover
+  replays, never skips.
+- `deleteByQuery` and `commit` from ingestors are gated on the active primary (`addDocuments` already was).
+- With election, the first checkpoint commit per index logs a warning if the index has no id field (replay would
+  add duplicates instead of replacing).
+
+**Plugins**:
+
+| Plugin | Checkpoint key | Resume | Source side progress |
+|---|---|---|---|
+| Kafka | `kafka.<topic>.<partition>` = next offset, committed with every batch | `seek` to the index checkpoint, else group offset / `autoOffsetReset` | `commitSync` after each successful index commit (monitoring) |
+| Paimon | `paimon.<consumerId>.nextSnapshot`, committed when all buckets of a scan are indexed | `streamTableScan.restore(snapshot)`, else consumer position | `notifyCheckpointComplete` after the index commit (snapshot retention, lag) |
+
+Kafka: a failed batch discards pending documents and seeks back to the last durable offset (previously records
+after a failed batch in the same poll could be skipped). Partition loops are tied to the run that started them.
+Paimon: per-bucket commits keep the previous checkpoint; a failed checkpoint commit does not advance the consumer
+and restores the pre-plan scan position; `stop()` interrupts the coordinator so an unfinished batch is not
+committed. Since a leader only advances source progress after a durable checkpoint, source progress is never ahead
+of the index checkpoint, so Paimon snapshots needed for replay are retained.
+
 ## 13. Guarantees
 
 | Property | Mechanism |
@@ -463,6 +508,7 @@ source (`SeedSources.fixed`, `SeedSources.file`, re-read every poll).
 | Deposed leader cannot feed replicas | `recvCopyState`/`addReplicas` gated; replicas reject lower gen |
 | Clients are redirected, not retried | `FAILED_PRECONDITION` with leader hint; `resolveLeader` |
 | Uncommitted documents | may be lost (some survive if a refresh upload happened) |
+| Ingestion plugins skip no source data | source checkpoint committed in the index commit, fenced with it; resume from the restored checkpoint (12.5) |
 
 ## 14. Failure scenarios
 

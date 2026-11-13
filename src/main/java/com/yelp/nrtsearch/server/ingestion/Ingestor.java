@@ -99,6 +99,31 @@ public interface Ingestor {
   long deleteByQuery(List<Query> queries, String indexName) throws Exception;
 
   /**
+   * If this ingestor supports multi-primary leader election. With leader election enabled, the
+   * server calls {@link #start()} each time this node becomes the active primary, and {@link
+   * #stop()} when it stops being the active primary, so the same instance is started and stopped
+   * many times. An ingestor supporting this must:
+   *
+   * <ul>
+   *   <li>allow {@link #start()} again after {@link #stop()}, creating fresh threads and source
+   *       connections each time;
+   *   <li>on each start, resume from the checkpoint durable in the index, see {@link
+   *       AbstractIngestor#getCommittedCheckpoint(String)}, not from in memory or source system
+   *       positions, since the index was restored from remote storage and may contain more or less
+   *       data than this node last wrote;
+   *   <li>record its position with {@link AbstractIngestor#commit(String, java.util.Map)}, only for
+   *       data already added to the index.
+   * </ul>
+   *
+   * When leader election is enabled and an ingestor does not support it, the server fails to start.
+   *
+   * @return true if supported, false by default
+   */
+  default boolean supportsLeaderElection() {
+    return false;
+  }
+
+  /**
    * Commit any pending changes to the specified index.
    *
    * <p>This method should be called periodically or after a batch of documents is added to ensure

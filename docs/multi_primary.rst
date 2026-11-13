@@ -136,6 +136,25 @@ of a cluster must be upgraded before enabling leader election.
 Replicas reject replication requests with a lower ``primaryGen`` than they have already seen
 (``enforcePrimaryGenOrdering``, enabled automatically with leader election).
 
+Ingestion plugins
+-----------------
+
+With leader election, ingestion plugins (``IngestionPlugin``) only run on the active primary. Each ingestor is
+started when the node becomes the active primary, and stopped when it stops being it (before its indices are
+restarted as standby) and on shutdown, so the same ingestor is started once per leadership term. Ingestors must
+declare support with ``Ingestor.supportsLeaderElection()``; the server fails to start if leader election is
+enabled with an ingestor that does not.
+
+Ingestors record their source position (e.g. Kafka offsets, Paimon snapshot) with
+``AbstractIngestor.commit(indexName, checkpoint)``. The checkpoint is stored in the index commit user data, so it
+is uploaded and fenced together with the index data: a stale primary's commit fails, so neither its data nor its
+checkpoint become durable. On every start an ingestor resumes from ``getCommittedCheckpoint(indexName)``, the
+checkpoint restored with the index. It can be behind the restored data (data uploaded by a refresh after the last
+checkpoint commit), never ahead of it, so after a failover some data is replayed but none is skipped. Replayed
+documents replace existing ones only if the index has an id field; otherwise a warning is logged, since a
+failover adds duplicates. Ingestion writes (``addDocuments``, ``deleteByQuery``, ``commit``) are rejected on a
+standby.
+
 Custom electors
 ---------------
 

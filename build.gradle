@@ -26,7 +26,8 @@ java {
 }
 
 allprojects {
-    version = '1.5.3'
+    // -PversionOverride=<v> publishes a distinct version, e.g. a snapshot to mavenLocal for plugin builds
+    version = project.findProperty('versionOverride') ?: '1.5.3'
     group = 'com.yelp.nrtsearch'
 }
 
