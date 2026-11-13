@@ -112,10 +112,23 @@ public interface Ingestor {
    *       positions, since the index was restored from remote storage and may contain more or less
    *       data than this node last wrote;
    *   <li>record its position with {@link AbstractIngestor#commit(String, java.util.Map)}, only for
-   *       data already added to the index.
+   *       data already added to the index;
+   *   <li>make {@link #stop()} idempotent and safe to call before or concurrently with {@link
+   *       #start()} (it may be called more than once per term), and after {@link #stop()} return
+   *       from {@link #start()} and stop all threads it launched promptly (within about a minute);
+   *       a run that does not stop is reported and interrupted, but may keep running;
+   *   <li>on a failed write or commit, resume from its last durable position rather than its in
+   *       memory position, since the index may have been restarted from remote storage (e.g. a
+   *       stopped and restarted index) and lost uncommitted data.
    * </ul>
    *
-   * When leader election is enabled and an ingestor does not support it, the server fails to start.
+   * <p>With leader election, {@link #initialize} is called once for every ingestor at server start,
+   * and {@link #start()} runs on a server thread, not on {@link
+   * com.yelp.nrtsearch.server.plugins.IngestionPlugin#getIngestionExecutor()}; ingestors create
+   * their own threads for each run.
+   *
+   * <p>When leader election is enabled and an ingestor does not support it, the server fails to
+   * start.
    *
    * @return true if supported, false by default
    */

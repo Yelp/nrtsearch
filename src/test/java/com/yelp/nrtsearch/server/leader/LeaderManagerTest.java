@@ -246,6 +246,55 @@ public class LeaderManagerTest {
         lifecycleEvents());
   }
 
+  /**
+   * Loss and re-election queued together: the demotion is skipped as stale, but the previous term's
+   * leader work is still stopped before the new term restarts indices and starts it again.
+   */
+  @Test
+  public void testActiveListenerRestartedOnQuickReelection() throws Exception {
+    java.util.concurrent.CountDownLatch inFirstActive = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    manager.addActiveListener(
+        new LeaderManager.ActiveListener() {
+          @Override
+          public void onActive(long epoch) {
+            controller.events.add("active:" + epoch);
+            if (epoch == 10) {
+              // hold the transition thread, so the loss and re-election below queue together
+              inFirstActive.countDown();
+              try {
+                release.await();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+            }
+          }
+
+          @Override
+          public void onInactive() {
+            controller.events.add("inactive");
+          }
+        });
+    elector.elect(10);
+    assertTrue(inFirstActive.await(10, java.util.concurrent.TimeUnit.SECONDS));
+    elector.lose();
+    elector.elect(12);
+    release.countDown();
+    manager.awaitTransitions();
+    manager.awaitTransitions();
+    List<String> events =
+        controller.events.stream()
+            .filter(
+                e ->
+                    e.startsWith("active")
+                        || e.startsWith("inactive")
+                        || e.startsWith("primary")
+                        || e.startsWith("standby"))
+            .toList();
+    assertEquals(
+        List.of("primary:idx:10", "active:10", "inactive", "primary:idx:12", "active:12"), events);
+  }
+
   /** A failed promotion never starts leader work. */
   @Test
   public void testActiveListenerNotCalledOnFailedPromotion() throws Exception {

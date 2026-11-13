@@ -24,7 +24,9 @@ public interface IngestionPlugin {
 
   /**
    * Provide an executor service for running ingestion. Plugin is responsible for managing its
-   * lifecycle.
+   * lifecycle. Without leader election, the server runs {@link Ingestor#start()} on it. With leader
+   * election it is not used by the server: start() runs on a server thread once per leadership
+   * term, see {@link Ingestor#supportsLeaderElection()}.
    */
   ExecutorService getIngestionExecutor();
 }

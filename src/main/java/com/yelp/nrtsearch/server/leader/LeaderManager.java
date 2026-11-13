@@ -387,6 +387,9 @@ public class LeaderManager implements Closeable, LeaderListener {
     }
     long epoch = leaderInfo.epoch();
     logger.info("Promoting to active primary at epoch {}", epoch);
+    // every term starts leader only work fresh, from the state restored with the indices: stop
+    // work of a previous term that no demotion stopped (e.g. loss and re-election queued together)
+    notifyInactive();
     synchronized (this) {
       if (change != leadershipChangeCount) {
         logger.info("Skipping stale promotion for epoch {}", epoch);
@@ -429,12 +432,14 @@ public class LeaderManager implements Closeable, LeaderListener {
   }
 
   private void demote(String reason, long change) {
+    // stop leader only work (e.g. ingestion) of the lost term first, even if this demotion is
+    // stale: a quick re-election would otherwise keep the old term's work running against indices
+    // restarted from remote state. The fence is already inactive.
+    notifyInactive();
     if (isClosed() || change != leadershipChangeCount) {
       logger.info("Skipping stale demotion: {}", reason);
       return;
     }
-    // stop leader only work (e.g. ingestion) before indices restart; the fence is already inactive
-    notifyInactive();
     if (!indicesMayBePrimary) {
       // promotion failed before any index restarted as primary, indices are still standby
       logger.info("Leadership lost before indices became primary, staying standby: {}", reason);
@@ -666,8 +671,6 @@ public class LeaderManager implements Closeable, LeaderListener {
     if (scheduler != null) {
       scheduler.shutdownNow();
     }
-    // stop leader only work before releasing leadership and closing indices
-    notifyInactive();
     synchronized (this) {
       // release any waiting reload requests; no refresh ran for them
       completeAll(takeWaiters(), closedException());
@@ -681,6 +684,9 @@ public class LeaderManager implements Closeable, LeaderListener {
     if (started != null) {
       started.close();
     }
+    // stop leader only work after releasing leadership, so a slow stop does not delay failover;
+    // writes from it already fail, since the fence is inactive. Bounded by the listeners.
+    notifyInactive();
     // let a running transition finish, so it does not leave index managers started that nothing
     // will close. Queued transitions still run, but return immediately since closed is set.
     // Interrupt only as a last resort, since an interrupt during NIO closes the channel.
