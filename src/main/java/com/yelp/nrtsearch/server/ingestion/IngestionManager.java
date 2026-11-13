@@ -187,15 +187,40 @@ public class IngestionManager implements LeaderManager.ActiveListener {
       entered = t.entered.clone();
     }
     logger.info("Stopping ingestion for leadership epoch {}", t.epoch);
-    long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(stopWaitMs);
+    // stop ingestors in parallel, each with the full wait, so a slow one does not use up the time
+    // of the others
+    List<Future<Boolean>> stops = new ArrayList<>();
     for (int i = 0; i < ingestors.size(); i++) {
       Future<?> start = t.starts.get(i);
       if (!entered[i]) {
         // never began, and never will now
         start.cancel(false);
+        stops.add(java.util.concurrent.CompletableFuture.completedFuture(true));
         continue;
       }
-      if (!stopIngestor(ingestors.get(i), start, deadline)) {
+      Ingestor ingestor = ingestors.get(i);
+      stops.add(
+          runner.submit(
+              () ->
+                  stopIngestor(
+                      ingestor,
+                      start,
+                      System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(stopWaitMs))));
+    }
+    // each stop is bounded by its own deadline; allow a little extra for scheduling
+    long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(stopWaitMs + 1000);
+    for (int i = 0; i < ingestors.size(); i++) {
+      boolean stopped;
+      try {
+        stopped = stops.get(i).get(remaining(deadline), TimeUnit.NANOSECONDS);
+      } catch (InterruptedException e) {
+        // ends the wait only; not re-set, so the demotion that follows is not aborted
+        logger.warn("Interrupted waiting for ingestion to stop");
+        stopped = false;
+      } catch (Exception e) {
+        stopped = false;
+      }
+      if (!stopped) {
         int leaked = leakedRunners.incrementAndGet();
         logger.error(
             "Ingestor {} did not stop within {}ms at epoch {}; interrupting it. Ingestors must"
@@ -205,7 +230,8 @@ public class IngestionManager implements LeaderManager.ActiveListener {
             stopWaitMs,
             t.epoch,
             leaked);
-        start.cancel(true);
+        stops.get(i).cancel(true);
+        t.starts.get(i).cancel(true);
       }
     }
   }

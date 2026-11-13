@@ -174,6 +174,40 @@ public class IngestionManagerTest {
     assertFalse(manager.isActive());
   }
 
+  /** stop() takes a while, but finishes. */
+  static class SlowStopIngestor extends LaunchingIngestor {
+    SlowStopIngestor() {
+      super(0);
+    }
+
+    @Override
+    public void stop() {
+      try {
+        Thread.sleep(700);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
+      super.stop();
+    }
+  }
+
+  /** Each ingestor gets the full stop wait: slow stops do not use up the time of the others. */
+  @Test
+  public void testIngestorsStoppedInParallel() throws Exception {
+    SlowStopIngestor first = new SlowStopIngestor();
+    SlowStopIngestor second = new SlowStopIngestor();
+    IngestionManager manager = new IngestionManager(List.of(first, second), 1000);
+    manager.onActive(1);
+    while (!first.running.get() || !second.running.get()) {
+      Thread.sleep(1);
+    }
+    manager.onInactive();
+    assertEquals(0, manager.getLeakedRunners());
+    assertFalse(first.running.get());
+    assertFalse(second.running.get());
+  }
+
   /** An interrupt of the calling (transition) thread ends the wait but is not re-set. */
   @Test
   public void testInterruptNotPropagated() throws Exception {
