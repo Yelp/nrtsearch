@@ -63,6 +63,8 @@ public class LeaderTracker implements Closeable {
   private LeaderResolver.Resolved current;
   // sequence of current, incremented on every publish; guarded by this
   private long currentSeq = 0;
+  // a poll has completed without confirming any leader, and none is known; guarded by this
+  private boolean noLeaderFound = false;
   private boolean closed = false;
   private boolean started = false;
 
@@ -129,7 +131,9 @@ public class LeaderTracker implements Closeable {
 
   /**
    * Add a subscriber. If a leader is known, it is delivered to the subscriber immediately, on the
-   * calling thread; later updates are never delivered out of order with it.
+   * calling thread; later updates are never delivered out of order with it. If a poll already
+   * failed to find a leader, the subscriber is told at once, so its calls fail fast instead of
+   * waiting for the next poll. Before the first poll completes, nothing is delivered until it does.
    *
    * @param subscriber subscriber
    */
@@ -137,6 +141,7 @@ public class LeaderTracker implements Closeable {
     Delivery delivery = new Delivery(subscriber);
     LeaderResolver.Resolved leader;
     long seq;
+    boolean noLeader;
     synchronized (this) {
       if (closed) {
         return;
@@ -144,11 +149,14 @@ public class LeaderTracker implements Closeable {
       subscribers.put(subscriber, delivery);
       leader = current;
       seq = currentSeq;
+      noLeader = noLeaderFound;
     }
     // a poll publishing a newer leader after the snapshot delivers a higher sequence, which wins
-    // regardless of which delivery runs first
+    // regardless of which delivery runs first; a late no leader is ignored once a leader arrived
     if (leader != null) {
       delivery.leader(leader, seq);
+    } else if (noLeader) {
+      delivery.noLeader();
     }
   }
 
@@ -197,6 +205,7 @@ public class LeaderTracker implements Closeable {
         }
       } else if (current == null) {
         noLeader = true;
+        noLeaderFound = true;
       }
     }
     if (publish != null) {

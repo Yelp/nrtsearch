@@ -280,6 +280,33 @@ public class LeaderResolverTest {
     tracker.close();
   }
 
+  /**
+   * A subscriber added after a poll found no leader is told at once (so calls fail fast), but not
+   * before the first poll completes.
+   */
+  @Test
+  public void testSubscribeAfterFailedPollGetsNoLeader() {
+    LeaderTracker tracker = tracker(List.of(A));
+    RecordingSubscriber early = new RecordingSubscriber();
+    tracker.subscribe(early);
+    assertEquals(0, early.noLeader);
+    tracker.poll();
+    assertEquals(1, early.noLeader);
+    RecordingSubscriber late = new RecordingSubscriber();
+    tracker.subscribe(late);
+    assertEquals(1, late.noLeader);
+    assertEquals(0, late.leaders.size());
+    // once a leader is found, it is delivered and new subscribers get it instead
+    answers.put(A, leader("a", 1, true));
+    tracker.poll();
+    assertEquals(1, late.leaders.size());
+    RecordingSubscriber later = new RecordingSubscriber();
+    tracker.subscribe(later);
+    assertEquals(0, later.noLeader);
+    assertEquals(1, later.leaders.size());
+    tracker.close();
+  }
+
   /** The name resolver relays tracker results to its gRPC listener. */
   @Test
   public void testNameResolverRelaysToListener() {
