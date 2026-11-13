@@ -20,9 +20,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Configuration class for starting indices from global state. */
 public class IndexStartConfig {
+  private static final Logger logger = LoggerFactory.getLogger(IndexStartConfig.class);
   public static final String CONFIG_PREFIX = "indexStartConfig.";
   public static final String PRIMARY_DISCOVERY_PREFIX = "primaryDiscovery.";
 
@@ -85,9 +88,12 @@ public class IndexStartConfig {
     // not validated here; StartIndex requests are validated when they are processed.
     if (primaryResolver == PrimaryResolverType.LEADER_RPC && mode == Mode.REPLICA && autoStart) {
       if (discoveryHost.isBlank() && discoveryFile.isEmpty()) {
-        throw new IllegalArgumentException(
-            "primaryDiscovery.resolver LEADER_RPC with autoStart needs primaryDiscovery.host or"
-                + " primaryDiscovery.file");
+        // allowed: replicas may get primary addresses only from StartIndex requests. Indices
+        // started from config (if any) fail to start without discovery.
+        logger.warn(
+            "primaryDiscovery.resolver LEADER_RPC with autoStart, but no primaryDiscovery.host or"
+                + " primaryDiscovery.file; indices auto started from global state will fail to"
+                + " start. Set autoStart: false if primaries only come from StartIndex requests.");
       }
       // the host takes precedence over the file when starting, so validate it whenever it is set
       if (!discoveryHost.isBlank()) {

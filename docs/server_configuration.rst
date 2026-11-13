@@ -1033,7 +1033,7 @@ Example server configuration
 
    * - allowLoopbackHost
      - bool
-     - Allow a loopback ``hostName`` (e.g. ``localhost``) with leader election. Only for running several nodes on one machine.
+     - Allow a loopback ``hostName`` (e.g. ``localhost``) with leader election, and for ``resolveLeader`` on a primary without election (set it without ``type`` in that case). Only for running several nodes on one machine.
      - false
 
    * - reloadWaitMs

@@ -67,7 +67,8 @@ public class ResolveLeaderHandler extends Handler<ResolveLeaderRequest, ResolveL
             .withDescription(
                 "This primary's hostName is a loopback address, which other nodes can not reach: "
                     + globalState.getHostName()
-                    + "; set leaderElection.allowLoopbackHost: true for single machine setups")
+                    + "; set leaderElection.allowLoopbackHost: true (no election type needed) for single"
+                    + " machine setups")
             .asRuntimeException();
       }
       LeaderInfo self =

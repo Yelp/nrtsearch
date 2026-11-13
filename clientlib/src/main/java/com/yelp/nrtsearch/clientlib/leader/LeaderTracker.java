@@ -16,10 +16,10 @@
 package com.yelp.nrtsearch.clientlib.leader;
 
 import java.io.Closeable;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -34,8 +34,11 @@ import org.slf4j.LoggerFactory;
  * <p>The tracker only moves to the same or a newer epoch, never back to an older leader. When no
  * leader can be confirmed, the last confirmed leader is kept.
  *
- * <p>Polls and all deliveries to subscribers run on the tracker's single thread, so a subscriber
- * always sees leaders in order and never receives an older leader after a newer one.
+ * <p>Polls run on the tracker's single thread. Every published leader gets a sequence number, and
+ * each subscriber only accepts a leader with a higher sequence than the last one it received, so a
+ * subscriber always sees leaders in order and never receives an older leader after a newer one,
+ * even though a new subscriber gets the known leader at once on the subscribing thread (not behind
+ * a poll in progress).
  */
 public class LeaderTracker implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(LeaderTracker.class);
@@ -52,12 +55,14 @@ public class LeaderTracker implements Closeable {
   private final LeaderResolver resolver;
   private final long pollIntervalMs;
   private final Runnable onClose;
-  private final Set<Subscriber> subscribers = new CopyOnWriteArraySet<>();
+  private final Map<Subscriber, Delivery> subscribers = new ConcurrentHashMap<>();
   private final ScheduledExecutorService executor;
   // merges refresh requests from many channels into one extra poll
   private final com.yelp.nrtsearch.clientlib.util.CoalescingRunner refresher;
   // guarded by this
   private LeaderResolver.Resolved current;
+  // sequence of current, incremented on every publish; guarded by this
+  private long currentSeq = 0;
   private boolean closed = false;
   private boolean started = false;
 
@@ -95,29 +100,55 @@ public class LeaderTracker implements Closeable {
     executor.scheduleWithFixedDelay(this::safePoll, 0, pollIntervalMs, TimeUnit.MILLISECONDS);
   }
 
+  /** Delivers to one subscriber in sequence order, dropping anything older than delivered. */
+  private static final class Delivery {
+    private final Subscriber subscriber;
+    // guarded by this
+    private long lastSeq = -1;
+
+    Delivery(Subscriber subscriber) {
+      this.subscriber = subscriber;
+    }
+
+    synchronized void leader(LeaderResolver.Resolved leader, long seq) {
+      if (seq <= lastSeq) {
+        return;
+      }
+      lastSeq = seq;
+      subscriber.onLeader(leader);
+    }
+
+    synchronized void noLeader() {
+      // only before any leader was delivered; a known leader is kept
+      if (lastSeq <= 0) {
+        lastSeq = 0;
+        subscriber.onNoLeader();
+      }
+    }
+  }
+
   /**
-   * Add a subscriber. If a leader is known, it is delivered to the subscriber soon, on the tracker
-   * thread, so it is ordered with all later updates.
+   * Add a subscriber. If a leader is known, it is delivered to the subscriber immediately, on the
+   * calling thread; later updates are never delivered out of order with it.
    *
    * @param subscriber subscriber
    */
   public void subscribe(Subscriber subscriber) {
-    subscribers.add(subscriber);
-    try {
-      executor.execute(
-          () -> {
-            LeaderResolver.Resolved leader;
-            synchronized (this) {
-              leader = current;
-            }
-            // delivered on the tracker thread: a poll publishing a newer leader runs either before
-            // (so current is already the newer one) or after this delivery
-            if (leader != null && subscribers.contains(subscriber)) {
-              subscriber.onLeader(leader);
-            }
-          });
-    } catch (java.util.concurrent.RejectedExecutionException e) {
-      // closed
+    Delivery delivery = new Delivery(subscriber);
+    LeaderResolver.Resolved leader;
+    long seq;
+    synchronized (this) {
+      if (closed) {
+        return;
+      }
+      subscribers.put(subscriber, delivery);
+      leader = current;
+      seq = currentSeq;
+    }
+    // a poll publishing a newer leader after the snapshot delivers a higher sequence, which wins
+    // regardless of which delivery runs first
+    if (leader != null) {
+      delivery.leader(leader, seq);
     }
   }
 
@@ -148,6 +179,7 @@ public class LeaderTracker implements Closeable {
   void poll() {
     Optional<LeaderResolver.Resolved> resolved = resolver.resolve();
     LeaderResolver.Resolved publish = null;
+    long publishSeq = 0;
     boolean noLeader = false;
     synchronized (this) {
       if (closed) {
@@ -161,6 +193,7 @@ public class LeaderTracker implements Closeable {
             || (next.epoch() == current.epoch() && !next.equals(current))) {
           current = next;
           publish = next;
+          publishSeq = ++currentSeq;
         }
       } else if (current == null) {
         noLeader = true;
@@ -168,12 +201,12 @@ public class LeaderTracker implements Closeable {
     }
     if (publish != null) {
       logger.info("Leader resolved: {}", publish);
-      for (Subscriber s : subscribers) {
-        s.onLeader(publish);
+      for (Delivery d : subscribers.values()) {
+        d.leader(publish, publishSeq);
       }
     } else if (noLeader) {
-      for (Subscriber s : subscribers) {
-        s.onNoLeader();
+      for (Delivery d : subscribers.values()) {
+        d.noLeader();
       }
     }
   }

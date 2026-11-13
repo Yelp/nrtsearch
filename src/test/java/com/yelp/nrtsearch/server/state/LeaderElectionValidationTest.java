@@ -103,14 +103,13 @@ public class LeaderElectionValidationTest {
     startConfig("REPLICA", false, "    resolver: LEADER_RPC\n    host: \"\"\n");
   }
 
-  /** An auto started replica must have somewhere to find the leader. */
+  /**
+   * An auto started replica without discovery is allowed (with a warning): addresses may come only
+   * from StartIndex requests.
+   */
   @Test
-  public void testLeaderRpcAutoStartWithoutDiscoveryRejected() {
-    IllegalArgumentException e =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> startConfig("REPLICA", true, "    resolver: LEADER_RPC\n"));
-    assertTrue(e.getMessage(), e.getMessage().contains("needs primaryDiscovery.host or"));
+  public void testLeaderRpcAutoStartWithoutDiscoveryAccepted() {
+    startConfig("REPLICA", true, "    resolver: LEADER_RPC\n");
   }
 
   /** The host takes precedence over the file at start, so a single host is rejected with a file. */

@@ -224,11 +224,59 @@ public class LeaderResolverTest {
     for (RecordingSubscriber sub : subs) {
       assertEquals(1, sub.leaders.size());
     }
-    // a late subscriber is told the current leader, on the tracker thread
+    // a late subscriber is told the current leader at once
     RecordingSubscriber late = new RecordingSubscriber();
     tracker.subscribe(late);
     awaitIdle(tracker);
     assertEquals(1, late.leaders.size());
+    tracker.close();
+  }
+
+  /**
+   * A new subscriber gets the known leader at once, not after a poll in progress, and a newer
+   * leader published by that poll is still delivered after it.
+   */
+  @Test
+  public void testSubscribeNotBlockedByPollInProgress() throws Exception {
+    answers.put(A, leader("a", 1, true));
+    java.util.concurrent.CountDownLatch inSlowPoll = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch releasePoll = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicBoolean slow =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    LeaderTracker tracker =
+        new LeaderTracker(
+            new LeaderResolver(
+                () -> List.of(A),
+                node -> {
+                  if (slow.get()) {
+                    inSlowPoll.countDown();
+                    try {
+                      releasePoll.await();
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                    }
+                  }
+                  return answers.get(node);
+                },
+                LeaderResolver::clientAddress),
+            1000,
+            () -> {});
+    tracker.poll();
+    slow.set(true);
+    answers.put(A, leader("a", 2, true));
+    java.util.concurrent.ExecutorService poller =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+    java.util.concurrent.Future<?> polling = poller.submit(tracker::poll);
+    assertTrue(inSlowPoll.await(5, java.util.concurrent.TimeUnit.SECONDS));
+    RecordingSubscriber sub = new RecordingSubscriber();
+    tracker.subscribe(sub);
+    assertEquals(1, sub.leaders.size());
+    assertEquals(1, sub.leaders.get(0).epoch());
+    releasePoll.countDown();
+    polling.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals(2, sub.leaders.size());
+    assertEquals(2, sub.leaders.get(1).epoch());
+    poller.shutdownNow();
     tracker.close();
   }
 

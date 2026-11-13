@@ -382,18 +382,6 @@ public class NRTReplicaNode extends ReplicaNode {
     return false;
   }
 
-  /**
-   * Sync the next nrt point from the current primary. Attempts to get the current index version
-   * from the primary, giving up after the specified amount of time. Sync is considered completed
-   * when either the index version has updated to at least the initial primary version, there is a
-   * failure to start a new copy job, or the specified max time elapses.
-   *
-   * <p>If this node is not connected to a primary, this method will return immediately
-   *
-   * @param primaryWaitMs how long to wait for primary to be available
-   * @param maxTimeMs max time to attempt initial point sync
-   * @throws IOException on issue getting searcher version
-   */
   /** If a sync should stop: the node is closing, or the syncing thread was interrupted. */
   private boolean shouldStopSync() {
     if (syncStopped || Thread.currentThread().isInterrupted()) {
@@ -418,10 +406,24 @@ public class NRTReplicaNode extends ReplicaNode {
     return !shouldStopSync();
   }
 
-  public void syncFromCurrentPrimary(long primaryWaitMs, long maxTimeMs) throws IOException {
+  /**
+   * Sync the next nrt point from the current primary. Attempts to get the current index version
+   * from the primary, giving up after the specified amount of time. Sync is considered completed
+   * when either the index version has updated to at least the initial primary version, there is a
+   * failure to start a new copy job, or the specified max time elapses.
+   *
+   * <p>If this node is not connected to a primary, this method will return immediately
+   *
+   * @param primaryWaitMs how long to wait for primary to be available
+   * @param maxTimeMs max time to attempt initial point sync
+   * @return false if the sync stopped because the replica is closing or the thread was interrupted,
+   *     true otherwise (synced, or gave up)
+   * @throws IOException on issue getting searcher version
+   */
+  public boolean syncFromCurrentPrimary(long primaryWaitMs, long maxTimeMs) throws IOException {
     if (!hasPrimaryConnection()) {
       logger.info("Skipping primary sync, no primary connection available");
-      return;
+      return true;
     }
     logger.info("Starting sync of next nrt point from current primary");
     long startMS = System.currentTimeMillis();
@@ -431,7 +433,7 @@ public class NRTReplicaNode extends ReplicaNode {
     // is exceeded
     while (System.currentTimeMillis() - startMS < primaryWaitMs) {
       if (shouldStopSync()) {
-        return;
+        return false;
       }
       try {
         com.yelp.nrtsearch.server.grpc.CopyState copyState =
@@ -441,13 +443,13 @@ public class NRTReplicaNode extends ReplicaNode {
         break;
       } catch (Exception ignored) {
         if (!sleepForSync(NRT_CONNECT_WAIT_MS)) {
-          return;
+          return false;
         }
       }
     }
     if (primaryIndexVersion == -1) {
       logger.info("Nrt sync: Could not get index version from primary, skipping");
-      return;
+      return true;
     }
     long curVersion = getCurrentSearchingVersion();
     logger.info("Nrt sync: primary version: {}, my version: {}", primaryIndexVersion, curVersion);
@@ -456,7 +458,7 @@ public class NRTReplicaNode extends ReplicaNode {
     // points may fail if the primary cleans up old commit files.
     while (curVersion < primaryIndexVersion && (System.currentTimeMillis() - startMS < maxTimeMs)) {
       if (shouldStopSync()) {
-        return;
+        return false;
       }
       CopyJob job = newNRTPoint(lastPrimaryGen, primaryIndexVersion);
       if (job == null) {
@@ -468,7 +470,7 @@ public class NRTReplicaNode extends ReplicaNode {
         }
         // The job failed to start for another reason, abort
         logger.info("Nrt sync: failed to start copy job, aborting");
-        return;
+        return true;
       }
       logger.info(
           "Nrt sync: started new copy job, my version: {}, job version: {}",
@@ -476,7 +478,7 @@ public class NRTReplicaNode extends ReplicaNode {
           job.getCopyState().version());
       while (true) {
         if (shouldStopSync()) {
-          return;
+          return false;
         }
         curVersion = getCurrentSearchingVersion();
         if (curVersion >= primaryIndexVersion) {
@@ -489,11 +491,12 @@ public class NRTReplicaNode extends ReplicaNode {
           }
         }
         if (!sleepForSync(NRT_SYNC_WAIT_MS)) {
-          return;
+          return false;
         }
       }
     }
     logger.info("Finished syncing nrt point from current primary, current version: {}", curVersion);
+    return true;
   }
 
   @Override

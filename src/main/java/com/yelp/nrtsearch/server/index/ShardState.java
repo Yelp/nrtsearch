@@ -1048,8 +1048,13 @@ public class ShardState implements Closeable {
             BootstrapMetrics.initialNRTTimer
                 .labelValues(StringUtils.substringBefore(name, ":"))
                 .startTimer()) {
-          nrtReplicaNode.syncFromCurrentPrimary(
-              configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
+          if (!nrtReplicaNode.syncFromCurrentPrimary(
+              configuration.getInitialSyncPrimaryWaitMs(),
+              configuration.getInitialSyncMaxTimeMs())) {
+            // closing or interrupted, e.g. server shutdown during start
+            throw new java.io.InterruptedIOException(
+                "Initial nrt point sync stopped, replica start interrupted");
+          }
         }
       }
 
@@ -1217,6 +1222,7 @@ public class ShardState implements Closeable {
   public static class KeepAlive implements Runnable, Closeable {
     private static final Logger logger = LoggerFactory.getLogger(KeepAlive.class);
     private static final long SYNC_AFTER_REGISTER_PRIMARY_WAIT_MS = 5000;
+    private static final long SYNC_CLOSE_WAIT_MS = 5000;
     private volatile boolean exit = false;
     private final int pingIntervalMs;
     private final java.util.concurrent.ExecutorService syncExecutor =
@@ -1316,8 +1322,17 @@ public class ShardState implements Closeable {
 
     @Override
     public void close() {
-      syncExecutor.shutdownNow();
       exit = true;
+      // interrupts a running sync, which stops at its next check; wait for it so it does not start
+      // a copy job while the replica node is closed after this
+      syncExecutor.shutdownNow();
+      try {
+        if (!syncExecutor.awaitTermination(SYNC_CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)) {
+          logger.warn("Replica sync did not stop within {}ms", SYNC_CLOSE_WAIT_MS);
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
     }
   }
 }

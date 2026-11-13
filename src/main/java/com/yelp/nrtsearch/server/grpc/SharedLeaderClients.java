@@ -102,16 +102,12 @@ public final class SharedLeaderClients {
           released = true;
         }
         try {
-          // the plain close waits up to 10s; use a shorter bound and force the rest, so closing
-          // many replica indices does not add up
-          channel.shutdown();
-          if (!channel.awaitTermination(
-              CLOSE_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) {
-            channel.shutdownNow();
-          }
+          // force close right away: in flight calls (copy jobs) are already cancelled when a
+          // replica index closes, and a graceful wait per index adds up with many indices
+          channel.shutdownNow();
+          channel.awaitTermination(CLOSE_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
-          channel.shutdownNow();
         } finally {
           release(fullKey, finalShared);
         }

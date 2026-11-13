@@ -19,16 +19,23 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs a task on an executor for every request, merging requests made while it runs: the task runs
  * once more after it finishes if any request arrived during it, and never runs concurrently with
  * itself. No request is lost: every request is followed by a run that started after it.
+ *
+ * <p>A follow up run is submitted to the executor again rather than run in a loop, so a stream of
+ * requests does not hold a shared executor thread and starve its other tasks. Failures of the task
+ * (including errors) are logged and do not stop later runs.
  */
 public class CoalescingRunner {
+  private static final Logger logger = LoggerFactory.getLogger(CoalescingRunner.class);
   private final Executor executor;
   private final Runnable task;
-  // requests not yet covered by a completed run; nonzero while a run loop is active
+  // requests not yet covered by a completed run; nonzero while a run is active or queued
   private final AtomicInteger requests = new AtomicInteger();
 
   public CoalescingRunner(Executor executor, Runnable task) {
@@ -38,30 +45,35 @@ public class CoalescingRunner {
 
   /** Request a run. */
   public void request() {
-    // only the request that finds no loop active starts one
+    // only the request that finds no run active or queued submits one
     if (requests.getAndIncrement() > 0) {
       return;
     }
+    submit();
+  }
+
+  private void submit() {
     try {
-      executor.execute(this::loop);
+      executor.execute(this::runOnce);
     } catch (RejectedExecutionException e) {
+      // executor shut down: nothing will run, so later requests must not wait on this one
       requests.set(0);
     }
   }
 
-  private void loop() {
+  private void runOnce() {
     int covered = requests.get();
-    while (true) {
-      try {
-        task.run();
-      } catch (RuntimeException e) {
-        // the task is expected to handle its own errors; keep the loop invariant regardless
+    try {
+      task.run();
+    } catch (Throwable t) {
+      logger.warn("Coalesced task failed", t);
+    } finally {
+      // the run covered requests counted before it started; run again if more arrived. Done in
+      // finally so even an error leaves the runner usable.
+      if (!requests.compareAndSet(covered, 0)) {
+        requests.set(1);
+        submit();
       }
-      // the run covered requests counted before it started; run again if more arrived
-      if (requests.compareAndSet(covered, 0)) {
-        return;
-      }
-      covered = requests.get();
     }
   }
 }

@@ -93,4 +93,62 @@ public class CoalescingRunnerTest {
     assertEquals(0, lost.get());
     executor.shutdownNow();
   }
+
+  /** An error thrown by the task (e.g. an AssertionError) must not stop later runs. */
+  @Test
+  public void testErrorDoesNotStopRunner() throws Exception {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    AtomicInteger runs = new AtomicInteger();
+    CoalescingRunner runner =
+        new CoalescingRunner(
+            executor,
+            () -> {
+              if (runs.incrementAndGet() == 1) {
+                throw new AssertionError("boom");
+              }
+            });
+    runner.request();
+    executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(1, runs.get());
+    runner.request();
+    executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(2, runs.get());
+    executor.shutdownNow();
+  }
+
+  /**
+   * A follow up run is queued behind other tasks on the executor, not run in a loop, so a stream of
+   * requests does not starve them.
+   */
+  @Test
+  public void testFollowUpRunQueuedBehindOtherTasks() throws Exception {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    CountDownLatch inFirst = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    AtomicInteger runs = new AtomicInteger();
+    AtomicInteger runsWhenOtherTaskRan = new AtomicInteger(-1);
+    CoalescingRunner runner =
+        new CoalescingRunner(
+            executor,
+            () -> {
+              if (runs.incrementAndGet() == 1) {
+                inFirst.countDown();
+                try {
+                  release.await();
+                } catch (InterruptedException ignored) {
+                }
+              }
+            });
+    runner.request();
+    assertTrue(inFirst.await(5, TimeUnit.SECONDS));
+    executor.execute(() -> runsWhenOtherTaskRan.set(runs.get()));
+    runner.request();
+    release.countDown();
+    executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(2, runs.get());
+    // the other task ran between the first run and the follow up
+    assertEquals(1, runsWhenOtherTaskRan.get());
+    executor.shutdownNow();
+  }
 }
