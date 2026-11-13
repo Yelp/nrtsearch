@@ -72,6 +72,20 @@ public class ManualElectorPlugin extends Plugin implements PrimaryElectorPlugin 
     }
 
     /**
+     * Revoke leadership from the current leader, but keep reporting it as the known leader, like an
+     * elector that has not yet seen who took over.
+     */
+    public synchronized void revokeCurrentKeepingStaleView() {
+      LeaderInfo current = leader;
+      if (current != null) {
+        ManualElector holder = electors.get(current.nodeName());
+        if (holder != null) {
+          holder.revoke();
+        }
+      }
+    }
+
+    /**
      * Assign leadership to a node without telling the current leader, simulating a paused leader
      * that still believes it holds leadership.
      */

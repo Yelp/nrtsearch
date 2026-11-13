@@ -49,8 +49,7 @@ public class ResolveLeaderHandler extends Handler<ResolveLeaderRequest, ResolveL
     if (leaderManager.isPresent()) {
       LeaderManager manager = leaderManager.get();
       LeaderInfo leader =
-          manager
-              .currentLeader()
+          Handler.knownLeader(globalState, manager)
               .orElseThrow(
                   () ->
                       Status.UNAVAILABLE

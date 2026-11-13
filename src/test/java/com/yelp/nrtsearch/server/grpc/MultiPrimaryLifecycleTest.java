@@ -131,6 +131,34 @@ public class MultiPrimaryLifecycleTest {
     assertTrue(e.getMessage(), e.getMessage().contains("current leader: " + nodeName(a)));
   }
 
+  /**
+   * Right after losing leadership, a node's elector may still report the node itself as leader. It
+   * must not send clients back to itself: the leader is reported as unknown, and resolveLeader
+   * answers UNAVAILABLE. Other standbys still report the leader they know.
+   */
+  @Test
+  public void testDemotedNodeDoesNotReportItselfAsLeader() throws Exception {
+    TestServer a = primaryServer();
+    TestServer b = primaryServer();
+    bootstrap(a);
+    cluster.revokeCurrentKeepingStaleView();
+    leaderManager(a).awaitTransitions();
+    assertEquals(LeaderManager.Role.STANDBY, leaderManager(a).getRole());
+
+    StatusRuntimeException e = assertThrows(StatusRuntimeException.class, () -> a.commit(INDEX));
+    assertEquals(io.grpc.Status.Code.FAILED_PRECONDITION, e.getStatus().getCode());
+    assertTrue(e.getMessage(), e.getMessage().contains("current leader: unknown"));
+
+    StatusRuntimeException resolveError =
+        assertThrows(StatusRuntimeException.class, () -> resolveClient(a));
+    assertEquals(io.grpc.Status.Code.UNAVAILABLE, resolveError.getStatus().getCode());
+
+    // b's view of the (stale) leader is not about itself, so it is still reported
+    ResolveLeaderResponse fromB = resolveClient(b);
+    assertEquals(nodeName(a), fromB.getNodeName());
+    assertFalse(fromB.getIsLeader());
+  }
+
   /** A paused old leader must not serve copy state to replicas once it is no longer leader. */
   @Test
   public void testStaleLeaderStopsServingReplication() throws Exception {

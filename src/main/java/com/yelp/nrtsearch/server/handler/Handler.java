@@ -171,8 +171,7 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
             manager -> {
               if (!manager.isActive()) {
                 String leader =
-                    manager
-                        .currentLeader()
+                    knownLeader(globalState, manager)
                         .map(
                             l ->
                                 String.format(
@@ -185,6 +184,24 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
                         operation, manager.getRole(), leader));
               }
             });
+  }
+
+  /**
+   * The leader this node knows, for redirecting clients. A node that lost leadership (standby or
+   * demoting) may still have itself as the last known leader until its elector sees the new one;
+   * that is reported as unknown, so clients are not sent back to this node.
+   */
+  public static java.util.Optional<com.yelp.nrtsearch.server.leader.LeaderInfo> knownLeader(
+      GlobalState globalState, com.yelp.nrtsearch.server.leader.LeaderManager manager) {
+    return manager
+        .currentLeader()
+        .filter(
+            l ->
+                !(l.leaderId().equals(globalState.getEphemeralId())
+                    && (manager.getRole()
+                            == com.yelp.nrtsearch.server.leader.LeaderManager.Role.STANDBY
+                        || manager.getRole()
+                            == com.yelp.nrtsearch.server.leader.LeaderManager.Role.DEMOTING)));
   }
 
   /**
