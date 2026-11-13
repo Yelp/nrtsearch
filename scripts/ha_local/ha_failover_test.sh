@@ -78,6 +78,13 @@ wait_new_leader() {
   done
 }
 
+# Write a JVM thread dump into the node's log (SIGQUIT), to see what it is stuck on.
+thread_dump() {
+  if [ "$(node_state "$1")" = "running" ]; then
+    kill -QUIT "$(node_pid "$1")" 2>/dev/null && log "  thread dump of $1 written to $(node_log "$1")"
+  fi
+}
+
 count_is() { [ "$(doc_count "$1")" = "$2" ]; }
 count_at_least() { local c; c="$(doc_count "$1")"; [ -n "$c" ] && [ "$c" -ge "$2" ]; }
 
@@ -88,6 +95,7 @@ check_count() {
     pass "$node has all $expected committed docs"
   else
     fail "$node doc count $(doc_count "$node" | sed 's/^$/unavailable/'), expected $expected"
+    thread_dump "$node"
   fi
 }
 

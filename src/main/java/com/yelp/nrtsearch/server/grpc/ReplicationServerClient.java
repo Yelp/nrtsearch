@@ -56,6 +56,17 @@ public class ReplicationServerClient implements Closeable {
   }
 
   private final ReplicationServerGrpc.ReplicationServerBlockingStub blockingStub;
+
+  /**
+   * Deadline for short control calls from a replica to its primary (registration, connected nodes,
+   * copy state). Without one, a call to a primary that hangs without closing its connection (a long
+   * GC pause, a network partition) never returns, even after the channel has moved to a new
+   * primary: calls in flight stay on the old connection. The replica's keep alive thread would then
+   * never register with the new primary.
+   */
+  public static final long DEFAULT_CONTROL_CALL_TIMEOUT_MS = 10_000;
+
+  private volatile long controlCallTimeoutMs = DEFAULT_CONTROL_CALL_TIMEOUT_MS;
   private final ReplicationServerGrpc.ReplicationServerStub asyncStub;
 
   /**
@@ -155,6 +166,15 @@ public class ReplicationServerClient implements Closeable {
   }
 
   @VisibleForTesting
+  void setControlCallTimeoutMs(long controlCallTimeoutMs) {
+    this.controlCallTimeoutMs = controlCallTimeoutMs;
+  }
+
+  private ReplicationServerBlockingStub controlStub() {
+    return blockingStub.withDeadlineAfter(controlCallTimeoutMs, TimeUnit.MILLISECONDS);
+  }
+
+  @VisibleForTesting
   int getDiscoveryFileUpdateIntervalMs() {
     return discoveryFileUpdateIntervalMs;
   }
@@ -206,7 +226,7 @@ public class ReplicationServerClient implements Closeable {
             .setPort(port)
             .build();
     try {
-      this.blockingStub.addReplicas(addReplicaRequest);
+      controlStub().addReplicas(addReplicaRequest);
       return true;
     } catch (Exception e) {
       logger.warn("Replica could NOT register itself with Primary ", e);
@@ -262,7 +282,7 @@ public class ReplicationServerClient implements Closeable {
             .setIndexName(indexName)
             .setIndexId(indexId)
             .build();
-    return this.blockingStub.recvCopyState(copyStateRequest);
+    return controlStub().recvCopyState(copyStateRequest);
   }
 
   public Iterator<TransferStatus> copyFiles(
@@ -319,8 +339,8 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public GetNodesResponse getConnectedNodes(String indexName) {
-    return blockingStub.getConnectedNodes(
-        GetNodesRequest.newBuilder().setIndexName(indexName).build());
+    return controlStub()
+        .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName(indexName).build());
   }
 
   @Override
