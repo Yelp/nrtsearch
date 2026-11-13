@@ -15,11 +15,15 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /** Class containing utility methods for cli commands. */
 public class CliUtils {
@@ -58,5 +62,20 @@ public class CliUtils {
     }
     JsonFormat.parser().merge(messageJson, builder);
     return builder;
+  }
+
+  /**
+   * Single line JSON describing a failed call, for commands with machine readable output: {@code
+   * {"error":"<status code>","description":"..."}}.
+   */
+  public static String errorJson(io.grpc.StatusRuntimeException e) {
+    Map<String, String> error = new LinkedHashMap<>();
+    error.put("error", e.getStatus().getCode().name());
+    error.put("description", String.valueOf(e.getStatus().getDescription()));
+    try {
+      return new ObjectMapper().writeValueAsString(error);
+    } catch (JsonProcessingException ex) {
+      throw new IllegalStateException(ex);
+    }
   }
 }
