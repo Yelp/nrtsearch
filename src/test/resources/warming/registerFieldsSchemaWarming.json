@@ -3,6 +3,7 @@
   "field": [
     {"name": "doc_id", "type": "_ID", "search": true, "storeDocValues": true},
     {"name": "category", "type": "ATOM", "search": true, "storeDocValues": true, "facet": "SORTED_SET_DOC_VALUES"},
+    {"name": "label", "type": "ATOM", "search": true, "storeDocValues": true, "textDocValuesType": "TEXT_DOC_VALUES_TYPE_BINARY"},
     {"name": "description", "type": "TEXT", "search": true},
     {"name": "count", "type": "INT", "search": true, "storeDocValues": true},
     {"name": "price", "type": "LONG", "search": true, "storeDocValues": true},

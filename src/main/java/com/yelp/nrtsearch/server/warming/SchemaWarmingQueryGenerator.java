@@ -54,8 +54,11 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -186,7 +189,17 @@ public class SchemaWarmingQueryGenerator {
     try {
       IndexSearcher searcher = searcherAndTaxonomy.searcher();
       for (int i = 0; i < fieldSamples.size(); ++i) {
-        fieldSamples.set(i, sampleField(searcher, fieldSamples.get(i).fieldDef(), random));
+        IndexableFieldDef<?> fieldDef = fieldSamples.get(i).fieldDef();
+        try {
+          fieldSamples.set(i, sampleField(searcher, fieldDef, random));
+        } catch (IOException | RuntimeException e) {
+          // one field with unexpected index structures should not stop warming the others
+          logger.warn(
+              "Unable to sample field: {} of index: {} for schema warming, skipping it",
+              fieldDef.getName(),
+              indexState.getName(),
+              e);
+        }
       }
       for (VectorFieldDef<?> vectorField : vectorFields) {
         vectorSeeds.add(sampleVectors(searcher, vectorField));
@@ -297,17 +310,31 @@ public class SchemaWarmingQueryGenerator {
       if (liveDocs != null && !liveDocs.get(leafDoc)) {
         continue;
       }
+      FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(field);
+      DocValuesType docValuesType =
+          fieldInfo == null ? DocValuesType.NONE : fieldInfo.getDocValuesType();
       // doc values iterators only move forward, so use a new one for each random document
-      SortedSetDocValues docValues = DocValues.getSortedSet(leaf.reader(), field);
-      if (!docValues.advanceExact(leafDoc)) {
-        continue;
+      if (docValuesType == DocValuesType.SORTED || docValuesType == DocValuesType.SORTED_SET) {
+        SortedSetDocValues docValues = DocValues.getSortedSet(leaf.reader(), field);
+        if (!docValues.advanceExact(leafDoc)) {
+          continue;
+        }
+        int pick = random.nextInt(docValues.docValueCount());
+        long ord = docValues.nextOrd();
+        for (int i = 0; i < pick; ++i) {
+          ord = docValues.nextOrd();
+        }
+        values.add(docValues.lookupOrd(ord).utf8ToString());
+      } else if (docValuesType == DocValuesType.BINARY) {
+        // single valued text fields may store their value as binary doc values
+        BinaryDocValues docValues = leaf.reader().getBinaryDocValues(field);
+        if (docValues != null && docValues.advanceExact(leafDoc)) {
+          values.add(docValues.binaryValue().utf8ToString());
+        }
+      } else if (docValuesType != DocValuesType.NONE) {
+        // other doc values types do not hold the indexed text, use the term scan instead
+        return List.of();
       }
-      int pick = random.nextInt(docValues.docValueCount());
-      long ord = docValues.nextOrd();
-      for (int i = 0; i < pick; ++i) {
-        ord = docValues.nextOrd();
-      }
-      values.add(docValues.lookupOrd(ord).utf8ToString());
     }
     return new ArrayList<>(values);
   }

@@ -40,6 +40,7 @@ import org.junit.Test;
 public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
   private static final int NUM_DOCS = 50;
   private static final List<String> CATEGORIES = List.of("food", "shopping", "nightlife");
+  private static final List<String> LABELS = List.of("new", "popular");
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
@@ -55,6 +56,7 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
               .setIndexName(name)
               .putFields("doc_id", field(String.valueOf(i)))
               .putFields("category", field(CATEGORIES.get(i % CATEGORIES.size())))
+              .putFields("label", field(LABELS.get(i % LABELS.size())))
               .putFields("description", field("doc number " + i))
               .putFields("count", field(String.valueOf(i)))
               .putFields("price", field(String.valueOf(1000L + i * 10)))
@@ -134,7 +136,16 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
     }
     // TEXT fields are skipped, their analyzed terms do not match how they are queried
     assertEquals(
-        Set.of("category", "count", "price", "rating", "score", "active", "created", "updated"),
+        Set.of(
+            "category",
+            "label",
+            "count",
+            "price",
+            "rating",
+            "score",
+            "active",
+            "created",
+            "updated"),
         fields);
   }
 
@@ -214,6 +225,12 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
               searcherAndTaxonomy.searcher(), "category", new Random(7));
       // all three categories are common, so random documents find each of them
       assertEquals(Set.copyOf(CATEGORIES), Set.copyOf(values));
+      // single valued text fields with binary doc values are sampled too
+      assertEquals(
+          Set.copyOf(LABELS),
+          Set.copyOf(
+              SchemaWarmingQueryGenerator.sampleDocValues(
+                  searcherAndTaxonomy.searcher(), "label", new Random(7))));
     } finally {
       shardState.release(searcherAndTaxonomy);
     }
