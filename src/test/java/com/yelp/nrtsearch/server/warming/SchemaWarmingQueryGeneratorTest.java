@@ -86,7 +86,7 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
     List<SearchRequest> filterRequests = requests.stream().filter(SearchRequest::hasQuery).toList();
     assertEquals(100, filterRequests.size());
-    // 60% single field
+    // 60% single field, term set queries are single field too
     assertEquals(
         60,
         filterRequests.stream()
@@ -126,6 +126,8 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
       Query query = request.getQuery();
       if (query.hasTermQuery()) {
         fields.add(query.getTermQuery().getField());
+      } else if (query.hasTermInSetQuery()) {
+        fields.add(query.getTermInSetQuery().getField());
       } else if (query.hasRangeQuery()) {
         fields.add(query.getRangeQuery().getField());
       }
@@ -142,6 +144,9 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
       Query query = request.getQuery();
       if (query.hasTermQuery() && query.getTermQuery().getField().equals("category")) {
         assertTrue(CATEGORIES.contains(query.getTermQuery().getTextValue()));
+      } else if (query.hasTermInSetQuery()
+          && query.getTermInSetQuery().getField().equals("category")) {
+        assertTrue(CATEGORIES.containsAll(query.getTermInSetQuery().getTextTerms().getTermsList()));
       } else if (query.hasRangeQuery() && query.getRangeQuery().getField().equals("count")) {
         int lower = Integer.parseInt(query.getRangeQuery().getLower());
         int upper = Integer.parseInt(query.getRangeQuery().getUpper());
@@ -152,8 +157,66 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   @Test
   public void testRetrievesDocValuesFields() throws IOException {
-    SearchRequest first = generate(100).get(0);
-    assertEquals(SchemaWarmingQueryGenerator.NUM_RETRIEVE_FIELDS, first.getRetrieveFieldsCount());
+    List<SearchRequest> filterRequests =
+        generate(100).stream().filter(SearchRequest::hasQuery).toList();
+    assertTrue(filterRequests.stream().allMatch(r -> r.getRetrieveFieldsCount() >= 1));
+    // some requests retrieve many fields, so wide fetches are warmed too
+    assertTrue(filterRequests.stream().anyMatch(r -> r.getRetrieveFieldsCount() >= 5));
+    Set<String> retrieved =
+        filterRequests.stream()
+            .flatMap(r -> r.getRetrieveFieldsList().stream())
+            .collect(Collectors.toSet());
+    assertTrue(retrieved.containsAll(Set.of("category", "count", "price", "score", "active")));
+  }
+
+  @Test
+  public void testVariesTopHits() throws IOException {
+    Set<Integer> topHits =
+        generate(100).stream()
+            .filter(SearchRequest::hasQuery)
+            .map(SearchRequest::getTopHits)
+            .collect(Collectors.toSet());
+    assertEquals(Set.of(10, 30, 100), topHits);
+  }
+
+  @Test
+  public void testGeneratesTermSetQueries() throws IOException {
+    List<Query> termSets =
+        generate(100).stream()
+            .map(SearchRequest::getQuery)
+            .filter(Query::hasTermInSetQuery)
+            .toList();
+    assertFalse(termSets.isEmpty());
+    for (Query query : termSets) {
+      int size = query.getTermInSetQuery().getTextTerms().getTermsCount();
+      assertTrue(size >= 2 && size <= SchemaWarmingQueryGenerator.MAX_TERM_SET_SIZE);
+    }
+  }
+
+  @Test
+  public void testNoDuplicateQueries() throws IOException {
+    List<Query> queries =
+        generate(100).stream()
+            .filter(SearchRequest::hasQuery)
+            .map(SearchRequest::getQuery)
+            .toList();
+    assertEquals(queries.size(), new HashSet<>(queries).size());
+  }
+
+  @Test
+  public void testSampleDocValuesReadsLiveValues() throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    var shardState = indexState.getShard(0);
+    var searcherAndTaxonomy = shardState.acquire();
+    try {
+      List<String> values =
+          SchemaWarmingQueryGenerator.sampleDocValues(
+              searcherAndTaxonomy.searcher(), "category", new Random(7));
+      // all three categories are common, so random documents find each of them
+      assertEquals(Set.copyOf(CATEGORIES), Set.copyOf(values));
+    } finally {
+      shardState.release(searcherAndTaxonomy);
+    }
   }
 
   @Test

@@ -38,6 +38,14 @@ public class WarmerConfigTest {
   }
 
   @Test
+  public void testSchemaWarmingQueriesDefaultsToMaxWarmingQueries() {
+    WarmerConfig config =
+        getConfig(
+            String.join("\n", "warmer:", "  warmingStrategy: schema", "  maxWarmingQueries: 5000"));
+    assertEquals(5000, config.getSchemaWarmingQueries());
+  }
+
+  @Test
   public void testSchemaStrategy() {
     WarmerConfig config =
         getConfig(

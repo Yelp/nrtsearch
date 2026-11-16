@@ -109,7 +109,7 @@ public class WarmerConfig {
    *     collected, backed up or replayed, 0 to disable
    * @param warmingStrategy source of the queries replayed when warming on startup
    * @param schemaWarmingQueries number of term and range queries to generate with the SCHEMA
-   *     strategy
+   *     strategy, defaults to maxWarmingQueries (or 1000 when that is 0)
    */
   public WarmerConfig(
       int maxWarmingQueries,
@@ -173,9 +173,11 @@ public class WarmerConfig {
             configReader
                 .getString(CONFIG_PREFIX + "warmingStrategy", DEFAULT_WARMING_STRATEGY.name())
                 .toUpperCase());
+    // by default generate as many queries as a stored corpus would replay
     int schemaWarmingQueries =
         configReader.getInteger(
-            CONFIG_PREFIX + "schemaWarmingQueries", DEFAULT_SCHEMA_WARMING_QUERIES);
+            CONFIG_PREFIX + "schemaWarmingQueries",
+            maxWarmingQueries > 0 ? maxWarmingQueries : DEFAULT_SCHEMA_WARMING_QUERIES);
 
     return new WarmerConfig(
         maxWarmingQueries,

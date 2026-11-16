@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
@@ -46,19 +47,26 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
@@ -68,12 +76,16 @@ import org.slf4j.LoggerFactory;
  * Generates warming queries from the index schema, so a replica can warm without downloading a
  * query corpus from S3. Values are sampled from the index itself (most frequent terms, point value
  * ranges, stored vectors), so the queries match real documents and load the index blocks live
- * traffic uses. Falls back to synthetic values only when a field has nothing to sample.
+ * traffic uses. Text values are read from randomly chosen documents, so common values are picked as
+ * often as they occur. Falls back to synthetic values only when a field has nothing to sample.
+ * Filter queries vary topHits and retrieve a rotating subset of doc values fields, so the fetch
+ * phase is warmed as well, and no query is generated twice.
  *
  * <p>Queries are generated in stages:
  *
  * <ol>
- *   <li>Single field (60%): one term or range query per searchable field, cycling all fields.
+ *   <li>Single field (60%): one term, term set or range query per searchable field, cycling all
+ *       fields.
  *   <li>Two field filters (30%): pairs of random fields as FILTER clauses.
  *   <li>Three field filters (10%): triples of random fields as FILTER clauses.
  *   <li>Facets: facet-only requests over every faceted field, in groups.
@@ -88,9 +100,17 @@ public class SchemaWarmingQueryGenerator {
 
   private static final String EPOCH_MILLIS = "epoch_millis";
   private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
-  static final int TOP_HITS = 5;
-  static final int NUM_RETRIEVE_FIELDS = 5;
-  static final int MAX_SAMPLED_TERMS = 20;
+  // topHits of generated filter queries, cycled so collection of small and larger result sets is
+  // warmed, all below the default maxQueryTopHits guardrail
+  static final int[] TOP_HITS = {10, 30, 100};
+  // maximum distinct text values sampled per field, the pool term and term set queries draw from
+  static final int MAX_SAMPLED_TERMS = 100;
+  // random documents read per wanted value, bounds sampling time on sparse fields
+  static final int SAMPLE_DOCS_PER_TERM = 5;
+  // term set queries use between 2 and this many sampled values
+  static final int MAX_TERM_SET_SIZE = 30;
+  // generate up to this many times the wanted queries, skipping duplicates
+  static final int MAX_ATTEMPTS_FACTOR = 3;
   // Stop scanning a field's terms after this many, so sampling stays fast on huge vocabularies
   static final int MAX_SCANNED_TERMS = 10_000;
   static final int FACET_FIELDS_PER_REQUEST = 5;
@@ -166,7 +186,7 @@ public class SchemaWarmingQueryGenerator {
     try {
       IndexSearcher searcher = searcherAndTaxonomy.searcher();
       for (int i = 0; i < fieldSamples.size(); ++i) {
-        fieldSamples.set(i, sampleField(searcher, fieldSamples.get(i).fieldDef()));
+        fieldSamples.set(i, sampleField(searcher, fieldSamples.get(i).fieldDef(), random));
       }
       for (VectorFieldDef<?> vectorField : vectorFields) {
         vectorSeeds.add(sampleVectors(searcher, vectorField));
@@ -202,11 +222,20 @@ public class SchemaWarmingQueryGenerator {
         || fieldDef instanceof DateTimeFieldDef;
   }
 
-  /** Read the most frequent terms of a text field, or the value range of a point field. */
+  /**
+   * Sample values of a text field from random documents, or read the value range of a point field.
+   * Text fields without doc values fall back to the most frequent of their first terms.
+   */
   @VisibleForTesting
-  static FieldSample sampleField(IndexSearcher searcher, IndexableFieldDef<?> fieldDef)
-      throws IOException {
+  static FieldSample sampleField(
+      IndexSearcher searcher, IndexableFieldDef<?> fieldDef, Random random) throws IOException {
     String field = fieldDef.getName();
+    if (fieldDef instanceof AtomFieldDef && fieldDef.hasDocValues()) {
+      List<String> values = sampleDocValues(searcher, field, random);
+      if (!values.isEmpty()) {
+        return new FieldSample(fieldDef, values, 1, 0);
+      }
+    }
     if (fieldDef instanceof AtomFieldDef) {
       PriorityQueue<TermAndFreq> topTerms =
           new PriorityQueue<>(Comparator.comparingInt(TermAndFreq::docFreq));
@@ -245,6 +274,44 @@ public class SchemaWarmingQueryGenerator {
     return new FieldSample(fieldDef, List.of(), min, max);
   }
 
+  /**
+   * Read the values of randomly chosen live documents. A value that occurs in many documents is
+   * picked as often as live queries are likely to use it, unlike the first terms in sort order.
+   */
+  @VisibleForTesting
+  static List<String> sampleDocValues(IndexSearcher searcher, String field, Random random)
+      throws IOException {
+    List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+    int maxDoc = searcher.getIndexReader().maxDoc();
+    Set<String> values = new LinkedHashSet<>();
+    if (maxDoc == 0) {
+      return List.of();
+    }
+    for (int attempt = 0;
+        attempt < MAX_SAMPLED_TERMS * SAMPLE_DOCS_PER_TERM && values.size() < MAX_SAMPLED_TERMS;
+        ++attempt) {
+      int doc = random.nextInt(maxDoc);
+      LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(doc, leaves));
+      int leafDoc = doc - leaf.docBase;
+      Bits liveDocs = leaf.reader().getLiveDocs();
+      if (liveDocs != null && !liveDocs.get(leafDoc)) {
+        continue;
+      }
+      // doc values iterators only move forward, so use a new one for each random document
+      SortedSetDocValues docValues = DocValues.getSortedSet(leaf.reader(), field);
+      if (!docValues.advanceExact(leafDoc)) {
+        continue;
+      }
+      int pick = random.nextInt(docValues.docValueCount());
+      long ord = docValues.nextOrd();
+      for (int i = 0; i < pick; ++i) {
+        ord = docValues.nextOrd();
+      }
+      values.add(docValues.lookupOrd(ord).utf8ToString());
+    }
+    return new ArrayList<>(values);
+  }
+
   private static double decodePoint(IndexableFieldDef<?> fieldDef, byte[] packed) {
     if (fieldDef instanceof IntFieldDef) {
       return NumericUtils.sortableBytesToInt(packed, 0);
@@ -271,26 +338,54 @@ public class SchemaWarmingQueryGenerator {
     int numSingle = (int) (numQueries * SINGLE_FIELD_FRACTION);
     int numTwo = (int) (numQueries * TWO_FIELD_FRACTION);
     int numThree = numQueries - numSingle - numTwo;
-    int retrieveOffset = 0;
-    for (int i = 0; i < numSingle; ++i) {
-      SearchRequest.Builder builder =
-          baseRequest().setQuery(leafQuery(usable.get(i % usable.size())));
-      // rotate through doc values fields, so every field's values are loaded at least once
-      for (int j = 0; j < NUM_RETRIEVE_FIELDS && j < docValuesFields.size(); ++j) {
-        builder.addRetrieveFields(
-            docValuesFields.get((retrieveOffset + j) % docValuesFields.size()));
-      }
-      retrieveOffset += NUM_RETRIEVE_FIELDS;
-      requests.add(builder.build());
-    }
+    // a repeated query would mostly be answered from the query cache, so it warms little
+    Set<Query> seen = new HashSet<>();
+    int[] fieldIndex = {0};
+    addUnique(
+        requests,
+        seen,
+        docValuesFields,
+        numSingle,
+        () -> leafQuery(usable.get(fieldIndex[0]++ % usable.size())));
     if (usable.size() < 2) {
       return;
     }
-    for (int i = 0; i < numTwo; ++i) {
-      requests.add(baseRequest().setQuery(filterQuery(usable, 2)).build());
+    addUnique(requests, seen, docValuesFields, numTwo, () -> filterQuery(usable, 2));
+    addUnique(requests, seen, docValuesFields, numThree, () -> filterQuery(usable, 3));
+  }
+
+  /** Add up to count requests with distinct queries, giving up after a bounded number of tries. */
+  private void addUnique(
+      List<SearchRequest> requests,
+      Set<Query> seen,
+      List<String> docValuesFields,
+      int count,
+      java.util.function.Supplier<Query> querySupplier) {
+    int added = 0;
+    for (int attempt = 0; attempt < count * MAX_ATTEMPTS_FACTOR && added < count; ++attempt) {
+      Query query = querySupplier.get();
+      if (!seen.add(query)) {
+        continue;
+      }
+      SearchRequest.Builder builder = baseRequest().setQuery(query);
+      addRetrieveFields(builder, docValuesFields, requests.size());
+      requests.add(builder.build());
+      added++;
     }
-    for (int i = 0; i < numThree; ++i) {
-      requests.add(baseRequest().setQuery(filterQuery(usable, 3)).build());
+  }
+
+  /**
+   * Retrieve a random number of doc values fields, starting at a rotating offset, so every field's
+   * values are loaded and the fetch cost of wide requests is warmed too.
+   */
+  private void addRetrieveFields(
+      SearchRequest.Builder builder, List<String> docValuesFields, int offset) {
+    if (docValuesFields.isEmpty()) {
+      return;
+    }
+    int numFields = 1 + random.nextInt(docValuesFields.size());
+    for (int j = 0; j < numFields; ++j) {
+      builder.addRetrieveFields(docValuesFields.get((offset + j) % docValuesFields.size()));
     }
   }
 
@@ -299,7 +394,9 @@ public class SchemaWarmingQueryGenerator {
   }
 
   private SearchRequest.Builder baseRequest() {
-    return SearchRequest.newBuilder().setIndexName(indexState.getName()).setTopHits(TOP_HITS);
+    return SearchRequest.newBuilder()
+        .setIndexName(indexState.getName())
+        .setTopHits(TOP_HITS[random.nextInt(TOP_HITS.length)]);
   }
 
   private Query filterQuery(List<FieldSample> usable, int numClauses) {
@@ -319,6 +416,11 @@ public class SchemaWarmingQueryGenerator {
   @VisibleForTesting
   Query leafQuery(FieldSample sample) {
     String field = sample.fieldDef().getName();
+    if (sample.fieldDef() instanceof AtomFieldDef
+        && sample.terms().size() >= 2
+        && random.nextBoolean()) {
+      return termSetQuery(sample);
+    }
     if (!sample.terms().isEmpty()) {
       String value = sample.terms().get(random.nextInt(sample.terms().size()));
       TermQuery.Builder termQuery = TermQuery.newBuilder().setField(field);
@@ -337,6 +439,20 @@ public class SchemaWarmingQueryGenerator {
                 .setField(field)
                 .setLower(formatBound(sample.fieldDef(), Math.floor(lower)))
                 .setUpper(formatBound(sample.fieldDef(), Math.ceil(upper))))
+        .build();
+  }
+
+  /** Term set query over a random subset of a text field's sampled values. */
+  private Query termSetQuery(FieldSample sample) {
+    List<String> shuffled = new ArrayList<>(sample.terms());
+    Collections.shuffle(shuffled, random);
+    int size = 2 + random.nextInt(Math.min(MAX_TERM_SET_SIZE, shuffled.size()) - 1);
+    return Query.newBuilder()
+        .setTermInSetQuery(
+            TermInSetQuery.newBuilder()
+                .setField(sample.fieldDef().getName())
+                .setTextTerms(
+                    TermInSetQuery.TextTerms.newBuilder().addAllTerms(shuffled.subList(0, size))))
         .build();
   }
 
