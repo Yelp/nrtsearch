@@ -72,6 +72,15 @@ public class WarmingMetrics {
           .labelNames("index")
           .build();
 
+  public static final Counter warmingPeerFetchCount =
+      Counter.builder()
+          .name("nrt_warming_peer_fetch_count")
+          .help(
+              "Number of startups with the PEER warming strategy, by outcome (success: warmed from a"
+                  + " peer, fallback: no peer qualified, used the fallback strategy).")
+          .labelNames("index", "outcome")
+          .build();
+
   /**
    * Add all warming metrics to the collector registry.
    *
@@ -84,5 +93,6 @@ public class WarmingMetrics {
     registry.register(warmingQueryLatency);
     registry.register(warmingQueriesFilteredCount);
     registry.register(warmingDurationCapReachedCount);
+    registry.register(warmingPeerFetchCount);
   }
 }

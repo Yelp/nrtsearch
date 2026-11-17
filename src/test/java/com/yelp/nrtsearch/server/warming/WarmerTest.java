@@ -59,6 +59,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1038,5 +1039,190 @@ public class WarmerTest {
     for (SearchRequest request : requests) {
       verify(mockSearchHandler).handle(mockIndexState, request);
     }
+  }
+
+  private static List<String> chunkLines(List<byte[]> chunks) {
+    List<String> lines = new ArrayList<>();
+    for (byte[] chunk : chunks) {
+      String content = new String(chunk, StandardCharsets.UTF_8);
+      // every chunk holds whole queries
+      assertEquals('\n', content.charAt(content.length() - 1));
+      lines.addAll(List.of(content.substring(0, content.length() - 1).split("\n")));
+    }
+    return lines;
+  }
+
+  @Test
+  public void testWriteWarmingCorpus() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    List<byte[]> chunks = new ArrayList<>();
+
+    int written = warmer.writeWarmingCorpus(0, 0, 1024 * 1024, chunks::add);
+
+    assertEquals(4, written);
+    assertEquals(1, chunks.size());
+    Assertions.assertThat(chunkLines(chunks))
+        .containsExactlyInAnyOrderElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_empty() {
+    List<byte[]> chunks = new ArrayList<>();
+    assertEquals(0, warmer.writeWarmingCorpus(0, 0, 1024, chunks::add));
+    assertEquals(0, chunks.size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_maxQueries() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    List<byte[]> chunks = new ArrayList<>();
+
+    assertEquals(2, warmer.writeWarmingCorpus(2, 0, 1024 * 1024, chunks::add));
+    assertEquals(2, chunkLines(chunks).size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_maxBytes() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    int lineBytes = getTestSearchRequestsAsJsonStrings().get(0).length() + 1;
+    List<byte[]> chunks = new ArrayList<>();
+
+    // room for two whole queries and part of a third, the third is not sent
+    int written = warmer.writeWarmingCorpus(0, 2L * lineBytes + 10, 1024 * 1024, chunks::add);
+
+    assertEquals(2, written);
+    assertEquals(2, chunkLines(chunks).size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_chunks() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    int lineBytes = getTestSearchRequestsAsJsonStrings().get(0).length() + 1;
+    List<byte[]> chunks = new ArrayList<>();
+
+    // two queries fit in a chunk
+    warmer.writeWarmingCorpus(0, 0, 2 * lineBytes, chunks::add);
+    assertEquals(2, chunks.size());
+    Assertions.assertThat(chunkLines(chunks))
+        .containsExactlyInAnyOrderElementsOf(getTestSearchRequestsAsJsonStrings());
+
+    // a query larger than the chunk size is its own chunk
+    chunks.clear();
+    warmer.writeWarmingCorpus(0, 0, 1, chunks::add);
+    assertEquals(4, chunks.size());
+  }
+
+  @Test
+  public void testWarmFromPeer() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    double successBefore = peerFetchCount(Warmer.PEER_FETCH_SUCCESS);
+
+    warmer.warmFromPeer(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean());
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_SUCCESS) - successBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_padsBackup() throws Exception {
+    Warmer paddingWarmer =
+        new Warmer(
+            remoteBackend, service, index, 4, 0, true, WarmingQueryFilter.acceptAll(index), 0);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    paddingWarmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mock(SearchHandler.class),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.NONE,
+        10,
+        0,
+        new AtomicBoolean());
+
+    // a replica warmed from a peer can itself serve the peer's queries before it has traffic
+    Assertions.assertThat(paddingWarmer.getWarmingCorpus())
+        .containsExactlyElementsOf(getTestSearchRequests());
+  }
+
+  @Test
+  public void testWarmFromPeer_fallbackToS3() throws Exception {
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double fallbackBefore = peerFetchCount(Warmer.PEER_FETCH_FALLBACK);
+
+    warmer.warmFromPeer(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        Optional::empty,
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean());
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_FALLBACK) - fallbackBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_fetchFailureFallsBack() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double fallbackBefore = peerFetchCount(Warmer.PEER_FETCH_FALLBACK);
+
+    warmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        () -> {
+          throw new IllegalStateException("peer failure");
+        },
+        WarmerConfig.WarmingStrategy.NONE,
+        10,
+        0,
+        new AtomicBoolean());
+
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_FALLBACK) - fallbackBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_stopRequested() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    warmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean(true));
+
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  private double peerFetchCount(String outcome) {
+    return WarmingMetrics.warmingPeerFetchCount.labelValues(index, outcome).get();
   }
 }

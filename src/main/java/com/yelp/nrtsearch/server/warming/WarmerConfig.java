@@ -23,7 +23,14 @@ public class WarmerConfig {
     /** Replay the query corpus backed up to S3 by backupWarmingQueries. */
     S3,
     /** Generate queries from the index schema and values, without downloading from S3. */
-    SCHEMA
+    SCHEMA,
+    /**
+     * Replay the warming corpus of a running sibling replica, fetched over the replication port.
+     * Falls back to {@link WarmerConfig#getPeerFallbackStrategy()} if no peer qualifies.
+     */
+    PEER,
+    /** Do not warm. Only valid as the PEER fallback strategy. */
+    NONE
   }
 
   private static final String CONFIG_PREFIX = "warmer.";
@@ -40,6 +47,12 @@ public class WarmerConfig {
   private static final int DEFAULT_MAX_VECTOR_CANDIDATES = 0;
   private static final WarmingStrategy DEFAULT_WARMING_STRATEGY = WarmingStrategy.S3;
   private static final int DEFAULT_SCHEMA_WARMING_QUERIES = 1000;
+  private static final WarmingStrategy DEFAULT_PEER_FALLBACK_STRATEGY = WarmingStrategy.S3;
+  private static final int DEFAULT_PEER_MIN_QUERIES = 100;
+  private static final int DEFAULT_PEER_MIN_UPTIME_MINUTES = 10;
+  private static final long DEFAULT_PEER_MAX_BYTES = 64L * 1024 * 1024;
+  private static final int DEFAULT_PEER_TIMEOUT_MS = 30_000;
+  private static final int DEFAULT_PEER_MAX_CANDIDATES = 3;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -54,6 +67,12 @@ public class WarmerConfig {
   private final int maxVectorCandidates;
   private final WarmingStrategy warmingStrategy;
   private final int schemaWarmingQueries;
+  private final WarmingStrategy peerFallbackStrategy;
+  private final int peerMinQueries;
+  private final int peerMinUptimeMinutes;
+  private final long peerMaxBytes;
+  private final int peerTimeoutMs;
+  private final int peerMaxCandidates;
 
   /**
    * Configuration for warmer.
@@ -125,6 +144,72 @@ public class WarmerConfig {
       int maxVectorCandidates,
       WarmingStrategy warmingStrategy,
       int schemaWarmingQueries) {
+    this(
+        maxWarmingQueries,
+        warmingParallelism,
+        warmBasicQueryOnlyPerc,
+        warmOnStartup,
+        padWithDownloadedRequests,
+        filterMatchAllQueries,
+        maxQueryTopHits,
+        maxQueryLatencyMs,
+        queryTimeoutMs,
+        maxWarmingDurationMs,
+        maxVectorCandidates,
+        warmingStrategy,
+        schemaWarmingQueries,
+        DEFAULT_PEER_FALLBACK_STRATEGY,
+        DEFAULT_PEER_MIN_QUERIES,
+        DEFAULT_PEER_MIN_UPTIME_MINUTES,
+        DEFAULT_PEER_MAX_BYTES,
+        DEFAULT_PEER_TIMEOUT_MS,
+        DEFAULT_PEER_MAX_CANDIDATES);
+  }
+
+  /**
+   * Configuration for warmer, including the PEER strategy settings. See the constructor above for
+   * the other parameters.
+   *
+   * @param peerFallbackStrategy strategy used when no peer qualifies: S3, SCHEMA or NONE
+   * @param peerMinQueries a peer must have sampled at least this many queries, 0 to disable
+   * @param peerMinUptimeMinutes a peer must have been up at least this long, 0 to disable
+   * @param peerMaxBytes maximum bytes of queries to fetch from a peer, 0 for no limit
+   * @param peerTimeoutMs deadline for fetching from one peer, 0 for none
+   * @param peerMaxCandidates maximum number of peers to try
+   */
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      int warmBasicQueryOnlyPerc,
+      boolean warmOnStartup,
+      boolean padWithDownloadedRequests,
+      boolean filterMatchAllQueries,
+      int maxQueryTopHits,
+      int maxQueryLatencyMs,
+      int queryTimeoutMs,
+      int maxWarmingDurationMs,
+      int maxVectorCandidates,
+      WarmingStrategy warmingStrategy,
+      int schemaWarmingQueries,
+      WarmingStrategy peerFallbackStrategy,
+      int peerMinQueries,
+      int peerMinUptimeMinutes,
+      long peerMaxBytes,
+      int peerTimeoutMs,
+      int peerMaxCandidates) {
+    if (warmingStrategy == WarmingStrategy.NONE) {
+      throw new IllegalArgumentException(
+          "warmingStrategy NONE is only valid as peerFallbackStrategy, disable warmOnStartup instead");
+    }
+    if (peerFallbackStrategy == WarmingStrategy.PEER) {
+      throw new IllegalArgumentException("peerFallbackStrategy cannot be PEER");
+    }
+    this.peerFallbackStrategy = peerFallbackStrategy;
+    this.peerMinQueries = peerMinQueries;
+    this.peerMinUptimeMinutes = peerMinUptimeMinutes;
+    this.peerMaxBytes = peerMaxBytes;
+    this.peerTimeoutMs = peerTimeoutMs;
+    this.peerMaxCandidates = peerMaxCandidates;
     this.maxWarmingQueries = maxWarmingQueries;
     this.warmingParallelism = warmingParallelism;
     this.warmBasicQueryOnlyPerc = warmBasicQueryOnlyPerc;
@@ -178,6 +263,23 @@ public class WarmerConfig {
         configReader.getInteger(
             CONFIG_PREFIX + "schemaWarmingQueries",
             maxWarmingQueries > 0 ? maxWarmingQueries : DEFAULT_SCHEMA_WARMING_QUERIES);
+    WarmingStrategy peerFallbackStrategy =
+        WarmingStrategy.valueOf(
+            configReader
+                .getString(
+                    CONFIG_PREFIX + "peerFallbackStrategy", DEFAULT_PEER_FALLBACK_STRATEGY.name())
+                .toUpperCase());
+    int peerMinQueries =
+        configReader.getInteger(CONFIG_PREFIX + "peerMinQueries", DEFAULT_PEER_MIN_QUERIES);
+    int peerMinUptimeMinutes =
+        configReader.getInteger(
+            CONFIG_PREFIX + "peerMinUptimeMinutes", DEFAULT_PEER_MIN_UPTIME_MINUTES);
+    long peerMaxBytes =
+        configReader.getLong(CONFIG_PREFIX + "peerMaxBytes", DEFAULT_PEER_MAX_BYTES);
+    int peerTimeoutMs =
+        configReader.getInteger(CONFIG_PREFIX + "peerTimeoutMs", DEFAULT_PEER_TIMEOUT_MS);
+    int peerMaxCandidates =
+        configReader.getInteger(CONFIG_PREFIX + "peerMaxCandidates", DEFAULT_PEER_MAX_CANDIDATES);
 
     return new WarmerConfig(
         maxWarmingQueries,
@@ -192,7 +294,13 @@ public class WarmerConfig {
         maxWarmingDurationMs,
         maxVectorCandidates,
         warmingStrategy,
-        schemaWarmingQueries);
+        schemaWarmingQueries,
+        peerFallbackStrategy,
+        peerMinQueries,
+        peerMinUptimeMinutes,
+        peerMaxBytes,
+        peerTimeoutMs,
+        peerMaxCandidates);
   }
 
   public int getMaxWarmingQueries() {
@@ -245,5 +353,29 @@ public class WarmerConfig {
 
   public int getSchemaWarmingQueries() {
     return schemaWarmingQueries;
+  }
+
+  public WarmingStrategy getPeerFallbackStrategy() {
+    return peerFallbackStrategy;
+  }
+
+  public int getPeerMinQueries() {
+    return peerMinQueries;
+  }
+
+  public int getPeerMinUptimeMinutes() {
+    return peerMinUptimeMinutes;
+  }
+
+  public long getPeerMaxBytes() {
+    return peerMaxBytes;
+  }
+
+  public int getPeerTimeoutMs() {
+    return peerTimeoutMs;
+  }
+
+  public int getPeerMaxCandidates() {
+    return peerMaxCandidates;
   }
 }

@@ -37,14 +37,18 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.prometheus.metrics.core.datapoints.Timer;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +59,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +75,12 @@ public class Warmer {
   private static final long MIN_REPLAY_WAIT_MS = 10_000;
   // type label of replayed queries generated from the index schema, see warmFromSchema
   static final String SCHEMA_QUERY_TYPE = "schema";
+  // strategy label values for BootstrapMetrics.warmingStrategyInfo
+  static final String S3_STRATEGY = "s3";
+  static final String PEER_STRATEGY = "peer";
+  // outcome label values for WarmingMetrics.warmingPeerFetchCount
+  static final String PEER_FETCH_SUCCESS = "success";
+  static final String PEER_FETCH_FALLBACK = "fallback";
 
   private final RemoteBackend remoteBackend;
   private final String service;
@@ -179,6 +190,86 @@ public class Warmer {
     }
   }
 
+  /**
+   * Get the queries that make up the current warming corpus: the queries sampled from live traffic,
+   * padded with the most recent downloaded queries when padding is enabled and fewer than
+   * maxWarmingQueries have been observed. Observed queries were filtered when collected, and
+   * downloaded queries when replayed. This is what is backed up to S3 and sent to peers.
+   */
+  @VisibleForTesting
+  List<SearchRequest> getWarmingCorpus() {
+    List<SearchRequest> observedRequests;
+    synchronized (warmingRequests) {
+      observedRequests = new ArrayList<>(warmingRequests);
+    }
+    if (!padWithDownloadedRequests) {
+      return observedRequests;
+    }
+    List<SearchRequest> downloaded = this.downloadedWarmingRequests;
+    int deficit = maxWarmingQueries - observedRequests.size();
+    if (deficit <= 0 || downloaded.isEmpty()) {
+      return observedRequests;
+    }
+    int fromIndex = Math.max(0, downloaded.size() - deficit);
+    List<SearchRequest> padding = downloaded.subList(fromIndex, downloaded.size());
+    List<SearchRequest> corpus = new ArrayList<>(padding.size() + observedRequests.size());
+    corpus.addAll(padding);
+    corpus.addAll(observedRequests);
+    return corpus;
+  }
+
+  /** Number of queries in the warming corpus, see {@link #getWarmingCorpus()}. */
+  public int getWarmingCorpusSize() {
+    return getWarmingCorpus().size();
+  }
+
+  /**
+   * Serialize the warming corpus as JSON lines, the format stored in S3, in chunks of whole
+   * queries. Used to send the corpus to a starting peer replica.
+   *
+   * @param maxQueries maximum number of queries to write, 0 for no limit
+   * @param maxBytes maximum total bytes to write, 0 for no limit. Writing stops before the first
+   *     query that would exceed it.
+   * @param chunkBytes target chunk size, a chunk is emitted once it reaches this size. A single
+   *     query larger than this is emitted as its own chunk.
+   * @param chunkConsumer receives each chunk
+   * @return number of queries written
+   */
+  public int writeWarmingCorpus(
+      int maxQueries, long maxBytes, int chunkBytes, Consumer<byte[]> chunkConsumer) {
+    List<SearchRequest> corpus = getWarmingCorpus();
+    ByteArrayOutputStream chunk = new ByteArrayOutputStream(chunkBytes);
+    JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
+    long totalBytes = 0;
+    int count = 0;
+    for (SearchRequest searchRequest : corpus) {
+      if (maxQueries > 0 && count >= maxQueries) {
+        break;
+      }
+      byte[] line;
+      try {
+        line = (printer.print(searchRequest) + "\n").getBytes(StandardCharsets.UTF_8);
+      } catch (InvalidProtocolBufferException e) {
+        logger.warn("Unable to serialize warming query for index: {}", index, e);
+        continue;
+      }
+      if (maxBytes > 0 && totalBytes + line.length > maxBytes) {
+        break;
+      }
+      if (chunk.size() > 0 && chunk.size() + line.length > chunkBytes) {
+        chunkConsumer.accept(chunk.toByteArray());
+        chunk.reset();
+      }
+      chunk.write(line, 0, line.length);
+      totalBytes += line.length;
+      count++;
+    }
+    if (chunk.size() > 0) {
+      chunkConsumer.accept(chunk.toByteArray());
+    }
+    return count;
+  }
+
   public synchronized void backupWarmingQueriesToS3(String service) throws IOException {
     if (Strings.isNullOrEmpty(service)) {
       service = this.service;
@@ -186,27 +277,7 @@ public class Warmer {
 
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     int count = 0;
-    List<SearchRequest> observedRequests;
-    synchronized (warmingRequests) {
-      observedRequests = new ArrayList<>(warmingRequests);
-    }
-    // Observed queries were filtered when collected, and downloaded queries when replayed
-    List<SearchRequest> warmingRequestsToBackup;
-    if (padWithDownloadedRequests) {
-      List<SearchRequest> downloaded = this.downloadedWarmingRequests;
-      int deficit = maxWarmingQueries - observedRequests.size();
-      if (deficit > 0 && !downloaded.isEmpty()) {
-        int fromIndex = Math.max(0, downloaded.size() - deficit);
-        List<SearchRequest> padding = downloaded.subList(fromIndex, downloaded.size());
-        warmingRequestsToBackup = new ArrayList<>(padding.size() + observedRequests.size());
-        warmingRequestsToBackup.addAll(padding);
-        warmingRequestsToBackup.addAll(observedRequests);
-      } else {
-        warmingRequestsToBackup = observedRequests;
-      }
-    } else {
-      warmingRequestsToBackup = observedRequests;
-    }
+    List<SearchRequest> warmingRequestsToBackup = getWarmingCorpus();
     try (Writer writer =
         new OutputStreamWriter(byteArrayOutputStream, StateUtils.getValidatingUTF8Encoder())) {
       for (SearchRequest searchRequest : warmingRequestsToBackup) {
@@ -272,7 +343,32 @@ public class Warmer {
       logger.info("No warming queries found in S3 for service: {} and index: {}", service, index);
       return;
     }
-    BootstrapMetrics.warmingStrategyInfo.labelValues(index, "s3").set(1);
+    replayStoredQueries(
+        indexState,
+        parallelism,
+        searchHandler,
+        maxDurationMs,
+        stopRequested,
+        remoteBackend.downloadWarmingQueries(service, index),
+        S3_STRATEGY);
+  }
+
+  /**
+   * Replay stored warming queries, one SearchRequest JSON per line, read from the given stream. The
+   * stream is closed when done. Used for queries downloaded from S3 and fetched from a peer.
+   *
+   * @param strategy warming strategy label for the warming strategy metric
+   */
+  private void replayStoredQueries(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      long maxDurationMs,
+      AtomicBoolean stopRequested,
+      InputStream queries,
+      String strategy)
+      throws IOException, InterruptedException {
+    BootstrapMetrics.warmingStrategyInfo.labelValues(index, strategy).set(1);
     ThreadPoolExecutor threadPoolExecutor = createWarmingExecutor(parallelism);
     ScheduledExecutorService deadlineScheduler = createDeadlineScheduler();
     long startMS = System.currentTimeMillis();
@@ -280,10 +376,7 @@ public class Warmer {
     List<SearchRequest> downloadedQueries = padWithDownloadedRequests ? new ArrayList<>() : null;
     ReplayStats replayStats = new ReplayStats();
     try (BufferedReader reader =
-        new BufferedReader(
-            new InputStreamReader(
-                remoteBackend.downloadWarmingQueries(service, index),
-                StateUtils.getValidatingUTF8Decoder()))) {
+        new BufferedReader(new InputStreamReader(queries, StateUtils.getValidatingUTF8Decoder()))) {
       String line;
       int count = 0, basicCount = 0;
       int skipped = 0;
@@ -458,30 +551,146 @@ public class Warmer {
         BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
       SearchHandler searchHandler =
           new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
-      long startNs = System.nanoTime();
-      List<SearchRequest> requests;
-      try {
-        requests = new SchemaWarmingQueryGenerator(indexState).generate(numQueries);
-      } catch (IOException | RuntimeException e) {
-        logger.warn(
-            "Failed to generate schema warming queries for index: {}, falling back to S3",
-            index,
-            e);
-        requests = List.of();
-      }
-      if (requests.isEmpty()) {
-        logger.info("No schema warming queries for index: {}, falling back to S3", index);
-        long remainingMs = 0;
-        if (maxDurationMs > 0) {
-          long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
-          remainingMs = Math.max(1, maxDurationMs - elapsedMs);
-        }
-        warmFromS3(indexState, parallelism, searchHandler, remainingMs, stopRequested);
-        return;
-      }
-      warmFromRequests(
-          indexState, parallelism, searchHandler, requests, maxDurationMs, stopRequested, startNs);
+      warmFromSchema(
+          indexState, parallelism, searchHandler, numQueries, maxDurationMs, stopRequested);
     }
+  }
+
+  private void warmFromSchema(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    long startNs = System.nanoTime();
+    List<SearchRequest> requests;
+    try {
+      requests = new SchemaWarmingQueryGenerator(indexState).generate(numQueries);
+    } catch (IOException | RuntimeException e) {
+      logger.warn(
+          "Failed to generate schema warming queries for index: {}, falling back to S3", index, e);
+      requests = List.of();
+    }
+    if (requests.isEmpty()) {
+      logger.info("No schema warming queries for index: {}, falling back to S3", index);
+      warmFromS3(
+          indexState,
+          parallelism,
+          searchHandler,
+          remainingMs(maxDurationMs, startNs),
+          stopRequested);
+      return;
+    }
+    warmFromRequests(
+        indexState, parallelism, searchHandler, requests, maxDurationMs, stopRequested, startNs);
+  }
+
+  /**
+   * Warm the index with the warming corpus of a running peer replica, see {@link
+   * PeerWarmingQuerySource}. The peer's queries are fresh samples of live traffic, and are replayed
+   * the same way as queries stored in S3: filtered, with the per query timeout, and padding the
+   * next backup when enabled. If no peer can provide queries, warms with the fallback strategy.
+   *
+   * @param indexState index to warm
+   * @param parallelism number of queries to run in parallel
+   * @param peerSource source of the peer's warming corpus
+   * @param fallbackStrategy strategy used if no peer provides queries: S3, SCHEMA or NONE
+   * @param schemaQueries number of queries to generate with the SCHEMA fallback
+   * @param maxDurationMs stop starting new queries after this long, including the time to fetch
+   *     from the peer and any fallback, 0 for no limit
+   * @param stopRequested when set, stop starting new queries, see {@link #warmFromS3(IndexState,
+   *     int, long, AtomicBoolean)}
+   */
+  public void warmFromPeer(
+      IndexState indexState,
+      int parallelism,
+      PeerWarmingQuerySource peerSource,
+      WarmerConfig.WarmingStrategy fallbackStrategy,
+      int schemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    try (Timer _timer =
+        BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
+      warmFromPeer(
+          indexState,
+          parallelism,
+          searchHandler,
+          peerSource,
+          fallbackStrategy,
+          schemaQueries,
+          maxDurationMs,
+          stopRequested);
+    }
+  }
+
+  @VisibleForTesting
+  void warmFromPeer(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      PeerWarmingQuerySource peerSource,
+      WarmerConfig.WarmingStrategy fallbackStrategy,
+      int schemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    long startNs = System.nanoTime();
+    Optional<PeerWarmingQuerySource.PeerWarmingQueries> peerQueries;
+    try {
+      peerQueries = peerSource.fetch();
+    } catch (RuntimeException e) {
+      logger.warn("Failed to fetch warming queries from a peer for index: {}", index, e);
+      peerQueries = Optional.empty();
+    }
+    if (peerQueries.isPresent()) {
+      PeerWarmingQuerySource.PeerWarmingQueries fetched = peerQueries.get();
+      WarmingMetrics.warmingPeerFetchCount.labelValues(index, PEER_FETCH_SUCCESS).inc();
+      logger.info(
+          "Warming index: {} with {} bytes of warming queries from peer: {}, fetched in {} ms",
+          index,
+          fetched.content().length,
+          fetched.peer(),
+          TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs));
+      replayStoredQueries(
+          indexState,
+          parallelism,
+          searchHandler,
+          remainingMs(maxDurationMs, startNs),
+          stopRequested,
+          new ByteArrayInputStream(fetched.content()),
+          PEER_STRATEGY);
+      return;
+    }
+    WarmingMetrics.warmingPeerFetchCount.labelValues(index, PEER_FETCH_FALLBACK).inc();
+    logger.info(
+        "No peer provided warming queries for index: {}, falling back to: {}",
+        index,
+        fallbackStrategy);
+    long remainingMs = remainingMs(maxDurationMs, startNs);
+    switch (fallbackStrategy) {
+      case S3 -> warmFromS3(indexState, parallelism, searchHandler, remainingMs, stopRequested);
+      case SCHEMA ->
+          warmFromSchema(
+              indexState, parallelism, searchHandler, schemaQueries, remainingMs, stopRequested);
+      case NONE -> BootstrapMetrics.warmingStrategyInfo.labelValues(index, "none").set(1);
+      case PEER ->
+          throw new IllegalArgumentException("Peer warming fallback strategy cannot be PEER");
+    }
+  }
+
+  /** Time left of the max duration since startNs, 0 when there is no max duration. */
+  private static long remainingMs(long maxDurationMs, long startNs) {
+    if (maxDurationMs <= 0) {
+      return 0;
+    }
+    long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
+    // at least 1, since 0 would mean no limit
+    return Math.max(1, maxDurationMs - elapsedMs);
   }
 
   /**

@@ -24,11 +24,13 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.monitoring.BootstrapMetrics;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -353,6 +355,124 @@ public class WarmingQueriesTest {
     assertEquals(0, schemaQueryCount(indexId, "error"), 0);
     SearchResponse response = replica.getClient().getBlockingStub().search(termSearchRequest(10));
     assertEquals(1, response.getHitsCount());
+  }
+
+  private TestServer peerWarmingReplica(TestServer primary, String... extraConfig)
+      throws IOException {
+    List<String> config = new ArrayList<>(List.of("peerMinUptimeMinutes: 0"));
+    config.addAll(List.of(extraConfig));
+    return TestServer.builder(folder)
+        .withAutoStartConfig(
+            true, Mode.REPLICA, primary.getReplicationPort(), IndexDataLocationType.LOCAL)
+        .withWarming(10, 1, true)
+        .withWarmingStrategy("peer")
+        .withAdditionalWarmingConfig(config.toArray(new String[0]))
+        .build();
+  }
+
+  private static double peerFetchCount(String indexId, String outcome) {
+    return WarmingMetrics.warmingPeerFetchCount.labelValues(indexId, outcome).get();
+  }
+
+  private static double fullQueryCount(String indexId) {
+    return WarmingMetrics.warmingQueryCount.labelValues(indexId, "full", "success").get();
+  }
+
+  @Test
+  public void testWarmOnStartupFromPeer() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    String indexId = server.getGlobalState().getDataResourceForIndex("test_index");
+    // the first replica has no peer, and nothing in S3
+    TestServer replicaA =
+        peerWarmingReplica(server, "peerMinQueries: 2", "peerFallbackStrategy: none");
+    replicaA.getClient().getBlockingStub().search(termSearchRequest(10));
+    replicaA.getClient().getBlockingStub().search(termSearchRequest(5));
+
+    double successBefore = peerFetchCount(indexId, "success");
+    double fullBefore = fullQueryCount(indexId);
+    TestServer replicaB =
+        peerWarmingReplica(server, "peerMinQueries: 2", "peerFallbackStrategy: none");
+
+    // B warmed with A's two sampled queries, without anything in S3
+    assertEquals(1, peerFetchCount(indexId, "success") - successBefore, 0);
+    assertEquals(2, fullQueryCount(indexId) - fullBefore, 0);
+    assertEquals(1, BootstrapMetrics.warmingStrategyInfo.labelValues(indexId, "peer").get(), 0);
+    SearchResponse response = replicaB.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  @Test
+  public void testWarmOnStartupFromPeerFallback() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    String indexId = server.getGlobalState().getDataResourceForIndex("test_index");
+    peerWarmingReplica(server, "peerFallbackStrategy: none");
+
+    // the running replica has served no queries, so it does not qualify
+    double fallbackBefore = peerFetchCount(indexId, "fallback");
+    double successBefore = peerFetchCount(indexId, "success");
+    TestServer replicaB =
+        peerWarmingReplica(server, "peerMinQueries: 1", "peerFallbackStrategy: schema");
+
+    assertEquals(1, peerFetchCount(indexId, "fallback") - fallbackBefore, 0);
+    assertEquals(0, peerFetchCount(indexId, "success") - successBefore, 0);
+    assertEquals(1, BootstrapMetrics.warmingStrategyInfo.labelValues(indexId, "schema").get(), 0);
+    SearchResponse response = replicaB.getClient().getBlockingStub().search(termSearchRequest(10));
+    assertEquals(1, response.getHitsCount());
+  }
+
+  @Test
+  public void testGetWarmingQueries() throws IOException {
+    TestServer server = startPrimaryWithDocs();
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withWarming(10, 1, false)
+            .build();
+    SearchRequest first = termSearchRequest(10);
+    SearchRequest second = termSearchRequest(5);
+    replica.getClient().getBlockingStub().search(first);
+    replica.getClient().getBlockingStub().search(second);
+    String firstJson = JsonFormat.printer().omittingInsignificantWhitespace().print(first);
+    String secondJson = JsonFormat.printer().omittingInsignificantWhitespace().print(second);
+
+    try (ReplicationServerClient client =
+        new ReplicationServerClient("localhost", replica.getReplicationPort())) {
+      String all =
+          new String(
+              client.getWarmingQueries("test_index", 0, 0, 2, 0, 10_000), StandardCharsets.UTF_8);
+      assertEquals(firstJson + "\n" + secondJson + "\n", all);
+
+      String limited =
+          new String(
+              client.getWarmingQueries("test_index", 1, 0, 0, 0, 10_000), StandardCharsets.UTF_8);
+      assertEquals(firstJson + "\n", limited);
+
+      // only whole queries are sent
+      String byteLimited =
+          new String(
+              client.getWarmingQueries("test_index", 0, firstJson.length() + 5, 0, 0, 10_000),
+              StandardCharsets.UTF_8);
+      assertEquals(firstJson + "\n", byteLimited);
+
+      StatusRuntimeException belowQueries =
+          assertThrows(
+              StatusRuntimeException.class,
+              () -> client.getWarmingQueries("test_index", 0, 0, 3, 0, 10_000));
+      assertEquals(Status.Code.FAILED_PRECONDITION, belowQueries.getStatus().getCode());
+
+      StatusRuntimeException belowUptime =
+          assertThrows(
+              StatusRuntimeException.class,
+              () -> client.getWarmingQueries("test_index", 0, 0, 0, 24 * 60, 10_000));
+      assertEquals(Status.Code.FAILED_PRECONDITION, belowUptime.getStatus().getCode());
+
+      StatusRuntimeException unknownIndex =
+          assertThrows(
+              StatusRuntimeException.class,
+              () -> client.getWarmingQueries("missing_index", 0, 0, 0, 0, 10_000));
+      assertEquals(Status.Code.NOT_FOUND, unknownIndex.getStatus().getCode());
+    }
   }
 
   private static double schemaQueryCount(String indexId, String outcome) {

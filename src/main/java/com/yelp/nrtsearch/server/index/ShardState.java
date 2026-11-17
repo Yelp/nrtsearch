@@ -33,6 +33,8 @@ import com.yelp.nrtsearch.server.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.search.MyIndexSearcher;
 import com.yelp.nrtsearch.server.utils.FileUtils;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import com.yelp.nrtsearch.server.warming.PeerWarmingClient;
+import com.yelp.nrtsearch.server.warming.PeerWarmingQuerySource;
 import com.yelp.nrtsearch.server.warming.Warmer;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
 import io.grpc.StatusRuntimeException;
@@ -1025,7 +1027,13 @@ public class ShardState implements Closeable {
       WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         try {
-          warmOnStartup(indexState, warmerConfig);
+          PeerWarmingQuerySource peerSource =
+              new PeerWarmingClient(
+                  indexState.getName(),
+                  nrtReplicaNode.hasPrimaryConnection() ? nrtReplicaNode.getPrimaryAddress() : null,
+                  nrtReplicaNode.getHostPort(),
+                  warmerConfig);
+          warmOnStartup(indexState, warmerConfig, peerSource);
         } catch (SearchHandlerException | InterruptedException e) {
           throw new RuntimeException(e);
         }
@@ -1065,19 +1073,34 @@ public class ShardState implements Closeable {
    * <p>The warming thread is never interrupted, since interrupting a thread doing Lucene IO can
    * close index file channels that are shared with live searches.
    */
-  private static void warmOnStartup(IndexState indexState, WarmerConfig warmerConfig)
+  private static void warmOnStartup(
+      IndexState indexState, WarmerConfig warmerConfig, PeerWarmingQuerySource peerSource)
       throws IOException, SearchHandlerException, InterruptedException {
     Warmer warmer = indexState.getWarmer();
     int parallelism = warmerConfig.getWarmingParallelism();
     int maxDurationMs = warmerConfig.getMaxWarmingDurationMs();
-    boolean schema = warmerConfig.getWarmingStrategy() == WarmerConfig.WarmingStrategy.SCHEMA;
     int schemaQueries = warmerConfig.getSchemaWarmingQueries();
+    WarmingTask warmingTask =
+        switch (warmerConfig.getWarmingStrategy()) {
+          case SCHEMA ->
+              (durationMs, stop) ->
+                  warmer.warmFromSchema(indexState, parallelism, schemaQueries, durationMs, stop);
+          case PEER ->
+              (durationMs, stop) ->
+                  warmer.warmFromPeer(
+                      indexState,
+                      parallelism,
+                      peerSource,
+                      warmerConfig.getPeerFallbackStrategy(),
+                      schemaQueries,
+                      durationMs,
+                      stop);
+          case S3 ->
+              (durationMs, stop) -> warmer.warmFromS3(indexState, parallelism, durationMs, stop);
+          case NONE -> (durationMs, stop) -> {};
+        };
     if (maxDurationMs <= 0) {
-      if (schema) {
-        warmer.warmFromSchema(indexState, parallelism, schemaQueries);
-      } else {
-        warmer.warmFromS3(indexState, parallelism);
-      }
+      warmingTask.warm(0, new AtomicBoolean());
       return;
     }
     // set when startup stops waiting, so the warmer starts no new queries after that
@@ -1092,12 +1115,7 @@ public class ShardState implements Closeable {
       Future<?> warmingFuture =
           warmingExecutor.submit(
               () -> {
-                if (schema) {
-                  warmer.warmFromSchema(
-                      indexState, parallelism, schemaQueries, maxDurationMs, stopWarming);
-                } else {
-                  warmer.warmFromS3(indexState, parallelism, maxDurationMs, stopWarming);
-                }
+                warmingTask.warm(maxDurationMs, stopWarming);
                 if (stopWarming.get()) {
                   logger.info(
                       "Background warming for index: {} finished after startup continued",
@@ -1128,6 +1146,17 @@ public class ShardState implements Closeable {
     } finally {
       warmingExecutor.shutdown();
     }
+  }
+
+  /** Warming with one of the warming strategies. */
+  @FunctionalInterface
+  private interface WarmingTask {
+    /**
+     * @param maxDurationMs stop starting new queries after this long, 0 for no limit
+     * @param stopRequested when set, stop starting new queries
+     */
+    void warm(long maxDurationMs, AtomicBoolean stopRequested)
+        throws IOException, SearchHandlerException, InterruptedException;
   }
 
   public void addRefreshListener(ReferenceManager.RefreshListener listener) {

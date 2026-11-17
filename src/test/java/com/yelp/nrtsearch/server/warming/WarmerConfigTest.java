@@ -56,6 +56,66 @@ public class WarmerConfigTest {
   }
 
   @Test
+  public void testPeerDefaults() {
+    WarmerConfig config = getConfig(String.join("\n", "warmer:", "  warmingStrategy: peer"));
+    assertEquals(WarmingStrategy.PEER, config.getWarmingStrategy());
+    assertEquals(WarmingStrategy.S3, config.getPeerFallbackStrategy());
+    assertEquals(100, config.getPeerMinQueries());
+    assertEquals(10, config.getPeerMinUptimeMinutes());
+    assertEquals(64L * 1024 * 1024, config.getPeerMaxBytes());
+    assertEquals(30_000, config.getPeerTimeoutMs());
+    assertEquals(3, config.getPeerMaxCandidates());
+  }
+
+  @Test
+  public void testPeerSettings() {
+    WarmerConfig config =
+        getConfig(
+            String.join(
+                "\n",
+                "warmer:",
+                "  warmingStrategy: PEER",
+                "  peerFallbackStrategy: schema",
+                "  peerMinQueries: 5",
+                "  peerMinUptimeMinutes: 1",
+                "  peerMaxBytes: 1000",
+                "  peerTimeoutMs: 200",
+                "  peerMaxCandidates: 1"));
+    assertEquals(WarmingStrategy.SCHEMA, config.getPeerFallbackStrategy());
+    assertEquals(5, config.getPeerMinQueries());
+    assertEquals(1, config.getPeerMinUptimeMinutes());
+    assertEquals(1000, config.getPeerMaxBytes());
+    assertEquals(200, config.getPeerTimeoutMs());
+    assertEquals(1, config.getPeerMaxCandidates());
+  }
+
+  @Test
+  public void testPeerFallbackNone() {
+    WarmerConfig config =
+        getConfig(
+            String.join(
+                "\n", "warmer:", "  warmingStrategy: peer", "  peerFallbackStrategy: none"));
+    assertEquals(WarmingStrategy.NONE, config.getPeerFallbackStrategy());
+  }
+
+  @Test
+  public void testInvalidPeerFallback() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            getConfig(
+                String.join(
+                    "\n", "warmer:", "  warmingStrategy: peer", "  peerFallbackStrategy: peer")));
+  }
+
+  @Test
+  public void testNoneStrategyInvalid() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> getConfig(String.join("\n", "warmer:", "  warmingStrategy: none")));
+  }
+
+  @Test
   public void testInvalidStrategy() {
     assertThrows(
         IllegalArgumentException.class,
