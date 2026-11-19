@@ -567,7 +567,9 @@ public class Warmer {
     long startNs = System.nanoTime();
     List<SearchRequest> requests;
     try {
-      requests = new SchemaWarmingQueryGenerator(indexState).generate(numQueries);
+      requests =
+          new SchemaWarmingQueryGenerator(indexState, queryFilter.getMaxQueryTopHits())
+              .generate(numQueries);
     } catch (IOException | RuntimeException e) {
       logger.warn(
           "Failed to generate schema warming queries for index: {}, falling back to S3", index, e);

@@ -108,6 +108,11 @@ public class WarmingQueryFilter {
     this.maxVectorCandidates = maxVectorCandidates;
   }
 
+  /** Get the maximum topHits or startHit of accepted queries, 0 if not limited. */
+  public int getMaxQueryTopHits() {
+    return maxQueryTopHits;
+  }
+
   /** Filter that accepts every query. */
   public static WarmingQueryFilter acceptAll(String index) {
     return new WarmingQueryFilter(index, false, 0, 0, 0);

@@ -100,6 +100,16 @@ public class ScriptService {
     }
   }
 
+  /**
+   * Get if a {@link ScriptEngine} is registered for a script lang.
+   *
+   * @param lang script lang
+   * @return if scripts of this lang can be compiled
+   */
+  public boolean hasScriptEngine(String lang) {
+    return scriptEngineMap.containsKey(lang);
+  }
+
   private void register(Iterable<ScriptEngine> scriptEngines) {
     scriptEngines.forEach(scriptEngine -> register(scriptEngine.getLang(), scriptEngine));
   }
