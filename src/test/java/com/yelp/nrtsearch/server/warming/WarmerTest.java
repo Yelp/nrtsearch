@@ -1159,6 +1159,74 @@ public class WarmerTest {
   }
 
   @Test
+  public void testWarmFromTemplate_peerSeeds() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            mockSearchHandler.handle(
+                org.mockito.ArgumentMatchers.eq(mockIndexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    warmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+
+    // generated queries were replayed
+    verify(mockSearchHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  @Test
+  public void testWarmFromTemplate_s3Seeds() throws Exception {
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            mockSearchHandler.handle(
+                org.mockito.ArgumentMatchers.eq(mockIndexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+
+    warmer.warmFromTemplate(
+        mockIndexState, 0, mockSearchHandler, Optional::empty, 100, 10, 0, new AtomicBoolean());
+
+    verify(mockSearchHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  @Test
+  public void testWarmFromTemplate_noSeedsFallsBack() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    // no peer and no S3 corpus: falls back to SCHEMA, which can't generate from a mock index and
+    // falls back to S3, which has nothing either
+    warmer.warmFromTemplate(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        Optional::empty,
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
   public void testWarmFromPeer_fallbackToS3() throws Exception {
     remoteBackend.uploadWarmingQueries(
         service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));

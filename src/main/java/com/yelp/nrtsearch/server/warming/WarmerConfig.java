@@ -29,6 +29,11 @@ public class WarmerConfig {
      * Falls back to {@link WarmerConfig#getPeerFallbackStrategy()} if no peer qualifies.
      */
     PEER,
+    /**
+     * Generate queries from the templates of a few real queries, with values from the documents
+     * they return. Seeds come from a running peer, or the S3 corpus. Falls back to SCHEMA.
+     */
+    TEMPLATE,
     /** Do not warm. Only valid as the PEER fallback strategy. */
     NONE
   }
@@ -53,6 +58,7 @@ public class WarmerConfig {
   private static final long DEFAULT_PEER_MAX_BYTES = 64L * 1024 * 1024;
   private static final int DEFAULT_PEER_TIMEOUT_MS = 30_000;
   private static final int DEFAULT_PEER_MAX_CANDIDATES = 3;
+  private static final int DEFAULT_TEMPLATE_SEED_QUERIES = 100;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -73,6 +79,7 @@ public class WarmerConfig {
   private final long peerMaxBytes;
   private final int peerTimeoutMs;
   private final int peerMaxCandidates;
+  private final int templateSeedQueries;
 
   /**
    * Configuration for warmer.
@@ -197,13 +204,68 @@ public class WarmerConfig {
       long peerMaxBytes,
       int peerTimeoutMs,
       int peerMaxCandidates) {
+    this(
+        maxWarmingQueries,
+        warmingParallelism,
+        warmBasicQueryOnlyPerc,
+        warmOnStartup,
+        padWithDownloadedRequests,
+        filterMatchAllQueries,
+        maxQueryTopHits,
+        maxQueryLatencyMs,
+        queryTimeoutMs,
+        maxWarmingDurationMs,
+        maxVectorCandidates,
+        warmingStrategy,
+        schemaWarmingQueries,
+        peerFallbackStrategy,
+        peerMinQueries,
+        peerMinUptimeMinutes,
+        peerMaxBytes,
+        peerTimeoutMs,
+        peerMaxCandidates,
+        DEFAULT_TEMPLATE_SEED_QUERIES);
+  }
+
+  /**
+   * Configuration for warmer, including the TEMPLATE strategy settings. See the constructors above
+   * for the other parameters.
+   *
+   * @param templateSeedQueries number of real queries the TEMPLATE strategy learns templates from
+   */
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      int warmBasicQueryOnlyPerc,
+      boolean warmOnStartup,
+      boolean padWithDownloadedRequests,
+      boolean filterMatchAllQueries,
+      int maxQueryTopHits,
+      int maxQueryLatencyMs,
+      int queryTimeoutMs,
+      int maxWarmingDurationMs,
+      int maxVectorCandidates,
+      WarmingStrategy warmingStrategy,
+      int schemaWarmingQueries,
+      WarmingStrategy peerFallbackStrategy,
+      int peerMinQueries,
+      int peerMinUptimeMinutes,
+      long peerMaxBytes,
+      int peerTimeoutMs,
+      int peerMaxCandidates,
+      int templateSeedQueries) {
     if (warmingStrategy == WarmingStrategy.NONE) {
       throw new IllegalArgumentException(
           "warmingStrategy NONE is only valid as peerFallbackStrategy, disable warmOnStartup instead");
     }
-    if (peerFallbackStrategy == WarmingStrategy.PEER) {
-      throw new IllegalArgumentException("peerFallbackStrategy cannot be PEER");
+    if (peerFallbackStrategy == WarmingStrategy.PEER
+        || peerFallbackStrategy == WarmingStrategy.TEMPLATE) {
+      throw new IllegalArgumentException("peerFallbackStrategy cannot be " + peerFallbackStrategy);
     }
+    if (templateSeedQueries <= 0) {
+      throw new IllegalArgumentException("templateSeedQueries must be positive");
+    }
+    this.templateSeedQueries = templateSeedQueries;
     this.peerFallbackStrategy = peerFallbackStrategy;
     this.peerMinQueries = peerMinQueries;
     this.peerMinUptimeMinutes = peerMinUptimeMinutes;
@@ -280,6 +342,9 @@ public class WarmerConfig {
         configReader.getInteger(CONFIG_PREFIX + "peerTimeoutMs", DEFAULT_PEER_TIMEOUT_MS);
     int peerMaxCandidates =
         configReader.getInteger(CONFIG_PREFIX + "peerMaxCandidates", DEFAULT_PEER_MAX_CANDIDATES);
+    int templateSeedQueries =
+        configReader.getInteger(
+            CONFIG_PREFIX + "templateSeedQueries", DEFAULT_TEMPLATE_SEED_QUERIES);
 
     return new WarmerConfig(
         maxWarmingQueries,
@@ -300,7 +365,12 @@ public class WarmerConfig {
         peerMinUptimeMinutes,
         peerMaxBytes,
         peerTimeoutMs,
-        peerMaxCandidates);
+        peerMaxCandidates,
+        templateSeedQueries);
+  }
+
+  public int getTemplateSeedQueries() {
+    return templateSeedQueries;
   }
 
   public int getMaxWarmingQueries() {

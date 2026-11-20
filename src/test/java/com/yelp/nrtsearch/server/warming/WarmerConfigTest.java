@@ -109,6 +109,41 @@ public class WarmerConfigTest {
   }
 
   @Test
+  public void testTemplateDefaults() {
+    WarmerConfig config = getConfig(String.join("\n", "warmer:", "  warmingStrategy: template"));
+    assertEquals(WarmingStrategy.TEMPLATE, config.getWarmingStrategy());
+    assertEquals(100, config.getTemplateSeedQueries());
+  }
+
+  @Test
+  public void testTemplateSeedQueries() {
+    WarmerConfig config =
+        getConfig(
+            String.join(
+                "\n", "warmer:", "  warmingStrategy: TEMPLATE", "  templateSeedQueries: 50"));
+    assertEquals(50, config.getTemplateSeedQueries());
+  }
+
+  @Test
+  public void testInvalidTemplateSettings() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            getConfig(
+                String.join(
+                    "\n", "warmer:", "  warmingStrategy: template", "  templateSeedQueries: 0")));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            getConfig(
+                String.join(
+                    "\n",
+                    "warmer:",
+                    "  warmingStrategy: peer",
+                    "  peerFallbackStrategy: template")));
+  }
+
+  @Test
   public void testNoneStrategyInvalid() {
     assertThrows(
         IllegalArgumentException.class,

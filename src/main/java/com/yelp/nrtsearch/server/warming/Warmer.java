@@ -75,6 +75,8 @@ public class Warmer {
   private static final long MIN_REPLAY_WAIT_MS = 10_000;
   // type label of replayed queries generated from the index schema, see warmFromSchema
   static final String SCHEMA_QUERY_TYPE = "schema";
+  // type label of replayed queries generated from templates of real queries, see warmFromTemplate
+  static final String TEMPLATE_QUERY_TYPE = "template";
   // strategy label values for BootstrapMetrics.warmingStrategyInfo
   static final String S3_STRATEGY = "s3";
   static final String PEER_STRATEGY = "peer";
@@ -586,7 +588,238 @@ public class Warmer {
       return;
     }
     warmFromRequests(
-        indexState, parallelism, searchHandler, requests, maxDurationMs, stopRequested, startNs);
+        indexState,
+        parallelism,
+        searchHandler,
+        requests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        SCHEMA_QUERY_TYPE);
+  }
+
+  /**
+   * Warm the index with queries generated from the templates of a few real queries, see {@link
+   * TemplateWarmingQueryGenerator}. The seed queries come from a running peer replica, or from the
+   * S3 corpus if no peer provides them. The seeds are run first, with their retrieve fields
+   * replaced by the template fields, to build the value pool from the documents real queries
+   * return. Then numQueries generated queries are replayed like schema queries. Falls back to
+   * {@link WarmerConfig.WarmingStrategy#SCHEMA} if there are no seeds or no queries can be
+   * generated.
+   *
+   * @param indexState index to warm
+   * @param parallelism number of queries to run in parallel
+   * @param peerSource source of seed queries from a peer
+   * @param numSeeds number of real queries to learn templates from
+   * @param numQueries number of queries to generate
+   * @param maxDurationMs stop starting new queries after this long, including fetching seeds and
+   *     building the value pool, 0 for no limit
+   * @param stopRequested when set, stop starting new queries, see {@link #warmFromS3(IndexState,
+   *     int, long, AtomicBoolean)}
+   */
+  public void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    try (Timer _timer =
+        BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
+      warmFromTemplate(
+          indexState,
+          parallelism,
+          searchHandler,
+          peerSource,
+          numSeeds,
+          numQueries,
+          maxDurationMs,
+          stopRequested);
+    }
+  }
+
+  @VisibleForTesting
+  void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    long startNs = System.nanoTime();
+    DocLookup docLookup = indexState.docLookup;
+    // seeds and generated queries pass the same guardrails as replayed stored queries; the S3
+    // corpus may predate them
+    List<SearchRequest> seeds = new ArrayList<>();
+    for (SearchRequest seed : fetchTemplateSeeds(peerSource, numSeeds)) {
+      if (queryFilter.checkReplay(seed, docLookup) == null) {
+        seeds.add(seed);
+      }
+    }
+    List<SearchRequest> requests = List.of();
+    if (!seeds.isEmpty()) {
+      try {
+        TemplateWarmingQueryGenerator generator =
+            new TemplateWarmingQueryGenerator(seeds, new Random());
+        buildTemplateValuePool(indexState, searchHandler, generator, seeds, stopRequested);
+        requests = new ArrayList<>();
+        for (SearchRequest generated : generator.generate(numQueries)) {
+          if (queryFilter.checkReplay(generated, docLookup) == null) {
+            requests.add(generated);
+          }
+        }
+      } catch (RuntimeException e) {
+        logger.warn("Failed to generate template warming queries for index: {}", index, e);
+        requests = List.of();
+      }
+    }
+    if (requests.isEmpty()) {
+      logger.info("No template warming queries for index: {}, falling back to SCHEMA", index);
+      warmFromSchema(
+          indexState,
+          parallelism,
+          searchHandler,
+          numQueries,
+          remainingMs(maxDurationMs, startNs),
+          stopRequested);
+      return;
+    }
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        requests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        TEMPLATE_QUERY_TYPE);
+  }
+
+  /** Up to numSeeds parsable queries from a peer's corpus, else from the S3 corpus. */
+  private List<SearchRequest> fetchTemplateSeeds(PeerWarmingQuerySource peerSource, int numSeeds)
+      throws IOException {
+    List<SearchRequest> seeds = List.of();
+    if (peerSource != null) {
+      try {
+        Optional<PeerWarmingQuerySource.PeerWarmingQueries> fetched = peerSource.fetch();
+        if (fetched.isPresent()) {
+          seeds = readSeeds(new ByteArrayInputStream(fetched.get().content()), numSeeds);
+          logger.info(
+              "Template warming index: {} with {} seed queries from peer: {}",
+              index,
+              seeds.size(),
+              fetched.get().peer());
+        }
+      } catch (RuntimeException e) {
+        logger.warn("Failed to fetch template seed queries from a peer for index: {}", index, e);
+      }
+    }
+    if (seeds.isEmpty()
+        && remoteBackend.exists(service, index, IndexResourceType.WARMING_QUERIES)) {
+      seeds = readSeeds(remoteBackend.downloadWarmingQueries(service, index), numSeeds);
+      logger.info("Template warming index: {} with {} seed queries from S3", index, seeds.size());
+    }
+    return seeds;
+  }
+
+  private List<SearchRequest> readSeeds(InputStream queries, int numSeeds) throws IOException {
+    List<SearchRequest> seeds = new ArrayList<>();
+    try (BufferedReader reader =
+        new BufferedReader(new InputStreamReader(queries, StateUtils.getValidatingUTF8Decoder()))) {
+      String line;
+      while (seeds.size() < numSeeds && (line = reader.readLine()) != null) {
+        if (line.isBlank()) {
+          continue;
+        }
+        SearchRequest.Builder builder = SearchRequest.newBuilder();
+        try {
+          JsonFormat.parser().ignoringUnknownFields().merge(line, builder);
+          seeds.add(builder.build());
+        } catch (InvalidProtocolBufferException e) {
+          // skip, the corpus may contain a query this version can't parse
+        }
+      }
+    }
+    return seeds;
+  }
+
+  /**
+   * Run the seed queries with the template fields as retrieve fields, and add the returned
+   * documents to the generator's value pool. Fields that can't be retrieved, such as fields of
+   * nested documents, are dropped first, so they don't fail every pool query.
+   */
+  private void buildTemplateValuePool(
+      IndexState indexState,
+      SearchHandler searchHandler,
+      TemplateWarmingQueryGenerator generator,
+      List<SearchRequest> seeds,
+      AtomicBoolean stopRequested) {
+    List<String> fields = new ArrayList<>(generator.fields());
+    if (fields.isEmpty()) {
+      return;
+    }
+    SearchRequest probe = seeds.get(0);
+    if (!retrieves(indexState, searchHandler, probe, fields)) {
+      List<String> ok = new ArrayList<>();
+      for (String field : fields) {
+        if (retrieves(indexState, searchHandler, probe, List.of(field))) {
+          ok.add(field);
+        }
+      }
+      fields = ok;
+    }
+    if (fields.isEmpty()) {
+      return;
+    }
+    long startNs = System.nanoTime();
+    int failed = 0;
+    for (SearchRequest seed : seeds) {
+      if (stopRequested.get()) {
+        break;
+      }
+      try {
+        generator.addPoolHits(
+            searchHandler.handle(indexState, withRetrieveFields(seed, fields, indexState)));
+      } catch (RuntimeException | SearchHandler.SearchHandlerException e) {
+        failed++;
+      }
+    }
+    logger.info(
+        "Template warming value pool for index: {}: {} documents from {} seed queries ({} failed)"
+            + " and {} fields in {} ms",
+        index,
+        generator.getPoolSize(),
+        seeds.size(),
+        failed,
+        fields.size(),
+        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs));
+  }
+
+  private boolean retrieves(
+      IndexState indexState, SearchHandler searchHandler, SearchRequest seed, List<String> fields) {
+    try {
+      searchHandler.handle(indexState, withRetrieveFields(seed, fields, indexState));
+      return true;
+    } catch (RuntimeException | SearchHandler.SearchHandlerException e) {
+      return false;
+    }
+  }
+
+  private SearchRequest withRetrieveFields(
+      SearchRequest seed, List<String> fields, IndexState indexState) {
+    SearchRequest.Builder builder =
+        seed.toBuilder().clearRetrieveFields().addAllRetrieveFields(fields);
+    if (queryTimeoutMs > 0) {
+      applyQueryTimeout(builder, queryTimeoutMs, indexState);
+    }
+    return builder.build();
   }
 
   /**
@@ -680,8 +913,9 @@ public class Warmer {
           warmFromSchema(
               indexState, parallelism, searchHandler, schemaQueries, remainingMs, stopRequested);
       case NONE -> BootstrapMetrics.warmingStrategyInfo.labelValues(index, "none").set(1);
-      case PEER ->
-          throw new IllegalArgumentException("Peer warming fallback strategy cannot be PEER");
+      case PEER, TEMPLATE ->
+          throw new IllegalArgumentException(
+              "Peer warming fallback strategy cannot be " + fallbackStrategy);
     }
   }
 
@@ -713,9 +947,13 @@ public class Warmer {
         requests,
         0,
         new AtomicBoolean(),
-        System.nanoTime());
+        System.nanoTime(),
+        SCHEMA_QUERY_TYPE);
   }
 
+  /**
+   * @param queryType label for the warming strategy and query metrics: schema or template
+   */
   private void warmFromRequests(
       IndexState indexState,
       int parallelism,
@@ -723,9 +961,10 @@ public class Warmer {
       List<SearchRequest> requests,
       long maxDurationMs,
       AtomicBoolean stopRequested,
-      long startNs)
+      long startNs,
+      String queryType)
       throws InterruptedException {
-    BootstrapMetrics.warmingStrategyInfo.labelValues(index, SCHEMA_QUERY_TYPE).set(1);
+    BootstrapMetrics.warmingStrategyInfo.labelValues(index, queryType).set(1);
     ThreadPoolExecutor threadPoolExecutor = createWarmingExecutor(parallelism);
     ScheduledExecutorService deadlineScheduler = createDeadlineScheduler();
     long startMS = System.currentTimeMillis();
@@ -758,7 +997,7 @@ public class Warmer {
                     searchHandler,
                     deadlineScheduler,
                     searchRequest,
-                    SCHEMA_QUERY_TYPE,
+                    queryType,
                     position,
                     replayStats);
         if (threadPoolExecutor == null) {
@@ -769,10 +1008,11 @@ public class Warmer {
       }
       if (!shutdownAndWait(threadPoolExecutor)) {
         logger.warn(
-            "Warming index: {} still has {} schema warming queries running after waiting {} ms,"
+            "Warming index: {} still has {} {} warming queries running after waiting {} ms,"
                 + " they continue in the background",
             index,
             replayStats.inFlightPositions.size(),
+            queryType,
             replayWaitMs());
       }
     } finally {
@@ -785,21 +1025,24 @@ public class Warmer {
     if (stoppedByCaller) {
       logger.warn(
           "Warming index: {} stopped starting new queries since startup stopped waiting, skipped"
-              + " {} remaining schema warming queries",
+              + " {} remaining {} warming queries",
           index,
-          skipped);
+          skipped,
+          queryType);
     } else if (reachedMaxDuration) {
       logger.warn(
-          "Warming index: {} reached max warming duration of {} ms, skipped {} remaining schema"
+          "Warming index: {} reached max warming duration of {} ms, skipped {} remaining {}"
               + " warming queries",
           index,
           maxDurationMs,
-          skipped);
+          skipped,
+          queryType);
     }
     logger.info(
-        "Warmed index: {} with {} schema warming queries in {} seconds, timed out: {}, failed: {}.",
+        "Warmed index: {} with {} {} warming queries in {} seconds, timed out: {}, failed: {}.",
         index,
         started,
+        queryType,
         (System.currentTimeMillis() - startMS) / 1000.0,
         replayStats.timedOut.get(),
         replayStats.failed.get());
