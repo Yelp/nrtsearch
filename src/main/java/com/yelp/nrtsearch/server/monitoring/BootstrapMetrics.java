@@ -72,6 +72,13 @@ public class BootstrapMetrics {
           .unit(Unit.SECONDS)
           .build();
 
+  public static final Gauge warmingStrategyInfo =
+      Gauge.builder()
+          .name("warming_strategy")
+          .help("Set to 1 for the warming strategy (s3, schema) used on startup.")
+          .labelNames("index", "strategy")
+          .build();
+
   /**
    * Add all bootstrap metrics to the collector registry.
    *
@@ -83,5 +90,6 @@ public class BootstrapMetrics {
     registry.register(dataRestoreTimer);
     registry.register(initialNRTTimer);
     registry.register(warmingQueryTimer);
+    registry.register(warmingStrategyInfo);
   }
 }

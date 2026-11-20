@@ -106,6 +106,7 @@ public class S3Backend implements RemoteBackend {
   static final String POINT_STATE = "point_state";
   static final String DATA = "data";
   static final String WARMING = "warming";
+  static final String WARMING_TEMPLATES = "warming_templates";
   public static final String CURRENT_VERSION = "_current";
   public static final S3BackendConfig DEFAULT_CONFIG =
       new S3BackendConfig(false, 0, 1, 0, 0, 1, 0, 0, false);
@@ -870,6 +871,8 @@ public class S3Backend implements RemoteBackend {
           case WARMING_QUERIES -> getIndexResourcePrefix(service, indexIdentifier, WARMING);
           case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
           case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
+          case WARMING_TEMPLATES ->
+              getIndexResourcePrefix(service, indexIdentifier, WARMING_TEMPLATES);
         };
     return S3Util.doesKeyExist(s3, serviceBucket, prefix + CURRENT_VERSION);
   }
@@ -898,6 +901,7 @@ public class S3Backend implements RemoteBackend {
       case WARMING_QUERIES -> getIndexResourcePrefix(service, indexIdentifier, WARMING);
       case POINT_STATE -> getIndexResourcePrefix(service, indexIdentifier, POINT_STATE);
       case INDEX_STATE -> getIndexResourcePrefix(service, indexIdentifier, INDEX_STATE);
+      case WARMING_TEMPLATES -> getIndexResourcePrefix(service, indexIdentifier, WARMING_TEMPLATES);
     };
   }
 
@@ -958,6 +962,22 @@ public class S3Backend implements RemoteBackend {
       throws IOException {
     String prefix =
         getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.WARMING_QUERIES);
+    return downloadResource(prefix, indexIdentifier);
+  }
+
+  @Override
+  public void uploadWarmingTemplates(String service, String indexIdentifier, byte[] data)
+      throws IOException {
+    String prefix =
+        getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.WARMING_TEMPLATES);
+    uploadResource(prefix, getWarmingQueriesFileName(), service, indexIdentifier, data);
+  }
+
+  @Override
+  public InputStream downloadWarmingTemplates(String service, String indexIdentifier)
+      throws IOException {
+    String prefix =
+        getIndexResourcePrefix(service, indexIdentifier, IndexResourceType.WARMING_TEMPLATES);
     return downloadResource(prefix, indexIdentifier);
   }
 
