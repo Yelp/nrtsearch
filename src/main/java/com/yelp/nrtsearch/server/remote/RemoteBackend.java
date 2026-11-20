@@ -28,7 +28,9 @@ public interface RemoteBackend extends PluginDownloader {
   enum IndexResourceType {
     WARMING_QUERIES,
     POINT_STATE,
-    INDEX_STATE
+    INDEX_STATE,
+    /** Template library of the TEMPLATE warming strategy. */
+    WARMING_TEMPLATES
   }
 
   enum GlobalResourceType {
@@ -128,6 +130,32 @@ public interface RemoteBackend extends PluginDownloader {
    * @throws IOException on error downloading warming queries
    */
   InputStream downloadWarmingQueries(String service, String indexIdentifier) throws IOException;
+
+  /**
+   * Upload the template library of the TEMPLATE warming strategy to the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param data template library
+   * @throws IOException on error uploading the library
+   */
+  default void uploadWarmingTemplates(String service, String indexIdentifier, byte[] data)
+      throws IOException {
+    throw new UnsupportedOperationException("Warming templates not supported by this backend");
+  }
+
+  /**
+   * Download the template library of the TEMPLATE warming strategy from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @return input stream of the template library
+   * @throws IOException on error downloading the library
+   */
+  default InputStream downloadWarmingTemplates(String service, String indexIdentifier)
+      throws IOException {
+    throw new UnsupportedOperationException("Warming templates not supported by this backend");
+  }
 
   /**
    * Upload index files to the remote backend.

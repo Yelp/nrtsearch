@@ -138,8 +138,187 @@ public class TemplateWarmingQueryGenerator {
     learn(seeds);
   }
 
+  private TemplateWarmingQueryGenerator(
+      String indexName, List<Template> templates, int numSeeds, Random random) {
+    this.random = random;
+    this.numSeeds = numSeeds;
+    this.indexName = indexName;
+    this.templates.addAll(templates);
+    this.templates.sort((a, b) -> Double.compare(b.weight, a.weight));
+  }
+
   public int getNumTemplates() {
     return templates.size();
+  }
+
+  // ------------------------------------------------------------------ template library
+
+  static final int LIBRARY_VERSION = 1;
+
+  /**
+   * Template key of a request: its structure with values replaced, the same key the templates are
+   * grouped by. Used to check whether live queries still match the library.
+   */
+  public static String templateKey(SearchRequest request) {
+    try {
+      JsonElement json = JsonParser.parseString(JsonFormat.printer().print(request));
+      return templatize(json, "", null, new ArrayList<>()).toString();
+    } catch (InvalidProtocolBufferException | RuntimeException e) {
+      return null;
+    }
+  }
+
+  /** Keys of all templates, see {@link #templateKey(SearchRequest)}. */
+  public Set<String> templateKeys() {
+    Set<String> keys = new HashSet<>();
+    for (Template t : templates) {
+      keys.add(t.skeleton.toString());
+    }
+    return keys;
+  }
+
+  /**
+   * Merge newly learned templates into this library, as a new generator. Weights of this library's
+   * templates are multiplied by decay, so templates that stop occurring in traffic fade out, and
+   * templates whose weight falls below minWeight are dropped. A template in both keeps the newer
+   * classification when it was learned from enough queries, and the donors of both, capped.
+   */
+  public TemplateWarmingQueryGenerator merge(
+      TemplateWarmingQueryGenerator newer, double decay, double minWeight) {
+    Map<String, Template> merged = new LinkedHashMap<>();
+    for (Template t : templates) {
+      t.weight *= decay;
+      merged.put(t.skeleton.toString(), t);
+    }
+    for (Template n : newer.templates) {
+      String key = n.skeleton.toString();
+      Template old = merged.get(key);
+      if (old == null) {
+        merged.put(key, n);
+        continue;
+      }
+      Template keep = n.count >= MIN_INSTANCES || n.count >= old.count ? n : old;
+      Template other = keep == n ? old : n;
+      keep.weight = old.weight + n.weight;
+      // donors of the other side only if they have the same variable slots
+      if (other.slots.keySet().equals(keep.slots.keySet())) {
+        List<Map<String, JsonElement>> donors = new ArrayList<>(keep.donors);
+        donors.addAll(other.donors);
+        java.util.Collections.shuffle(donors, random);
+        keep.donors.clear();
+        keep.donors.addAll(donors.subList(0, Math.min(MAX_DONORS, donors.size())));
+      }
+      merged.put(key, keep);
+    }
+    List<Template> kept = new ArrayList<>();
+    for (Template t : merged.values()) {
+      if (t.weight >= minWeight && !t.donors.isEmpty()) {
+        kept.add(t);
+      }
+    }
+    String name = indexName.isEmpty() ? newer.indexName : indexName;
+    return new TemplateWarmingQueryGenerator(name, kept, numSeeds + newer.numSeeds, random);
+  }
+
+  /** Serialize the templates as a library, see {@link #fromLibrary(String, Random)}. */
+  public String toLibrary() {
+    JsonObject root = new JsonObject();
+    root.addProperty("version", LIBRARY_VERSION);
+    root.addProperty("indexName", indexName);
+    root.addProperty("seedQueries", numSeeds);
+    JsonArray list = new JsonArray();
+    for (Template t : templates) {
+      JsonObject o = new JsonObject();
+      o.add("skeleton", t.skeleton);
+      o.addProperty("count", t.count);
+      o.addProperty("weight", t.weight);
+      JsonObject constants = new JsonObject();
+      t.constants.forEach(constants::add);
+      o.add("constants", constants);
+      JsonObject slots = new JsonObject();
+      t.slots.forEach(
+          (id, m) -> {
+            JsonObject s = new JsonObject();
+            s.addProperty("path", m.path);
+            if (m.ctx != null) {
+              s.addProperty("ctx", m.ctx);
+            }
+            s.addProperty("field", m.field);
+            slots.add(id, s);
+          });
+      o.add("slots", slots);
+      JsonObject links = new JsonObject();
+      t.links.forEach((id, others) -> links.add(id, stringArray(others)));
+      o.add("links", links);
+      JsonArray groups = new JsonArray();
+      t.groups.forEach(g -> groups.add(stringArray(g)));
+      o.add("groups", groups);
+      JsonArray donors = new JsonArray();
+      for (Map<String, JsonElement> d : t.donors) {
+        JsonObject donor = new JsonObject();
+        d.forEach(donor::add);
+        donors.add(donor);
+      }
+      o.add("donors", donors);
+      list.add(o);
+    }
+    root.add("templates", list);
+    return root.toString();
+  }
+
+  /** Load a library written by {@link #toLibrary()}. */
+  public static TemplateWarmingQueryGenerator fromLibrary(String library, Random random) {
+    JsonObject root = JsonParser.parseString(library).getAsJsonObject();
+    int version = root.get("version").getAsInt();
+    if (version != LIBRARY_VERSION) {
+      throw new IllegalArgumentException("Unsupported template library version: " + version);
+    }
+    List<Template> templates = new ArrayList<>();
+    for (JsonElement e : root.getAsJsonArray("templates")) {
+      JsonObject o = e.getAsJsonObject();
+      Template t = new Template();
+      t.skeleton = o.get("skeleton");
+      t.count = o.get("count").getAsInt();
+      t.weight = o.get("weight").getAsDouble();
+      o.getAsJsonObject("constants")
+          .entrySet()
+          .forEach(c -> t.constants.put(c.getKey(), c.getValue()));
+      for (Map.Entry<String, JsonElement> s : o.getAsJsonObject("slots").entrySet()) {
+        JsonObject m = s.getValue().getAsJsonObject();
+        t.slots.put(
+            s.getKey(),
+            new SlotMeta(
+                m.get("path").getAsString(),
+                m.has("ctx") ? m.get("ctx").getAsString() : null,
+                m.get("field").getAsBoolean()));
+      }
+      for (Map.Entry<String, JsonElement> l : o.getAsJsonObject("links").entrySet()) {
+        t.links.put(l.getKey(), strings(l.getValue().getAsJsonArray()));
+      }
+      for (JsonElement g : o.getAsJsonArray("groups")) {
+        t.groups.add(strings(g.getAsJsonArray()));
+      }
+      for (JsonElement d : o.getAsJsonArray("donors")) {
+        Map<String, JsonElement> donor = new HashMap<>();
+        d.getAsJsonObject().entrySet().forEach(x -> donor.put(x.getKey(), x.getValue()));
+        t.donors.add(donor);
+      }
+      templates.add(t);
+    }
+    return new TemplateWarmingQueryGenerator(
+        root.get("indexName").getAsString(), templates, root.get("seedQueries").getAsInt(), random);
+  }
+
+  private static JsonArray stringArray(List<String> values) {
+    JsonArray a = new JsonArray();
+    values.forEach(a::add);
+    return a;
+  }
+
+  private static List<String> strings(JsonArray a) {
+    List<String> out = new ArrayList<>();
+    a.forEach(x -> out.add(x.getAsString()));
+    return out;
   }
 
   /** Fields to retrieve from the seed queries' hits for the value pool. */
@@ -217,7 +396,10 @@ public class TemplateWarmingQueryGenerator {
 
   private static final class Template {
     JsonElement skeleton;
+    // seed queries the classification was learned from
     int count;
+    // how often the template occurs: its count, decayed by later library merges
+    double weight;
     final Map<String, JsonElement> constants = new LinkedHashMap<>();
     // variable slots only
     final Map<String, SlotMeta> slots = new LinkedHashMap<>();
@@ -245,13 +427,14 @@ public class TemplateWarmingQueryGenerator {
     for (Map.Entry<String, List<List<Slot>>> e : slotsByTemplate.entrySet()) {
       templates.add(buildTemplate(skeletons.get(e.getKey()), e.getValue()));
     }
-    templates.sort((a, b) -> Integer.compare(b.count, a.count));
+    templates.sort((a, b) -> Double.compare(b.weight, a.weight));
   }
 
   private Template buildTemplate(JsonElement skeleton, List<List<Slot>> instances) {
     Template t = new Template();
     t.skeleton = skeleton;
     t.count = instances.size();
+    t.weight = instances.size();
     List<Slot> first = instances.get(0);
     int n = instances.size();
     List<String> variable = new ArrayList<>();
@@ -514,22 +697,18 @@ public class TemplateWarmingQueryGenerator {
   }
 
   private Template pickTemplate() {
-    int r = random.nextInt(numSeedsInTemplates());
+    double total = 0;
     for (Template t : templates) {
-      r -= t.count;
+      total += t.weight;
+    }
+    double r = random.nextDouble() * total;
+    for (Template t : templates) {
+      r -= t.weight;
       if (r < 0) {
         return t;
       }
     }
     return templates.get(templates.size() - 1);
-  }
-
-  private int numSeedsInTemplates() {
-    int n = 0;
-    for (Template t : templates) {
-      n += t.count;
-    }
-    return n;
   }
 
   /** Fields whose seed values have few distinct values, such as flags, keep their real values. */

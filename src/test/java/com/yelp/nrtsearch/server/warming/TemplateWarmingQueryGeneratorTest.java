@@ -180,6 +180,87 @@ public class TemplateWarmingQueryGeneratorTest {
     assertTrue(generator.generate(10).isEmpty());
   }
 
+  @Test
+  public void testLibraryRoundTrip() throws Exception {
+    TemplateWarmingQueryGenerator learned =
+        new TemplateWarmingQueryGenerator(seeds(), new Random(1));
+    TemplateWarmingQueryGenerator loaded =
+        TemplateWarmingQueryGenerator.fromLibrary(learned.toLibrary(), new Random(1));
+    assertEquals(learned.getNumTemplates(), loaded.getNumTemplates());
+    assertEquals(learned.templateKeys(), loaded.templateKeys());
+    assertEquals(learned.fields(), loaded.fields());
+    assertEquals(learned.slotKinds(), loaded.slotKinds());
+    // a loaded library generates the same kind of queries, with consistent values
+    loaded.addPoolHits(poolResponse());
+    List<SearchRequest> generated = loaded.generate(20);
+    assertFalse(generated.isEmpty());
+    for (SearchRequest request : generated) {
+      Query geo = request.getQuery().getBooleanQuery().getClauses(2).getQuery();
+      assertTrue(
+          isPoolPoint(
+              geo.getGeoRadiusQuery().getCenter().getLatitude(),
+              geo.getGeoRadiusQuery().getCenter().getLongitude()));
+      assertEquals(
+          geo.getGeoRadiusQuery().getCenter().getLatitude(),
+          request.getVirtualFields(0).getScript().getParamsMap().get("LAT").getDoubleValue(),
+          1e-9);
+    }
+  }
+
+  @Test
+  public void testTemplateKeyMatchesLibrary() throws Exception {
+    TemplateWarmingQueryGenerator learned =
+        new TemplateWarmingQueryGenerator(seeds(), new Random(1));
+    // any request with the seeds' structure matches, whatever its values
+    assertTrue(learned.templateKeys().contains(TemplateWarmingQueryGenerator.templateKey(seed(3))));
+    SearchRequest otherShape = seed(3).toBuilder().setTopHits(50).clearVirtualFields().build();
+    assertFalse(
+        learned.templateKeys().contains(TemplateWarmingQueryGenerator.templateKey(otherShape)));
+  }
+
+  @Test
+  public void testMergeAddsNewTemplatesAndFadesOld() throws Exception {
+    TemplateWarmingQueryGenerator old = new TemplateWarmingQueryGenerator(seeds(), new Random(1));
+    List<SearchRequest> newShape = new ArrayList<>();
+    for (int i = 0; i < 5; ++i) {
+      newShape.add(seed(i).toBuilder().clearVirtualFields().build());
+    }
+    TemplateWarmingQueryGenerator newer =
+        new TemplateWarmingQueryGenerator(newShape, new Random(1));
+
+    // weight of the old template: 10 seeds * 0.5 = 5 >= 1, kept
+    TemplateWarmingQueryGenerator merged = old.merge(newer, 0.5, 1);
+    assertEquals(2, merged.getNumTemplates());
+    Set<String> keys = new HashSet<>(old.templateKeys());
+    keys.addAll(newer.templateKeys());
+    assertEquals(keys, merged.templateKeys());
+
+    // old template decays below the minimum weight after repeated merges without it
+    TemplateWarmingQueryGenerator faded = merged;
+    for (int i = 0; i < 4; ++i) {
+      faded = faded.merge(new TemplateWarmingQueryGenerator(newShape, new Random(1)), 0.5, 1);
+    }
+    assertEquals(newer.templateKeys(), faded.templateKeys());
+  }
+
+  @Test
+  public void testMergeSameTemplateAddsWeight() throws Exception {
+    TemplateWarmingQueryGenerator a = new TemplateWarmingQueryGenerator(seeds(), new Random(1));
+    TemplateWarmingQueryGenerator b = new TemplateWarmingQueryGenerator(seeds(), new Random(2));
+    TemplateWarmingQueryGenerator merged = a.merge(b, 0.5, 1);
+    assertEquals(1, merged.getNumTemplates());
+    assertEquals(a.templateKeys(), merged.templateKeys());
+  }
+
+  @Test
+  public void testUnsupportedLibraryVersion() {
+    org.junit.Assert.assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            TemplateWarmingQueryGenerator.fromLibrary(
+                "{\"version\": 99, \"templates\": []}", new Random(1)));
+  }
+
   private static boolean isPoolPoint(double lat, double lon) {
     for (double[] p : POOL_POINTS) {
       if (Math.abs(p[0] - lat) < 1e-9 && Math.abs(p[1] - lon) < 1e-9) {

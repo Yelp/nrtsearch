@@ -97,6 +97,10 @@ public class Warmer {
   private final int queryTimeoutMs;
   protected final ThreadLocal<Random> randomThreadLocal;
   private long minReplayWaitMs = MIN_REPLAY_WAIT_MS;
+  // TEMPLATE strategy library, null unless enableTemplateLibrary was called
+  private volatile WarmerConfig.TemplateLibrarySettings librarySettings;
+  private volatile TemplateDriftMonitor driftMonitor;
+  private volatile TemplateWarmingQueryGenerator templateLibrary;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
     this(remoteBackend, service, index, maxWarmingQueries, 0);
@@ -180,6 +184,10 @@ public class Warmer {
       SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
     if (queryFilter.checkCollected(searchRequest, latencyMs, docLookup) != null) {
       return;
+    }
+    TemplateDriftMonitor monitor = driftMonitor;
+    if (monitor != null) {
+      monitor.observe(searchRequest);
     }
     ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
     if (sampleResult.isSample()) {
@@ -655,26 +663,45 @@ public class Warmer {
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     long startNs = System.nanoTime();
     DocLookup docLookup = indexState.docLookup;
-    // seeds and generated queries pass the same guardrails as replayed stored queries; the S3
-    // corpus may predate them
-    List<SearchRequest> seeds = new ArrayList<>();
-    for (SearchRequest seed : fetchTemplateSeeds(peerSource, numSeeds)) {
-      if (queryFilter.checkReplay(seed, docLookup) == null) {
-        seeds.add(seed);
+    boolean useLibrary = librarySettings != null && librarySettings.enabled();
+    TemplateWarmingQueryGenerator generator = null;
+    // real queries run to build the value pool: the seeds, or library queries with real values
+    List<SearchRequest> poolQueries = List.of();
+    String source = "none";
+    if (useLibrary) {
+      generator = loadTemplateLibrary();
+      if (generator != null && generator.getNumTemplates() > 0) {
+        source = "library";
+        poolQueries = filtered(generator.generate(numSeeds), docLookup);
+      } else {
+        generator = null;
       }
     }
-    List<SearchRequest> requests = List.of();
-    if (!seeds.isEmpty()) {
-      try {
-        TemplateWarmingQueryGenerator generator =
-            new TemplateWarmingQueryGenerator(seeds, new Random());
-        buildTemplateValuePool(indexState, searchHandler, generator, seeds, stopRequested);
-        requests = new ArrayList<>();
-        for (SearchRequest generated : generator.generate(numQueries)) {
-          if (queryFilter.checkReplay(generated, docLookup) == null) {
-            requests.add(generated);
-          }
+    if (generator == null) {
+      // seeds and generated queries pass the same guardrails as replayed stored queries; the S3
+      // corpus may predate them
+      List<SearchRequest> seeds = filtered(fetchTemplateSeeds(peerSource, numSeeds), docLookup);
+      if (!seeds.isEmpty()) {
+        generator = new TemplateWarmingQueryGenerator(seeds, new Random());
+        poolQueries = seeds;
+        source = "learned";
+        if (useLibrary && generator.getNumTemplates() > 0) {
+          // learn once: later startups load this library instead of learning from seeds
+          storeTemplateLibrary(generator);
         }
+      }
+    }
+    WarmingMetrics.warmingTemplateLibraryCount.labelValues(index, source).inc();
+    if (useLibrary) {
+      setLibrary(generator);
+    }
+    List<SearchRequest> requests = List.of();
+    if (generator != null && generator.getNumTemplates() > 0) {
+      try {
+        if (!poolQueries.isEmpty()) {
+          buildTemplateValuePool(indexState, searchHandler, generator, poolQueries, stopRequested);
+        }
+        requests = filtered(generator.generate(numQueries), docLookup);
       } catch (RuntimeException e) {
         logger.warn("Failed to generate template warming queries for index: {}", index, e);
         requests = List.of();
@@ -700,6 +727,141 @@ public class Warmer {
         stopRequested,
         startNs,
         TEMPLATE_QUERY_TYPE);
+  }
+
+  private List<SearchRequest> filtered(List<SearchRequest> requests, DocLookup docLookup) {
+    List<SearchRequest> out = new ArrayList<>(requests.size());
+    for (SearchRequest r : requests) {
+      if (queryFilter.checkReplay(r, docLookup) == null) {
+        out.add(r);
+      }
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------------ template library
+
+  /**
+   * Store learned templates in the remote backend, load them on startup, and relearn them from
+   * collected live queries when those stop matching. Only used by the TEMPLATE strategy.
+   */
+  public void enableTemplateLibrary(WarmerConfig.TemplateLibrarySettings settings) {
+    enableTemplateLibrary(
+        settings,
+        new TemplateDriftMonitor(
+            index,
+            settings.driftCheckEvery(),
+            settings.driftWindow(),
+            settings.relearnMatchThreshold(),
+            TimeUnit.MINUTES.toMillis(settings.relearnCooldownMinutes()),
+            this::relearnTemplates));
+  }
+
+  @VisibleForTesting
+  void enableTemplateLibrary(
+      WarmerConfig.TemplateLibrarySettings settings, TemplateDriftMonitor monitor) {
+    this.librarySettings = settings;
+    this.driftMonitor = monitor;
+  }
+
+  @VisibleForTesting
+  TemplateWarmingQueryGenerator getTemplateLibrary() {
+    return templateLibrary;
+  }
+
+  @VisibleForTesting
+  TemplateDriftMonitor getDriftMonitor() {
+    return driftMonitor;
+  }
+
+  /**
+   * Use the given templates as the library, and check live queries against them. With no templates,
+   * every check misses, so the first full check window triggers learning from the collected live
+   * queries.
+   */
+  private void setLibrary(TemplateWarmingQueryGenerator library) {
+    templateLibrary = library;
+    if (driftMonitor != null) {
+      driftMonitor.setLibraryKeys(library == null ? Set.of() : library.templateKeys());
+    }
+  }
+
+  private TemplateWarmingQueryGenerator loadTemplateLibrary() {
+    try {
+      if (!remoteBackend.exists(service, index, IndexResourceType.WARMING_TEMPLATES)) {
+        logger.info("No template warming library for index: {}", index);
+        return null;
+      }
+      try (InputStream in = remoteBackend.downloadWarmingTemplates(service, index)) {
+        TemplateWarmingQueryGenerator library =
+            TemplateWarmingQueryGenerator.fromLibrary(
+                new String(in.readAllBytes(), StandardCharsets.UTF_8), new Random());
+        logger.info(
+            "Loaded template warming library for index: {} with {} templates",
+            index,
+            library.getNumTemplates());
+        return library;
+      }
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to load the template warming library for index: {}", index, e);
+      return null;
+    }
+  }
+
+  private boolean storeTemplateLibrary(TemplateWarmingQueryGenerator library) {
+    try {
+      byte[] data = library.toLibrary().getBytes(StandardCharsets.UTF_8);
+      remoteBackend.uploadWarmingTemplates(service, index, data);
+      logger.info(
+          "Stored template warming library for index: {} with {} templates, size: {}",
+          index,
+          library.getNumTemplates(),
+          data.length);
+      return true;
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to store the template warming library for index: {}", index, e);
+      return false;
+    }
+  }
+
+  /**
+   * Learn templates from the collected live queries, merge them into the library and store it.
+   * Called by the drift monitor on a background thread when the match ratio drops.
+   *
+   * @return keys of the new library, or null if there are too few collected queries
+   */
+  @VisibleForTesting
+  Set<String> relearnTemplates(double matchRatio) {
+    List<SearchRequest> corpus;
+    synchronized (warmingRequests) {
+      corpus = new ArrayList<>(warmingRequests);
+    }
+    if (corpus.size() < librarySettings.relearnMinQueries()) {
+      logger.info(
+          "Not relearning templates for index: {}, only {} collected queries",
+          index,
+          corpus.size());
+      return null;
+    }
+    TemplateWarmingQueryGenerator learned = new TemplateWarmingQueryGenerator(corpus, new Random());
+    TemplateWarmingQueryGenerator current = templateLibrary;
+    TemplateWarmingQueryGenerator merged =
+        current == null
+            ? learned
+            : current.merge(learned, librarySettings.decay(), librarySettings.minWeight());
+    if (!storeTemplateLibrary(merged)) {
+      throw new IllegalStateException("Unable to store the relearned template library");
+    }
+    templateLibrary = merged;
+    logger.info(
+        "Relearned templates for index: {} after match ratio {}: {} templates learned from {}"
+            + " queries, library now has {}",
+        index,
+        matchRatio,
+        learned.getNumTemplates(),
+        corpus.size(),
+        merged.getNumTemplates());
+    return merged.templateKeys();
   }
 
   /** Up to numSeeds parsable queries from a peer's corpus, else from the S3 corpus. */

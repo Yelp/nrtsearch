@@ -599,6 +599,46 @@ Example server configuration
      - Number of real queries the ``TEMPLATE`` warming strategy learns templates from, taken from a running replica's corpus (as with ``PEER``), or from the S3 corpus if no replica provides one. ``TEMPLATE`` keeps each template's structure (query tree, scripts, sort, nested paths, collectors, top hits) and its constant values, and generates ``schemaWarmingQueries`` new queries. Values of index fields are filled from the documents the seed queries return, which are run first with the template fields as retrieve fields. Fields with at most 10 distinct seed values, and values that are not field values (range bounds, radius, script params), keep values from the seed queries. Seeds and generated queries pass the warming query filters. Falls back to ``SCHEMA`` if there are no seeds or no queries can be generated.
      - 100
 
+   * - templateLibrary
+     - bool
+     - With ``TEMPLATE``: keep the learned templates as a library in the remote backend (``<index>/warming_templates/``), so templates only have to be learned once. On startup the library is loaded instead of learning from seed queries; if there is none, the templates learned from the seeds are stored as the library. The value pool is then built from library queries filled with stored real values, so no seed queries are needed. While serving, one in every ``templateDriftCheckEvery`` collected queries is checked against the library, and the share that match over ``templateDriftWindow`` checks is published as ``nrt_warming_template_match_ratio``. When it falls below ``templateRelearnMatchThreshold``, the replica relearns templates from its collected queries in the background, merges them into the library (existing weights multiplied by ``templateLibraryDecay``, templates below ``templateLibraryMinWeight`` dropped), and stores it, at most once per ``templateRelearnCooldownMinutes``. Outcomes are counted in ``nrt_warming_template_relearn_count``. If a replica starts with no library and no seeds, the first full check window learns the library from live traffic.
+     - false
+
+   * - templateRelearnMatchThreshold
+     - double
+     - Relearn the template library when the share of checked live queries matching a template falls below this. Must be in (0, 1].
+     - 0.95
+
+   * - templateDriftCheckEvery
+     - int
+     - Check one in every this many collected live queries against the template library. Computing a query's template costs about as much as printing it as JSON.
+     - 100
+
+   * - templateDriftWindow
+     - int
+     - Number of checked queries the match share is computed over.
+     - 1000
+
+   * - templateRelearnCooldownMinutes
+     - int
+     - Minimum time between two relearns started by the same replica.
+     - 360
+
+   * - templateLibraryDecay
+     - double
+     - Weight multiplier of existing library templates at each relearn, so templates that stop occurring fade out. Must be in (0, 1].
+     - 0.5
+
+   * - templateLibraryMinWeight
+     - double
+     - Library templates whose weight falls below this are dropped at a relearn.
+     - 0.5
+
+   * - templateRelearnMinQueries
+     - int
+     - Minimum number of collected live queries to relearn from. A relearn with fewer is skipped and retried after the cooldown.
+     - 100
+
 .. list-table:: `State Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/StateConfig.java>`_ (``stateConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1

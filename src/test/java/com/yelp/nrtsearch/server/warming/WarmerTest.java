@@ -16,6 +16,10 @@
 package com.yelp.nrtsearch.server.warming;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
@@ -60,6 +64,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1205,6 +1210,102 @@ public class WarmerTest {
         .handle(
             org.mockito.ArgumentMatchers.eq(mockIndexState),
             org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  private static final WarmerConfig.TemplateLibrarySettings LIBRARY =
+      new WarmerConfig.TemplateLibrarySettings(true, 0.95, 1, 2, 0, 0.5, 0.5, 1);
+
+  private SearchHandler respondingSearchHandler(IndexState indexState) throws Exception {
+    SearchHandler handler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            handler.handle(
+                org.mockito.ArgumentMatchers.eq(indexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+    return handler;
+  }
+
+  @Test
+  public void testTemplateLibrary_learnOnceThenLoad() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    // first replica: no library yet, learns from peer seeds and stores the library
+    Warmer first = new Warmer(remoteBackend, service, index, 4);
+    first.enableTemplateLibrary(LIBRARY);
+    first.warmFromTemplate(
+        mockIndexState,
+        0,
+        respondingSearchHandler(mockIndexState),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
+    int learnedTemplates = first.getTemplateLibrary().getNumTemplates();
+    assertTrue(learnedTemplates > 0);
+
+    // second replica: no peer and no S3 corpus, warms from the stored library
+    Warmer second = new Warmer(remoteBackend, service, index, 4);
+    second.enableTemplateLibrary(LIBRARY);
+    SearchHandler secondHandler = respondingSearchHandler(mockIndexState);
+    second.warmFromTemplate(
+        mockIndexState, 0, secondHandler, Optional::empty, 100, 10, 0, new AtomicBoolean());
+    assertEquals(learnedTemplates, second.getTemplateLibrary().getNumTemplates());
+    verify(secondHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  @Test
+  public void testTemplateLibrary_relearnMergesAndStores() throws Exception {
+    Warmer libraryWarmer = new Warmer(remoteBackend, service, index, 4);
+    libraryWarmer.enableTemplateLibrary(
+        new WarmerConfig.TemplateLibrarySettings(true, 0.95, 1, 2, 0, 0.5, 0.5, 100));
+    getTestSearchRequests().forEach(r -> libraryWarmer.maybeAddSearchRequest(r, 0, null));
+    // too few collected queries
+    assertNull(libraryWarmer.relearnTemplates(0.5));
+
+    Warmer enoughQueriesWarmer = new Warmer(remoteBackend, service, index, 4);
+    enoughQueriesWarmer.enableTemplateLibrary(LIBRARY);
+    getTestSearchRequests().forEach(r -> enoughQueriesWarmer.maybeAddSearchRequest(r, 0, null));
+    Set<String> keys = enoughQueriesWarmer.relearnTemplates(0.5);
+    assertNotNull(keys);
+    assertFalse(keys.isEmpty());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
+  }
+
+  @Test
+  public void testTemplateLibrary_learnsFromLiveTrafficWhenNothingElse() throws Exception {
+    // no library, no peer, no S3 corpus: startup falls back, then the drift monitor learns the
+    // library from the first collected live queries
+    Warmer libraryWarmer = new Warmer(remoteBackend, service, index, 4);
+    libraryWarmer.enableTemplateLibrary(LIBRARY);
+    libraryWarmer.warmFromTemplate(
+        mock(IndexState.class),
+        0,
+        mock(SearchHandler.class),
+        Optional::empty,
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+    assertNull(libraryWarmer.getTemplateLibrary());
+
+    for (SearchRequest r : getTestSearchRequests()) {
+      libraryWarmer.maybeAddSearchRequest(r, 0, null);
+    }
+    long deadline = System.currentTimeMillis() + 10_000;
+    while (libraryWarmer.getTemplateLibrary() == null && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertNotNull(libraryWarmer.getTemplateLibrary());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
   }
 
   @Test
