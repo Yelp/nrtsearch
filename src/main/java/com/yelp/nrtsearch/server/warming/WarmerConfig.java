@@ -59,6 +59,7 @@ public class WarmerConfig {
   private static final int DEFAULT_PEER_TIMEOUT_MS = 30_000;
   private static final int DEFAULT_PEER_MAX_CANDIDATES = 3;
   private static final int DEFAULT_TEMPLATE_SEED_QUERIES = 100;
+  private static final int DEFAULT_TEMPLATE_SCHEMA_QUERIES = 0;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -81,6 +82,7 @@ public class WarmerConfig {
   private final int peerMaxCandidates;
   private final int templateSeedQueries;
   private TemplateLibrarySettings templateLibrary = TemplateLibrarySettings.DISABLED;
+  private int templateSchemaQueries = DEFAULT_TEMPLATE_SCHEMA_QUERIES;
 
   /**
    * Template library settings of the TEMPLATE strategy.
@@ -428,11 +430,37 @@ public class WarmerConfig {
             peerMaxCandidates,
             templateSeedQueries);
     config.templateLibrary = templateLibrary;
+    config.setTemplateSchemaQueries(
+        configReader.getInteger(
+            CONFIG_PREFIX + "templateSchemaQueries", DEFAULT_TEMPLATE_SCHEMA_QUERIES));
     return config;
   }
 
   public int getTemplateSeedQueries() {
     return templateSeedQueries;
+  }
+
+  /**
+   * Number of schema generated queries the TEMPLATE strategy replays after its template queries, 0
+   * to replay only template queries.
+   */
+  public int getTemplateSchemaQueries() {
+    return templateSchemaQueries;
+  }
+
+  /**
+   * Set the schema queries replayed after template queries, for configs built with a constructor.
+   */
+  public WarmerConfig withTemplateSchemaQueries(int templateSchemaQueries) {
+    setTemplateSchemaQueries(templateSchemaQueries);
+    return this;
+  }
+
+  private void setTemplateSchemaQueries(int templateSchemaQueries) {
+    if (templateSchemaQueries < 0) {
+      throw new IllegalArgumentException("templateSchemaQueries must be >= 0");
+    }
+    this.templateSchemaQueries = templateSchemaQueries;
   }
 
   public TemplateLibrarySettings getTemplateLibrary() {

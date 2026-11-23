@@ -1103,6 +1103,7 @@ public class ShardState implements Closeable {
                       peerSource,
                       warmerConfig.getTemplateSeedQueries(),
                       schemaQueries,
+                      warmerConfig.getTemplateSchemaQueries(),
                       durationMs,
                       stop);
           case S3 ->
