@@ -577,9 +577,7 @@ public class Warmer {
     long startNs = System.nanoTime();
     List<SearchRequest> requests;
     try {
-      requests =
-          new SchemaWarmingQueryGenerator(indexState, queryFilter.getMaxQueryTopHits())
-              .generate(numQueries);
+      requests = generateSchemaQueries(indexState, numQueries);
     } catch (IOException | RuntimeException e) {
       logger.warn(
           "Failed to generate schema warming queries for index: {}, falling back to S3", index, e);
@@ -604,6 +602,13 @@ public class Warmer {
         stopRequested,
         startNs,
         SCHEMA_QUERY_TYPE);
+  }
+
+  @VisibleForTesting
+  List<SearchRequest> generateSchemaQueries(IndexState indexState, int numQueries)
+      throws IOException {
+    return new SchemaWarmingQueryGenerator(indexState, queryFilter.getMaxQueryTopHits())
+        .generate(numQueries);
   }
 
   /**
@@ -634,6 +639,27 @@ public class Warmer {
       long maxDurationMs,
       AtomicBoolean stopRequested)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    warmFromTemplate(
+        indexState, parallelism, peerSource, numSeeds, numQueries, 0, maxDurationMs, stopRequested);
+  }
+
+  /**
+   * Same as {@link #warmFromTemplate(IndexState, int, PeerWarmingQuerySource, int, int, long,
+   * AtomicBoolean)}, then replay numSchemaQueries schema generated queries in the time left.
+   *
+   * @param numSchemaQueries schema generated queries to replay after the template queries, 0 for
+   *     none. Not replayed when template warming fell back to SCHEMA.
+   */
+  public void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     try (Timer _timer =
         BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
       SearchHandler searchHandler =
@@ -645,6 +671,7 @@ public class Warmer {
           peerSource,
           numSeeds,
           numQueries,
+          numSchemaQueries,
           maxDurationMs,
           stopRequested);
     }
@@ -658,6 +685,30 @@ public class Warmer {
       PeerWarmingQuerySource peerSource,
       int numSeeds,
       int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    warmFromTemplate(
+        indexState,
+        parallelism,
+        searchHandler,
+        peerSource,
+        numSeeds,
+        numQueries,
+        0,
+        maxDurationMs,
+        stopRequested);
+  }
+
+  @VisibleForTesting
+  void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      int numSchemaQueries,
       long maxDurationMs,
       AtomicBoolean stopRequested)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
@@ -727,6 +778,63 @@ public class Warmer {
         stopRequested,
         startNs,
         TEMPLATE_QUERY_TYPE);
+    if (numSchemaQueries > 0) {
+      warmFromSchemaAfterTemplate(
+          indexState,
+          parallelism,
+          searchHandler,
+          numSchemaQueries,
+          maxDurationMs,
+          stopRequested,
+          startNs);
+    }
+  }
+
+  /**
+   * Replay schema generated queries after template queries, sharing the max duration. Unlike {@link
+   * WarmerConfig.WarmingStrategy#SCHEMA}, nothing falls back to S3 if no schema query can be
+   * generated, since the index is already warmed by the template queries.
+   */
+  private void warmFromSchemaAfterTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested,
+      long startNs)
+      throws InterruptedException {
+    if (stopRequested.get()
+        || (maxDurationMs > 0
+            && System.nanoTime() - startNs >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs))) {
+      logger.info(
+          "No time left for schema warming queries after template queries for index: {}", index);
+      return;
+    }
+    List<SearchRequest> schemaRequests;
+    try {
+      schemaRequests =
+          filtered(generateSchemaQueries(indexState, numSchemaQueries), indexState.docLookup);
+    } catch (IOException | RuntimeException e) {
+      logger.warn(
+          "Failed to generate schema warming queries after template queries for index: {}",
+          index,
+          e);
+      return;
+    }
+    if (schemaRequests.isEmpty()) {
+      logger.info("No schema warming queries after template queries for index: {}", index);
+      return;
+    }
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        schemaRequests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        SCHEMA_QUERY_TYPE);
   }
 
   private List<SearchRequest> filtered(List<SearchRequest> requests, DocLookup docLookup) {

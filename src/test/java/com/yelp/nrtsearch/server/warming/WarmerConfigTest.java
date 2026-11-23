@@ -125,6 +125,28 @@ public class WarmerConfigTest {
   }
 
   @Test
+  public void testTemplateSchemaQueries() {
+    assertEquals(
+        0,
+        getConfig(String.join("\n", "warmer:", "  warmingStrategy: template"))
+            .getTemplateSchemaQueries());
+    WarmerConfig config =
+        getConfig(
+            String.join(
+                "\n", "warmer:", "  warmingStrategy: template", "  templateSchemaQueries: 2000"));
+    assertEquals(2000, config.getTemplateSchemaQueries());
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            getConfig(
+                String.join(
+                    "\n",
+                    "warmer:",
+                    "  warmingStrategy: template",
+                    "  templateSchemaQueries: -1")));
+  }
+
+  @Test
   public void testTemplateLibraryDefaults() {
     WarmerConfig config = getConfig(String.join("\n", "warmer:", "  warmingStrategy: template"));
     WarmerConfig.TemplateLibrarySettings library = config.getTemplateLibrary();
