@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.BooleanClause;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -82,15 +83,43 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
     return new SchemaWarmingQueryGenerator(indexState, new Random(42)).generate(numQueries);
   }
 
+  /** Requests of the filter stage: term, term set and range leaves under FILTER clauses. */
+  static boolean isFilterRequest(SearchRequest request) {
+    if (!request.hasQuery()
+        || request.hasQuerySort()
+        || request.getVirtualFieldsCount() > 0
+        || request.getCollectorsCount() > 0) {
+      return false;
+    }
+    Query query = request.getQuery();
+    if (query.hasBooleanQuery()) {
+      return query.getBooleanQuery().getClausesList().stream()
+          .allMatch(c -> c.getOccur() == BooleanClause.Occur.FILTER && isLeaf(c.getQuery()));
+    }
+    return isLeaf(query);
+  }
+
+  private static boolean isLeaf(Query query) {
+    return query.hasTermQuery() || query.hasTermInSetQuery() || query.hasRangeQuery();
+  }
+
+  private List<SearchRequest> filterRequests(int numQueries) throws IOException {
+    return generate(numQueries).stream()
+        .filter(SchemaWarmingQueryGeneratorTest::isFilterRequest)
+        .toList();
+  }
+
   @Test
   public void testGeneratesAllStages() throws IOException {
     List<SearchRequest> requests = generate(100);
 
-    List<SearchRequest> filterRequests = requests.stream().filter(SearchRequest::hasQuery).toList();
-    assertEquals(100, filterRequests.size());
-    // 60% single field, term set queries are single field too
+    // half filter queries, the other half structured
+    List<SearchRequest> filterRequests =
+        requests.stream().filter(SchemaWarmingQueryGeneratorTest::isFilterRequest).toList();
+    assertEquals(50, filterRequests.size());
+    // 60% of the filter queries are single field, term set queries are single field too
     assertEquals(
-        60,
+        30,
         filterRequests.stream()
             .filter(r -> r.getQuery().getQueryNodeCase() != Query.QueryNodeCase.BOOLEANQUERY)
             .count());
@@ -98,6 +127,20 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
         filterRequests.stream()
             .filter(r -> r.getQuery().hasBooleanQuery())
             .allMatch(r -> r.getQuery().getBooleanQuery().getClausesCount() >= 2));
+
+    // structured queries for the kinds this index supports, it has no geo or nested fields
+    assertTrue(requests.stream().anyMatch(SearchRequest::hasQuerySort));
+    assertTrue(requests.stream().anyMatch(r -> r.getVirtualFieldsCount() > 0));
+    assertTrue(requests.stream().anyMatch(r -> r.getCollectorsCount() > 0));
+    assertTrue(
+        requests.stream()
+            .flatMap(r -> SchemaWarmingStructuredQueriesTest.allQueries(r).stream())
+            .anyMatch(Query::hasMatchQuery));
+    assertTrue(
+        requests.stream()
+            .filter(r -> r.getQuery().hasBooleanQuery())
+            .flatMap(r -> r.getQuery().getBooleanQuery().getClausesList().stream())
+            .anyMatch(c -> c.getOccur() == BooleanClause.Occur.MUST_NOT));
 
     // one facet request covering the single faceted field
     List<SearchRequest> facetRequests =
@@ -124,7 +167,7 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
   @Test
   public void testSingleFieldStageCoversSupportedFields() throws IOException {
     Set<String> fields = new HashSet<>();
-    for (SearchRequest request : generate(100)) {
+    for (SearchRequest request : filterRequests(100)) {
       Query query = request.getQuery();
       if (query.hasTermQuery()) {
         fields.add(query.getTermQuery().getField());
@@ -134,7 +177,7 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
         fields.add(query.getRangeQuery().getField());
       }
     }
-    // TEXT fields are skipped, their analyzed terms do not match how they are queried
+    // TEXT fields are only used in match queries, their analyzed terms do not match term queries
     assertEquals(
         Set.of(
             "category",
@@ -182,12 +225,15 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   @Test
   public void testVariesTopHits() throws IOException {
+    List<SearchRequest> requests = generate(100);
     Set<Integer> topHits =
-        generate(100).stream()
-            .filter(SearchRequest::hasQuery)
+        requests.stream()
+            .filter(SchemaWarmingQueryGeneratorTest::isFilterRequest)
             .map(SearchRequest::getTopHits)
             .collect(Collectors.toSet());
     assertEquals(Set.of(10, 30, 100), topHits);
+    // structured queries fetch up to a few hundred hits, like queries that are rescored
+    assertTrue(requests.stream().anyMatch(r -> r.getTopHits() > 100));
   }
 
   @Test
@@ -206,12 +252,16 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   @Test
   public void testNoDuplicateQueries() throws IOException {
+    List<SearchRequest> requests = generate(100);
     List<Query> queries =
-        generate(100).stream()
-            .filter(SearchRequest::hasQuery)
+        requests.stream()
+            .filter(SchemaWarmingQueryGeneratorTest::isFilterRequest)
             .map(SearchRequest::getQuery)
             .toList();
     assertEquals(queries.size(), new HashSet<>(queries).size());
+    // structured requests are distinct too, kNN requests may repeat a seed vector
+    List<SearchRequest> withQuery = requests.stream().filter(SearchRequest::hasQuery).toList();
+    assertEquals(withQuery.size(), new HashSet<>(withQuery).size());
   }
 
   @Test
@@ -252,6 +302,14 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
     assertTrue(
         "only " + withHits + " of " + requests.size() + " returned hits",
         withHits > requests.size() / 2);
+  }
+
+  @Test
+  public void testMaxTopHitsCapsQueries() throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    List<SearchRequest> requests =
+        new SchemaWarmingQueryGenerator(indexState, new Random(42), 50).generate(100);
+    assertTrue(requests.stream().allMatch(r -> r.getTopHits() <= 50));
   }
 
   @Test

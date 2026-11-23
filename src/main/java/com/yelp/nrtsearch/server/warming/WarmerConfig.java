@@ -29,6 +29,11 @@ public class WarmerConfig {
      * Falls back to {@link WarmerConfig#getPeerFallbackStrategy()} if no peer qualifies.
      */
     PEER,
+    /**
+     * Generate queries from the templates of a few real queries, with values from the documents
+     * they return. Seeds come from a running peer, or the S3 corpus. Falls back to SCHEMA.
+     */
+    TEMPLATE,
     /** Do not warm. Only valid as the PEER fallback strategy. */
     NONE
   }
@@ -53,6 +58,8 @@ public class WarmerConfig {
   private static final long DEFAULT_PEER_MAX_BYTES = 64L * 1024 * 1024;
   private static final int DEFAULT_PEER_TIMEOUT_MS = 30_000;
   private static final int DEFAULT_PEER_MAX_CANDIDATES = 3;
+  private static final int DEFAULT_TEMPLATE_SEED_QUERIES = 100;
+  private static final int DEFAULT_TEMPLATE_SCHEMA_QUERIES = 0;
 
   private final int maxWarmingQueries;
   private final int warmingParallelism;
@@ -73,6 +80,53 @@ public class WarmerConfig {
   private final long peerMaxBytes;
   private final int peerTimeoutMs;
   private final int peerMaxCandidates;
+  private final int templateSeedQueries;
+  private TemplateLibrarySettings templateLibrary = TemplateLibrarySettings.DISABLED;
+  private int templateSchemaQueries = DEFAULT_TEMPLATE_SCHEMA_QUERIES;
+
+  /**
+   * Template library settings of the TEMPLATE strategy.
+   *
+   * @param enabled store the learned templates in the remote backend, load them on startup instead
+   *     of learning from seed queries, and relearn when live queries stop matching them
+   * @param relearnMatchThreshold relearn when the share of checked live queries matching a template
+   *     falls below this
+   * @param driftCheckEvery check one in every this many collected live queries
+   * @param driftWindow number of checks the match share is computed over
+   * @param relearnCooldownMinutes minimum time between two relearns started by this replica
+   * @param decay weight multiplier of existing templates at each relearn, so templates that stop
+   *     occurring fade out
+   * @param minWeight templates whose weight falls below this are dropped
+   * @param relearnMinQueries minimum collected queries to relearn from
+   */
+  public record TemplateLibrarySettings(
+      boolean enabled,
+      double relearnMatchThreshold,
+      int driftCheckEvery,
+      int driftWindow,
+      int relearnCooldownMinutes,
+      double decay,
+      double minWeight,
+      int relearnMinQueries) {
+    public static final TemplateLibrarySettings DISABLED =
+        new TemplateLibrarySettings(false, 0.95, 100, 1000, 360, 0.5, 0.5, 100);
+
+    public TemplateLibrarySettings {
+      if (relearnMatchThreshold <= 0 || relearnMatchThreshold > 1) {
+        throw new IllegalArgumentException("templateRelearnMatchThreshold must be in (0, 1]");
+      }
+      if (driftCheckEvery <= 0 || driftWindow <= 0 || relearnMinQueries <= 0) {
+        throw new IllegalArgumentException(
+            "templateDriftCheckEvery, templateDriftWindow and templateRelearnMinQueries must be"
+                + " positive");
+      }
+      if (relearnCooldownMinutes < 0 || decay <= 0 || decay > 1 || minWeight < 0) {
+        throw new IllegalArgumentException(
+            "templateRelearnCooldownMinutes must be >= 0, templateLibraryDecay in (0, 1] and"
+                + " templateLibraryMinWeight >= 0");
+      }
+    }
+  }
 
   /**
    * Configuration for warmer.
@@ -197,13 +251,68 @@ public class WarmerConfig {
       long peerMaxBytes,
       int peerTimeoutMs,
       int peerMaxCandidates) {
+    this(
+        maxWarmingQueries,
+        warmingParallelism,
+        warmBasicQueryOnlyPerc,
+        warmOnStartup,
+        padWithDownloadedRequests,
+        filterMatchAllQueries,
+        maxQueryTopHits,
+        maxQueryLatencyMs,
+        queryTimeoutMs,
+        maxWarmingDurationMs,
+        maxVectorCandidates,
+        warmingStrategy,
+        schemaWarmingQueries,
+        peerFallbackStrategy,
+        peerMinQueries,
+        peerMinUptimeMinutes,
+        peerMaxBytes,
+        peerTimeoutMs,
+        peerMaxCandidates,
+        DEFAULT_TEMPLATE_SEED_QUERIES);
+  }
+
+  /**
+   * Configuration for warmer, including the TEMPLATE strategy settings. See the constructors above
+   * for the other parameters.
+   *
+   * @param templateSeedQueries number of real queries the TEMPLATE strategy learns templates from
+   */
+  public WarmerConfig(
+      int maxWarmingQueries,
+      int warmingParallelism,
+      int warmBasicQueryOnlyPerc,
+      boolean warmOnStartup,
+      boolean padWithDownloadedRequests,
+      boolean filterMatchAllQueries,
+      int maxQueryTopHits,
+      int maxQueryLatencyMs,
+      int queryTimeoutMs,
+      int maxWarmingDurationMs,
+      int maxVectorCandidates,
+      WarmingStrategy warmingStrategy,
+      int schemaWarmingQueries,
+      WarmingStrategy peerFallbackStrategy,
+      int peerMinQueries,
+      int peerMinUptimeMinutes,
+      long peerMaxBytes,
+      int peerTimeoutMs,
+      int peerMaxCandidates,
+      int templateSeedQueries) {
     if (warmingStrategy == WarmingStrategy.NONE) {
       throw new IllegalArgumentException(
           "warmingStrategy NONE is only valid as peerFallbackStrategy, disable warmOnStartup instead");
     }
-    if (peerFallbackStrategy == WarmingStrategy.PEER) {
-      throw new IllegalArgumentException("peerFallbackStrategy cannot be PEER");
+    if (peerFallbackStrategy == WarmingStrategy.PEER
+        || peerFallbackStrategy == WarmingStrategy.TEMPLATE) {
+      throw new IllegalArgumentException("peerFallbackStrategy cannot be " + peerFallbackStrategy);
     }
+    if (templateSeedQueries <= 0) {
+      throw new IllegalArgumentException("templateSeedQueries must be positive");
+    }
+    this.templateSeedQueries = templateSeedQueries;
     this.peerFallbackStrategy = peerFallbackStrategy;
     this.peerMinQueries = peerMinQueries;
     this.peerMinUptimeMinutes = peerMinUptimeMinutes;
@@ -280,27 +389,88 @@ public class WarmerConfig {
         configReader.getInteger(CONFIG_PREFIX + "peerTimeoutMs", DEFAULT_PEER_TIMEOUT_MS);
     int peerMaxCandidates =
         configReader.getInteger(CONFIG_PREFIX + "peerMaxCandidates", DEFAULT_PEER_MAX_CANDIDATES);
+    int templateSeedQueries =
+        configReader.getInteger(
+            CONFIG_PREFIX + "templateSeedQueries", DEFAULT_TEMPLATE_SEED_QUERIES);
+    TemplateLibrarySettings d = TemplateLibrarySettings.DISABLED;
+    TemplateLibrarySettings templateLibrary =
+        new TemplateLibrarySettings(
+            configReader.getBoolean(CONFIG_PREFIX + "templateLibrary", false),
+            configReader.getDouble(
+                CONFIG_PREFIX + "templateRelearnMatchThreshold", d.relearnMatchThreshold()),
+            configReader.getInteger(CONFIG_PREFIX + "templateDriftCheckEvery", d.driftCheckEvery()),
+            configReader.getInteger(CONFIG_PREFIX + "templateDriftWindow", d.driftWindow()),
+            configReader.getInteger(
+                CONFIG_PREFIX + "templateRelearnCooldownMinutes", d.relearnCooldownMinutes()),
+            configReader.getDouble(CONFIG_PREFIX + "templateLibraryDecay", d.decay()),
+            configReader.getDouble(CONFIG_PREFIX + "templateLibraryMinWeight", d.minWeight()),
+            configReader.getInteger(
+                CONFIG_PREFIX + "templateRelearnMinQueries", d.relearnMinQueries()));
 
-    return new WarmerConfig(
-        maxWarmingQueries,
-        warmingParallelism,
-        warmBasicQueryOnlyPerc,
-        warmOnStartup,
-        padWithDownloadedRequests,
-        filterMatchAllQueries,
-        maxQueryTopHits,
-        maxQueryLatencyMs,
-        queryTimeoutMs,
-        maxWarmingDurationMs,
-        maxVectorCandidates,
-        warmingStrategy,
-        schemaWarmingQueries,
-        peerFallbackStrategy,
-        peerMinQueries,
-        peerMinUptimeMinutes,
-        peerMaxBytes,
-        peerTimeoutMs,
-        peerMaxCandidates);
+    WarmerConfig config =
+        new WarmerConfig(
+            maxWarmingQueries,
+            warmingParallelism,
+            warmBasicQueryOnlyPerc,
+            warmOnStartup,
+            padWithDownloadedRequests,
+            filterMatchAllQueries,
+            maxQueryTopHits,
+            maxQueryLatencyMs,
+            queryTimeoutMs,
+            maxWarmingDurationMs,
+            maxVectorCandidates,
+            warmingStrategy,
+            schemaWarmingQueries,
+            peerFallbackStrategy,
+            peerMinQueries,
+            peerMinUptimeMinutes,
+            peerMaxBytes,
+            peerTimeoutMs,
+            peerMaxCandidates,
+            templateSeedQueries);
+    config.templateLibrary = templateLibrary;
+    config.setTemplateSchemaQueries(
+        configReader.getInteger(
+            CONFIG_PREFIX + "templateSchemaQueries", DEFAULT_TEMPLATE_SCHEMA_QUERIES));
+    return config;
+  }
+
+  public int getTemplateSeedQueries() {
+    return templateSeedQueries;
+  }
+
+  /**
+   * Number of schema generated queries the TEMPLATE strategy replays after its template queries, 0
+   * to replay only template queries.
+   */
+  public int getTemplateSchemaQueries() {
+    return templateSchemaQueries;
+  }
+
+  /**
+   * Set the schema queries replayed after template queries, for configs built with a constructor.
+   */
+  public WarmerConfig withTemplateSchemaQueries(int templateSchemaQueries) {
+    setTemplateSchemaQueries(templateSchemaQueries);
+    return this;
+  }
+
+  private void setTemplateSchemaQueries(int templateSchemaQueries) {
+    if (templateSchemaQueries < 0) {
+      throw new IllegalArgumentException("templateSchemaQueries must be >= 0");
+    }
+    this.templateSchemaQueries = templateSchemaQueries;
+  }
+
+  public TemplateLibrarySettings getTemplateLibrary() {
+    return templateLibrary;
+  }
+
+  /** Set the template library settings, for configs built with a constructor. */
+  public WarmerConfig withTemplateLibrary(TemplateLibrarySettings templateLibrary) {
+    this.templateLibrary = templateLibrary;
+    return this;
   }
 
   public int getMaxWarmingQueries() {

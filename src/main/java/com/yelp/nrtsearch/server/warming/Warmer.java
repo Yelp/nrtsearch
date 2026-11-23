@@ -75,6 +75,8 @@ public class Warmer {
   private static final long MIN_REPLAY_WAIT_MS = 10_000;
   // type label of replayed queries generated from the index schema, see warmFromSchema
   static final String SCHEMA_QUERY_TYPE = "schema";
+  // type label of replayed queries generated from templates of real queries, see warmFromTemplate
+  static final String TEMPLATE_QUERY_TYPE = "template";
   // strategy label values for BootstrapMetrics.warmingStrategyInfo
   static final String S3_STRATEGY = "s3";
   static final String PEER_STRATEGY = "peer";
@@ -95,6 +97,10 @@ public class Warmer {
   private final int queryTimeoutMs;
   protected final ThreadLocal<Random> randomThreadLocal;
   private long minReplayWaitMs = MIN_REPLAY_WAIT_MS;
+  // TEMPLATE strategy library, null unless enableTemplateLibrary was called
+  private volatile WarmerConfig.TemplateLibrarySettings librarySettings;
+  private volatile TemplateDriftMonitor driftMonitor;
+  private volatile TemplateWarmingQueryGenerator templateLibrary;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
     this(remoteBackend, service, index, maxWarmingQueries, 0);
@@ -178,6 +184,10 @@ public class Warmer {
       SearchRequest searchRequest, double latencyMs, DocLookup docLookup) {
     if (queryFilter.checkCollected(searchRequest, latencyMs, docLookup) != null) {
       return;
+    }
+    TemplateDriftMonitor monitor = driftMonitor;
+    if (monitor != null) {
+      monitor.observe(searchRequest);
     }
     ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
     if (sampleResult.isSample()) {
@@ -567,7 +577,7 @@ public class Warmer {
     long startNs = System.nanoTime();
     List<SearchRequest> requests;
     try {
-      requests = new SchemaWarmingQueryGenerator(indexState).generate(numQueries);
+      requests = generateSchemaQueries(indexState, numQueries);
     } catch (IOException | RuntimeException e) {
       logger.warn(
           "Failed to generate schema warming queries for index: {}, falling back to S3", index, e);
@@ -584,7 +594,502 @@ public class Warmer {
       return;
     }
     warmFromRequests(
-        indexState, parallelism, searchHandler, requests, maxDurationMs, stopRequested, startNs);
+        indexState,
+        parallelism,
+        searchHandler,
+        requests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        SCHEMA_QUERY_TYPE);
+  }
+
+  @VisibleForTesting
+  List<SearchRequest> generateSchemaQueries(IndexState indexState, int numQueries)
+      throws IOException {
+    return new SchemaWarmingQueryGenerator(indexState, queryFilter.getMaxQueryTopHits())
+        .generate(numQueries);
+  }
+
+  /**
+   * Warm the index with queries generated from the templates of a few real queries, see {@link
+   * TemplateWarmingQueryGenerator}. The seed queries come from a running peer replica, or from the
+   * S3 corpus if no peer provides them. The seeds are run first, with their retrieve fields
+   * replaced by the template fields, to build the value pool from the documents real queries
+   * return. Then numQueries generated queries are replayed like schema queries. Falls back to
+   * {@link WarmerConfig.WarmingStrategy#SCHEMA} if there are no seeds or no queries can be
+   * generated.
+   *
+   * @param indexState index to warm
+   * @param parallelism number of queries to run in parallel
+   * @param peerSource source of seed queries from a peer
+   * @param numSeeds number of real queries to learn templates from
+   * @param numQueries number of queries to generate
+   * @param maxDurationMs stop starting new queries after this long, including fetching seeds and
+   *     building the value pool, 0 for no limit
+   * @param stopRequested when set, stop starting new queries, see {@link #warmFromS3(IndexState,
+   *     int, long, AtomicBoolean)}
+   */
+  public void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    warmFromTemplate(
+        indexState, parallelism, peerSource, numSeeds, numQueries, 0, maxDurationMs, stopRequested);
+  }
+
+  /**
+   * Same as {@link #warmFromTemplate(IndexState, int, PeerWarmingQuerySource, int, int, long,
+   * AtomicBoolean)}, then replay numSchemaQueries schema generated queries in the time left.
+   *
+   * @param numSchemaQueries schema generated queries to replay after the template queries, 0 for
+   *     none. Not replayed when template warming fell back to SCHEMA.
+   */
+  public void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    try (Timer _timer =
+        BootstrapMetrics.warmingQueryTimer.labelValues(service, index).startTimer()) {
+      SearchHandler searchHandler =
+          new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
+      warmFromTemplate(
+          indexState,
+          parallelism,
+          searchHandler,
+          peerSource,
+          numSeeds,
+          numQueries,
+          numSchemaQueries,
+          maxDurationMs,
+          stopRequested);
+    }
+  }
+
+  @VisibleForTesting
+  void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    warmFromTemplate(
+        indexState,
+        parallelism,
+        searchHandler,
+        peerSource,
+        numSeeds,
+        numQueries,
+        0,
+        maxDurationMs,
+        stopRequested);
+  }
+
+  @VisibleForTesting
+  void warmFromTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      PeerWarmingQuerySource peerSource,
+      int numSeeds,
+      int numQueries,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested)
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    long startNs = System.nanoTime();
+    DocLookup docLookup = indexState.docLookup;
+    boolean useLibrary = librarySettings != null && librarySettings.enabled();
+    TemplateWarmingQueryGenerator generator = null;
+    // real queries run to build the value pool: the seeds, or library queries with real values
+    List<SearchRequest> poolQueries = List.of();
+    String source = "none";
+    if (useLibrary) {
+      generator = loadTemplateLibrary();
+      if (generator != null && generator.getNumTemplates() > 0) {
+        source = "library";
+        poolQueries = filtered(generator.generate(numSeeds), docLookup);
+      } else {
+        generator = null;
+      }
+    }
+    if (generator == null) {
+      // seeds and generated queries pass the same guardrails as replayed stored queries; the S3
+      // corpus may predate them
+      List<SearchRequest> seeds = filtered(fetchTemplateSeeds(peerSource, numSeeds), docLookup);
+      if (!seeds.isEmpty()) {
+        generator = new TemplateWarmingQueryGenerator(seeds, new Random());
+        poolQueries = seeds;
+        source = "learned";
+        if (useLibrary && generator.getNumTemplates() > 0) {
+          // learn once: later startups load this library instead of learning from seeds
+          storeTemplateLibrary(generator);
+        }
+      }
+    }
+    WarmingMetrics.warmingTemplateLibraryCount.labelValues(index, source).inc();
+    if (useLibrary) {
+      setLibrary(generator);
+    }
+    List<SearchRequest> requests = List.of();
+    if (generator != null && generator.getNumTemplates() > 0) {
+      try {
+        if (!poolQueries.isEmpty()) {
+          buildTemplateValuePool(indexState, searchHandler, generator, poolQueries, stopRequested);
+        }
+        requests = filtered(generator.generate(numQueries), docLookup);
+      } catch (RuntimeException e) {
+        logger.warn("Failed to generate template warming queries for index: {}", index, e);
+        requests = List.of();
+      }
+    }
+    if (requests.isEmpty()) {
+      logger.info("No template warming queries for index: {}, falling back to SCHEMA", index);
+      warmFromSchema(
+          indexState,
+          parallelism,
+          searchHandler,
+          numQueries,
+          remainingMs(maxDurationMs, startNs),
+          stopRequested);
+      return;
+    }
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        requests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        TEMPLATE_QUERY_TYPE);
+    if (numSchemaQueries > 0) {
+      warmFromSchemaAfterTemplate(
+          indexState,
+          parallelism,
+          searchHandler,
+          numSchemaQueries,
+          maxDurationMs,
+          stopRequested,
+          startNs);
+    }
+  }
+
+  /**
+   * Replay schema generated queries after template queries, sharing the max duration. Unlike {@link
+   * WarmerConfig.WarmingStrategy#SCHEMA}, nothing falls back to S3 if no schema query can be
+   * generated, since the index is already warmed by the template queries.
+   */
+  private void warmFromSchemaAfterTemplate(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested,
+      long startNs)
+      throws InterruptedException {
+    if (stopRequested.get()
+        || (maxDurationMs > 0
+            && System.nanoTime() - startNs >= TimeUnit.MILLISECONDS.toNanos(maxDurationMs))) {
+      logger.info(
+          "No time left for schema warming queries after template queries for index: {}", index);
+      return;
+    }
+    List<SearchRequest> schemaRequests;
+    try {
+      schemaRequests =
+          filtered(generateSchemaQueries(indexState, numSchemaQueries), indexState.docLookup);
+    } catch (IOException | RuntimeException e) {
+      logger.warn(
+          "Failed to generate schema warming queries after template queries for index: {}",
+          index,
+          e);
+      return;
+    }
+    if (schemaRequests.isEmpty()) {
+      logger.info("No schema warming queries after template queries for index: {}", index);
+      return;
+    }
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        schemaRequests,
+        maxDurationMs,
+        stopRequested,
+        startNs,
+        SCHEMA_QUERY_TYPE);
+  }
+
+  private List<SearchRequest> filtered(List<SearchRequest> requests, DocLookup docLookup) {
+    List<SearchRequest> out = new ArrayList<>(requests.size());
+    for (SearchRequest r : requests) {
+      if (queryFilter.checkReplay(r, docLookup) == null) {
+        out.add(r);
+      }
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------------ template library
+
+  /**
+   * Store learned templates in the remote backend, load them on startup, and relearn them from
+   * collected live queries when those stop matching. Only used by the TEMPLATE strategy.
+   */
+  public void enableTemplateLibrary(WarmerConfig.TemplateLibrarySettings settings) {
+    enableTemplateLibrary(
+        settings,
+        new TemplateDriftMonitor(
+            index,
+            settings.driftCheckEvery(),
+            settings.driftWindow(),
+            settings.relearnMatchThreshold(),
+            TimeUnit.MINUTES.toMillis(settings.relearnCooldownMinutes()),
+            this::relearnTemplates));
+  }
+
+  @VisibleForTesting
+  void enableTemplateLibrary(
+      WarmerConfig.TemplateLibrarySettings settings, TemplateDriftMonitor monitor) {
+    this.librarySettings = settings;
+    this.driftMonitor = monitor;
+  }
+
+  @VisibleForTesting
+  TemplateWarmingQueryGenerator getTemplateLibrary() {
+    return templateLibrary;
+  }
+
+  @VisibleForTesting
+  TemplateDriftMonitor getDriftMonitor() {
+    return driftMonitor;
+  }
+
+  /**
+   * Use the given templates as the library, and check live queries against them. With no templates,
+   * every check misses, so the first full check window triggers learning from the collected live
+   * queries.
+   */
+  private void setLibrary(TemplateWarmingQueryGenerator library) {
+    templateLibrary = library;
+    if (driftMonitor != null) {
+      driftMonitor.setLibraryKeys(library == null ? Set.of() : library.templateKeys());
+    }
+  }
+
+  private TemplateWarmingQueryGenerator loadTemplateLibrary() {
+    try {
+      if (!remoteBackend.exists(service, index, IndexResourceType.WARMING_TEMPLATES)) {
+        logger.info("No template warming library for index: {}", index);
+        return null;
+      }
+      try (InputStream in = remoteBackend.downloadWarmingTemplates(service, index)) {
+        TemplateWarmingQueryGenerator library =
+            TemplateWarmingQueryGenerator.fromLibrary(
+                new String(in.readAllBytes(), StandardCharsets.UTF_8), new Random());
+        logger.info(
+            "Loaded template warming library for index: {} with {} templates",
+            index,
+            library.getNumTemplates());
+        return library;
+      }
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to load the template warming library for index: {}", index, e);
+      return null;
+    }
+  }
+
+  private boolean storeTemplateLibrary(TemplateWarmingQueryGenerator library) {
+    try {
+      byte[] data = library.toLibrary().getBytes(StandardCharsets.UTF_8);
+      remoteBackend.uploadWarmingTemplates(service, index, data);
+      logger.info(
+          "Stored template warming library for index: {} with {} templates, size: {}",
+          index,
+          library.getNumTemplates(),
+          data.length);
+      return true;
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to store the template warming library for index: {}", index, e);
+      return false;
+    }
+  }
+
+  /**
+   * Learn templates from the collected live queries, merge them into the library and store it.
+   * Called by the drift monitor on a background thread when the match ratio drops.
+   *
+   * @return keys of the new library, or null if there are too few collected queries
+   */
+  @VisibleForTesting
+  Set<String> relearnTemplates(double matchRatio) {
+    List<SearchRequest> corpus;
+    synchronized (warmingRequests) {
+      corpus = new ArrayList<>(warmingRequests);
+    }
+    if (corpus.size() < librarySettings.relearnMinQueries()) {
+      logger.info(
+          "Not relearning templates for index: {}, only {} collected queries",
+          index,
+          corpus.size());
+      return null;
+    }
+    TemplateWarmingQueryGenerator learned = new TemplateWarmingQueryGenerator(corpus, new Random());
+    TemplateWarmingQueryGenerator current = templateLibrary;
+    TemplateWarmingQueryGenerator merged =
+        current == null
+            ? learned
+            : current.merge(learned, librarySettings.decay(), librarySettings.minWeight());
+    if (!storeTemplateLibrary(merged)) {
+      throw new IllegalStateException("Unable to store the relearned template library");
+    }
+    templateLibrary = merged;
+    logger.info(
+        "Relearned templates for index: {} after match ratio {}: {} templates learned from {}"
+            + " queries, library now has {}",
+        index,
+        matchRatio,
+        learned.getNumTemplates(),
+        corpus.size(),
+        merged.getNumTemplates());
+    return merged.templateKeys();
+  }
+
+  /** Up to numSeeds parsable queries from a peer's corpus, else from the S3 corpus. */
+  private List<SearchRequest> fetchTemplateSeeds(PeerWarmingQuerySource peerSource, int numSeeds)
+      throws IOException {
+    List<SearchRequest> seeds = List.of();
+    if (peerSource != null) {
+      try {
+        Optional<PeerWarmingQuerySource.PeerWarmingQueries> fetched = peerSource.fetch();
+        if (fetched.isPresent()) {
+          seeds = readSeeds(new ByteArrayInputStream(fetched.get().content()), numSeeds);
+          logger.info(
+              "Template warming index: {} with {} seed queries from peer: {}",
+              index,
+              seeds.size(),
+              fetched.get().peer());
+        }
+      } catch (RuntimeException e) {
+        logger.warn("Failed to fetch template seed queries from a peer for index: {}", index, e);
+      }
+    }
+    if (seeds.isEmpty()
+        && remoteBackend.exists(service, index, IndexResourceType.WARMING_QUERIES)) {
+      seeds = readSeeds(remoteBackend.downloadWarmingQueries(service, index), numSeeds);
+      logger.info("Template warming index: {} with {} seed queries from S3", index, seeds.size());
+    }
+    return seeds;
+  }
+
+  private List<SearchRequest> readSeeds(InputStream queries, int numSeeds) throws IOException {
+    List<SearchRequest> seeds = new ArrayList<>();
+    try (BufferedReader reader =
+        new BufferedReader(new InputStreamReader(queries, StateUtils.getValidatingUTF8Decoder()))) {
+      String line;
+      while (seeds.size() < numSeeds && (line = reader.readLine()) != null) {
+        if (line.isBlank()) {
+          continue;
+        }
+        SearchRequest.Builder builder = SearchRequest.newBuilder();
+        try {
+          JsonFormat.parser().ignoringUnknownFields().merge(line, builder);
+          seeds.add(builder.build());
+        } catch (InvalidProtocolBufferException e) {
+          // skip, the corpus may contain a query this version can't parse
+        }
+      }
+    }
+    return seeds;
+  }
+
+  /**
+   * Run the seed queries with the template fields as retrieve fields, and add the returned
+   * documents to the generator's value pool. Fields that can't be retrieved, such as fields of
+   * nested documents, are dropped first, so they don't fail every pool query.
+   */
+  private void buildTemplateValuePool(
+      IndexState indexState,
+      SearchHandler searchHandler,
+      TemplateWarmingQueryGenerator generator,
+      List<SearchRequest> seeds,
+      AtomicBoolean stopRequested) {
+    List<String> fields = new ArrayList<>(generator.fields());
+    if (fields.isEmpty()) {
+      return;
+    }
+    SearchRequest probe = seeds.get(0);
+    if (!retrieves(indexState, searchHandler, probe, fields)) {
+      List<String> ok = new ArrayList<>();
+      for (String field : fields) {
+        if (retrieves(indexState, searchHandler, probe, List.of(field))) {
+          ok.add(field);
+        }
+      }
+      fields = ok;
+    }
+    if (fields.isEmpty()) {
+      return;
+    }
+    long startNs = System.nanoTime();
+    int failed = 0;
+    for (SearchRequest seed : seeds) {
+      if (stopRequested.get()) {
+        break;
+      }
+      try {
+        generator.addPoolHits(
+            searchHandler.handle(indexState, withRetrieveFields(seed, fields, indexState)));
+      } catch (RuntimeException | SearchHandler.SearchHandlerException e) {
+        failed++;
+      }
+    }
+    logger.info(
+        "Template warming value pool for index: {}: {} documents from {} seed queries ({} failed)"
+            + " and {} fields in {} ms",
+        index,
+        generator.getPoolSize(),
+        seeds.size(),
+        failed,
+        fields.size(),
+        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs));
+  }
+
+  private boolean retrieves(
+      IndexState indexState, SearchHandler searchHandler, SearchRequest seed, List<String> fields) {
+    try {
+      searchHandler.handle(indexState, withRetrieveFields(seed, fields, indexState));
+      return true;
+    } catch (RuntimeException | SearchHandler.SearchHandlerException e) {
+      return false;
+    }
+  }
+
+  private SearchRequest withRetrieveFields(
+      SearchRequest seed, List<String> fields, IndexState indexState) {
+    SearchRequest.Builder builder =
+        seed.toBuilder().clearRetrieveFields().addAllRetrieveFields(fields);
+    if (queryTimeoutMs > 0) {
+      applyQueryTimeout(builder, queryTimeoutMs, indexState);
+    }
+    return builder.build();
   }
 
   /**
@@ -678,8 +1183,9 @@ public class Warmer {
           warmFromSchema(
               indexState, parallelism, searchHandler, schemaQueries, remainingMs, stopRequested);
       case NONE -> BootstrapMetrics.warmingStrategyInfo.labelValues(index, "none").set(1);
-      case PEER ->
-          throw new IllegalArgumentException("Peer warming fallback strategy cannot be PEER");
+      case PEER, TEMPLATE ->
+          throw new IllegalArgumentException(
+              "Peer warming fallback strategy cannot be " + fallbackStrategy);
     }
   }
 
@@ -711,9 +1217,13 @@ public class Warmer {
         requests,
         0,
         new AtomicBoolean(),
-        System.nanoTime());
+        System.nanoTime(),
+        SCHEMA_QUERY_TYPE);
   }
 
+  /**
+   * @param queryType label for the warming strategy and query metrics: schema or template
+   */
   private void warmFromRequests(
       IndexState indexState,
       int parallelism,
@@ -721,9 +1231,10 @@ public class Warmer {
       List<SearchRequest> requests,
       long maxDurationMs,
       AtomicBoolean stopRequested,
-      long startNs)
+      long startNs,
+      String queryType)
       throws InterruptedException {
-    BootstrapMetrics.warmingStrategyInfo.labelValues(index, SCHEMA_QUERY_TYPE).set(1);
+    BootstrapMetrics.warmingStrategyInfo.labelValues(index, queryType).set(1);
     ThreadPoolExecutor threadPoolExecutor = createWarmingExecutor(parallelism);
     ScheduledExecutorService deadlineScheduler = createDeadlineScheduler();
     long startMS = System.currentTimeMillis();
@@ -756,7 +1267,7 @@ public class Warmer {
                     searchHandler,
                     deadlineScheduler,
                     searchRequest,
-                    SCHEMA_QUERY_TYPE,
+                    queryType,
                     position,
                     replayStats);
         if (threadPoolExecutor == null) {
@@ -767,10 +1278,11 @@ public class Warmer {
       }
       if (!shutdownAndWait(threadPoolExecutor)) {
         logger.warn(
-            "Warming index: {} still has {} schema warming queries running after waiting {} ms,"
+            "Warming index: {} still has {} {} warming queries running after waiting {} ms,"
                 + " they continue in the background",
             index,
             replayStats.inFlightPositions.size(),
+            queryType,
             replayWaitMs());
       }
     } finally {
@@ -783,21 +1295,24 @@ public class Warmer {
     if (stoppedByCaller) {
       logger.warn(
           "Warming index: {} stopped starting new queries since startup stopped waiting, skipped"
-              + " {} remaining schema warming queries",
+              + " {} remaining {} warming queries",
           index,
-          skipped);
+          skipped,
+          queryType);
     } else if (reachedMaxDuration) {
       logger.warn(
-          "Warming index: {} reached max warming duration of {} ms, skipped {} remaining schema"
+          "Warming index: {} reached max warming duration of {} ms, skipped {} remaining {}"
               + " warming queries",
           index,
           maxDurationMs,
-          skipped);
+          skipped,
+          queryType);
     }
     logger.info(
-        "Warmed index: {} with {} schema warming queries in {} seconds, timed out: {}, failed: {}.",
+        "Warmed index: {} with {} {} warming queries in {} seconds, timed out: {}, failed: {}.",
         index,
         started,
+        queryType,
         (System.currentTimeMillis() - startMS) / 1000.0,
         replayStats.timedOut.get(),
         replayStats.failed.get());

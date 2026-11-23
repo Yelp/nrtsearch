@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.core.metrics.Histogram;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import io.prometheus.metrics.model.snapshots.Unit;
@@ -81,6 +82,34 @@ public class WarmingMetrics {
           .labelNames("index", "outcome")
           .build();
 
+  public static final Gauge warmingTemplateMatchRatio =
+      Gauge.builder()
+          .name("nrt_warming_template_match_ratio")
+          .help(
+              "Share of checked live queries whose template is in the template warming library,"
+                  + " over the last check window.")
+          .labelNames("index")
+          .build();
+
+  public static final Counter warmingTemplateRelearnCount =
+      Counter.builder()
+          .name("nrt_warming_template_relearn_count")
+          .help(
+              "Number of template library relearns triggered by a low match ratio, by outcome"
+                  + " (success, skipped: too few collected queries, failure).")
+          .labelNames("index", "outcome")
+          .build();
+
+  public static final Counter warmingTemplateLibraryCount =
+      Counter.builder()
+          .name("nrt_warming_template_library_count")
+          .help(
+              "Number of startups with the TEMPLATE strategy, by template source (library: loaded"
+                  + " from the remote backend, learned: learned from seed queries, none: no"
+                  + " templates).")
+          .labelNames("index", "source")
+          .build();
+
   /**
    * Add all warming metrics to the collector registry.
    *
@@ -94,5 +123,8 @@ public class WarmingMetrics {
     registry.register(warmingQueriesFilteredCount);
     registry.register(warmingDurationCapReachedCount);
     registry.register(warmingPeerFetchCount);
+    registry.register(warmingTemplateMatchRatio);
+    registry.register(warmingTemplateRelearnCount);
+    registry.register(warmingTemplateLibraryCount);
   }
 }

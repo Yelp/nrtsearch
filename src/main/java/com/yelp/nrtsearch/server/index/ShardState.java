@@ -1095,6 +1095,17 @@ public class ShardState implements Closeable {
                       schemaQueries,
                       durationMs,
                       stop);
+          case TEMPLATE ->
+              (durationMs, stop) ->
+                  warmer.warmFromTemplate(
+                      indexState,
+                      parallelism,
+                      peerSource,
+                      warmerConfig.getTemplateSeedQueries(),
+                      schemaQueries,
+                      warmerConfig.getTemplateSchemaQueries(),
+                      durationMs,
+                      stop);
           case S3 ->
               (durationMs, stop) -> warmer.warmFromS3(indexState, parallelism, durationMs, stop);
           case NONE -> (durationMs, stop) -> {};
