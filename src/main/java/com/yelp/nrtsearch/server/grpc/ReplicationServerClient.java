@@ -21,11 +21,17 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerGrpc.ReplicationServerBlockingStub;
 import com.yelp.nrtsearch.server.grpc.discovery.PrimaryFileNameResolverProvider;
 import com.yelp.nrtsearch.server.nrt.jobs.SimpleCopyJob.FileChunkStreamingIterator;
+import io.grpc.Context;
 import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -364,6 +370,68 @@ public class ReplicationServerClient implements Closeable {
   public GetNodesResponse getConnectedNodes(String indexName) {
     return unaryStub()
         .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName(indexName).build());
+  }
+
+  /**
+   * Fetch the warming corpus of the replica this client connects to, see {@link
+   * GetWarmingQueriesRequest}. The whole corpus is read before returning, so a broken stream fails
+   * this call instead of leaving a partial corpus.
+   *
+   * @param indexName index name
+   * @param maxQueries maximum queries to fetch, 0 for all
+   * @param maxBytes maximum bytes to fetch, 0 for no limit. The peer stops before exceeding this,
+   *     the call also fails if the peer sends more.
+   * @param minQueries fail unless the peer has at least this many queries, 0 to disable
+   * @param minUptimeMinutes fail unless the peer has been up this long, 0 to disable
+   * @param timeoutMs deadline for the whole call, <= 0 for none
+   * @return queries as JSON lines
+   * @throws StatusRuntimeException on rpc failure, FAILED_PRECONDITION if the peer does not qualify
+   */
+  public byte[] getWarmingQueries(
+      String indexName,
+      int maxQueries,
+      long maxBytes,
+      int minQueries,
+      int minUptimeMinutes,
+      long timeoutMs) {
+    GetWarmingQueriesRequest request =
+        GetWarmingQueriesRequest.newBuilder()
+            .setMagicNumber(BINARY_MAGIC)
+            .setIndexName(indexName)
+            .setMaxQueries(maxQueries)
+            .setMaxBytes(maxBytes)
+            .setMinQueries(minQueries)
+            .setMinUptimeMinutes(minUptimeMinutes)
+            .build();
+    ReplicationServerBlockingStub stub = blockingStub;
+    if (timeoutMs > 0) {
+      stub = stub.withDeadlineAfter(timeoutMs, TimeUnit.MILLISECONDS);
+    }
+    // cancelled when done, so the call stops if we give up on it before the stream ends
+    Context.CancellableContext context = Context.current().withCancellation();
+    Context previous = context.attach();
+    try {
+      ByteArrayOutputStream content = new ByteArrayOutputStream();
+      Iterator<WarmingQueriesChunk> chunks = stub.getWarmingQueries(request);
+      while (chunks.hasNext()) {
+        chunks.next().getContent().writeTo(content);
+        if (maxBytes > 0 && content.size() > maxBytes) {
+          throw Status.RESOURCE_EXHAUSTED
+              .withDescription(
+                  String.format(
+                      "Peer sent more than %d bytes of warming queries for index %s",
+                      maxBytes, indexName))
+              .asRuntimeException();
+        }
+      }
+      return content.toByteArray();
+    } catch (IOException e) {
+      // ByteArrayOutputStream does not throw
+      throw new UncheckedIOException(e);
+    } finally {
+      context.detach(previous);
+      context.cancel(null);
+    }
   }
 
   @Override

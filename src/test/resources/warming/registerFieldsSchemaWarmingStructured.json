@@ -1,0 +1,18 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {"name": "doc_id", "type": "_ID", "search": true, "storeDocValues": true},
+    {"name": "category", "type": "ATOM", "search": true, "storeDocValues": true,
+      "childFields": [{"name": "text", "type": "TEXT", "search": true}]},
+    {"name": "count", "type": "INT", "search": true, "storeDocValues": true},
+    {"name": "title", "type": "TEXT", "search": true},
+    {"name": "body", "type": "TEXT", "search": true},
+    {"name": "location", "type": "LAT_LON", "search": true, "storeDocValues": true},
+    {"name": "area", "type": "POLYGON", "search": true},
+    {"name": "bids", "type": "OBJECT", "search": true, "nestedDoc": true, "multiValued": true,
+      "childFields": [
+        {"name": "amount", "type": "INT", "search": true, "storeDocValues": true},
+        {"name": "campaign", "type": "ATOM", "search": true, "storeDocValues": true}
+      ]}
+  ]
+}

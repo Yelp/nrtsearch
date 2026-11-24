@@ -758,6 +758,7 @@ public class TestServer {
     private int warmingParallelism = 1;
     private boolean warmOnStartup = false;
     private List<String> additionalWarmingConfig = List.of();
+    private String warmingStrategy = "S3";
     private boolean writeDiscoveryFile = false;
 
     private String additionalConfig = "";
@@ -829,6 +830,11 @@ public class TestServer {
       return this;
     }
 
+    public Builder withWarmingStrategy(String warmingStrategy) {
+      this.warmingStrategy = warmingStrategy;
+      return this;
+    }
+
     public Builder withPlugins(List<Plugin> plugins) {
       this.plugins = plugins;
       return this;
@@ -897,6 +903,7 @@ public class TestServer {
       lines.add("  maxWarmingQueries: " + maxWarmingQueries);
       lines.add("  warmingParallelism: " + warmingParallelism);
       lines.add("  warmOnStartup: " + warmOnStartup);
+      lines.add("  warmingStrategy: " + warmingStrategy);
       additionalWarmingConfig.forEach(line -> lines.add("  " + line));
       return String.join("\n", lines);
     }

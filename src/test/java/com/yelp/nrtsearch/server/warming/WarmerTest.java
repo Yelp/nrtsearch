@@ -16,6 +16,10 @@
 package com.yelp.nrtsearch.server.warming;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
@@ -59,6 +63,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -995,5 +1001,615 @@ public class WarmerTest {
         "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field1\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
         "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field2\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}",
         "{\"indexName\":\"test_index\",\"query\":{\"functionScoreQuery\":{\"query\":{\"termQuery\":{\"field\":\"field3\"}},\"script\":{\"lang\":\"js\",\"source\":\"3 * 5\"}}}}");
+  }
+
+  @Test
+  public void testWarmFromRequests() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromRequests_parallel() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+
+    warmer.warmFromRequests(mockIndexState, 3, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromRequests_schemaSettingsAndKindMetrics() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    double filterBefore =
+        WarmingMetrics.warmingSchemaQueryCount.labelValues(index, "filter", "success").get();
+    warmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(3, 1500, SchemaWarmingQueryGenerator.Limits.DEFAULT));
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    // schema queries get the schema query timeout, the warmer's own timeout is not set
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler)
+          .handle(
+              org.mockito.ArgumentMatchers.eq(mockIndexState),
+              org.mockito.ArgumentMatchers.argThat(
+                  r ->
+                      r.getQuery().equals(request.getQuery())
+                          && r.getTimeoutSec() == 1.5
+                          && r.getTimeoutCheckEvery() == Warmer.REPLAY_TIMEOUT_CHECK_EVERY));
+    }
+    // the test queries are function score queries over a term query: filter kind
+    assertEquals(
+        filterBefore + requests.size(),
+        WarmingMetrics.warmingSchemaQueryCount.labelValues(index, "filter", "success").get(),
+        0);
+  }
+
+  @Test
+  public void testFormatKindStats() {
+    Warmer.KindStats script = new Warmer.KindStats();
+    script.record(TimeUnit.MILLISECONDS.toNanos(3000), true);
+    script.record(TimeUnit.MILLISECONDS.toNanos(1000), false);
+    Warmer.KindStats filter = new Warmer.KindStats();
+    filter.record(TimeUnit.MILLISECONDS.toNanos(10), false);
+    java.util.Map<String, Warmer.KindStats> stats = new java.util.LinkedHashMap<>();
+    stats.put("filter", filter);
+    stats.put("script", script);
+    // most costly kind first
+    assertEquals(
+        "script=2/4.0s/2000ms/3000ms/1, filter=1/0.0s/10ms/10ms/0", Warmer.formatKindStats(stats));
+  }
+
+  @Test
+  public void testWarmFromRequests_failureDoesNotStopWarming() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    when(mockSearchHandler.handle(mockIndexState, requests.get(0)))
+        .thenThrow(new IllegalArgumentException("bad query"));
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler).handle(mockIndexState, request);
+    }
+  }
+
+  private static List<String> chunkLines(List<byte[]> chunks) {
+    List<String> lines = new ArrayList<>();
+    for (byte[] chunk : chunks) {
+      String content = new String(chunk, StandardCharsets.UTF_8);
+      // every chunk holds whole queries
+      assertEquals('\n', content.charAt(content.length() - 1));
+      lines.addAll(List.of(content.substring(0, content.length() - 1).split("\n")));
+    }
+    return lines;
+  }
+
+  @Test
+  public void testWriteWarmingCorpus() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    List<byte[]> chunks = new ArrayList<>();
+
+    int written = warmer.writeWarmingCorpus(0, 0, 1024 * 1024, chunks::add);
+
+    assertEquals(4, written);
+    assertEquals(1, chunks.size());
+    Assertions.assertThat(chunkLines(chunks))
+        .containsExactlyInAnyOrderElementsOf(getTestSearchRequestsAsJsonStrings());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_empty() {
+    List<byte[]> chunks = new ArrayList<>();
+    assertEquals(0, warmer.writeWarmingCorpus(0, 0, 1024, chunks::add));
+    assertEquals(0, chunks.size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_maxQueries() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    List<byte[]> chunks = new ArrayList<>();
+
+    assertEquals(2, warmer.writeWarmingCorpus(2, 0, 1024 * 1024, chunks::add));
+    assertEquals(2, chunkLines(chunks).size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_maxBytes() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    int lineBytes = getTestSearchRequestsAsJsonStrings().get(0).length() + 1;
+    List<byte[]> chunks = new ArrayList<>();
+
+    // room for two whole queries and part of a third, the third is not sent
+    int written = warmer.writeWarmingCorpus(0, 2L * lineBytes + 10, 1024 * 1024, chunks::add);
+
+    assertEquals(2, written);
+    assertEquals(2, chunkLines(chunks).size());
+  }
+
+  @Test
+  public void testWriteWarmingCorpus_chunks() {
+    getTestSearchRequests().forEach(r -> warmer.maybeAddSearchRequest(r, 0, null));
+    int lineBytes = getTestSearchRequestsAsJsonStrings().get(0).length() + 1;
+    List<byte[]> chunks = new ArrayList<>();
+
+    // two queries fit in a chunk
+    warmer.writeWarmingCorpus(0, 0, 2 * lineBytes, chunks::add);
+    assertEquals(2, chunks.size());
+    Assertions.assertThat(chunkLines(chunks))
+        .containsExactlyInAnyOrderElementsOf(getTestSearchRequestsAsJsonStrings());
+
+    // a query larger than the chunk size is its own chunk
+    chunks.clear();
+    warmer.writeWarmingCorpus(0, 0, 1, chunks::add);
+    assertEquals(4, chunks.size());
+  }
+
+  @Test
+  public void testWarmFromPeer() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    double successBefore = peerFetchCount(Warmer.PEER_FETCH_SUCCESS);
+
+    warmer.warmFromPeer(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean());
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_SUCCESS) - successBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_padsBackup() throws Exception {
+    Warmer paddingWarmer =
+        new Warmer(
+            remoteBackend, service, index, 4, 0, true, WarmingQueryFilter.acceptAll(index), 0);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    paddingWarmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mock(SearchHandler.class),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.NONE,
+        10,
+        0,
+        new AtomicBoolean());
+
+    // a replica warmed from a peer can itself serve the peer's queries before it has traffic
+    Assertions.assertThat(paddingWarmer.getWarmingCorpus())
+        .containsExactlyElementsOf(getTestSearchRequests());
+  }
+
+  @Test
+  public void testWarmFromTemplate_peerSeeds() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            mockSearchHandler.handle(
+                org.mockito.ArgumentMatchers.eq(mockIndexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    warmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+
+    // generated queries were replayed
+    verify(mockSearchHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  @Test
+  public void testWarmFromTemplate_s3Seeds() throws Exception {
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            mockSearchHandler.handle(
+                org.mockito.ArgumentMatchers.eq(mockIndexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+
+    warmer.warmFromTemplate(
+        mockIndexState, 0, mockSearchHandler, Optional::empty, 100, 10, 0, new AtomicBoolean());
+
+    verify(mockSearchHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  private static final WarmerConfig.TemplateLibrarySettings LIBRARY =
+      new WarmerConfig.TemplateLibrarySettings(true, 0.95, 1, 2, 0, 0.5, 0.5, 1);
+
+  private SearchHandler respondingSearchHandler(IndexState indexState) throws Exception {
+    SearchHandler handler = mock(SearchHandler.class);
+    org.mockito.Mockito.when(
+            handler.handle(
+                org.mockito.ArgumentMatchers.eq(indexState),
+                org.mockito.ArgumentMatchers.any(SearchRequest.class)))
+        .thenReturn(SearchResponse.getDefaultInstance());
+    return handler;
+  }
+
+  @Test
+  public void testTemplateLibrary_learnOnceThenLoad() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    // first replica: no library yet, learns from peer seeds and stores the library
+    Warmer first = new Warmer(remoteBackend, service, index, 4);
+    first.enableTemplateLibrary(LIBRARY);
+    first.warmFromTemplate(
+        mockIndexState,
+        0,
+        respondingSearchHandler(mockIndexState),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
+    int learnedTemplates = first.getTemplateLibrary().getNumTemplates();
+    assertTrue(learnedTemplates > 0);
+
+    // second replica: no peer and no S3 corpus, warms from the stored library
+    Warmer second = new Warmer(remoteBackend, service, index, 4);
+    second.enableTemplateLibrary(LIBRARY);
+    SearchHandler secondHandler = respondingSearchHandler(mockIndexState);
+    second.warmFromTemplate(
+        mockIndexState, 0, secondHandler, Optional::empty, 100, 10, 0, new AtomicBoolean());
+    assertEquals(learnedTemplates, second.getTemplateLibrary().getNumTemplates());
+    verify(secondHandler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.any(SearchRequest.class));
+  }
+
+  @Test
+  public void testTemplateLibrary_relearnMergesAndStores() throws Exception {
+    Warmer libraryWarmer = new Warmer(remoteBackend, service, index, 4);
+    libraryWarmer.enableTemplateLibrary(
+        new WarmerConfig.TemplateLibrarySettings(true, 0.95, 1, 2, 0, 0.5, 0.5, 100));
+    getTestSearchRequests().forEach(r -> libraryWarmer.maybeAddSearchRequest(r, 0, null));
+    // too few collected queries
+    assertNull(libraryWarmer.relearnTemplates(0.5));
+
+    Warmer enoughQueriesWarmer = new Warmer(remoteBackend, service, index, 4);
+    enoughQueriesWarmer.enableTemplateLibrary(LIBRARY);
+    getTestSearchRequests().forEach(r -> enoughQueriesWarmer.maybeAddSearchRequest(r, 0, null));
+    Set<String> keys = enoughQueriesWarmer.relearnTemplates(0.5);
+    assertNotNull(keys);
+    assertFalse(keys.isEmpty());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
+  }
+
+  @Test
+  public void testTemplateLibrary_learnsFromLiveTrafficWhenNothingElse() throws Exception {
+    // no library, no peer, no S3 corpus: startup falls back, then the drift monitor learns the
+    // library from the first collected live queries
+    Warmer libraryWarmer = new Warmer(remoteBackend, service, index, 4);
+    libraryWarmer.enableTemplateLibrary(LIBRARY);
+    libraryWarmer.warmFromTemplate(
+        mock(IndexState.class),
+        0,
+        mock(SearchHandler.class),
+        Optional::empty,
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+    assertNull(libraryWarmer.getTemplateLibrary());
+
+    for (SearchRequest r : getTestSearchRequests()) {
+      libraryWarmer.maybeAddSearchRequest(r, 0, null);
+    }
+    long deadline = System.currentTimeMillis() + 10_000;
+    while (libraryWarmer.getTemplateLibrary() == null && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertNotNull(libraryWarmer.getTemplateLibrary());
+    assertTrue(
+        remoteBackend.exists(service, index, RemoteBackend.IndexResourceType.WARMING_TEMPLATES));
+  }
+
+  @Test
+  public void testWarmFromTemplate_noSeedsFallsBack() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    // no peer and no S3 corpus: falls back to SCHEMA, which can't generate from a mock index and
+    // falls back to S3, which has nothing either
+    warmer.warmFromTemplate(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        Optional::empty,
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromTemplate_thenSchemaQueries() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler handler = respondingSearchHandler(mockIndexState);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    SearchRequest schemaRequest = SearchRequest.newBuilder().setIndexName("schema_only").build();
+    Warmer spyWarmer = org.mockito.Mockito.spy(warmer);
+    org.mockito.Mockito.doReturn(List.of(schemaRequest, schemaRequest))
+        .when(spyWarmer)
+        .generateSchemaQueries(mockIndexState, 7);
+
+    spyWarmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        handler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        7,
+        0,
+        new AtomicBoolean());
+
+    // template queries ran, then the schema queries
+    verify(handler, org.mockito.Mockito.atLeastOnce())
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.argThat(r -> !"schema_only".equals(r.getIndexName())));
+    verify(handler, org.mockito.Mockito.times(2))
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.argThat(r -> "schema_only".equals(r.getIndexName())));
+  }
+
+  @Test
+  public void testWarmFromTemplate_schemaQueriesInterleaved() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler handler = respondingSearchHandler(mockIndexState);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    SearchRequest schemaRequest = SearchRequest.newBuilder().setIndexName("schema_only").build();
+    Warmer spyWarmer = org.mockito.Mockito.spy(warmer);
+    spyWarmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(
+            0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT, true, true, 0));
+    org.mockito.Mockito.doReturn(List.of(schemaRequest, schemaRequest, schemaRequest))
+        .when(spyWarmer)
+        .generateSchemaQueries(mockIndexState, 7);
+    List<String> order = java.util.Collections.synchronizedList(new ArrayList<>());
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              SearchRequest r = inv.getArgument(1);
+              order.add("schema_only".equals(r.getIndexName()) ? "s" : "t");
+              return SearchResponse.newBuilder().build();
+            })
+        .when(handler)
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState), org.mockito.ArgumentMatchers.any());
+
+    spyWarmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        handler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        50,
+        7,
+        0,
+        new AtomicBoolean());
+
+    // all 3 schema queries ran, and not all after the template queries
+    assertEquals(3, order.stream().filter("s"::equals).count());
+    verify(spyWarmer, org.mockito.Mockito.times(1)).generateSchemaQueries(mockIndexState, 7);
+    assertTrue(order.toString(), order.indexOf("s") < order.lastIndexOf("t"));
+  }
+
+  @Test
+  public void testWarmFromTemplate_schemaBudgetSkipsSchemaQueries() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler handler = respondingSearchHandler(mockIndexState);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    SearchRequest schemaRequest = SearchRequest.newBuilder().setIndexName("schema_only").build();
+    Warmer spyWarmer = org.mockito.Mockito.spy(warmer);
+    spyWarmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(
+            0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT, false, false, 1));
+    org.mockito.Mockito.doReturn(java.util.Collections.nCopies(20, schemaRequest))
+        .when(spyWarmer)
+        .generateSchemaQueries(mockIndexState, 7);
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              Thread.sleep(5);
+              return SearchResponse.newBuilder().build();
+            })
+        .when(handler)
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState), org.mockito.ArgumentMatchers.any());
+
+    spyWarmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        handler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        7,
+        0,
+        new AtomicBoolean());
+
+    // the 1 ms schema budget is spent after the first schema query
+    verify(handler, org.mockito.Mockito.atMost(1))
+        .handle(
+            org.mockito.ArgumentMatchers.eq(mockIndexState),
+            org.mockito.ArgumentMatchers.argThat(r -> "schema_only".equals(r.getIndexName())));
+  }
+
+  @Test
+  public void testBlendSchemaParts_offByDefaultAndOnFailure() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    TemplateWarmingQueryGenerator generator =
+        new TemplateWarmingQueryGenerator(requests, new java.util.Random(1));
+    // fraction 0: untouched
+    assertEquals(requests, warmer.blendSchemaParts(mockIndexState, generator, requests, null));
+    // blending fails on the mock index state: the template requests are kept
+    warmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(
+            0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT, false, false, 0, 1.0));
+    assertEquals(requests, warmer.blendSchemaParts(mockIndexState, generator, requests, null));
+  }
+
+  @Test
+  public void testWarmFromTemplate_noSchemaQueriesByDefault() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    Warmer spyWarmer = org.mockito.Mockito.spy(warmer);
+
+    spyWarmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        respondingSearchHandler(mockIndexState),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        0,
+        new AtomicBoolean());
+
+    verify(spyWarmer, org.mockito.Mockito.never())
+        .generateSchemaQueries(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+  }
+
+  @Test
+  public void testWarmFromTemplate_schemaQueriesStopWhenRequested() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+    Warmer spyWarmer = org.mockito.Mockito.spy(warmer);
+
+    // startup stopped waiting: no template query starts, and no schema query is generated
+    spyWarmer.warmFromTemplate(
+        mockIndexState,
+        0,
+        respondingSearchHandler(mockIndexState),
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        100,
+        10,
+        7,
+        0,
+        new AtomicBoolean(true));
+
+    verify(spyWarmer, org.mockito.Mockito.never())
+        .generateSchemaQueries(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+  }
+
+  @Test
+  public void testWarmFromPeer_fallbackToS3() throws Exception {
+    remoteBackend.uploadWarmingQueries(
+        service, index, getWarmingBytes(getTestSearchRequestsAsJsonStrings()));
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double fallbackBefore = peerFetchCount(Warmer.PEER_FETCH_FALLBACK);
+
+    warmer.warmFromPeer(
+        mockIndexState,
+        0,
+        mockSearchHandler,
+        Optional::empty,
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean());
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_FALLBACK) - fallbackBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_fetchFailureFallsBack() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    double fallbackBefore = peerFetchCount(Warmer.PEER_FETCH_FALLBACK);
+
+    warmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        () -> {
+          throw new IllegalStateException("peer failure");
+        },
+        WarmerConfig.WarmingStrategy.NONE,
+        10,
+        0,
+        new AtomicBoolean());
+
+    verifyNoMoreInteractions(mockSearchHandler);
+    assertEquals(1, peerFetchCount(Warmer.PEER_FETCH_FALLBACK) - fallbackBefore, 0);
+  }
+
+  @Test
+  public void testWarmFromPeer_stopRequested() throws Exception {
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
+
+    warmer.warmFromPeer(
+        mock(IndexState.class),
+        0,
+        mockSearchHandler,
+        () -> Optional.of(new PeerWarmingQuerySource.PeerWarmingQueries("peer", peerBytes)),
+        WarmerConfig.WarmingStrategy.S3,
+        10,
+        0,
+        new AtomicBoolean(true));
+
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  private double peerFetchCount(String outcome) {
+    return WarmingMetrics.warmingPeerFetchCount.labelValues(index, outcome).get();
   }
 }

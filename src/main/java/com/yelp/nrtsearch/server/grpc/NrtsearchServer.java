@@ -49,6 +49,7 @@ import com.yelp.nrtsearch.server.handler.ForceMergeHandler;
 import com.yelp.nrtsearch.server.handler.GetAllSnapshotIndexGenHandler;
 import com.yelp.nrtsearch.server.handler.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.handler.GetStateHandler;
+import com.yelp.nrtsearch.server.handler.GetWarmingQueriesHandler;
 import com.yelp.nrtsearch.server.handler.GlobalStateHandler;
 import com.yelp.nrtsearch.server.handler.Handler;
 import com.yelp.nrtsearch.server.handler.IndexStateHandler;
@@ -765,6 +766,7 @@ public class NrtsearchServer {
     private final AddReplicaHandler addReplicaHandler;
     private final CopyFilesHandler copyFilesHandler;
     private final GetNodesInfoHandler getNodesInfoHandler;
+    private final GetWarmingQueriesHandler getWarmingQueriesHandler;
     private final NewNRTPointHandler newNRTPointHandler;
     private final RecvCopyStateHandler recvCopyStateHandler;
     private final RecvRawFileHandler recvRawFileHandler;
@@ -778,6 +780,7 @@ public class NrtsearchServer {
       addReplicaHandler = new AddReplicaHandler(globalState, verifyIndexId);
       copyFilesHandler = new CopyFilesHandler(globalState, verifyIndexId);
       getNodesInfoHandler = new GetNodesInfoHandler(globalState);
+      getWarmingQueriesHandler = new GetWarmingQueriesHandler(globalState);
       newNRTPointHandler = new NewNRTPointHandler(globalState, verifyIndexId);
       recvCopyStateHandler = new RecvCopyStateHandler(globalState, verifyIndexId);
       recvRawFileHandler = new RecvRawFileHandler(globalState, verifyIndexId);
@@ -852,6 +855,12 @@ public class NrtsearchServer {
         GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
       Handler.handleUnaryRequest(
           "getConnectedNodes", getNodesRequest, responseObserver, getNodesInfoHandler);
+    }
+
+    @Override
+    public void getWarmingQueries(
+        GetWarmingQueriesRequest request, StreamObserver<WarmingQueriesChunk> responseObserver) {
+      getWarmingQueriesHandler.handle(request, responseObserver);
     }
   }
 }

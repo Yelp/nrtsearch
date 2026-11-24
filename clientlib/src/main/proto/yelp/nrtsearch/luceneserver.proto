@@ -406,6 +406,13 @@ service ReplicationServer {
     // replication for an index
     rpc getConnectedNodes (GetNodesRequest) returns (GetNodesResponse) {
     }
+
+    // Issued by a starting replica on a running replica of the same index, to get the warming queries the running
+    // replica has sampled from live traffic. Queries are streamed as JSON lines, in the same format as the warming
+    // queries backed up to the remote backend. Fails with FAILED_PRECONDITION if the running replica does not meet
+    // the requested uptime or query count.
+    rpc getWarmingQueries (GetWarmingQueriesRequest) returns (stream WarmingQueriesChunk) {
+    }
 }
 
 // Input to createIndex
@@ -1371,6 +1378,29 @@ message NodeInfo {
     int32 port = 2;
     // Name of the remote node
     string nodeName = 3;
+}
+
+// Input to getWarmingQueries
+message GetWarmingQueriesRequest {
+    // Magic number send on all requests since these are meant for internal communication only
+    int32 magicNumber = 1;
+    // Index name
+    string indexName = 2;
+    // Maximum number of queries to send, 0 for all sampled queries
+    int32 maxQueries = 3;
+    // Maximum total size of the sent queries in bytes, 0 for no limit. Whole queries are sent, so the
+    // stream stops before the query that would exceed this.
+    int64 maxBytes = 4;
+    // Fail unless the node has sampled at least this many queries, 0 to disable
+    int32 minQueries = 5;
+    // Fail unless the node has been up for at least this many minutes, 0 to disable
+    int32 minUptimeMinutes = 6;
+}
+
+// Chunk of warming queries sent by getWarmingQueries
+message WarmingQueriesChunk {
+    // Whole warming queries, each a SearchRequest in JSON followed by a newline
+    bytes content = 1;
 }
 
 // Input to deleteByQuery
