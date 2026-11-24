@@ -619,6 +619,11 @@ Example server configuration
      - Stop starting schema queries this long after they start (after the template queries, or when interleaved, after the replay starts). 0 for no limit.
      - 0
 
+   * - templateHybridFraction
+     - double
+     - Share of the ``TEMPLATE`` strategy's generated queries that get schema driven parts blended in, over the fields the template library uses: the template query kept as a MUST clause with a selective FILTER clause added, more retrieved doc values fields, or both. Scoring, sort, collectors and rescorers are unchanged. 0 for none.
+     - 0
+
    * - peerFallbackStrategy
      - str
      - Strategy used by ``PEER`` warming when no replica provides queries: ``S3``, ``SCHEMA`` or ``NONE`` (no warming). Each startup with ``PEER`` is counted in ``nrt_warming_peer_fetch_count`` with outcome ``success`` or ``fallback``.

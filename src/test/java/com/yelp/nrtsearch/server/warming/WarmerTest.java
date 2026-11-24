@@ -1487,6 +1487,21 @@ public class WarmerTest {
   }
 
   @Test
+  public void testBlendSchemaParts_offByDefaultAndOnFailure() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    TemplateWarmingQueryGenerator generator =
+        new TemplateWarmingQueryGenerator(requests, new java.util.Random(1));
+    // fraction 0: untouched
+    assertEquals(requests, warmer.blendSchemaParts(mockIndexState, generator, requests, null));
+    // blending fails on the mock index state: the template requests are kept
+    warmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(
+            0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT, false, false, 0, 1.0));
+    assertEquals(requests, warmer.blendSchemaParts(mockIndexState, generator, requests, null));
+  }
+
+  @Test
   public void testWarmFromTemplate_noSchemaQueriesByDefault() throws Exception {
     IndexState mockIndexState = mock(IndexState.class);
     byte[] peerBytes = getWarmingBytes(getTestSearchRequestsAsJsonStrings());
