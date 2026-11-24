@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,13 +66,41 @@ public class NrtPushRemoteCopyJobManager implements CopyJobManager {
     if (files != null) {
       return newMergePreCopyJob(reason, files, highPriority, onceDone);
     }
+    NrtDataManager.PointStateWithTimestamp target = dataManager.getTargetPointState(null);
+    checkNotStale(reason, target);
     return RemoteCopyJob.forNrtPoint(
-        reason,
-        dataManager.getTargetPointState(null),
-        dataManager,
-        replicaNode,
-        highPriority,
-        onceDone);
+        reason, target, dataManager, replicaNode, highPriority, onceDone);
+  }
+
+  /**
+   * Make sure the point state from S3 is newer than the version this replica is searching. The
+   * primary may notify a version before it is in S3, for example when it does not have
+   * s3RefreshNotifyAfterUpload enabled, or from writeNRTPoint. Lucene only compares the notified
+   * version with the current one, but the job copies whatever version is in S3, so without this
+   * check the replica would re-apply the version it already has. That opens a second searcher with
+   * the same version, which makes SearcherLifetimeManager.record() throw on every search.
+   *
+   * <p>Throws {@link NodeCommunicationException}, since that is how Lucene's {@link
+   * org.apache.lucene.replicator.nrt.ReplicaNode#newNRTPoint} skips a point that cannot be copied.
+   * The replica picks up the version on the next notification.
+   */
+  private void checkNotStale(String reason, NrtDataManager.PointStateWithTimestamp target)
+      throws IOException {
+    if (target.pointState() == null) {
+      // RemoteCopyJob.forNrtPoint reports this
+      return;
+    }
+    long remoteVersion = target.pointState().version;
+    long currentVersion = replicaNode.getCurrentSearchingVersion();
+    if (remoteVersion <= currentVersion) {
+      String msg =
+          String.format(
+              "Skipping nrt point (%s), S3 point state version %d is not newer than current searching version %d",
+              reason, remoteVersion, currentVersion);
+      logger.warn(msg);
+      // Lucene requires a non-null cause
+      throw new NodeCommunicationException(msg, new IllegalStateException(msg));
+    }
   }
 
   private CopyJob newMergePreCopyJob(
