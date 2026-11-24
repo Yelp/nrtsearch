@@ -104,6 +104,8 @@ public class Warmer {
   private volatile TemplateWarmingQueryGenerator templateLibrary;
   private volatile WarmerConfig.SchemaQuerySettings schemaQuerySettings =
       WarmerConfig.SchemaQuerySettings.DEFAULT;
+  // fields schema queries after template queries are restricted to, null for all
+  private volatile Set<String> schemaAllowedFields;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
     this(remoteBackend, service, index, maxWarmingQueries, 0);
@@ -621,6 +623,7 @@ public class Warmer {
       throws IOException {
     return new SchemaWarmingQueryGenerator(
             indexState, queryFilter.getMaxQueryTopHits(), schemaQuerySettings.limits())
+        .restrictToFields(schemaAllowedFields)
         .generate(numQueries);
   }
 
@@ -787,6 +790,21 @@ public class Warmer {
           stopRequested);
       return;
     }
+    WarmerConfig.SchemaQuerySettings settings = schemaQuerySettings;
+    schemaAllowedFields =
+        numSchemaQueries > 0 && settings.templateFieldsOnly() ? generator.referencedFields() : null;
+    if (numSchemaQueries > 0 && settings.interleave()) {
+      warmFromTemplateAndSchemaMixed(
+          indexState,
+          parallelism,
+          searchHandler,
+          requests,
+          numSchemaQueries,
+          maxDurationMs,
+          stopRequested,
+          startNs);
+      return;
+    }
     warmFromRequests(
         indexState,
         parallelism,
@@ -849,10 +867,47 @@ public class Warmer {
         parallelism,
         searchHandler,
         schemaRequests,
+        null,
         maxDurationMs,
+        schemaQuerySettings.maxDurationMs(),
         stopRequested,
         startNs,
         SCHEMA_QUERY_TYPE);
+  }
+
+  /** Replay template and schema queries shuffled together, sharing the max duration. */
+  private void warmFromTemplateAndSchemaMixed(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      List<SearchRequest> templateRequests,
+      int numSchemaQueries,
+      long maxDurationMs,
+      AtomicBoolean stopRequested,
+      long startNs)
+      throws InterruptedException {
+    List<SearchRequest> schemaRequests = List.of();
+    try {
+      schemaRequests =
+          filtered(generateSchemaQueries(indexState, numSchemaQueries), indexState.docLookup);
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to generate schema warming queries for index: {}", index, e);
+    }
+    List<Map.Entry<SearchRequest, String>> mixed = new ArrayList<>();
+    templateRequests.forEach(r -> mixed.add(Map.entry(r, TEMPLATE_QUERY_TYPE)));
+    schemaRequests.forEach(r -> mixed.add(Map.entry(r, SCHEMA_QUERY_TYPE)));
+    Collections.shuffle(mixed, randomThreadLocal.get());
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        mixed.stream().map(Map.Entry::getKey).toList(),
+        mixed.stream().map(Map.Entry::getValue).toList(),
+        maxDurationMs,
+        schemaQuerySettings.maxDurationMs(),
+        stopRequested,
+        startNs,
+        TEMPLATE_QUERY_TYPE);
   }
 
   private List<SearchRequest> filtered(List<SearchRequest> requests, DocLookup docLookup) {
@@ -1252,24 +1307,65 @@ public class Warmer {
       long startNs,
       String queryType)
       throws InterruptedException {
+    warmFromRequests(
+        indexState,
+        parallelism,
+        searchHandler,
+        requests,
+        null,
+        maxDurationMs,
+        0,
+        stopRequested,
+        startNs,
+        queryType);
+  }
+
+  /**
+   * @param types type of each request (schema or template) when they are mixed, null when all are
+   *     queryType
+   * @param schemaMaxDurationMs stop starting schema queries this long after the replay starts, 0
+   *     for no limit
+   * @param queryType label for the warming strategy metric, and of all requests when types is null
+   */
+  private void warmFromRequests(
+      IndexState indexState,
+      int parallelism,
+      SearchHandler searchHandler,
+      List<SearchRequest> requests,
+      List<String> types,
+      long maxDurationMs,
+      long schemaMaxDurationMs,
+      AtomicBoolean stopRequested,
+      long startNs,
+      String queryType)
+      throws InterruptedException {
     BootstrapMetrics.warmingStrategyInfo.labelValues(index, queryType).set(1);
-    boolean isSchema = SCHEMA_QUERY_TYPE.equals(queryType);
+    boolean allSchema = types == null && SCHEMA_QUERY_TYPE.equals(queryType);
+    boolean anySchema = allSchema || (types != null && types.contains(SCHEMA_QUERY_TYPE));
     WarmerConfig.SchemaQuerySettings settings = schemaQuerySettings;
-    if (isSchema && settings.parallelism() > 0) {
+    if (allSchema && settings.parallelism() > 0) {
       parallelism = settings.parallelism();
     }
-    int timeoutMs =
-        isSchema && settings.queryTimeoutMs() > 0 ? settings.queryTimeoutMs() : queryTimeoutMs;
+    int schemaTimeoutMs =
+        settings.queryTimeoutMs() > 0 ? settings.queryTimeoutMs() : queryTimeoutMs;
+    int maxTimeoutMs = anySchema ? Math.max(schemaTimeoutMs, queryTimeoutMs) : queryTimeoutMs;
     ThreadPoolExecutor threadPoolExecutor = createWarmingExecutor(parallelism);
-    ScheduledExecutorService deadlineScheduler = createDeadlineScheduler(timeoutMs);
+    ScheduledExecutorService deadlineScheduler = createDeadlineScheduler(maxTimeoutMs);
     long startMS = System.currentTimeMillis();
+    long replayStartNs = System.nanoTime();
     ReplayStats replayStats = new ReplayStats();
-    Map<String, KindStats> kindStats = isSchema ? new ConcurrentHashMap<>() : null;
+    Map<String, KindStats> kindStats = anySchema ? new ConcurrentHashMap<>() : null;
     int started = 0;
+    int schemaStarted = 0;
+    int schemaSkipped = 0;
     boolean stoppedByCaller = false;
     boolean reachedMaxDuration = false;
+    int timeoutMs = maxTimeoutMs;
     try {
-      for (SearchRequest request : requests) {
+      for (int i = 0; i < requests.size(); ++i) {
+        SearchRequest request = requests.get(i);
+        String type = types == null ? queryType : types.get(i);
+        boolean isSchema = SCHEMA_QUERY_TYPE.equals(type);
         if (stopRequested.get()) {
           stoppedByCaller = true;
           break;
@@ -1279,12 +1375,23 @@ public class Warmer {
           reachedMaxDuration = true;
           break;
         }
+        if (isSchema
+            && schemaMaxDurationMs > 0
+            && System.nanoTime() - replayStartNs
+                >= TimeUnit.MILLISECONDS.toNanos(schemaMaxDurationMs)) {
+          schemaSkipped++;
+          continue;
+        }
+        int requestTimeoutMs = isSchema ? schemaTimeoutMs : queryTimeoutMs;
         SearchRequest.Builder builder = request.toBuilder();
-        if (timeoutMs > 0) {
-          applyQueryTimeout(builder, timeoutMs, indexState);
+        if (requestTimeoutMs > 0) {
+          applyQueryTimeout(builder, requestTimeoutMs, indexState);
         }
         SearchRequest searchRequest = builder.build();
         String kind = isSchema ? SchemaWarmingQueryGenerator.kindOf(request) : null;
+        if (isSchema) {
+          schemaStarted++;
+        }
         int position = started++;
         replayStats.inFlightPositions.add(position);
         Runnable replay =
@@ -1294,10 +1401,10 @@ public class Warmer {
                     searchHandler,
                     deadlineScheduler,
                     searchRequest,
-                    queryType,
+                    type,
                     position,
                     replayStats,
-                    timeoutMs,
+                    requestTimeoutMs,
                     kind,
                     kindStats);
         if (threadPoolExecutor == null) {
@@ -1321,7 +1428,21 @@ public class Warmer {
         deadlineScheduler.shutdownNow();
       }
     }
-    int skipped = requests.size() - started;
+    int skipped = requests.size() - started - schemaSkipped;
+    if (schemaSkipped > 0) {
+      logger.info(
+          "Warming index: {} reached the schema query budget of {} ms, skipped {} schema queries",
+          index,
+          schemaMaxDurationMs,
+          schemaSkipped);
+    }
+    if (types != null) {
+      logger.info(
+          "Warming index: {} replayed template and schema queries mixed: {} schema of {}",
+          index,
+          schemaStarted,
+          started);
+    }
     if (stoppedByCaller) {
       logger.warn(
           "Warming index: {} stopped starting new queries since startup stopped waiting, skipped"

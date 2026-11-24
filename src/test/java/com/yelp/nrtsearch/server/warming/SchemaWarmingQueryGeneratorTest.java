@@ -438,6 +438,73 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
     }
   }
 
+  /** Fields a request filters, sorts, aggregates, retrieves or scores on. */
+  private static Set<String> usedFields(SearchRequest request) {
+    Set<String> fields = new HashSet<>(request.getRetrieveFieldsList());
+    fields.removeIf(f -> f.startsWith(SchemaWarmingQueryGenerator.VIRTUAL_FIELD_PREFIX));
+    if (request.hasQuerySort()) {
+      request.getQuerySort().getFields().getSortedFieldsList().stream()
+          .map(com.yelp.nrtsearch.server.grpc.SortType::getFieldName)
+          .filter(f -> !f.startsWith(SchemaWarmingQueryGenerator.VIRTUAL_FIELD_PREFIX))
+          .forEach(fields::add);
+    }
+    request.getCollectorsMap().values().forEach(c -> fields.add(c.getTerms().getField()));
+    request.getFacetsList().forEach(f -> fields.add(f.getDim()));
+    request.getKnnList().forEach(k -> fields.add(k.getField()));
+    for (Query q : SchemaWarmingStructuredQueriesTest.allQueries(request)) {
+      switch (q.getQueryNodeCase()) {
+        case TERMQUERY -> fields.add(q.getTermQuery().getField());
+        case TERMINSETQUERY -> fields.add(q.getTermInSetQuery().getField());
+        case RANGEQUERY -> fields.add(q.getRangeQuery().getField());
+        case MATCHQUERY -> fields.add(q.getMatchQuery().getField());
+        case MATCHPHRASEQUERY -> fields.add(q.getMatchPhraseQuery().getField());
+        case MULTIMATCHQUERY -> fields.addAll(q.getMultiMatchQuery().getFieldsList());
+        case EXISTSQUERY -> fields.add(q.getExistsQuery().getField());
+        default -> {}
+      }
+    }
+    return fields;
+  }
+
+  @Test
+  public void testRestrictToFields() throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    Set<String> allowed = Set.of("category", "count", "description");
+    List<SearchRequest> requests =
+        new SchemaWarmingQueryGenerator(indexState, new Random(42))
+            .restrictToFields(allowed)
+            .generate(200);
+    assertFalse(requests.isEmpty());
+    for (SearchRequest request : requests) {
+      assertTrue(usedFields(request).toString(), allowed.containsAll(usedFields(request)));
+    }
+    // no points range filters over fields the restriction leaves out
+    assertTrue(
+        requests.stream()
+            .flatMap(r -> SchemaWarmingStructuredQueriesTest.allQueries(r).stream())
+            .filter(Query::hasRangeQuery)
+            .allMatch(q -> q.getRangeQuery().getField().equals("count")));
+  }
+
+  @Test
+  public void testOneAggregationPerFieldWithoutNestedTopHitsByDefault() throws IOException {
+    List<SearchRequest> requests = generate(400);
+    List<SearchRequest> aggregations =
+        requests.stream().filter(r -> r.getCollectorsCount() > 0).toList();
+    assertFalse(aggregations.isEmpty());
+    assertTrue(
+        aggregations.stream()
+            .flatMap(r -> r.getCollectorsMap().values().stream())
+            .allMatch(c -> c.getNestedCollectorsCount() == 0));
+    // without the per field cap, 3 per field (maxQueriesPerTarget)
+    long uncapped =
+        generate(400, new SchemaWarmingQueryGenerator.Limits(200_000, 5, 3, 0.001, 0, true))
+            .stream()
+            .filter(r -> r.getCollectorsCount() > 0)
+            .count();
+    assertTrue(aggregations.size() + " " + uncapped, aggregations.size() < uncapped);
+  }
+
   @Test
   public void testKindOfLabelsEveryGeneratedQuery() throws IOException {
     Set<String> kinds =

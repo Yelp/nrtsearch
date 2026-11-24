@@ -166,7 +166,27 @@ public class WarmerConfigTest {
     WarmerConfig.SchemaQuerySettings settings = config.getSchemaQuerySettings();
     assertEquals(6, settings.parallelism());
     assertEquals(1000, settings.queryTimeoutMs());
-    assertEquals(new SchemaWarmingQueryGenerator.Limits(50000, 3, 2, 0.01), settings.limits());
+    assertEquals(
+        new SchemaWarmingQueryGenerator.Limits(50000, 3, 2, 0.01, 1, false), settings.limits());
+
+    WarmerConfig armH =
+        getConfig(
+            String.join(
+                "\n",
+                "warmer:",
+                "  schemaTemplateFieldsOnly: true",
+                "  schemaInterleave: true",
+                "  schemaMaxDurationMs: 30000",
+                "  schemaMaxAggregationsPerField: 2",
+                "  schemaAggregationTopHits: true"));
+    WarmerConfig.SchemaQuerySettings h = armH.getSchemaQuerySettings();
+    org.junit.Assert.assertTrue(h.templateFieldsOnly());
+    org.junit.Assert.assertTrue(h.interleave());
+    assertEquals(30000, h.maxDurationMs());
+    assertEquals(2, h.limits().maxAggregationsPerField());
+    org.junit.Assert.assertTrue(h.limits().aggregationTopHits());
+    assertEquals(false, defaults.getSchemaQuerySettings().interleave());
+    assertEquals(1, defaults.getSchemaQuerySettings().limits().maxAggregationsPerField());
 
     assertThrows(
         IllegalArgumentException.class,

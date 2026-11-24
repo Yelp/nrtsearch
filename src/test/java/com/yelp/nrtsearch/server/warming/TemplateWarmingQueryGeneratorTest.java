@@ -97,6 +97,14 @@ public class TemplateWarmingQueryGeneratorTest {
   }
 
   @Test
+  public void testReferencedFields() throws Exception {
+    TemplateWarmingQueryGenerator generator =
+        new TemplateWarmingQueryGenerator(seeds(), new Random(1));
+    // slot fields, constant filter fields and retrieve fields
+    assertEquals(Set.of("id", "is_closed", "location", "place_ids"), generator.referencedFields());
+  }
+
+  @Test
   public void testLearnsOneTemplateWithFieldSlots() throws Exception {
     TemplateWarmingQueryGenerator generator =
         new TemplateWarmingQueryGenerator(seeds(), new Random(1));
