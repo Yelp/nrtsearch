@@ -390,6 +390,98 @@ public class SchemaWarmingQueryGenerator {
   }
 
   /**
+   * Blend schema driven parts into real query templates: a fraction of the requests keep their
+   * query as a MUST clause and get a selective FILTER clause on a sampled field, more retrieved doc
+   * values fields, or both. Scoring, sort, collectors and rescorers are unchanged.
+   *
+   * @param requests template generated requests
+   * @param fraction share of the requests to blend, in [0, 1]
+   * @return the requests, blended ones in place of their originals
+   */
+  public List<SearchRequest> blend(List<SearchRequest> requests, double fraction)
+      throws IOException {
+    SchemaFields fields = collectFields();
+    ShardState shardState = indexState.getShard(0);
+    SearcherAndTaxonomy searcherAndTaxonomy = shardState.acquire();
+    List<FieldSample> selective;
+    try {
+      IndexSearcher searcher = searcherAndTaxonomy.searcher();
+      for (int i = 0; i < fields.fieldSamples.size(); ++i) {
+        FieldSample sample = fields.fieldSamples.get(i);
+        try {
+          fields.fieldSamples.set(
+              i,
+              sampleField(searcher, sample.fieldDef(), random).withNestedPath(sample.nestedPath()));
+        } catch (IOException | RuntimeException e) {
+          logSamplingFailure(sample.fieldDef(), e);
+        }
+      }
+      selective = selectiveSamples(searcher, fields.fieldSamples);
+    } finally {
+      shardState.release(searcherAndTaxonomy);
+    }
+    Samples samples = buildSamples(fields, selective);
+    List<SearchRequest> out = new ArrayList<>(requests.size());
+    int filtered = 0, retrieved = 0, blended = 0;
+    for (SearchRequest request : requests) {
+      if (random.nextDouble() >= fraction) {
+        out.add(request);
+        continue;
+      }
+      SearchRequest.Builder builder = request.toBuilder();
+      int op = random.nextInt(3);
+      // 0: filter, 1: retrieve fields, 2: both
+      if (op != 1) {
+        Query extra = heavyFilter(samples);
+        if (extra != null) {
+          builder.setQuery(
+              request.hasQuery()
+                  ? Query.newBuilder()
+                      .setBooleanQuery(
+                          BooleanQuery.newBuilder()
+                              .addClauses(clause(BooleanClause.Occur.MUST, request.getQuery()))
+                              .addClauses(clause(BooleanClause.Occur.FILTER, extra)))
+                      .build()
+                  : extra);
+          filtered++;
+        }
+      }
+      if (op != 0 && addMissingRetrieveFields(builder, fields.docValuesFields)) {
+        retrieved++;
+      }
+      SearchRequest result = builder.build();
+      if (!result.equals(request)) {
+        blended++;
+      }
+      out.add(result);
+    }
+    logger.info(
+        "Blended schema parts into {} of {} template warming queries for index: {} (filter: {},"
+            + " retrieve fields: {}) from {} sampled fields",
+        blended,
+        requests.size(),
+        indexState.getName(),
+        filtered,
+        retrieved,
+        samples.usable().size());
+    return out;
+  }
+
+  /** Add up to maxRetrieveFields doc values fields the request doesn't retrieve yet. */
+  private boolean addMissingRetrieveFields(SearchRequest.Builder builder, List<String> fields) {
+    Set<String> have = new HashSet<>(builder.getRetrieveFieldsList());
+    List<String> missing = new ArrayList<>(fields.stream().filter(f -> !have.contains(f)).toList());
+    if (missing.isEmpty()) {
+      return false;
+    }
+    Collections.shuffle(missing, random);
+    int max = limits.maxRetrieveFields() > 0 ? limits.maxRetrieveFields() : missing.size();
+    int n = 1 + random.nextInt(Math.min(max, missing.size()));
+    builder.addAllRetrieveFields(missing.subList(0, n));
+    return true;
+  }
+
+  /**
    * Generate warming queries for the index.
    *
    * @param numQueries number of filter and structured queries to generate, facet and vector queries

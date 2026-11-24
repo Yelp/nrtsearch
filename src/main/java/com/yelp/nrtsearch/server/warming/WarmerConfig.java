@@ -453,7 +453,8 @@ public class WarmerConfig {
                     CONFIG_PREFIX + "schemaAggregationTopHits", l.aggregationTopHits())),
             configReader.getBoolean(CONFIG_PREFIX + "schemaTemplateFieldsOnly", false),
             configReader.getBoolean(CONFIG_PREFIX + "schemaInterleave", false),
-            configReader.getInteger(CONFIG_PREFIX + "schemaMaxDurationMs", 0));
+            configReader.getInteger(CONFIG_PREFIX + "schemaMaxDurationMs", 0),
+            configReader.getDouble(CONFIG_PREFIX + "templateHybridFraction", 0.0));
     return config;
   }
 
@@ -468,6 +469,8 @@ public class WarmerConfig {
    *     the template library uses
    * @param interleave replay schema queries mixed with the template queries instead of after them
    * @param maxDurationMs stop starting schema queries this long after they start, 0 for no limit
+   * @param hybridFraction share of template queries that get schema parts blended in (a filter on a
+   *     template field, more retrieved fields), 0 for none
    */
   public record SchemaQuerySettings(
       int parallelism,
@@ -475,7 +478,8 @@ public class WarmerConfig {
       SchemaWarmingQueryGenerator.Limits limits,
       boolean templateFieldsOnly,
       boolean interleave,
-      int maxDurationMs) {
+      int maxDurationMs,
+      double hybridFraction) {
     public static final SchemaQuerySettings DEFAULT =
         new SchemaQuerySettings(0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT);
 
@@ -484,10 +488,23 @@ public class WarmerConfig {
       this(parallelism, queryTimeoutMs, limits, false, false, 0);
     }
 
+    public SchemaQuerySettings(
+        int parallelism,
+        int queryTimeoutMs,
+        SchemaWarmingQueryGenerator.Limits limits,
+        boolean templateFieldsOnly,
+        boolean interleave,
+        int maxDurationMs) {
+      this(parallelism, queryTimeoutMs, limits, templateFieldsOnly, interleave, maxDurationMs, 0);
+    }
+
     public SchemaQuerySettings {
       if (parallelism < 0 || queryTimeoutMs < 0 || maxDurationMs < 0) {
         throw new IllegalArgumentException(
             "schemaWarmingParallelism, schemaQueryTimeoutMs and schemaMaxDurationMs must be >= 0");
+      }
+      if (hybridFraction < 0 || hybridFraction > 1) {
+        throw new IllegalArgumentException("templateHybridFraction must be in [0, 1]");
       }
     }
   }

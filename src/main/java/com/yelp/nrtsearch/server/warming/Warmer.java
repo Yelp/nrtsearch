@@ -627,6 +627,34 @@ public class Warmer {
         .generate(numQueries);
   }
 
+  /**
+   * Blend schema parts into a share of the template requests, over the fields the template library
+   * uses, see {@link SchemaWarmingQueryGenerator#blend}. On failure the requests are kept as they
+   * are.
+   */
+  @VisibleForTesting
+  List<SearchRequest> blendSchemaParts(
+      IndexState indexState,
+      TemplateWarmingQueryGenerator generator,
+      List<SearchRequest> requests,
+      DocLookup docLookup) {
+    double fraction = schemaQuerySettings.hybridFraction();
+    if (fraction <= 0 || requests.isEmpty()) {
+      return requests;
+    }
+    try {
+      return filtered(
+          new SchemaWarmingQueryGenerator(
+                  indexState, queryFilter.getMaxQueryTopHits(), schemaQuerySettings.limits())
+              .restrictToFields(generator.referencedFields())
+              .blend(requests, fraction),
+          docLookup);
+    } catch (IOException | RuntimeException e) {
+      logger.warn("Failed to blend schema parts into template queries for index: {}", index, e);
+      return requests;
+    }
+  }
+
   /** Set how schema generated queries are generated and run, see {@link WarmerConfig}. */
   public void setSchemaQuerySettings(WarmerConfig.SchemaQuerySettings settings) {
     this.schemaQuerySettings = settings;
@@ -778,6 +806,7 @@ public class Warmer {
         logger.warn("Failed to generate template warming queries for index: {}", index, e);
         requests = List.of();
       }
+      requests = blendSchemaParts(indexState, generator, requests, docLookup);
     }
     if (requests.isEmpty()) {
       logger.info("No template warming queries for index: {}, falling back to SCHEMA", index);

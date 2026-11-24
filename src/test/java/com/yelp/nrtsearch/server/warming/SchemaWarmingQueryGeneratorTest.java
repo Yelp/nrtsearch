@@ -322,6 +322,69 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
     assertTrue(requests.stream().allMatch(r -> r.getTopHits() <= 50));
   }
 
+  private static SearchRequest templateLike(int i) {
+    return SearchRequest.newBuilder()
+        .setIndexName(DEFAULT_TEST_INDEX)
+        .setTopHits(10)
+        .addRetrieveFields("doc_id")
+        .setQuery(
+            Query.newBuilder()
+                .setTermQuery(
+                    com.yelp.nrtsearch.server.grpc.TermQuery.newBuilder()
+                        .setField("category")
+                        .setTextValue(CATEGORIES.get(i % CATEGORIES.size()))))
+        .build();
+  }
+
+  @Test
+  public void testBlendKeepsTheTemplateAndAddsSchemaParts() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    List<SearchRequest> templates = new ArrayList<>();
+    for (int i = 0; i < 60; ++i) {
+      templates.add(templateLike(i));
+    }
+    Set<String> allowed = Set.of("category", "count", "price", "doc_id");
+    List<SearchRequest> blended =
+        new SchemaWarmingQueryGenerator(indexState, new Random(42))
+            .restrictToFields(allowed)
+            .blend(templates, 1.0);
+    assertEquals(templates.size(), blended.size());
+    int withFilter = 0, withFields = 0;
+    for (int i = 0; i < blended.size(); ++i) {
+      SearchRequest original = templates.get(i), b = blended.get(i);
+      // structure that drives scoring and fetch stays: top hits, original query as a MUST clause
+      assertEquals(original.getTopHits(), b.getTopHits());
+      assertTrue(b.getRetrieveFieldsList().containsAll(original.getRetrieveFieldsList()));
+      if (!b.getQuery().equals(original.getQuery())) {
+        List<BooleanClause> clauses = b.getQuery().getBooleanQuery().getClausesList();
+        assertEquals(BooleanClause.Occur.MUST, clauses.get(0).getOccur());
+        assertEquals(original.getQuery(), clauses.get(0).getQuery());
+        assertEquals(BooleanClause.Occur.FILTER, clauses.get(1).getOccur());
+        assertTrue(allowed.containsAll(usedFields(b)));
+        withFilter++;
+      }
+      if (b.getRetrieveFieldsCount() > original.getRetrieveFieldsCount()) {
+        assertTrue(allowed.containsAll(b.getRetrieveFieldsList()));
+        withFields++;
+      }
+    }
+    assertTrue(withFilter > 0);
+    assertTrue(withFields > 0);
+    // blended queries execute
+    SearchHandler searchHandler = new SearchHandler(getGlobalState());
+    for (SearchRequest b : blended) {
+      searchHandler.handle(indexState, b);
+    }
+  }
+
+  @Test
+  public void testBlendFractionZeroKeepsRequests() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    List<SearchRequest> templates = List.of(templateLike(0), templateLike(1));
+    assertEquals(
+        templates, new SchemaWarmingQueryGenerator(indexState, new Random(1)).blend(templates, 0));
+  }
+
   @Test
   public void testNoQueriesRequested() throws IOException {
     // facet and kNN queries are added on top of the requested filter and structured queries

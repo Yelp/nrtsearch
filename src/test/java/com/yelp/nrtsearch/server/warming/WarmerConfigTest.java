@@ -150,6 +150,16 @@ public class WarmerConfigTest {
   public void testSchemaQuerySettings() {
     WarmerConfig defaults = getConfig(String.join("\n", "warmer:", "  warmingStrategy: schema"));
     assertEquals(WarmerConfig.SchemaQuerySettings.DEFAULT, defaults.getSchemaQuerySettings());
+    assertEquals(0, defaults.getSchemaQuerySettings().hybridFraction(), 0);
+    assertEquals(
+        0.5,
+        getConfig(String.join("\n", "warmer:", "  templateHybridFraction: 0.5"))
+            .getSchemaQuerySettings()
+            .hybridFraction(),
+        0);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> getConfig(String.join("\n", "warmer:", "  templateHybridFraction: 1.5")));
 
     WarmerConfig config =
         getConfig(
