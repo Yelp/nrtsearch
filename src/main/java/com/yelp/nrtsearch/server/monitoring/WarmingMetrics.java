@@ -58,6 +58,25 @@ public class WarmingMetrics {
           .classicUpperBounds(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60)
           .build();
 
+  public static final Counter warmingSchemaQueryCount =
+      Counter.builder()
+          .name("nrt_warming_schema_query_count")
+          .help(
+              "Number of schema generated queries replayed during startup warming, by kind (filter,"
+                  + " boolean, sort, text, geo, script, aggregation, facet, knn) and outcome"
+                  + " (success, error, timeout).")
+          .labelNames("index", "kind", "outcome")
+          .build();
+
+  public static final Histogram warmingSchemaQueryLatency =
+      Histogram.builder()
+          .name("nrt_warming_schema_query_latency_seconds")
+          .help("Latency of each schema generated query replayed during startup warming, by kind.")
+          .labelNames("index", "kind")
+          .unit(Unit.SECONDS)
+          .classicUpperBounds(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60)
+          .build();
+
   public static final Counter warmingQueriesFilteredCount =
       Counter.builder()
           .name("nrt_warming_query_filtered_count")
@@ -120,6 +139,8 @@ public class WarmingMetrics {
     registry.register(warmingBackupFailureCount);
     registry.register(warmingQueryCount);
     registry.register(warmingQueryLatency);
+    registry.register(warmingSchemaQueryCount);
+    registry.register(warmingSchemaQueryLatency);
     registry.register(warmingQueriesFilteredCount);
     registry.register(warmingDurationCapReachedCount);
     registry.register(warmingPeerFetchCount);

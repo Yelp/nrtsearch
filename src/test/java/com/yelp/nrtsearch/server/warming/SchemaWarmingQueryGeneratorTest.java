@@ -85,10 +85,12 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   /** Requests of the filter stage: term, term set and range leaves under FILTER clauses. */
   static boolean isFilterRequest(SearchRequest request) {
+    // facet requests are filtered too, so they are not match all
     if (!request.hasQuery()
         || request.hasQuerySort()
         || request.getVirtualFieldsCount() > 0
-        || request.getCollectorsCount() > 0) {
+        || request.getCollectorsCount() > 0
+        || request.getFacetsCount() > 0) {
       return false;
     }
     Query query = request.getQuery();
@@ -211,11 +213,19 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   @Test
   public void testRetrievesDocValuesFields() throws IOException {
+    // facet requests fetch no hits, so they retrieve nothing
     List<SearchRequest> filterRequests =
-        generate(100).stream().filter(SearchRequest::hasQuery).toList();
+        generate(100).stream().filter(r -> r.hasQuery() && r.getFacetsCount() == 0).toList();
     assertTrue(filterRequests.stream().allMatch(r -> r.getRetrieveFieldsCount() >= 1));
-    // some requests retrieve many fields, so wide fetches are warmed too
+    // some requests retrieve several fields, so wide fetches are warmed too, up to the limit
     assertTrue(filterRequests.stream().anyMatch(r -> r.getRetrieveFieldsCount() >= 5));
+    assertTrue(
+        filterRequests.stream()
+            .allMatch(
+                r ->
+                    r.getRetrieveFieldsCount()
+                        <= SchemaWarmingQueryGenerator.Limits.DEFAULT.maxRetrieveFields()
+                            + r.getVirtualFieldsCount()));
     Set<String> retrieved =
         filterRequests.stream()
             .flatMap(r -> r.getRetrieveFieldsList().stream())
@@ -314,7 +324,131 @@ public class SchemaWarmingQueryGeneratorTest extends ServerTestCase {
 
   @Test
   public void testNoQueriesRequested() throws IOException {
+    // facet and kNN queries are added on top of the requested filter and structured queries
     List<SearchRequest> requests = generate(0);
-    assertFalse(requests.stream().anyMatch(SearchRequest::hasQuery));
+    assertTrue(
+        requests.stream()
+            .filter(SearchRequest::hasQuery)
+            .allMatch(r -> r.getFacetsCount() > 0 || r.getKnnCount() > 0));
+  }
+
+  private List<SearchRequest> generate(int numQueries, SchemaWarmingQueryGenerator.Limits limits)
+      throws IOException {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    return new SchemaWarmingQueryGenerator(indexState, new Random(42), 0, limits)
+        .generate(numQueries);
+  }
+
+  private static boolean isHeavy(SearchRequest request) {
+    String kind = SchemaWarmingQueryGenerator.kindOf(request);
+    return Set.of("sort", "script", "aggregation", "geo", "facet").contains(kind);
+  }
+
+  @Test
+  public void testCostlyQueriesAreCapped() throws IOException {
+    List<SearchRequest> requests = generate(200);
+    List<SearchRequest> heavy = requests.stream().filter(r -> isHeavy(r)).toList();
+    assertFalse(heavy.isEmpty());
+    int terminateAfter = SchemaWarmingQueryGenerator.Limits.DEFAULT.terminateAfter();
+    assertTrue(heavy.stream().allMatch(r -> r.getTerminateAfter() == terminateAfter));
+    // a terminateAfter cap stops warming the later segments of broad queries, so it is only used
+    // on queries whose cost grows with the matching documents
+    assertTrue(
+        requests.stream().filter(r -> !isHeavy(r)).allMatch(r -> r.getTerminateAfter() == 0));
+    assertTrue(heavy.stream().allMatch(r -> r.getTopHits() <= 100));
+    // filter, boolean and text queries still fetch up to a few hundred hits
+    assertTrue(requests.stream().anyMatch(r -> r.getTopHits() > 100));
+  }
+
+  @Test
+  public void testQueriesPerTargetAreCapped() throws IOException {
+    SchemaWarmingQueryGenerator.Limits onePerTarget =
+        new SchemaWarmingQueryGenerator.Limits(0, 0, 1, 0);
+    List<SearchRequest> capped = generate(400, onePerTarget);
+    List<SearchRequest> uncapped = generate(400, SchemaWarmingQueryGenerator.Limits.NONE);
+    long cappedAggregations = capped.stream().filter(r -> r.getCollectorsCount() > 0).count();
+    long uncappedAggregations = uncapped.stream().filter(r -> r.getCollectorsCount() > 0).count();
+    assertTrue(cappedAggregations > 0);
+    assertTrue(cappedAggregations < uncappedAggregations);
+    // the queries the capped kinds don't use are generated as other kinds, the total stays the
+    // same
+    long cappedWithQuery = capped.stream().filter(r -> r.getFacetsCount() == 0).count();
+    long uncappedWithQuery = uncapped.stream().filter(r -> r.getFacetsCount() == 0).count();
+    assertEquals(uncappedWithQuery, cappedWithQuery);
+  }
+
+  @Test
+  public void testLimitsNoneKeepsPreviousQueries() throws IOException {
+    List<SearchRequest> requests = generate(200, SchemaWarmingQueryGenerator.Limits.NONE);
+    assertTrue(requests.stream().allMatch(r -> r.getTerminateAfter() == 0));
+    // requests retrieve more than maxRetrieveFields again, up to every doc values field
+    assertTrue(
+        requests.stream()
+            .anyMatch(
+                r ->
+                    r.getRetrieveFieldsCount() - r.getVirtualFieldsCount()
+                        > SchemaWarmingQueryGenerator.Limits.DEFAULT.maxRetrieveFields()));
+    // and more sort and aggregation queries, with no per field cap
+    long sorts = requests.stream().filter(SearchRequest::hasQuerySort).count();
+    long cappedSorts =
+        generate(200, new SchemaWarmingQueryGenerator.Limits(0, 0, 1, 0)).stream()
+            .filter(SearchRequest::hasQuerySort)
+            .count();
+    assertTrue(sorts + " " + cappedSorts, sorts > cappedSorts);
+  }
+
+  @Test
+  public void testSelectiveFiltersOfCostlyQueries() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    var shardState = indexState.getShard(0);
+    var searcherAndTaxonomy = shardState.acquire();
+    try {
+      // a third of the documents per category, a half per label: at 40% categories and ranges
+      // are selective, labels and the boolean field are not
+      SchemaWarmingQueryGenerator generator =
+          new SchemaWarmingQueryGenerator(
+              indexState, new Random(42), 0, new SchemaWarmingQueryGenerator.Limits(0, 0, 0, 0.4));
+      List<SchemaWarmingQueryGenerator.FieldSample> samples = new ArrayList<>();
+      for (String field : List.of("label", "category", "count", "active")) {
+        samples.add(
+            SchemaWarmingQueryGenerator.sampleField(
+                searcherAndTaxonomy.searcher(),
+                (com.yelp.nrtsearch.server.field.IndexableFieldDef<?>)
+                    indexState.getFieldOrThrow(field),
+                new Random(7)));
+      }
+      Set<String> selective =
+          generator.selectiveSamples(searcherAndTaxonomy.searcher(), samples).stream()
+              .map(s -> s.fieldDef().getName())
+              .collect(Collectors.toSet());
+      assertEquals(Set.of("category", "count"), selective);
+      // a selective range covers 40% of the value range (0 to 49)
+      Query range =
+          generator.selectiveLeafQuery(
+              SchemaWarmingQueryGenerator.sampleField(
+                  searcherAndTaxonomy.searcher(),
+                  (com.yelp.nrtsearch.server.field.IndexableFieldDef<?>)
+                      indexState.getFieldOrThrow("count"),
+                  new Random(7)));
+      int lower = Integer.parseInt(range.getRangeQuery().getLower());
+      int upper = Integer.parseInt(range.getRangeQuery().getUpper());
+      assertTrue(lower + " " + upper, upper - lower <= 21 && lower >= 0 && upper <= NUM_DOCS);
+    } finally {
+      shardState.release(searcherAndTaxonomy);
+    }
+  }
+
+  @Test
+  public void testKindOfLabelsEveryGeneratedQuery() throws IOException {
+    Set<String> kinds =
+        generate(200).stream().map(SchemaWarmingQueryGenerator::kindOf).collect(Collectors.toSet());
+    // this index has no geo fields
+    assertEquals(
+        Set.of("filter", "boolean", "sort", "text", "script", "aggregation", "facet", "knn"),
+        kinds);
+    assertTrue(
+        generate(200).stream()
+            .filter(SchemaWarmingQueryGeneratorTest::isFilterRequest)
+            .allMatch(r -> SchemaWarmingQueryGenerator.kindOf(r).equals("filter")));
   }
 }

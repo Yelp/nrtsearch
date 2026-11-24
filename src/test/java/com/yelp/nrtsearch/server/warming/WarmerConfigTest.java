@@ -147,6 +147,36 @@ public class WarmerConfigTest {
   }
 
   @Test
+  public void testSchemaQuerySettings() {
+    WarmerConfig defaults = getConfig(String.join("\n", "warmer:", "  warmingStrategy: schema"));
+    assertEquals(WarmerConfig.SchemaQuerySettings.DEFAULT, defaults.getSchemaQuerySettings());
+
+    WarmerConfig config =
+        getConfig(
+            String.join(
+                "\n",
+                "warmer:",
+                "  warmingStrategy: template",
+                "  schemaWarmingParallelism: 6",
+                "  schemaQueryTimeoutMs: 1000",
+                "  schemaTerminateAfter: 50000",
+                "  schemaMaxRetrieveFields: 3",
+                "  schemaMaxQueriesPerTarget: 2",
+                "  schemaSelectiveFraction: 0.01"));
+    WarmerConfig.SchemaQuerySettings settings = config.getSchemaQuerySettings();
+    assertEquals(6, settings.parallelism());
+    assertEquals(1000, settings.queryTimeoutMs());
+    assertEquals(new SchemaWarmingQueryGenerator.Limits(50000, 3, 2, 0.01), settings.limits());
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> getConfig(String.join("\n", "warmer:", "  schemaSelectiveFraction: 2")));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> getConfig(String.join("\n", "warmer:", "  schemaWarmingParallelism: -1")));
+  }
+
+  @Test
   public void testTemplateLibraryDefaults() {
     WarmerConfig config = getConfig(String.join("\n", "warmer:", "  warmingStrategy: template"));
     WarmerConfig.TemplateLibrarySettings library = config.getTemplateLibrary();

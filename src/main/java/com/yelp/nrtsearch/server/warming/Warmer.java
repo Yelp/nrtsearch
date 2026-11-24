@@ -48,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -101,6 +102,8 @@ public class Warmer {
   private volatile WarmerConfig.TemplateLibrarySettings librarySettings;
   private volatile TemplateDriftMonitor driftMonitor;
   private volatile TemplateWarmingQueryGenerator templateLibrary;
+  private volatile WarmerConfig.SchemaQuerySettings schemaQuerySettings =
+      WarmerConfig.SchemaQuerySettings.DEFAULT;
 
   public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
     this(remoteBackend, service, index, maxWarmingQueries, 0);
@@ -493,16 +496,25 @@ public class Warmer {
    */
   private boolean shutdownAndWait(ThreadPoolExecutor threadPoolExecutor)
       throws InterruptedException {
+    return shutdownAndWait(threadPoolExecutor, queryTimeoutMs);
+  }
+
+  private boolean shutdownAndWait(ThreadPoolExecutor threadPoolExecutor, int timeoutMs)
+      throws InterruptedException {
     if (threadPoolExecutor == null || threadPoolExecutor.isShutdown()) {
       return true;
     }
     threadPoolExecutor.shutdown();
-    return threadPoolExecutor.awaitTermination(replayWaitMs(), TimeUnit.MILLISECONDS);
+    return threadPoolExecutor.awaitTermination(replayWaitMs(timeoutMs), TimeUnit.MILLISECONDS);
   }
 
   /** Time to wait for running replay tasks, long enough for a query to reach its timeout. */
   private long replayWaitMs() {
-    return minReplayWaitMs + Math.max(0, queryTimeoutMs);
+    return replayWaitMs(queryTimeoutMs);
+  }
+
+  private long replayWaitMs(int timeoutMs) {
+    return minReplayWaitMs + Math.max(0, timeoutMs);
   }
 
   @VisibleForTesting
@@ -607,8 +619,14 @@ public class Warmer {
   @VisibleForTesting
   List<SearchRequest> generateSchemaQueries(IndexState indexState, int numQueries)
       throws IOException {
-    return new SchemaWarmingQueryGenerator(indexState, queryFilter.getMaxQueryTopHits())
+    return new SchemaWarmingQueryGenerator(
+            indexState, queryFilter.getMaxQueryTopHits(), schemaQuerySettings.limits())
         .generate(numQueries);
+  }
+
+  /** Set how schema generated queries are generated and run, see {@link WarmerConfig}. */
+  public void setSchemaQuerySettings(WarmerConfig.SchemaQuerySettings settings) {
+    this.schemaQuerySettings = settings;
   }
 
   /**
@@ -1235,10 +1253,18 @@ public class Warmer {
       String queryType)
       throws InterruptedException {
     BootstrapMetrics.warmingStrategyInfo.labelValues(index, queryType).set(1);
+    boolean isSchema = SCHEMA_QUERY_TYPE.equals(queryType);
+    WarmerConfig.SchemaQuerySettings settings = schemaQuerySettings;
+    if (isSchema && settings.parallelism() > 0) {
+      parallelism = settings.parallelism();
+    }
+    int timeoutMs =
+        isSchema && settings.queryTimeoutMs() > 0 ? settings.queryTimeoutMs() : queryTimeoutMs;
     ThreadPoolExecutor threadPoolExecutor = createWarmingExecutor(parallelism);
-    ScheduledExecutorService deadlineScheduler = createDeadlineScheduler();
+    ScheduledExecutorService deadlineScheduler = createDeadlineScheduler(timeoutMs);
     long startMS = System.currentTimeMillis();
     ReplayStats replayStats = new ReplayStats();
+    Map<String, KindStats> kindStats = isSchema ? new ConcurrentHashMap<>() : null;
     int started = 0;
     boolean stoppedByCaller = false;
     boolean reachedMaxDuration = false;
@@ -1254,10 +1280,11 @@ public class Warmer {
           break;
         }
         SearchRequest.Builder builder = request.toBuilder();
-        if (queryTimeoutMs > 0) {
-          applyQueryTimeout(builder, queryTimeoutMs, indexState);
+        if (timeoutMs > 0) {
+          applyQueryTimeout(builder, timeoutMs, indexState);
         }
         SearchRequest searchRequest = builder.build();
+        String kind = isSchema ? SchemaWarmingQueryGenerator.kindOf(request) : null;
         int position = started++;
         replayStats.inFlightPositions.add(position);
         Runnable replay =
@@ -1269,24 +1296,27 @@ public class Warmer {
                     searchRequest,
                     queryType,
                     position,
-                    replayStats);
+                    replayStats,
+                    timeoutMs,
+                    kind,
+                    kindStats);
         if (threadPoolExecutor == null) {
           replay.run();
         } else {
           threadPoolExecutor.submit(replay);
         }
       }
-      if (!shutdownAndWait(threadPoolExecutor)) {
+      if (!shutdownAndWait(threadPoolExecutor, timeoutMs)) {
         logger.warn(
             "Warming index: {} still has {} {} warming queries running after waiting {} ms,"
                 + " they continue in the background",
             index,
             replayStats.inFlightPositions.size(),
             queryType,
-            replayWaitMs());
+            replayWaitMs(timeoutMs));
       }
     } finally {
-      shutdownAndWait(threadPoolExecutor);
+      shutdownAndWait(threadPoolExecutor, timeoutMs);
       if (deadlineScheduler != null) {
         deadlineScheduler.shutdownNow();
       }
@@ -1316,6 +1346,57 @@ public class Warmer {
         (System.currentTimeMillis() - startMS) / 1000.0,
         replayStats.timedOut.get(),
         replayStats.failed.get());
+    if (kindStats != null && !kindStats.isEmpty()) {
+      logger.info(
+          "Schema warming queries of index: {} by kind (count, total s, mean ms, max ms, timed"
+              + " out), parallelism {}: {}",
+          index,
+          parallelism,
+          formatKindStats(kindStats));
+    }
+  }
+
+  /** Cost of the replayed schema queries of one kind, updated concurrently by warming threads. */
+  @VisibleForTesting
+  static class KindStats {
+    final java.util.concurrent.atomic.LongAdder count = new java.util.concurrent.atomic.LongAdder();
+    final java.util.concurrent.atomic.LongAdder totalNs =
+        new java.util.concurrent.atomic.LongAdder();
+    final java.util.concurrent.atomic.AtomicLong maxNs =
+        new java.util.concurrent.atomic.AtomicLong();
+    final AtomicInteger timedOut = new AtomicInteger();
+
+    void record(long elapsedNs, boolean timeout) {
+      count.increment();
+      totalNs.add(elapsedNs);
+      maxNs.accumulateAndGet(elapsedNs, Math::max);
+      if (timeout) {
+        timedOut.incrementAndGet();
+      }
+    }
+  }
+
+  /** Kinds by total time, most costly first, e.g. "script=111/150.2s/1353ms/9876ms/7". */
+  @VisibleForTesting
+  static String formatKindStats(Map<String, KindStats> kindStats) {
+    return kindStats.entrySet().stream()
+        .sorted((a, b) -> Long.compare(b.getValue().totalNs.sum(), a.getValue().totalNs.sum()))
+        .map(
+            e -> {
+              KindStats s = e.getValue();
+              long count = s.count.sum();
+              double totalMs = s.totalNs.sum() / 1e6;
+              return String.format(
+                  java.util.Locale.ROOT,
+                  "%s=%d/%.1fs/%.0fms/%.0fms/%d",
+                  e.getKey(),
+                  count,
+                  totalMs / 1000,
+                  count == 0 ? 0 : totalMs / count,
+                  s.maxNs.get() / 1e6,
+                  s.timedOut.get());
+            })
+        .collect(java.util.stream.Collectors.joining(", "));
   }
 
   private static ThreadPoolExecutor createWarmingExecutor(int parallelism) {
@@ -1335,8 +1416,12 @@ public class Warmer {
 
   /** Scheduler for replay deadlines, null when there is no per query timeout to enforce. */
   private ScheduledExecutorService createDeadlineScheduler() {
+    return createDeadlineScheduler(queryTimeoutMs);
+  }
+
+  private ScheduledExecutorService createDeadlineScheduler(int timeoutMs) {
     // the request deadline only has an effect when deadline cancellation is enabled
-    if (queryTimeoutMs > 0 && DeadlineUtils.getCancellationEnabled()) {
+    if (timeoutMs > 0 && DeadlineUtils.getCancellationEnabled()) {
       return Executors.newSingleThreadScheduledExecutor(
           new ThreadFactoryBuilder().setNameFormat("warming-deadline-%d").setDaemon(true).build());
     }
@@ -1449,6 +1534,36 @@ public class Warmer {
       String type,
       int position,
       ReplayStats replayStats) {
+    replayQuery(
+        indexState,
+        searchHandler,
+        deadlineScheduler,
+        searchRequest,
+        type,
+        position,
+        replayStats,
+        queryTimeoutMs,
+        null,
+        null);
+  }
+
+  /**
+   * @param timeoutMs timeout of this query, 0 for none
+   * @param kind kind of a schema generated query, see {@link SchemaWarmingQueryGenerator#kindOf},
+   *     null for other queries
+   * @param kindStats per kind costs to update, null when kind is null
+   */
+  private void replayQuery(
+      IndexState indexState,
+      SearchHandler searchHandler,
+      ScheduledExecutorService deadlineScheduler,
+      SearchRequest searchRequest,
+      String type,
+      int position,
+      ReplayStats replayStats,
+      int queryTimeoutMs,
+      String kind,
+      Map<String, KindStats> kindStats) {
     long startNs = System.nanoTime();
     Reason reason = null;
     try {
@@ -1480,7 +1595,14 @@ public class Warmer {
           logger.warn("Warming query failed for index: {}", index, e);
         }
       }
-      recordReplayMetrics(type, reason, System.nanoTime() - startNs);
+      long elapsedNs = System.nanoTime() - startNs;
+      recordReplayMetrics(type, reason, elapsedNs);
+      if (kind != null) {
+        recordSchemaKindMetrics(kind, reason, elapsedNs);
+        kindStats
+            .computeIfAbsent(kind, k -> new KindStats())
+            .record(elapsedNs, reason == Reason.TIMEOUT);
+      }
       if (reason != null) {
         if (reason == Reason.TIMEOUT) {
           replayStats.timedOut.incrementAndGet();
@@ -1500,6 +1622,14 @@ public class Warmer {
     WarmingMetrics.warmingQueryCount.labelValues(index, type, outcome).inc();
     WarmingMetrics.warmingQueryLatency
         .labelValues(index, type)
+        .observe(elapsedNs / (double) TimeUnit.SECONDS.toNanos(1));
+  }
+
+  private void recordSchemaKindMetrics(String kind, Reason reason, long elapsedNs) {
+    String outcome = reason == null ? "success" : (reason == Reason.TIMEOUT ? "timeout" : "error");
+    WarmingMetrics.warmingSchemaQueryCount.labelValues(index, kind, outcome).inc();
+    WarmingMetrics.warmingSchemaQueryLatency
+        .labelValues(index, kind)
         .observe(elapsedNs / (double) TimeUnit.SECONDS.toNanos(1));
   }
 
