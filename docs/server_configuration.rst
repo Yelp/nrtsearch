@@ -594,6 +594,31 @@ Example server configuration
      - Generated sort, script, aggregation, geo and facet queries filter on sampled values that match at most this fraction of the documents, or on a range over this fraction of a field's value range, since their cost grows with the documents they match. Sort, script and aggregation queries also fetch at most 100 hits. 0 uses any sampled value.
      - 0.001
 
+   * - schemaMaxAggregationsPerField
+     - int
+     - Most generated aggregation queries per aggregation field. Aggregations build global ordinals, which the query timeout does not stop. 0 uses ``schemaMaxQueriesPerTarget``.
+     - 1
+
+   * - schemaAggregationTopHits
+     - bool
+     - Add a nested top hits collector to some generated aggregations.
+     - false
+
+   * - schemaTemplateFieldsOnly
+     - bool
+     - With ``templateSchemaQueries``, only generate schema queries over the fields and nested paths the template library uses, so warming fills the page cache with data live queries read.
+     - false
+
+   * - schemaInterleave
+     - bool
+     - With ``templateSchemaQueries``, replay schema queries shuffled with the template queries instead of after them.
+     - false
+
+   * - schemaMaxDurationMs
+     - int
+     - Stop starting schema queries this long after they start (after the template queries, or when interleaved, after the replay starts). 0 for no limit.
+     - 0
+
    * - peerFallbackStrategy
      - str
      - Strategy used by ``PEER`` warming when no replica provides queries: ``S3``, ``SCHEMA`` or ``NONE`` (no warming). Each startup with ``PEER`` is counted in ``nrt_warming_peer_fetch_count`` with outcome ``success`` or ``fallback``.

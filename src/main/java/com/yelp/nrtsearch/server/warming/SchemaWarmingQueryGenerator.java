@@ -230,13 +230,28 @@ public class SchemaWarmingQueryGenerator {
       int terminateAfter,
       int maxRetrieveFields,
       int maxQueriesPerTarget,
-      double selectiveFraction) {
-    public static final Limits DEFAULT = new Limits(200_000, 5, 3, 0.001);
+      double selectiveFraction,
+      int maxAggregationsPerField,
+      boolean aggregationTopHits) {
+    // aggregations build global ordinals, which the query timeout doesn't stop, so 1 per field
+    public static final Limits DEFAULT = new Limits(200_000, 5, 3, 0.001, 1, false);
     // the generator before limits were added
     public static final Limits NONE = new Limits(0, 0, 0, 0);
 
+    /** No extra aggregation limits. */
+    public Limits(
+        int terminateAfter,
+        int maxRetrieveFields,
+        int maxQueriesPerTarget,
+        double selectiveFraction) {
+      this(terminateAfter, maxRetrieveFields, maxQueriesPerTarget, selectiveFraction, 0, true);
+    }
+
     public Limits {
-      if (terminateAfter < 0 || maxRetrieveFields < 0 || maxQueriesPerTarget < 0) {
+      if (terminateAfter < 0
+          || maxRetrieveFields < 0
+          || maxQueriesPerTarget < 0
+          || maxAggregationsPerField < 0) {
         throw new IllegalArgumentException(
             "schemaTerminateAfter, schemaMaxRetrieveFields and schemaMaxQueriesPerTarget must be"
                 + " >= 0");
@@ -272,6 +287,8 @@ public class SchemaWarmingQueryGenerator {
   // generated topHits are capped to this, 0 for no limit
   private final int maxTopHits;
   private final Limits limits;
+  // only generate queries over these fields (and fields under these nested paths), null for all
+  private Set<String> allowedFields;
 
   /**
    * A searchable field, with values sampled from the index to build queries from.
@@ -465,6 +482,24 @@ public class SchemaWarmingQueryGenerator {
     return requests;
   }
 
+  /** Only use these fields, for example the fields the template library uses. Null for all. */
+  public SchemaWarmingQueryGenerator restrictToFields(Set<String> fields) {
+    this.allowedFields = fields;
+    return this;
+  }
+
+  private boolean isAllowed(String name) {
+    if (allowedFields == null || allowedFields.contains(name)) {
+      return true;
+    }
+    for (String allowed : allowedFields) {
+      if (name.startsWith(allowed + ".")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private void logSamplingFailure(FieldDef fieldDef, Exception e) {
     logger.warn(
         "Unable to sample field: {} of index: {} for schema warming, skipping it",
@@ -481,6 +516,9 @@ public class SchemaWarmingQueryGenerator {
         continue;
       }
       String name = fieldDef.getName();
+      if (!isAllowed(name)) {
+        continue;
+      }
       String nestedPath;
       try {
         nestedPath = nestedPath(name);
@@ -1040,6 +1078,9 @@ public class SchemaWarmingQueryGenerator {
                   : samples.scriptSources().values().stream().mapToInt(List::size).max().orElse(0);
           default -> -1;
         };
+    if (kind == StructuredKind.AGGREGATION && limits.maxAggregationsPerField() > 0) {
+      perTarget = Math.min(perTarget, limits.maxAggregationsPerField());
+    }
     return targets < 0 ? Integer.MAX_VALUE : (int) Math.min(Integer.MAX_VALUE, targets * perTarget);
   }
 
@@ -1648,7 +1689,7 @@ public class SchemaWarmingQueryGenerator {
                       .setField(fields.get(i))
                       .setSize(
                           TERMS_COLLECTOR_SIZES[random.nextInt(TERMS_COLLECTOR_SIZES.length)]));
-      if (random.nextBoolean()) {
+      if (limits.aggregationTopHits() && random.nextBoolean()) {
         collector.putNestedCollectors(
             NESTED_COLLECTOR_NAME,
             Collector.newBuilder()

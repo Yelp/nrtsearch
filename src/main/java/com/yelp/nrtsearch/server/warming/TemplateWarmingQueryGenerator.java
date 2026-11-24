@@ -334,6 +334,46 @@ public class TemplateWarmingQueryGenerator {
     return fields;
   }
 
+  // request keys whose string values are field names or nested paths
+  private static final Set<String> FIELD_KEYS =
+      Set.of("field", "fieldName", "fields", "retrieveFields", "path", "dim");
+
+  /** Every field and nested path the templates use, constant or slot. */
+  public Set<String> referencedFields() {
+    Set<String> fields = new TreeSet<>(fields());
+    for (Template t : templates) {
+      collectFieldNames(t.skeleton, fields);
+    }
+    return fields;
+  }
+
+  private static void collectFieldNames(JsonElement e, Set<String> out) {
+    if (e == null) {
+      return;
+    }
+    if (e.isJsonArray()) {
+      e.getAsJsonArray().forEach(x -> collectFieldNames(x, out));
+    } else if (e.isJsonObject()) {
+      for (Map.Entry<String, JsonElement> entry : e.getAsJsonObject().entrySet()) {
+        JsonElement v = entry.getValue();
+        if (FIELD_KEYS.contains(entry.getKey())) {
+          if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isString()) {
+            out.add(v.getAsString());
+          } else if (v.isJsonArray()) {
+            v.getAsJsonArray()
+                .forEach(
+                    x -> {
+                      if (x.isJsonPrimitive() && x.getAsJsonPrimitive().isString()) {
+                        out.add(x.getAsString());
+                      }
+                    });
+          }
+        }
+        collectFieldNames(v, out);
+      }
+    }
+  }
+
   /** Add the documents of a seed query's response to the value pool. */
   public void addPoolHits(SearchResponse response) {
     int kept = 0;

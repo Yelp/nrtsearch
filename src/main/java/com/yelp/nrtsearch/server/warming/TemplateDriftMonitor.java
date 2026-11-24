@@ -19,8 +19,12 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.monitoring.WarmingMetrics;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -32,13 +36,16 @@ import org.slf4j.LoggerFactory;
  * stop matching, for example after a client changes its requests.
  *
  * <p>One in every {@code checkEvery} collected queries is checked: its template key is computed and
- * looked up in the library. After {@code window} checks, the share that matched is published as
- * {@code nrt_warming_template_match_ratio}. If it is below {@code threshold}, and the last relearn
- * started at least {@code cooldownMs} ago, the relearn task runs on a background thread. Only one
- * relearn runs at a time, and searches never wait for it.
+ * looked up in the library. The check runs on a background thread, so searches only increment a
+ * counter; when the thread falls behind, checks are dropped. After {@code window} checks, the share
+ * that matched is published as {@code nrt_warming_template_match_ratio}. If it is below {@code
+ * threshold}, and the last relearn started at least {@code cooldownMs} ago, the relearn task runs
+ * on another background thread. Only one relearn runs at a time, and searches never wait for it.
  */
 public class TemplateDriftMonitor {
   private static final Logger logger = LoggerFactory.getLogger(TemplateDriftMonitor.class);
+  // checks waiting for the check thread; beyond this they are dropped
+  static final int MAX_PENDING_CHECKS = 1000;
 
   /** Learns templates from recent traffic, merges them into the library and stores it. */
   @FunctionalInterface
@@ -58,7 +65,9 @@ public class TemplateDriftMonitor {
   private final Relearner relearner;
   private final LongSupplier clock;
   private final ExecutorService executor;
+  private final ExecutorService checkExecutor;
   private final AtomicLong seen = new AtomicLong();
+  private final AtomicLong dropped = new AtomicLong();
   private final AtomicBoolean relearning = new AtomicBoolean();
   private volatile Set<String> keys;
   private long checked;
@@ -85,7 +94,31 @@ public class TemplateDriftMonitor {
             new ThreadFactoryBuilder()
                 .setNameFormat("template-relearn-" + index + "-%d")
                 .setDaemon(true)
-                .build()));
+                .build()),
+        new ThreadPoolExecutor(
+            1,
+            1,
+            0,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(MAX_PENDING_CHECKS),
+            new ThreadFactoryBuilder()
+                .setNameFormat("template-drift-check-" + index + "-%d")
+                .setDaemon(true)
+                .build(),
+            new ThreadPoolExecutor.AbortPolicy()));
+  }
+
+  /** Checks run on the relearn executor, tests pass a direct executor to check synchronously. */
+  TemplateDriftMonitor(
+      String index,
+      int checkEvery,
+      int window,
+      double threshold,
+      long cooldownMs,
+      Relearner relearner,
+      LongSupplier clock,
+      ExecutorService executor) {
+    this(index, checkEvery, window, threshold, cooldownMs, relearner, clock, executor, executor);
   }
 
   TemplateDriftMonitor(
@@ -96,7 +129,8 @@ public class TemplateDriftMonitor {
       long cooldownMs,
       Relearner relearner,
       LongSupplier clock,
-      ExecutorService executor) {
+      ExecutorService executor,
+      ExecutorService checkExecutor) {
     if (checkEvery <= 0 || window <= 0 || threshold <= 0 || threshold > 1) {
       throw new IllegalArgumentException(
           "Invalid template drift settings: checkEvery and window must be positive, threshold in"
@@ -110,6 +144,7 @@ public class TemplateDriftMonitor {
     this.relearner = relearner;
     this.clock = clock;
     this.executor = executor;
+    this.checkExecutor = checkExecutor;
   }
 
   /** Start checking against the given library keys, or stop checking when null. */
@@ -129,10 +164,30 @@ public class TemplateDriftMonitor {
     return relearning.get();
   }
 
-  /** Called for each collected live query. Cheap unless the query is one of the checked ones. */
+  /** Checks dropped because the check thread was behind. */
+  public long getDroppedChecks() {
+    return dropped.get();
+  }
+
+  /**
+   * Called on the search path for each collected live query. Only counts; a checked query is handed
+   * to the check thread, so the search never computes its template key.
+   */
   public void observe(SearchRequest request) {
+    if (keys == null || seen.incrementAndGet() % checkEvery != 0) {
+      return;
+    }
+    try {
+      checkExecutor.execute(() -> check(request));
+    } catch (RejectedExecutionException e) {
+      dropped.incrementAndGet();
+    }
+  }
+
+  /** Compute the template key of a live query and count it in the current window. */
+  void check(SearchRequest request) {
     Set<String> current = keys;
-    if (current == null || seen.incrementAndGet() % checkEvery != 0) {
+    if (current == null) {
       return;
     }
     String key = TemplateWarmingQueryGenerator.templateKey(request);
@@ -193,6 +248,7 @@ public class TemplateDriftMonitor {
   }
 
   public void close() {
+    checkExecutor.shutdownNow();
     executor.shutdownNow();
   }
 }
