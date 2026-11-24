@@ -1032,6 +1032,51 @@ public class WarmerTest {
   }
 
   @Test
+  public void testWarmFromRequests_schemaSettingsAndKindMetrics() throws Exception {
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+    List<SearchRequest> requests = getTestSearchRequests();
+    double filterBefore =
+        WarmingMetrics.warmingSchemaQueryCount.labelValues(index, "filter", "success").get();
+    warmer.setSchemaQuerySettings(
+        new WarmerConfig.SchemaQuerySettings(3, 1500, SchemaWarmingQueryGenerator.Limits.DEFAULT));
+
+    warmer.warmFromRequests(mockIndexState, 0, mockSearchHandler, requests);
+
+    // schema queries get the schema query timeout, the warmer's own timeout is not set
+    for (SearchRequest request : requests) {
+      verify(mockSearchHandler)
+          .handle(
+              org.mockito.ArgumentMatchers.eq(mockIndexState),
+              org.mockito.ArgumentMatchers.argThat(
+                  r ->
+                      r.getQuery().equals(request.getQuery())
+                          && r.getTimeoutSec() == 1.5
+                          && r.getTimeoutCheckEvery() == Warmer.REPLAY_TIMEOUT_CHECK_EVERY));
+    }
+    // the test queries are function score queries over a term query: filter kind
+    assertEquals(
+        filterBefore + requests.size(),
+        WarmingMetrics.warmingSchemaQueryCount.labelValues(index, "filter", "success").get(),
+        0);
+  }
+
+  @Test
+  public void testFormatKindStats() {
+    Warmer.KindStats script = new Warmer.KindStats();
+    script.record(TimeUnit.MILLISECONDS.toNanos(3000), true);
+    script.record(TimeUnit.MILLISECONDS.toNanos(1000), false);
+    Warmer.KindStats filter = new Warmer.KindStats();
+    filter.record(TimeUnit.MILLISECONDS.toNanos(10), false);
+    java.util.Map<String, Warmer.KindStats> stats = new java.util.LinkedHashMap<>();
+    stats.put("filter", filter);
+    stats.put("script", script);
+    // most costly kind first
+    assertEquals(
+        "script=2/4.0s/2000ms/3000ms/1, filter=1/0.0s/10ms/10ms/0", Warmer.formatKindStats(stats));
+  }
+
+  @Test
   public void testWarmFromRequests_failureDoesNotStopWarming() throws Exception {
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);

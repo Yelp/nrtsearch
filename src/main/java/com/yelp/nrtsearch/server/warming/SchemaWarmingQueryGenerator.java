@@ -100,7 +100,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -157,6 +156,11 @@ public class SchemaWarmingQueryGenerator {
   static final int[] TOP_HITS = {10, 30, 100};
   // topHits of structured queries, live queries often fetch a few hundred hits for rescoring
   static final int[] LARGE_TOP_HITS = {10, 100, 250, 500};
+  // topHits of sort, script, aggregation, geo and facet queries. Their cost is per matching
+  // document, so a large fetch on top of it only adds time without warming other data.
+  static final int[] HEAVY_TOP_HITS = {10, 50, 100};
+  // term set queries of a selective filter use at most this many values, so they stay selective
+  static final int MAX_SELECTIVE_TERM_SET_SIZE = 3;
   // maximum distinct text values sampled per field, the pool term and term set queries draw from
   static final int MAX_SAMPLED_TERMS = 100;
   // random documents read per wanted value, bounds sampling time on sparse fields
@@ -200,6 +204,49 @@ public class SchemaWarmingQueryGenerator {
     NestedQuery.ScoreMode.NONE, NestedQuery.ScoreMode.MAX, NestedQuery.ScoreMode.SUM
   };
 
+  // kind labels of generated queries, see kindOf
+  public static final String FILTER_KIND = "filter";
+  public static final String FACET_KIND = "facet";
+  public static final String KNN_KIND = "knn";
+
+  /**
+   * Limits on the cost of generated queries. On a large index a sort, script or aggregation query
+   * over a broad filter visits millions of documents, while warming the same data only needs a few
+   * of them per segment.
+   *
+   * @param terminateAfter stop collecting a sort, script, aggregation, geo or facet query after
+   *     this many documents, 0 for no limit. The count is shared by all segments of the query, so
+   *     this is a safety cap: set it well above the documents a selective filter matches.
+   * @param maxRetrieveFields retrieve at most this many doc values fields per query, 0 for no
+   *     limit. The fields rotate between queries, so every field is still fetched.
+   * @param maxQueriesPerTarget at most this many sort queries per sort field, script queries per
+   *     script source and aggregation queries per aggregation field, 0 for no limit. The rest of
+   *     the structured queries go to the other kinds, or to filter queries.
+   * @param selectiveFraction filters of sort, script, aggregation, geo and facet queries use
+   *     sampled values that match at most this fraction of the documents, and ranges over this
+   *     fraction of a field's value range, 0 to use any sampled value
+   */
+  public record Limits(
+      int terminateAfter,
+      int maxRetrieveFields,
+      int maxQueriesPerTarget,
+      double selectiveFraction) {
+    public static final Limits DEFAULT = new Limits(200_000, 5, 3, 0.001);
+    // the generator before limits were added
+    public static final Limits NONE = new Limits(0, 0, 0, 0);
+
+    public Limits {
+      if (terminateAfter < 0 || maxRetrieveFields < 0 || maxQueriesPerTarget < 0) {
+        throw new IllegalArgumentException(
+            "schemaTerminateAfter, schemaMaxRetrieveFields and schemaMaxQueriesPerTarget must be"
+                + " >= 0");
+      }
+      if (selectiveFraction < 0 || selectiveFraction > 1) {
+        throw new IllegalArgumentException("schemaSelectiveFraction must be in [0, 1]");
+      }
+    }
+  }
+
   /** Kinds of structured queries, weighted by their share of the structured queries. */
   enum StructuredKind {
     BOOLEAN(3),
@@ -214,12 +261,17 @@ public class SchemaWarmingQueryGenerator {
     StructuredKind(int weight) {
       this.weight = weight;
     }
+
+    String label() {
+      return name().toLowerCase(java.util.Locale.ROOT);
+    }
   }
 
   private final IndexState indexState;
   private final Random random;
   // generated topHits are capped to this, 0 for no limit
   private final int maxTopHits;
+  private final Limits limits;
 
   /**
    * A searchable field, with values sampled from the index to build queries from.
@@ -267,8 +319,13 @@ public class SchemaWarmingQueryGenerator {
   }
 
   /** Values sampled from the index, that structured queries are built from. */
+  /**
+   * @param selective usable fields restricted to sampled values that match few documents, and range
+   *     fields, used for the filters of costly queries
+   */
   private record Samples(
       List<FieldSample> usable,
+      List<FieldSample> selective,
       Map<String, List<FieldSample>> usableByNestedPath,
       List<FieldSample> textSamples,
       List<GeoSample> geoSamples,
@@ -285,7 +342,16 @@ public class SchemaWarmingQueryGenerator {
    * @param maxTopHits cap generated topHits to this, 0 for no limit
    */
   public SchemaWarmingQueryGenerator(IndexState indexState, int maxTopHits) {
-    this(indexState, new Random(), maxTopHits);
+    this(indexState, maxTopHits, Limits.DEFAULT);
+  }
+
+  /**
+   * @param indexState index to generate queries for
+   * @param maxTopHits cap generated topHits to this, 0 for no limit
+   * @param limits limits on the cost of generated queries
+   */
+  public SchemaWarmingQueryGenerator(IndexState indexState, int maxTopHits, Limits limits) {
+    this(indexState, new Random(), maxTopHits, limits);
   }
 
   @VisibleForTesting
@@ -295,9 +361,15 @@ public class SchemaWarmingQueryGenerator {
 
   @VisibleForTesting
   SchemaWarmingQueryGenerator(IndexState indexState, Random random, int maxTopHits) {
+    this(indexState, random, maxTopHits, Limits.DEFAULT);
+  }
+
+  @VisibleForTesting
+  SchemaWarmingQueryGenerator(IndexState indexState, Random random, int maxTopHits, Limits limits) {
     this.indexState = indexState;
     this.random = random;
     this.maxTopHits = maxTopHits;
+    this.limits = limits;
   }
 
   /**
@@ -313,6 +385,7 @@ public class SchemaWarmingQueryGenerator {
     ShardState shardState = indexState.getShard(0);
     SearcherAndTaxonomy searcherAndTaxonomy = shardState.acquire();
     List<VectorSeeds> vectorSeeds = new ArrayList<>();
+    List<FieldSample> selective;
     try {
       IndexSearcher searcher = searcherAndTaxonomy.searcher();
       for (int i = 0; i < fields.fieldSamples.size(); ++i) {
@@ -344,22 +417,29 @@ public class SchemaWarmingQueryGenerator {
         }
       }
       for (VectorFieldDef<?> vectorField : fields.vectorFields) {
-        vectorSeeds.add(sampleVectors(searcher, vectorField));
+        try {
+          vectorSeeds.add(sampleVectors(searcher, vectorField, random));
+        } catch (IOException | RuntimeException e) {
+          logSamplingFailure(vectorField, e);
+        }
       }
+      selective = selectiveSamples(searcher, fields.fieldSamples);
     } finally {
       shardState.release(searcherAndTaxonomy);
     }
 
-    Samples samples = buildSamples(fields);
+    Samples samples = buildSamples(fields, selective);
     List<StructuredKind> kinds = applicableKinds(samples);
     int numStructured = kinds.isEmpty() ? 0 : (int) (numQueries * STRUCTURED_FRACTION);
 
     List<SearchRequest> requests = new ArrayList<>();
-    addFilterQueries(
-        requests, samples.usable(), fields.docValuesFields, numQueries - numStructured);
     Map<StructuredKind, Integer> structuredCounts =
         addStructuredQueries(requests, samples, kinds, numStructured);
-    addFacetQueries(requests, fields.facetFields);
+    // structured queries capped per field or script, or not generated as duplicates, become
+    // filter queries, so the total stays numQueries
+    int numAdded = structuredCounts.values().stream().mapToInt(Integer::intValue).sum();
+    addFilterQueries(requests, samples.usable(), fields.docValuesFields, numQueries - numAdded);
+    addFacetQueries(requests, samples, fields.facetFields);
     for (VectorSeeds seeds : vectorSeeds) {
       addKnnQueries(requests, seeds);
     }
@@ -728,7 +808,50 @@ public class SchemaWarmingQueryGenerator {
 
   private record TermAndFreq(String term, int docFreq) {}
 
-  private Samples buildSamples(SchemaFields fields) {
+  /**
+   * Usable field samples restricted to values selective enough for costly queries: sampled terms
+   * that match at most selectiveFraction of the documents, and range fields, whose queries use a
+   * narrow part of the value range. Boolean fields and fields without selective values are left
+   * out. Empty when selective filters are disabled.
+   */
+  @VisibleForTesting
+  List<FieldSample> selectiveSamples(IndexSearcher searcher, List<FieldSample> fieldSamples)
+      throws IOException {
+    if (limits.selectiveFraction() <= 0) {
+      return List.of();
+    }
+    org.apache.lucene.index.IndexReader reader = searcher.getIndexReader();
+    long maxDocFreq = Math.max(1, (long) (reader.maxDoc() * limits.selectiveFraction()));
+    List<FieldSample> selective = new ArrayList<>();
+    for (FieldSample sample : fieldSamples) {
+      if (!hasValues(sample) || sample.fieldDef() instanceof BooleanFieldDef) {
+        continue;
+      }
+      if (sample.terms().isEmpty()) {
+        selective.add(sample);
+        continue;
+      }
+      if (!(sample.fieldDef() instanceof AtomFieldDef)) {
+        continue;
+      }
+      List<String> terms = new ArrayList<>();
+      for (String term : sample.terms()) {
+        int docFreq =
+            reader.docFreq(new org.apache.lucene.index.Term(sample.fieldDef().getName(), term));
+        if (docFreq > 0 && docFreq <= maxDocFreq) {
+          terms.add(term);
+        }
+      }
+      if (!terms.isEmpty()) {
+        selective.add(
+            new FieldSample(
+                sample.fieldDef(), terms, sample.min(), sample.max(), sample.nestedPath()));
+      }
+    }
+    return selective;
+  }
+
+  private Samples buildSamples(SchemaFields fields, List<FieldSample> selective) {
     List<FieldSample> usable = fields.fieldSamples.stream().filter(this::hasValues).toList();
     Map<String, List<FieldSample>> byNestedPath = new LinkedHashMap<>();
     for (FieldSample sample : usable) {
@@ -744,6 +867,7 @@ public class SchemaWarmingQueryGenerator {
     geoSamples.forEach(s -> geoPoints.addAll(s.points()));
     return new Samples(
         usable,
+        selective,
         byNestedPath,
         textSamples,
         geoSamples,
@@ -837,13 +961,13 @@ public class SchemaWarmingQueryGenerator {
     if (kinds.isEmpty() || count <= 0) {
       return added;
     }
-    int totalWeight = kinds.stream().mapToInt(k -> k.weight).sum();
+    Map<StructuredKind, Integer> allocation = allocate(kinds, samples, count);
     Set<SearchRequest> seen = new HashSet<>();
-    int assigned = 0;
-    for (int i = 0; i < kinds.size(); ++i) {
-      StructuredKind kind = kinds.get(i);
-      int kindCount = i == kinds.size() - 1 ? count - assigned : count * kind.weight / totalWeight;
-      assigned += kindCount;
+    for (StructuredKind kind : kinds) {
+      int kindCount = allocation.getOrDefault(kind, 0);
+      if (kindCount <= 0) {
+        continue;
+      }
       Supplier<SearchRequest.Builder> supplier =
           switch (kind) {
             case BOOLEAN -> () -> booleanRequest(samples);
@@ -858,6 +982,65 @@ public class SchemaWarmingQueryGenerator {
           addUniqueRequests(requests, seen, samples.fields().docValuesFields, kindCount, supplier));
     }
     return added;
+  }
+
+  /**
+   * Split count between the kinds by weight. A kind with a per target cap gets at most its cap, and
+   * what it does not use is split between the other kinds. Queries no kind can take are left out,
+   * the caller generates filter queries instead.
+   */
+  @VisibleForTesting
+  Map<StructuredKind, Integer> allocate(List<StructuredKind> kinds, Samples samples, int count) {
+    Map<StructuredKind, Integer> allocation = new EnumMap<>(StructuredKind.class);
+    List<StructuredKind> open = new ArrayList<>(kinds);
+    int remaining = count;
+    boolean capped = true;
+    while (capped && !open.isEmpty() && remaining > 0) {
+      capped = false;
+      int totalWeight = open.stream().mapToInt(k -> k.weight).sum();
+      for (StructuredKind kind : open) {
+        int cap = cap(kind, samples);
+        if ((long) remaining * kind.weight / totalWeight > cap) {
+          allocation.put(kind, cap);
+          remaining -= cap;
+          open.remove(kind);
+          capped = true;
+          break;
+        }
+      }
+    }
+    int totalWeight = open.stream().mapToInt(k -> k.weight).sum();
+    int assigned = 0;
+    for (int i = 0; i < open.size(); ++i) {
+      StructuredKind kind = open.get(i);
+      int share =
+          i == open.size() - 1
+              ? remaining - assigned
+              : (int) ((long) remaining * kind.weight / totalWeight);
+      allocation.put(kind, share);
+      assigned += share;
+    }
+    return allocation;
+  }
+
+  /** Most queries of a kind worth generating, by the number of fields or scripts it varies. */
+  private int cap(StructuredKind kind, Samples samples) {
+    int perTarget = limits.maxQueriesPerTarget();
+    if (perTarget <= 0) {
+      return Integer.MAX_VALUE;
+    }
+    long targets =
+        switch (kind) {
+          case SORT -> samples.fields().sortFields.size();
+          case AGGREGATION -> samples.fields().aggregationFields.size();
+          // scriptRequest uses painless when it is installed, else one of the other languages
+          case SCRIPT ->
+              samples.scriptSources().containsKey(PAINLESS_LANG)
+                  ? samples.scriptSources().get(PAINLESS_LANG).size()
+                  : samples.scriptSources().values().stream().mapToInt(List::size).max().orElse(0);
+          default -> -1;
+        };
+    return targets < 0 ? Integer.MAX_VALUE : (int) Math.min(Integer.MAX_VALUE, targets * perTarget);
   }
 
   /**
@@ -893,7 +1076,11 @@ public class SchemaWarmingQueryGenerator {
     if (docValuesFields.isEmpty()) {
       return;
     }
-    int numFields = 1 + random.nextInt(docValuesFields.size());
+    int maxFields =
+        limits.maxRetrieveFields() > 0
+            ? Math.min(limits.maxRetrieveFields(), docValuesFields.size())
+            : docValuesFields.size();
+    int numFields = 1 + random.nextInt(maxFields);
     for (int j = 0; j < numFields; ++j) {
       builder.addRetrieveFields(docValuesFields.get((offset + j) % docValuesFields.size()));
     }
@@ -1026,6 +1213,99 @@ public class SchemaWarmingQueryGenerator {
             : leafQuery(pick(usable)));
   }
 
+  /**
+   * Filter for a query whose cost grows with the documents it matches: a selective value, and
+   * sometimes a second filter, which only narrows the match. Without selective values, two filters
+   * when possible. No query if no field has sampled values.
+   */
+  private void setHeavyFilter(SearchRequest.Builder builder, Samples samples) {
+    Query filter = heavyFilter(samples);
+    if (filter != null) {
+      builder.setQuery(filter);
+    }
+  }
+
+  private Query heavyFilter(Samples samples) {
+    List<FieldSample> usable = samples.usable();
+    if (usable.isEmpty()) {
+      return null;
+    }
+    if (limits.selectiveFraction() <= 0) {
+      // selective filters disabled: one or two random filters, as before limits were added
+      return usable.size() >= 2 && random.nextBoolean()
+          ? filterQuery(usable, 2)
+          : leafQuery(pick(usable));
+    }
+    List<FieldSample> selective = samples.selective();
+    if (selective.isEmpty()) {
+      return usable.size() >= 2 ? filterQuery(usable, 2) : leafQuery(pick(usable));
+    }
+    Query first = selectiveLeafQuery(pick(selective));
+    if (usable.size() < 2 || random.nextBoolean()) {
+      return first;
+    }
+    return Query.newBuilder()
+        .setBooleanQuery(
+            BooleanQuery.newBuilder()
+                .addClauses(clause(BooleanClause.Occur.FILTER, first))
+                .addClauses(clause(BooleanClause.Occur.FILTER, leafQuery(pick(usable)))))
+        .build();
+  }
+
+  /**
+   * Term or small term set query on selective values, or a range over selectiveFraction of the
+   * field's value range. Fields of nested documents are wrapped in a nested query.
+   */
+  @VisibleForTesting
+  Query selectiveLeafQuery(FieldSample sample) {
+    Query query;
+    if (!sample.terms().isEmpty()) {
+      List<String> shuffled = new ArrayList<>(sample.terms());
+      Collections.shuffle(shuffled, random);
+      int size = 1 + random.nextInt(Math.min(MAX_SELECTIVE_TERM_SET_SIZE, shuffled.size()));
+      if (size == 1) {
+        query =
+            Query.newBuilder()
+                .setTermQuery(
+                    TermQuery.newBuilder()
+                        .setField(sample.fieldDef().getName())
+                        .setTextValue(shuffled.get(0)))
+                .build();
+      } else {
+        query =
+            Query.newBuilder()
+                .setTermInSetQuery(
+                    TermInSetQuery.newBuilder()
+                        .setField(sample.fieldDef().getName())
+                        .setTextTerms(
+                            TermInSetQuery.TextTerms.newBuilder()
+                                .addAllTerms(shuffled.subList(0, size))))
+                .build();
+      }
+    } else {
+      double range = sample.max() - sample.min();
+      double width = range * limits.selectiveFraction();
+      double lower = sample.min() + random.nextDouble() * Math.max(0, range - width);
+      query =
+          Query.newBuilder()
+              .setRangeQuery(
+                  RangeQuery.newBuilder()
+                      .setField(sample.fieldDef().getName())
+                      .setLower(formatBound(sample.fieldDef(), Math.floor(lower)))
+                      .setUpper(formatBound(sample.fieldDef(), Math.ceil(lower + width))))
+              .build();
+    }
+    return sample.nestedPath() == null ? query : nestedQuery(sample.nestedPath(), query);
+  }
+
+  /** Cap the documents a costly query collects, see {@link Limits#terminateAfter()}. */
+  private SearchRequest.Builder capCollection(SearchRequest.Builder builder) {
+    if (limits.terminateAfter() > 0) {
+      builder.setTerminateAfter(limits.terminateAfter());
+    }
+    return builder;
+  }
+
   private Query existsQuery(String field) {
     return Query.newBuilder().setExistsQuery(ExistsQuery.newBuilder().setField(field)).build();
   }
@@ -1094,8 +1374,8 @@ public class SchemaWarmingQueryGenerator {
 
   /** Filter query sorted by one or two doc values fields. */
   private SearchRequest.Builder sortRequest(Samples samples) {
-    SearchRequest.Builder builder = baseRequest(LARGE_TOP_HITS);
-    setRandomFilter(builder, samples.usable());
+    SearchRequest.Builder builder = capCollection(baseRequest(HEAVY_TOP_HITS));
+    setHeavyFilter(builder, samples);
     List<String> sortFields = new ArrayList<>(samples.fields().sortFields);
     Collections.shuffle(sortFields, random);
     SortFields.Builder sort = SortFields.newBuilder();
@@ -1179,7 +1459,7 @@ public class SchemaWarmingQueryGenerator {
    * sorted by distance from the point and combined with a filter.
    */
   private SearchRequest.Builder geoRequest(Samples samples) {
-    SearchRequest.Builder builder = baseRequest(LARGE_TOP_HITS);
+    SearchRequest.Builder builder = capCollection(baseRequest(HEAVY_TOP_HITS));
     BooleanQuery.Builder booleanQuery = BooleanQuery.newBuilder();
     List<GeoSample> searchable =
         samples.geoSamples().stream().filter(s -> s.fieldDef().isSearchable()).toList();
@@ -1233,9 +1513,10 @@ public class SchemaWarmingQueryGenerator {
                           .setPoint(latLng(point[0], point[1])))
                   .build()));
     }
-    if (!samples.usable().isEmpty() && random.nextBoolean()) {
-      booleanQuery.addClauses(
-          clause(BooleanClause.Occur.FILTER, leafQuery(pick(samples.usable()))));
+    // a distance sort alone visits every document with the field, so it always gets a filter
+    if (!samples.usable().isEmpty()
+        && (booleanQuery.getClausesCount() == 0 || random.nextBoolean())) {
+      booleanQuery.addClauses(clause(BooleanClause.Occur.FILTER, heavyFilter(samples)));
     }
     if (booleanQuery.getClausesCount() > 0) {
       builder.setQuery(Query.newBuilder().setBooleanQuery(booleanQuery).build());
@@ -1328,8 +1609,8 @@ public class SchemaWarmingQueryGenerator {
     // live queries use painless, js is only the fallback without the plugin
     String lang = langs.contains(PAINLESS_LANG) ? PAINLESS_LANG : pick(langs);
     List<String> sources = samples.scriptSources().get(lang);
-    SearchRequest.Builder builder = baseRequest(LARGE_TOP_HITS);
-    setRandomFilter(builder, samples.usable());
+    SearchRequest.Builder builder = capCollection(baseRequest(HEAVY_TOP_HITS));
+    setHeavyFilter(builder, samples);
     int numVirtualFields = 1 + random.nextInt(MAX_SCRIPT_FIELDS);
     for (int i = 0; i < numVirtualFields; ++i) {
       String name = VIRTUAL_FIELD_PREFIX + i;
@@ -1354,8 +1635,8 @@ public class SchemaWarmingQueryGenerator {
 
   /** Filter query with one or two terms collectors, some with a nested top hits collector. */
   private SearchRequest.Builder aggregationRequest(Samples samples) {
-    SearchRequest.Builder builder = baseRequest(new int[] {0, 10});
-    setRandomFilter(builder, samples.usable());
+    SearchRequest.Builder builder = capCollection(baseRequest(new int[] {0, 10}));
+    setHeavyFilter(builder, samples);
     List<String> fields = new ArrayList<>(samples.fields().aggregationFields);
     Collections.shuffle(fields, random);
     int numCollectors = Math.min(fields.size(), 1 + random.nextInt(2));
@@ -1379,9 +1660,16 @@ public class SchemaWarmingQueryGenerator {
     return builder;
   }
 
-  private void addFacetQueries(List<SearchRequest> requests, List<IndexableFieldDef<?>> fields) {
+  /**
+   * Facet queries over all facet fields, a few fields per request. They are filtered when a field
+   * has sampled values, since a match all query visits every document and is rejected by the
+   * filterMatchAllQueries guardrail.
+   */
+  private void addFacetQueries(
+      List<SearchRequest> requests, Samples samples, List<IndexableFieldDef<?>> fields) {
     for (int i = 0; i < fields.size(); i += FACET_FIELDS_PER_REQUEST) {
-      SearchRequest.Builder builder = baseRequest().setTopHits(0);
+      SearchRequest.Builder builder = capCollection(baseRequest().setTopHits(0));
+      setHeavyFilter(builder, samples);
       for (IndexableFieldDef<?> field :
           fields.subList(i, Math.min(i + FACET_FIELDS_PER_REQUEST, fields.size()))) {
         builder.addFacets(Facet.newBuilder().setDim(field.getName()).setTopN(FACET_TOP_N));
@@ -1394,32 +1682,42 @@ public class SchemaWarmingQueryGenerator {
   @VisibleForTesting
   record VectorSeeds(VectorFieldDef<?> fieldDef, List<float[]> floats, List<byte[]> bytes) {}
 
+  /**
+   * Read query vectors at random positions of every segment, in proportion to the segment's
+   * vectors, so the queries start from all parts of the vector space rather than the oldest
+   * documents of the first segment.
+   */
   @VisibleForTesting
-  static VectorSeeds sampleVectors(IndexSearcher searcher, VectorFieldDef<?> fieldDef)
-      throws IOException {
+  static VectorSeeds sampleVectors(
+      IndexSearcher searcher, VectorFieldDef<?> fieldDef, Random random) throws IOException {
     String field = fieldDef.getName();
     boolean isByte = fieldDef instanceof VectorFieldDef.ByteVectorFieldDef;
     List<float[]> floats = new ArrayList<>();
     List<byte[]> bytes = new ArrayList<>();
+    List<KnnVectorValues> leafValues = new ArrayList<>();
+    long totalVectors = 0;
     for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
       KnnVectorValues values =
           isByte
               ? leaf.reader().getByteVectorValues(field)
               : leaf.reader().getFloatVectorValues(field);
-      if (values == null) {
-        continue;
+      if (values != null && values.size() > 0) {
+        leafValues.add(values);
+        totalVectors += values.size();
       }
-      KnnVectorValues.DocIndexIterator iterator = values.iterator();
-      while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS
-          && floats.size() + bytes.size() < NUM_VECTOR_SEEDS) {
+    }
+    // with many small segments the rounding up can use all seeds early, so no segment is favored
+    Collections.shuffle(leafValues, random);
+    for (KnnVectorValues values : leafValues) {
+      int wanted =
+          (int) Math.max(1, Math.round((double) NUM_VECTOR_SEEDS * values.size() / totalVectors));
+      for (int i = 0; i < wanted && floats.size() + bytes.size() < NUM_VECTOR_SEEDS; ++i) {
+        int ord = random.nextInt(values.size());
         if (isByte) {
-          bytes.add(((ByteVectorValues) values).vectorValue(iterator.index()).clone());
+          bytes.add(((ByteVectorValues) values).vectorValue(ord).clone());
         } else {
-          floats.add(((FloatVectorValues) values).vectorValue(iterator.index()).clone());
+          floats.add(((FloatVectorValues) values).vectorValue(ord).clone());
         }
-      }
-      if (floats.size() + bytes.size() >= NUM_VECTOR_SEEDS) {
-        break;
       }
     }
     return new VectorSeeds(fieldDef, floats, bytes);
@@ -1450,6 +1748,69 @@ public class SchemaWarmingQueryGenerator {
         }
       }
       requests.add(baseRequest().addKnn(knnQuery).build());
+    }
+  }
+
+  /**
+   * Kind of a generated query, from its shape: knn, facet, aggregation, script, geo, sort, text,
+   * boolean (scored or with SHOULD or MUST_NOT clauses) or filter. Used to label warming metrics,
+   * so the cost of each kind can be measured. The checks follow the order in which a generated
+   * query can have the features of several kinds, for example a script query sorted by its virtual
+   * field is a script query.
+   */
+  public static String kindOf(SearchRequest request) {
+    if (request.getKnnCount() > 0) {
+      return KNN_KIND;
+    }
+    if (request.getFacetsCount() > 0) {
+      return FACET_KIND;
+    }
+    if (request.getCollectorsCount() > 0) {
+      return StructuredKind.AGGREGATION.label();
+    }
+    if (request.getVirtualFieldsCount() > 0) {
+      return StructuredKind.SCRIPT.label();
+    }
+    List<Query> queries = new ArrayList<>();
+    if (request.hasQuery()) {
+      collectQueries(request.getQuery(), queries);
+    }
+    boolean distanceSort =
+        request.hasQuerySort()
+            && request.getQuerySort().getFields().getSortedFieldsList().stream()
+                .anyMatch(SortType::hasOrigin);
+    if (distanceSort
+        || queries.stream()
+            .anyMatch(
+                q -> q.hasGeoRadiusQuery() || q.hasGeoBoundingBoxQuery() || q.hasGeoPointQuery())) {
+      return StructuredKind.GEO.label();
+    }
+    if (request.hasQuerySort()) {
+      return StructuredKind.SORT.label();
+    }
+    if (queries.stream()
+        .anyMatch(q -> q.hasMatchQuery() || q.hasMatchPhraseQuery() || q.hasMultiMatchQuery())) {
+      return StructuredKind.TEXT.label();
+    }
+    if (request.hasQuery() && request.getQuery().hasBooleanQuery()) {
+      BooleanQuery booleanQuery = request.getQuery().getBooleanQuery();
+      if (booleanQuery.getMinimumNumberShouldMatch() > 0
+          || booleanQuery.getClausesList().stream()
+              .anyMatch(c -> c.getOccur() != BooleanClause.Occur.FILTER)) {
+        return StructuredKind.BOOLEAN.label();
+      }
+    }
+    return FILTER_KIND;
+  }
+
+  private static void collectQueries(Query query, List<Query> queries) {
+    queries.add(query);
+    if (query.hasBooleanQuery()) {
+      for (BooleanClause clause : query.getBooleanQuery().getClausesList()) {
+        collectQueries(clause.getQuery(), queries);
+      }
+    } else if (query.hasNestedQuery()) {
+      collectQueries(query.getNestedQuery().getQuery(), queries);
     }
   }
 

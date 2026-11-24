@@ -83,6 +83,7 @@ public class WarmerConfig {
   private final int templateSeedQueries;
   private TemplateLibrarySettings templateLibrary = TemplateLibrarySettings.DISABLED;
   private int templateSchemaQueries = DEFAULT_TEMPLATE_SCHEMA_QUERIES;
+  private SchemaQuerySettings schemaQuerySettings = SchemaQuerySettings.DEFAULT;
 
   /**
    * Template library settings of the TEMPLATE strategy.
@@ -433,7 +434,51 @@ public class WarmerConfig {
     config.setTemplateSchemaQueries(
         configReader.getInteger(
             CONFIG_PREFIX + "templateSchemaQueries", DEFAULT_TEMPLATE_SCHEMA_QUERIES));
+    SchemaWarmingQueryGenerator.Limits l = SchemaWarmingQueryGenerator.Limits.DEFAULT;
+    config.schemaQuerySettings =
+        new SchemaQuerySettings(
+            configReader.getInteger(CONFIG_PREFIX + "schemaWarmingParallelism", 0),
+            configReader.getInteger(CONFIG_PREFIX + "schemaQueryTimeoutMs", 0),
+            new SchemaWarmingQueryGenerator.Limits(
+                configReader.getInteger(CONFIG_PREFIX + "schemaTerminateAfter", l.terminateAfter()),
+                configReader.getInteger(
+                    CONFIG_PREFIX + "schemaMaxRetrieveFields", l.maxRetrieveFields()),
+                configReader.getInteger(
+                    CONFIG_PREFIX + "schemaMaxQueriesPerTarget", l.maxQueriesPerTarget()),
+                configReader.getDouble(
+                    CONFIG_PREFIX + "schemaSelectiveFraction", l.selectiveFraction())));
     return config;
+  }
+
+  /**
+   * How schema generated queries are run, by the SCHEMA strategy and after template queries.
+   *
+   * @param parallelism queries run in parallel, 0 to use warmingParallelism. The replica serves no
+   *     traffic while warming, so this can be higher than warmingParallelism, up to the CPUs.
+   * @param queryTimeoutMs timeout of each schema query, 0 to use queryTimeoutMs
+   * @param limits limits on the cost of each generated query
+   */
+  public record SchemaQuerySettings(
+      int parallelism, int queryTimeoutMs, SchemaWarmingQueryGenerator.Limits limits) {
+    public static final SchemaQuerySettings DEFAULT =
+        new SchemaQuerySettings(0, 0, SchemaWarmingQueryGenerator.Limits.DEFAULT);
+
+    public SchemaQuerySettings {
+      if (parallelism < 0 || queryTimeoutMs < 0) {
+        throw new IllegalArgumentException(
+            "schemaWarmingParallelism and schemaQueryTimeoutMs must be >= 0");
+      }
+    }
+  }
+
+  public SchemaQuerySettings getSchemaQuerySettings() {
+    return schemaQuerySettings;
+  }
+
+  /** Set the schema query settings, for configs built with a constructor. */
+  public WarmerConfig withSchemaQuerySettings(SchemaQuerySettings schemaQuerySettings) {
+    this.schemaQuerySettings = schemaQuerySettings;
+    return this;
   }
 
   public int getTemplateSeedQueries() {
