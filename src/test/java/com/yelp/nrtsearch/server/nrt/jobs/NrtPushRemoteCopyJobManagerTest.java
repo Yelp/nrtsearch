@@ -36,6 +36,7 @@ import java.util.Set;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -101,6 +102,31 @@ public class NrtPushRemoteCopyJobManagerTest {
     assertEquals(timestamp, remoteCopyJob.getPointStateTimestamp());
 
     verify(mockDataManager).getTargetPointState(null);
+  }
+
+  @Test
+  public void testNewCopyJob_remoteVersionSameAsCurrent() throws IOException {
+    // test point state is version 1
+    assertStaleRemoteVersionSkipped(1);
+  }
+
+  @Test
+  public void testNewCopyJob_remoteVersionOlderThanCurrent() throws IOException {
+    assertStaleRemoteVersionSkipped(2);
+  }
+
+  private void assertStaleRemoteVersionSkipped(long currentVersion) throws IOException {
+    when(mockDataManager.getTargetPointState(null))
+        .thenReturn(
+            new NrtDataManager.PointStateWithTimestamp(createTestPointState(), Instant.now()));
+    when(mockReplicaNode.getCurrentSearchingVersion()).thenReturn(currentVersion);
+
+    try {
+      copyJobManager.newCopyJob("test_reason", null, null, true, mockOnceDone);
+      fail("Expected NodeCommunicationException for stale S3 point state");
+    } catch (NodeCommunicationException e) {
+      assertTrue(e.getMessage().contains("S3 point state version 1 is not newer"));
+    }
   }
 
   @Test
