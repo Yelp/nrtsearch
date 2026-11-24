@@ -83,6 +83,71 @@ public class TemplateDriftMonitorTest {
   }
 
   @Test
+  public void testChecksRunOffTheSearchThread() throws Exception {
+    java.util.concurrent.ExecutorService checkThread =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+    TemplateDriftMonitor m =
+        new TemplateDriftMonitor(
+            "idx",
+            1,
+            10,
+            0.95,
+            0,
+            ratio -> null,
+            now::get,
+            MoreExecutors.newDirectExecutorService(),
+            checkThread);
+    m.setLibraryKeys(Set.of(TemplateWarmingQueryGenerator.templateKey(KNOWN)));
+    for (int i = 0; i < 10; ++i) {
+      m.observe(KNOWN);
+    }
+    checkThread.shutdown();
+    assertTrue(checkThread.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS));
+    assertEquals(1.0, m.getLastMatchRatio(), 0);
+  }
+
+  @Test
+  public void testChecksAreDroppedWhenTheCheckThreadIsBehind() throws Exception {
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.ThreadPoolExecutor checkThread =
+        new java.util.concurrent.ThreadPoolExecutor(
+            1,
+            1,
+            0,
+            java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(2));
+    // occupy the check thread
+    checkThread.execute(
+        () -> {
+          try {
+            release.await();
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        });
+    TemplateDriftMonitor m =
+        new TemplateDriftMonitor(
+            "idx",
+            1,
+            10,
+            0.95,
+            0,
+            ratio -> null,
+            now::get,
+            MoreExecutors.newDirectExecutorService(),
+            checkThread);
+    m.setLibraryKeys(Set.of(TemplateWarmingQueryGenerator.templateKey(KNOWN)));
+    // observe never blocks: 2 checks are queued, the other 3 dropped
+    for (int i = 0; i < 5; ++i) {
+      m.observe(KNOWN);
+    }
+    assertEquals(3, m.getDroppedChecks());
+    release.countDown();
+    checkThread.shutdown();
+    assertTrue(checkThread.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS));
+  }
+
+  @Test
   public void testMatchingTrafficDoesNotRelearn() {
     TemplateDriftMonitor m = monitor(1, 10, 0);
     m.setLibraryKeys(Set.of(TemplateWarmingQueryGenerator.templateKey(KNOWN)));
