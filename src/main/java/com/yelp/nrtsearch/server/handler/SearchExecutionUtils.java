@@ -110,7 +110,7 @@ public class SearchExecutionUtils {
       SearchResponse.Diagnostics.Builder diagnostics,
       TopDocs topDocsForSample)
       throws IOException {
-    DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
+    DrillDownQuery ddq = new DrillDownQuery(indexState.getFacetsConfig(), searchContext.getQuery());
     List<FacetResult> grpcFacetResults = new ArrayList<>();
     // Run the drill sideways search on the direct executor to run subtasks in the
     // current (grpc) thread. If we use the search thread pool for this, it can cause a

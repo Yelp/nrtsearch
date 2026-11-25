@@ -226,7 +226,8 @@ public class TimeoutTest extends ServerTestCase {
             request,
             context -> {
               try {
-                TopDocs topDocs = getTopDocs(context, context.getCollector().getWrappedManager());
+                TopDocs topDocs =
+                    getTopDocs(request, context, context.getCollector().getWrappedManager());
                 assertFalse(context.getCollector().hadTimeout());
                 return topDocs;
               } catch (IOException e) {
@@ -306,6 +307,7 @@ public class TimeoutTest extends ServerTestCase {
               try {
                 TopDocs topDocs =
                     getTopDocs(
+                        request,
                         context,
                         new TimeoutWrapper(
                             new SearchCollectorManager(
@@ -436,6 +438,7 @@ public class TimeoutTest extends ServerTestCase {
           try {
             TopDocs topDocs =
                 getTopDocs(
+                    request,
                     context,
                     new TimeoutWrapper(
                         new SearchCollectorManager(context.getCollector(), Collections.emptyList()),
@@ -493,10 +496,11 @@ public class TimeoutTest extends ServerTestCase {
         .build();
   }
 
-  private TopDocs getTopDocs(SearchContext context, CollectorManager<?, SearcherResult> manager)
+  private TopDocs getTopDocs(
+      SearchRequest request, SearchContext context, CollectorManager<?, SearcherResult> manager)
       throws IOException {
     TopDocs topDocs;
-    if (context.getQuery() instanceof DrillDownQuery) {
+    if (request.getFacetsCount() > 0) {
       List<FacetResult> grpcFacetResults = new ArrayList<>();
       DrillSideways drillS =
           new DrillSidewaysImpl(
@@ -512,7 +516,9 @@ public class TimeoutTest extends ServerTestCase {
               searchThreadPoolExecutor,
               Diagnostics.newBuilder());
       DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult =
-          drillS.search((DrillDownQuery) context.getQuery(), manager);
+          drillS.search(
+              new DrillDownQuery(context.getIndexState().getFacetsConfig(), context.getQuery()),
+              manager);
       topDocs = concurrentDrillSidewaysResult.collectorResult.getTopDocs();
     } else {
       topDocs =

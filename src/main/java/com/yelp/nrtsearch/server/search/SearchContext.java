@@ -44,7 +44,7 @@ public class SearchContext implements FieldFetchContext {
   private final int topHits;
   private final Map<String, FieldDef> queryFields;
   private final Map<String, FieldDef> retrieveFields;
-  private final Query query;
+  private final FinalQuery finalQuery;
   private final DocCollector collector;
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
@@ -73,7 +73,7 @@ public class SearchContext implements FieldFetchContext {
     this.topHits = builder.topHits;
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
-    this.query = builder.query;
+    this.finalQuery = builder.finalQuery;
     this.collector = builder.collector;
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
@@ -152,9 +152,23 @@ public class SearchContext implements FieldFetchContext {
     return retrieveFields;
   }
 
-  /** Get final lucene query to perform. */
+  /**
+   * Get the lucene query to perform. Same as {@link #getRewrittenQuery()}, kept for compatibility
+   * with existing callers.
+   *
+   * @throws IllegalStateException if the query is not available yet
+   */
   public Query getQuery() {
-    return query;
+    return getRewrittenQuery();
+  }
+
+  /**
+   * Get the final rewritten lucene query, including knn resolution and drill downs.
+   *
+   * @throws IllegalStateException if the query is not available yet
+   */
+  public Query getRewrittenQuery() {
+    return finalQuery.get();
   }
 
   /** Get collector for query. */
@@ -217,7 +231,7 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(searcherAndTaxonomy);
     Objects.requireNonNull(queryFields);
     Objects.requireNonNull(retrieveFields);
-    Objects.requireNonNull(query);
+    Objects.requireNonNull(finalQuery);
     Objects.requireNonNull(collector);
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
@@ -255,7 +269,7 @@ public class SearchContext implements FieldFetchContext {
     private int topHits = -1;
     private Map<String, FieldDef> queryFields;
     private Map<String, FieldDef> retrieveFields;
-    private Query query;
+    private FinalQuery finalQuery;
     private DocCollector collector;
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
@@ -331,9 +345,9 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    /** Set final lucene query to perform. */
-    public Builder setQuery(Query query) {
-      this.query = query;
+    /** Set holder of the final lucene query to perform. */
+    public Builder setFinalQuery(FinalQuery finalQuery) {
+      this.finalQuery = finalQuery;
       return this;
     }
 

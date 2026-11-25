@@ -20,6 +20,9 @@ import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 
 public class MultiRetrieverContext {
   private final Map<String, RetrieverContext> retrieverContextMap;
@@ -78,6 +81,19 @@ public class MultiRetrieverContext {
 
   public Map<String, RetrieverContext> getRetrieverContextMap() {
     return retrieverContextMap;
+  }
+
+  /**
+   * Union of the rewritten queries of all retrievers, in request order.
+   *
+   * @throws IllegalStateException if a retriever has no rewritten query yet
+   */
+  public Query unionRewrittenQueries() {
+    BooleanQuery.Builder union = new BooleanQuery.Builder();
+    for (RetrieverContext retrieverContext : retrieverContextMap.values()) {
+      union.add(retrieverContext.getRewrittenQuery(), BooleanClause.Occur.SHOULD);
+    }
+    return union.build();
   }
 
   public BlenderOperation getBlenderOperation() {

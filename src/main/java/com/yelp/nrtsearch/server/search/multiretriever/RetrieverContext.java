@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.search.multiretriever;
 
 import com.yelp.nrtsearch.server.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import java.util.Objects;
 import org.apache.lucene.search.Query;
 
 public class RetrieverContext {
@@ -31,17 +32,23 @@ public class RetrieverContext {
   private final String name;
   private final RetrieverType retrieverType;
   private final float boost;
-  private final Query query;
+  private final RetrieverQuery retrieverQuery;
   private final DocCollector docCollector;
   private final RescoreTask rescoreTask;
   private final int topHits;
 
   private RetrieverContext(Builder builder) {
-    this.name = builder.name;
-    this.retrieverType = builder.retrieverType;
+    this.name = Objects.requireNonNull(builder.name, "Retriever name must be set");
+    this.retrieverType =
+        Objects.requireNonNull(
+            builder.retrieverType, "Retriever type must be set on retriever: " + name);
     this.boost = builder.boost > 0 ? builder.boost : DEFAULT_BOOST;
-    this.query = builder.query;
-    this.docCollector = builder.docCollector;
+    this.retrieverQuery =
+        Objects.requireNonNull(
+            builder.retrieverQuery, "Retriever query must be set on retriever: " + name);
+    this.docCollector =
+        Objects.requireNonNull(
+            builder.docCollector, "Doc collector must be set on retriever: " + name);
     this.rescoreTask = builder.rescoreTask;
     this.topHits = builder.topHits;
   }
@@ -55,7 +62,7 @@ public class RetrieverContext {
     private final String name;
     private RetrieverType retrieverType;
     private float boost = DEFAULT_BOOST;
-    private Query query;
+    private RetrieverQuery retrieverQuery;
     private DocCollector docCollector;
     private RescoreTask rescoreTask;
     private int topHits;
@@ -74,8 +81,9 @@ public class RetrieverContext {
       return this;
     }
 
-    public Builder query(Query query) {
-      this.query = query;
+    /** Set the holder of this retriever's parsed and rewritten queries. Required. */
+    public Builder retrieverQuery(RetrieverQuery retrieverQuery) {
+      this.retrieverQuery = retrieverQuery;
       return this;
     }
 
@@ -94,6 +102,12 @@ public class RetrieverContext {
       return this;
     }
 
+    /**
+     * Build the retriever context.
+     *
+     * @throws NullPointerException if the name, retriever type, retriever query or doc collector is
+     *     not set
+     */
     public RetrieverContext build() {
       return new RetrieverContext(this);
     }
@@ -111,8 +125,32 @@ public class RetrieverContext {
     return boost;
   }
 
+  /**
+   * Get the query to execute. Same as {@link #getRewrittenQuery()}, kept for compatibility with
+   * existing callers.
+   *
+   * @throws IllegalStateException if the rewritten query is not set
+   */
   public Query getQuery() {
-    return query;
+    return getRewrittenQuery();
+  }
+
+  /** Get the query as parsed from the request, before rewrite. */
+  public Query getParsedQuery() {
+    return retrieverQuery.getParsedQuery();
+  }
+
+  /**
+   * Get the rewritten (resolved) query.
+   *
+   * @throws IllegalStateException if the rewritten query is not set
+   */
+  public Query getRewrittenQuery() {
+    if (!retrieverQuery.isRewritten()) {
+      throw new IllegalStateException(
+          "Rewritten query has not been set on retriever context: " + name);
+    }
+    return retrieverQuery.getRewrittenQuery();
   }
 
   public DocCollector getDocCollector() {

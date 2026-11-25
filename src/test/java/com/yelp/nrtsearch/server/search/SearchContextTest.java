@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.search;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.doc.DefaultSharedDocContext;
@@ -31,18 +32,28 @@ import com.yelp.nrtsearch.server.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverQuery;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.junit.Test;
 
 public class SearchContextTest extends ServerTestCase {
+
+  private static RetrieverQuery rewrittenQuery(Query parsed) throws IOException {
+    RetrieverQuery retrieverQuery = new RetrieverQuery(parsed);
+    retrieverQuery.rewrite(new IndexSearcher(new MultiReader()));
+    return retrieverQuery;
+  }
 
   public static class DummyCollector extends DocCollector {
 
@@ -89,7 +100,7 @@ public class SearchContextTest extends ServerTestCase {
         .setTopHits(10)
         .setQueryFields(Collections.emptyMap())
         .setRetrieveFields(Collections.emptyMap())
-        .setQuery(new MatchAllDocsQuery())
+        .setFinalQuery(FinalQuery.of(new MatchAllDocsQuery()))
         .setCollector(new DummyCollector(indexState))
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
@@ -158,8 +169,42 @@ public class SearchContextTest extends ServerTestCase {
   }
 
   @Test(expected = NullPointerException.class)
-  public void testMissingQuery() throws Exception {
-    getCompleteBuilder().setQuery(null).build(true);
+  public void testMissingFinalQuery() throws Exception {
+    getCompleteBuilder().setFinalQuery(null).build(true);
+  }
+
+  @Test
+  public void testGetQuery() throws Exception {
+    Query query = new MatchAllDocsQuery();
+    SearchContext context = getCompleteBuilder().setFinalQuery(FinalQuery.of(query)).build(true);
+    assertSame(query, context.getQuery());
+    assertSame(query, context.getRewrittenQuery());
+  }
+
+  @Test
+  public void testGetQueryBeforeRetrieversRewritten() throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
+    RetrieverQuery retrieverQuery = new RetrieverQuery(new MatchAllDocsQuery());
+    MultiRetrieverContext multiRetrieverContext =
+        MultiRetrieverContext.newBuilder()
+            .addRetrieverContext(
+                RetrieverContext.newBuilder("r1")
+                    .retrieverType(RetrieverContext.RetrieverType.TEXT)
+                    .retrieverQuery(retrieverQuery)
+                    .docCollector(new DummyCollector(indexState))
+                    .build())
+            .build();
+    SearchContext context =
+        getCompleteBuilder()
+            .setFinalQuery(FinalQuery.unionOf(multiRetrieverContext))
+            .setMultiRetrieverContext(multiRetrieverContext)
+            .build(true);
+
+    assertThrows(IllegalStateException.class, context::getQuery);
+    retrieverQuery.rewrite(new IndexSearcher(new MultiReader()));
+    Query query = context.getQuery();
+    assertSame(query, context.getQuery());
+    assertSame(query, context.getRewrittenQuery());
   }
 
   @Test(expected = NullPointerException.class)
@@ -187,8 +232,9 @@ public class SearchContextTest extends ServerTestCase {
     IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     RetrieverContext retrieverContext =
         RetrieverContext.newBuilder("test_retriever")
+            .retrieverType(RetrieverContext.RetrieverType.TEXT)
             .boost(1.0f)
-            .query(new MatchAllDocsQuery())
+            .retrieverQuery(rewrittenQuery(new MatchAllDocsQuery()))
             .docCollector(new DummyCollector(indexState))
             .build();
 
@@ -203,20 +249,5 @@ public class SearchContextTest extends ServerTestCase {
     assertEquals(1, context.getMultiRetrieverContext().getRetrieverContextMap().size());
     assertSame(
         retrieverContext, context.getMultiRetrieverContext().getRetrieverContext("test_retriever"));
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testMultiRetrieverContextWithNullQuery() throws Exception {
-    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
-    MultiRetrieverContext multiRetrieverContext =
-        MultiRetrieverContext.newBuilder()
-            .addRetrieverContext(
-                RetrieverContext.newBuilder("r1")
-                    .query(new MatchAllDocsQuery())
-                    .docCollector(new DummyCollector(indexState))
-                    .build())
-            .build();
-
-    getCompleteBuilder().setQuery(null).setMultiRetrieverContext(multiRetrieverContext).build(true);
   }
 }
