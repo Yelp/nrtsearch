@@ -16,15 +16,19 @@
 package com.yelp.nrtsearch.server.search.multiretriever.blender.operation;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.grpc.WeightedRrfBlender;
+import com.yelp.nrtsearch.server.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverQuery;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.BlendedScoreDoc;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.score.WeightedRRFScoreDoc;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -52,7 +56,12 @@ public class WeightedRrfBlenderOperationTest {
   }
 
   private static RetrieverContext retriever(String name, float boost) {
-    return RetrieverContext.newBuilder(name).boost(boost).build();
+    return RetrieverContext.newBuilder(name)
+        .boost(boost)
+        .retrieverType(RetrieverContext.RetrieverType.TEXT)
+        .retrieverQuery(new RetrieverQuery(new MatchAllDocsQuery()))
+        .docCollector(mock(DocCollector.class))
+        .build();
   }
 
   private static Map<Integer, Float> toScoreMap(Collection<BlendedScoreDoc> docs) {

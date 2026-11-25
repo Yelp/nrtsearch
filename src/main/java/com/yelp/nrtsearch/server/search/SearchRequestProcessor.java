@@ -59,6 +59,7 @@ import com.yelp.nrtsearch.server.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.search.collectors.SortFieldCollector;
 import com.yelp.nrtsearch.server.search.multiretriever.MultiRetrieverContext;
 import com.yelp.nrtsearch.server.search.multiretriever.RetrieverContext;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverQuery;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderCreator;
 import com.yelp.nrtsearch.server.search.multiretriever.blender.BlenderOperation;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
@@ -270,11 +271,12 @@ public class SearchRequestProcessor {
         IndexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath(), docLookup);
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
 
-    Query query;
+    Query query = null;
+    MultiRetrieverContext multiRetrieverContext = null;
     if (searchRequest.hasMultiRetriever()) {
       validateMultiRetrieverRequest(searchRequest);
-      query =
-          buildMultiRetrieverContextAndUnionQuery(
+      multiRetrieverContext =
+          buildMultiRetrieverContext(
               searchRequest,
               indexState,
               shardState,
@@ -282,10 +284,10 @@ public class SearchRequestProcessor {
               queryFields,
               docLookup,
               sharedDocContext,
-              contextBuilder,
               diagnostics,
               profileResult,
               indexState.getGlobalState().getRetrieverExecutor());
+      contextBuilder.setMultiRetrieverContext(multiRetrieverContext);
 
     } else {
       query =
@@ -350,15 +352,18 @@ public class SearchRequestProcessor {
     }
     contextBuilder.setCollector(buildDocCollector(collectorContextBuilder.build()));
 
-    // Facets are applied on the union query for multi-retriever requests.
-    if (searchRequest.getFacetsCount() > 0) {
-      query = addDrillDowns(indexState, query);
-      if (profileResult != null) {
-        profileResult.setDrillDownQuery(query.toString());
-      }
+    FinalQuery finalQuery =
+        multiRetrieverContext != null
+            ? FinalQuery.unionOf(multiRetrieverContext)
+            : FinalQuery.of(query);
+    contextBuilder.setFinalQuery(finalQuery);
+    // All retrievers are already rewritten, so this only combines their queries.
+    query = finalQuery.get();
+    // Facets are applied on the union query for multi-retriever requests. The drill down query
+    // is only built by the drill sideways search, here it is just reported in the profile.
+    if (searchRequest.getFacetsCount() > 0 && profileResult != null) {
+      profileResult.setDrillDownQuery(addDrillDowns(indexState, query).toString());
     }
-
-    contextBuilder.setQuery(query);
 
     Highlight highlight = searchRequest.getHighlight();
     HighlightFetchTask highlightFetchTask = null;
@@ -807,7 +812,7 @@ public class SearchRequestProcessor {
     }
   }
 
-  private static Query buildMultiRetrieverContextAndUnionQuery(
+  private static MultiRetrieverContext buildMultiRetrieverContext(
       SearchRequest searchRequest,
       IndexState indexState,
       ShardState shardState,
@@ -815,7 +820,6 @@ public class SearchRequestProcessor {
       Map<String, FieldDef> queryFields,
       DocLookup docLookup,
       SharedDocContext sharedDocContext,
-      SearchContext.Builder searchContextBuilder,
       SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResult,
       ExecutorService retrieverExecutor)
@@ -826,7 +830,6 @@ public class SearchRequestProcessor {
         doProfile ? ProfileResult.MultiRetrieverProfileResult.newBuilder() : null;
     SearchResponse.Diagnostics.MultiRetrieverDiagnostics.Builder multiRetrieverDiagnostics =
         SearchResponse.Diagnostics.MultiRetrieverDiagnostics.newBuilder();
-    BooleanQuery.Builder unionQueryBuilder = new BooleanQuery.Builder();
 
     // Submit all KNN rewrites upfront so they run in parallel while text retrievers are processed
     IndexSearcher searcher = searcherAndTaxonomy.searcher();
@@ -842,7 +845,7 @@ public class SearchRequestProcessor {
     }
 
     for (Retriever retriever : searchRequest.getMultiRetriever().getRetrieversList()) {
-      Query query;
+      RetrieverQuery retrieverQuery;
       int topHits;
       ProfileResult.Builder retrieverProfileResult = doProfile ? ProfileResult.newBuilder() : null;
       RetrieverContext.Builder retrieverContextBuilder =
@@ -857,18 +860,19 @@ public class SearchRequestProcessor {
                   ? IndexState.resolveQueryNestedPath("", docLookup)
                   : IndexState.resolveQueryNestedPath(
                       textRetriever.getQueryNestedPath(), docLookup);
-          Query extractedQuery =
-              extractQuery(
-                  indexState,
-                  "",
-                  textRetriever.getQuery(),
-                  nestedQueryPath,
-                  docLookup,
-                  sharedDocContext);
-          query = searcher.rewrite(extractedQuery);
+          retrieverQuery =
+              new RetrieverQuery(
+                  extractQuery(
+                      indexState,
+                      "",
+                      textRetriever.getQuery(),
+                      nestedQueryPath,
+                      docLookup,
+                      sharedDocContext));
+          Query rewritten = retrieverQuery.rewrite(searcher);
           if (doProfile) {
-            retrieverProfileResult.setParsedQuery(extractedQuery.toString());
-            retrieverProfileResult.setRewrittenQuery(query.toString());
+            retrieverProfileResult.setParsedQuery(retrieverQuery.getParsedQuery().toString());
+            retrieverProfileResult.setRewrittenQuery(rewritten.toString());
           }
           if (textRetriever.getTopHits() <= 0) {
             throw new IllegalArgumentException("TextRetriever topHits must be > 0");
@@ -885,7 +889,7 @@ public class SearchRequestProcessor {
                 "KNN retriever '" + retriever.getName() + "' failed to execute: " + e.getMessage(),
                 e);
           }
-          query = result.resolvedQuery();
+          retrieverQuery = result.retrieverQuery();
           multiRetrieverDiagnostics.putRetrieverDiagnostics(
               retriever.getName(),
               SearchResponse.Diagnostics.RetrieverDiagnostics.newBuilder()
@@ -898,8 +902,7 @@ public class SearchRequestProcessor {
                 "Unsupported Retriever Type: " + retriever.getRetrieverTypeCase());
       }
 
-      retrieverContextBuilder.query(query).topHits(topHits);
-      unionQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
+      retrieverContextBuilder.retrieverQuery(retrieverQuery).topHits(topHits);
       int numHitsToCollect = computeRetrieverNumHitsToCollect(topHits, retriever);
       if (retriever.hasRescorer()) {
         retrieverContextBuilder.rescoreTask(
@@ -941,12 +944,12 @@ public class SearchRequestProcessor {
     BlenderOperation blenderOperation =
         BlenderCreator.getInstance().getBlenderOperation(blenderProto);
     multiRetrieverContextBuilder.blenderOperation(blenderOperation).blender(blenderProto);
-    searchContextBuilder.setMultiRetrieverContext(multiRetrieverContextBuilder.build());
+    MultiRetrieverContext multiRetrieverContext = multiRetrieverContextBuilder.build();
     diagnostics.setMultiRetrieverDiagnostics(multiRetrieverDiagnostics);
     if (doProfile) {
       profileResult.setMultiRetrieverProfileResult(multiRetrieverProfileResult.build());
     }
-    return unionQueryBuilder.build();
+    return multiRetrieverContext;
   }
 
   private static Map<String, Query> parseChildFilters(

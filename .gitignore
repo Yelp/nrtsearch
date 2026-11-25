@@ -52,3 +52,6 @@ boto.cfg
 
 #vscode
 .vscode
+
+# AI
+.claude/*

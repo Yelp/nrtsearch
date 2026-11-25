@@ -17,14 +17,30 @@ package com.yelp.nrtsearch.server.search.multiretriever;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.mockito.Mockito.mock;
 
+import com.yelp.nrtsearch.server.search.collectors.DocCollector;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.junit.Test;
 
 public class MultiRetrieverContextTest {
 
   private static RetrieverContext buildRetriever(String name) {
-    return RetrieverContext.newBuilder(name).query(new MatchAllDocsQuery()).build();
+    RetrieverQuery retrieverQuery = new RetrieverQuery(new MatchAllDocsQuery());
+    try {
+      retrieverQuery.rewrite(new IndexSearcher(new MultiReader()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return RetrieverContext.newBuilder(name)
+        .retrieverType(RetrieverContext.RetrieverType.TEXT)
+        .retrieverQuery(retrieverQuery)
+        .docCollector(mock(DocCollector.class))
+        .build();
   }
 
   @Test

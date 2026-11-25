@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.query.MinThresholdQuery;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.query.vector.WithVectorTotalHits;
+import com.yelp.nrtsearch.server.search.multiretriever.RetrieverQuery;
 import java.io.IOException;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -97,11 +98,12 @@ public class KnnUtils {
   }
 
   /**
-   * Result of building and resolving a KNN query, holding the rewritten query and vector
-   * diagnostics captured during rewrite.
+   * Result of building and resolving a KNN query, holding the retriever query (parsed knn query and
+   * its rewritten, resolved query) and vector diagnostics captured during rewrite.
    */
   public record KnnResolveResult(
-      Query resolvedQuery, SearchResponse.Diagnostics.VectorDiagnostics vectorDiagnostics) {}
+      RetrieverQuery retrieverQuery,
+      SearchResponse.Diagnostics.VectorDiagnostics vectorDiagnostics) {}
 
   /**
    * Build and resolve (execute) a KNN query, capturing vector diagnostics. No boost is applied —
@@ -112,17 +114,21 @@ public class KnnUtils {
    * @param knnQuery knn query definition
    * @param indexState index state
    * @param indexSearcher index searcher
-   * @return resolved query and vector diagnostics
+   * @return retriever query with its rewritten query set, and vector diagnostics
    * @throws IOException if query rewrite fails
    */
   public static KnnResolveResult buildAndResolveKnnQuery(
       KnnQuery knnQuery, IndexState indexState, IndexSearcher indexSearcher) throws IOException {
     SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
         SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
-    Query resolvedQuery =
-        resolveKnnQueryAndBoost(
-            buildKnnQuery(knnQuery, indexState), 1.0f, indexSearcher, vectorDiagnosticsBuilder);
-    return new KnnResolveResult(resolvedQuery, vectorDiagnosticsBuilder.build());
+    RetrieverQuery retrieverQuery = new RetrieverQuery(buildKnnQuery(knnQuery, indexState));
+
+    long vectorSearchStart = System.nanoTime();
+    // Rewriting the query executes the vector search using the executor from the index searcher
+    Query resolvedQuery = retrieverQuery.rewrite(indexSearcher);
+    vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
+    setVectorTotalHits(retrieverQuery.getParsedQuery(), resolvedQuery, vectorDiagnosticsBuilder);
+    return new KnnResolveResult(retrieverQuery, vectorDiagnosticsBuilder.build());
   }
 
   /**
