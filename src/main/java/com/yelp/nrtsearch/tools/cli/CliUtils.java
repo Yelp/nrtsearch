@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.LuceneServerProto;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +26,46 @@ import java.nio.file.Path;
 /** Class containing utility methods for cli commands. */
 public class CliUtils {
 
+  // A type registry is required to print google.protobuf.Any fields (e.g. collector anyResult).
+  // Registering the luceneserver.proto types also registers everything it transitively imports:
+  // all nrtsearch protos, plus the Any, Struct, Empty, and wrapper well-known types.
+  private static final JsonFormat.Printer JSON_PRINTER =
+      JsonFormat.printer()
+          .usingTypeRegistry(
+              JsonFormat.TypeRegistry.newBuilder()
+                  .add(LuceneServerProto.getDescriptor().getMessageTypes())
+                  .build());
+
   private CliUtils() {}
+
+  /**
+   * Convert a protobuf message to a JSON string.
+   *
+   * @param message the protobuf message
+   * @return JSON string representation
+   * @throws InvalidProtocolBufferException if the message cannot be converted, such as when it
+   *     contains a google.protobuf.Any of a type unknown to the cli (e.g. defined by a plugin)
+   */
+  public static String toJson(Message message) throws InvalidProtocolBufferException {
+    return JSON_PRINTER.print(message);
+  }
+
+  /**
+   * Print a protobuf message to stdout. If asJson is true, prints as JSON; otherwise prints the
+   * default protobuf text format.
+   *
+   * @param message the protobuf message to print
+   * @param asJson whether to print as JSON
+   * @throws InvalidProtocolBufferException if JSON conversion fails
+   */
+  public static void printMessage(Message message, boolean asJson)
+      throws InvalidProtocolBufferException {
+    if (asJson) {
+      System.out.println(toJson(message));
+    } else {
+      System.out.println(message);
+    }
+  }
 
   /**
    * Merge a parameter string into a message builder. The parameter may be in one of two forms: the

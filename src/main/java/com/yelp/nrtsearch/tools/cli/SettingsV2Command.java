@@ -54,7 +54,7 @@ public class SettingsV2Command implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = fileName == null ? null : Paths.get(getFileName());
-      client.settingsV2(indexName, filePath);
+      CliUtils.printMessage(client.settingsV2(indexName, filePath), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

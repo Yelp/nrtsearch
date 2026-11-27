@@ -42,7 +42,7 @@ public class RefreshCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.refresh(getIndexName());
+      CliUtils.printMessage(client.refresh(getIndexName()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

@@ -80,6 +80,9 @@ public class TestNrtsearchServer extends ExternalResource {
   }
 
   private void deleteIndexData() {
-    client.getIndices().forEach(client::deleteIndex);
+    client
+        .getIndices()
+        .getIndicesResponseList()
+        .forEach(indexStats -> client.deleteIndex(indexStats.getIndexName()));
   }
 }

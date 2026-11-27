@@ -44,7 +44,7 @@ public class RegisterFieldsCommand implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       String jsonStr = Files.readString(Paths.get(getFileName()));
-      client.registerFields(jsonStr);
+      CliUtils.printMessage(client.registerFields(jsonStr), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

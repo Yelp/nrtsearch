@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.tools.cli.AddDocumentsCommand.ADD_DOCUMENTS;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import java.io.Reader;
@@ -89,6 +90,7 @@ public class AddDocumentsCommand implements Callable<Integer> {
       List<String> indexNames = List.of(getIndexNamesStr().split(","));
       Stream<AddDocumentRequest> addDocumentRequestStream;
       Path filePath = Paths.get(getFileName());
+      AddDocumentResponse response;
       if (fileType.equalsIgnoreCase("csv")) {
         Reader reader = Files.newBufferedReader(filePath);
         CSVParser csvParser =
@@ -97,17 +99,21 @@ public class AddDocumentsCommand implements Callable<Integer> {
         addDocumentRequestStream =
             new NrtsearchClientBuilder.AddDocumentsClientBuilder(indexNames, csvParser)
                 .buildRequest(filePath);
-        client.addDocuments(addDocumentRequestStream);
+        response = client.addDocuments(addDocumentRequestStream);
       } else if (fileType.equalsIgnoreCase("json")) {
         NrtsearchClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder =
             new NrtsearchClientBuilder.AddJsonDocumentsClientBuilder(
                 indexNames, new Gson(), filePath, getMaxBufferLen());
+        response = null;
         while (!addJsonDocumentsClientBuilder.isFinished()) {
           addDocumentRequestStream = addJsonDocumentsClientBuilder.buildRequest(filePath);
-          client.addDocuments(addDocumentRequestStream);
+          response = client.addDocuments(addDocumentRequestStream);
         }
       } else {
         throw new RuntimeException(String.format("%s is not a valid fileType", fileType));
+      }
+      if (response != null) {
+        CliUtils.printMessage(response, baseCmd.isJson());
       }
     } finally {
       client.shutdown();

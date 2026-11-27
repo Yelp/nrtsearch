@@ -42,7 +42,7 @@ public class SearchCommand implements Callable<Integer> {
     NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = Paths.get(getFileName());
-      client.search(filePath);
+      CliUtils.printMessage(client.search(filePath), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

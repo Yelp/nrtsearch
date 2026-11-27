@@ -86,6 +86,18 @@ Query your NRTSearch server
          "queryText": "vendor_name:first vendor"
     }
 
+JSON output
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Add ``--json`` before the command to print the response as JSON. The response is printed to stdout
+and logs go to stderr, so the output can be piped or redirected.
+
+.. code-block::
+
+  # ./build/install/nrtsearch/bin/nrtsearch_client --json search -f search.json > search_response.json
+
+JSON output supports core nrtsearch response types. Responses containing plugin-defined
+``google.protobuf.Any`` values may not be serializable; omit ``--json`` for those responses.
+
 
 Java client Example
 ---------------------------

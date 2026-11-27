@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.IndexStateRequest;
 import com.yelp.nrtsearch.server.grpc.IndexStateResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -28,7 +26,6 @@ import picocli.CommandLine;
     description = "Get the state for an index")
 public class IndexStateCommand implements Callable<Integer> {
   public static final String INDEX_STATE = "indexState";
-  private static final Logger logger = LoggerFactory.getLogger(IndexStateCommand.class);
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
@@ -46,7 +43,7 @@ public class IndexStateCommand implements Callable<Integer> {
           client
               .getBlockingStub()
               .indexState(IndexStateRequest.newBuilder().setIndexName(indexName).build());
-      logger.info("Server returned index state: {}", response);
+      CliUtils.printMessage(response, baseCmd.isJson());
     } finally {
       client.shutdown();
     }

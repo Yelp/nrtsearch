@@ -37,7 +37,7 @@ public class StartIndexV2Command implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.startIndexV2(indexName);
+      CliUtils.printMessage(client.startIndexV2(indexName), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

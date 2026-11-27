@@ -19,13 +19,10 @@ import com.yelp.nrtsearch.server.grpc.ForceMergeRequest;
 import com.yelp.nrtsearch.server.grpc.ForceMergeResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = ForceMergeCommand.FORCE_MERGE, description = "Force merge")
 public class ForceMergeCommand implements Callable<Integer> {
-  private static final Logger logger = LoggerFactory.getLogger(ForceMergeCommand.class);
   public static final String FORCE_MERGE = "forceMerge";
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
@@ -74,7 +71,7 @@ public class ForceMergeCommand implements Callable<Integer> {
                       .setMaxNumSegments(getMaxNumSegments())
                       .setDoWait(getDoWait())
                       .build());
-      logger.info("Force merge response: {}", response.getStatus());
+      CliUtils.printMessage(response, baseCmd.isJson());
     } finally {
       client.shutdown();
     }

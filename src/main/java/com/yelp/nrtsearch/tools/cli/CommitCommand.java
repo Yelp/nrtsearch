@@ -41,7 +41,7 @@ public class CommitCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.commit(getIndexName());
+      CliUtils.printMessage(client.commit(getIndexName()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }

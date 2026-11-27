@@ -39,7 +39,7 @@ public class StopIndexCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      client.stopIndex(getIndexName());
+      CliUtils.printMessage(client.stopIndex(getIndexName()), baseCmd.isJson());
     } finally {
       client.shutdown();
     }
